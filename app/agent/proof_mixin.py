@@ -152,6 +152,9 @@ class Proof:
     # and S3's look asked for whatever the change's size (a stronger model's test change).
     no_more: bool = False
     review_forced: bool = False
+    # k-sira-016: the Lead's calls when Ready for you's pass ended (it ran first, on the recipe's
+    # copy); the end gate looks again only after a call since - a command, more work.
+    ready_calls: int | None = None
 
 
 class ProofMixin:
@@ -169,6 +172,8 @@ class ProofMixin:
         (`proof.after_change_of`) -, after a turn whose changes are where the tests run."""
         if ctx.depth or ctx.answering or ctx.discussion or ctx.root is None or (
                 ctx.run_id in self._sides):
+            return None
+        if self._checked_at_ready(ctx):
             return None
         with self._factory() as session:
             project = self._project(session, ctx.cid)
@@ -202,6 +207,19 @@ class ProofMixin:
         except Exception as exc:  # (a hand-off that broke fails nothing of the turn)
             log.warning("run %s: the stronger model's hand-off failed: %r", ctx.run_id, exc)
         return None
+
+    def _checked_at_ready(self: "AgentRunner", ctx: Ctx) -> bool:
+        """k-sira-016: Ready for you ran this pass first, on the recipe's copy, and the Lead has
+        made no call since: the work is as it was checked - what Take in brought in is that work,
+        no change after the check."""
+        was = self._proofs.get(ctx.run_id)
+        if was is None or was.ready_calls != self._calls_of(ctx):
+            return False
+        with self._factory() as session:
+            taken = proof.last_change(session, ctx.run_id)
+        was.seen = taken if was.seen is not None else None
+        was.kinds_seen = taken if was.kinds_seen is not None else None
+        return True
 
     async def _what_it_touched(self: "AgentRunner", ctx: Ctx, ran: tuple[str, Any],
                                found: list[Change]) -> str | None:

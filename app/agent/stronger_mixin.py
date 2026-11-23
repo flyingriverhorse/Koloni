@@ -180,8 +180,9 @@ class StrongerMixin:
             # (decision 18: failing work in a copy of the turn's own is never taken in - kept)
             self._held_back.setdefault(ctx.run_id, TESTS_FAILING)
         elif not held.left_failing and held.handed and self._held_back.pop(ctx.run_id, None):
-            held.passed_by_stronger = True  # (its recipe's row still says findings were left)
-            await self._ready_at_end(ctx)  # (it passes now: Ready for you, as it would have)
+            # (its recipe's row still says findings were left; Ready for you, which ran these
+            # checks first, asks next - k-sira-016)
+            held.passed_by_stronger = True
         return None
 
     async def _hand_up(self: "AgentRunner", ctx: Ctx, held: "Proof") -> None:
@@ -530,6 +531,23 @@ class StrongerMixin:
     @staticmethod
     def _attempts(held: "Proof") -> str:
         return injection.noted("\n\n".join(held.attempts[-5:])[-4000:] or "(none kept)", "agent")
+
+    async def _not_yet_ready(self: "AgentRunner", ctx: Ctx, rows: list) -> str | None:
+        """k-sira-016: why Ready for you is not asked now - what the Lead is told instead; None:
+        it is. KOLONİ's end checks run first, on the work where it is (the recipe's copy): a fix
+        round goes to the Lead (its words, no card); work they left failing after the rounds
+        and the stronger models is never taken in nor carded (decision 18, S11). Asked: its
+        Checked section is said first, so the card comes after it."""
+        if (said := await self._proof_left(ctx)) is not None:
+            return f"\n\n{said}"
+        if was := self._proofs.get(ctx.run_id):  # (not again at the Lead's end, `_proof_left`)
+            was.ready_calls = self._calls_of(ctx)
+        if held := self._recipe_held(ctx, rows) or self._held_back.get(ctx.run_id):
+            self._held_back[ctx.run_id] = held
+            return NOT_TAKEN_TOLD.format(why=held)
+        if ctx.run_id in self._proofs:
+            self._say_checked(ctx.cid, ctx.run_id, ctx.root is not None)
+        return None
 
     def _recipe_held(self: "AgentRunner", ctx: Ctx, rows: list) -> str | None:
         """Why a recipe's work is held back at Ready for you (decision 18, CL-305): its test-to-

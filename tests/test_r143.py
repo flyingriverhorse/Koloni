@@ -265,8 +265,11 @@ def test_a_recipes_take_in_at_auto_edit_runs_the_check_first_and_a_failing_one_i
     teams = teams_of(client)
     cid, run_id = manual(client, project_dir, (teams["Web app"], one_step(client, "Just build", "Coder")))
     pid = client.get("/api/projects").json()[0]["id"]
+    # (k-sira-016: After a change Nothing - KOLONİ's end checks, which run before Ready for you,
+    # would stop a red suite there; here Take in's own check is what is tried)
     assert client.patch(f"/api/projects/{pid}", json={
-        "check_command": "python -c \"raise SystemExit(1)\""}, headers=OWN).status_code == 200
+        "check_command": "python -c \"raise SystemExit(1)\"", "after_change": "nothing"},
+        headers=OWN).status_code == 200
     snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"])
     answer(client, asked(snap), "Take in")
     snap = until(client, cid, lambda s: [m["status"] for m in s["merges"]] == ["pending"]

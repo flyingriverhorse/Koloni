@@ -671,21 +671,23 @@ def test_a_watched_turns_run_after_a_wait_gets_only_what_is_left(
 
 def test_a_capped_review_loop_leaves_the_end_checks_own_rounds(make_client, wait_run, project_dir):
     # (Only a capped test-to-fix loop spent the turn's fix rounds - S4's Bugfix, below; a review
-    # loop that ran out found no failing test: the end check's own failure goes back once more.)
+    # loop that ran out found no failing test: the end check's own failure goes back for its own
+    # rounds.)
     from tests.test_chat_teams_scenarios import teams_of
     from tests.test_claim_scenarios import write as written
-    from tests.test_parallel import until
     from tests.test_recipe_checks_scenarios import build_review_ship
-    from tests.test_recipe_run_scenarios import FOUND, READY, answer, asked, manual, row
+    from tests.test_recipe_run_scenarios import FOUND, READY, manual, row
     from tests.test_spawn import call, spawn, step
 
-    # (The Take-in check passes on what goes in; the end check fails on the project.)
-    executor = ScriptedExecutor([PASS, failing(), failing()])
+    # (k-sira-016: the end check runs first, on the recipe's copy, and fails - before any Ready
+    # for you; its one run stands for the work after, as nothing changed.)
+    executor = ScriptedExecutor([failing(), failing(), failing()])
     client, _model = make_client({
         "Lead": [spawn("Coder", "build", "c1"), spawn("Reviewer", "review", "r1"),
                  step(call("spawn_agent", {"role": "Coder", "task": "fix",
                                            "findings_from": "Reviewer"}, "c2")),
-                 spawn("Reviewer", "review", "r2"), text("over to you"), text("I cannot fix it")],
+                 spawn("Reviewer", "review", "r2"), text("over to you"), text("I cannot fix it"),
+                 text("it stays in its copy")],
         "Coder": [step(written("greet.py", "print('Helo')\n")), text("built")],
         "Coder 2": [text("still Helo")],
         "Reviewer": [text(FOUND)], "Reviewer 2": [text(FOUND)],
@@ -695,15 +697,16 @@ def test_a_capped_review_loop_leaves_the_end_checks_own_rounds(make_client, wait
                         headers=OWN).status_code == 200
     cid, run_id = manual(client, project_dir, (teams_of(client)["Web app"],
                                                build_review_ship(client)))
-    snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"])
-    assert "findings are left after 1 round" in asked(snap)["question"]
-    answer(client, asked(snap), "Take in")
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    assert row(snap)["status"] == "in"
+    # (failing work is never offered nor taken in: S11, decision 18)
+    assert not any(READY in q["question"] for q in snap["questions"]), snap["questions"]
+    assert row(snap)["status"] != "in" and not (project_dir / "greet.py").exists()
     rows = checked(snap)
     assert rows[0]["state"] == "failed" and len(proof_calls(snap)) == 1, rows
-    assert [one["text"] for one in rows[1:]] == ["Sent back to fix: 1 of 2 rounds"]
+    assert [one["text"] for one in rows[1:]] == [
+        "Sent back to fix: 2 of 2 rounds", "Still failing after 2 fix rounds: you decide (Fix it)",
+        "Not taken in: the tests still fail after rounds by fake-model"], rows
 
 
 def test_an_error_inside_the_end_check_is_a_row_not_a_failed_turn(
@@ -888,9 +891,11 @@ def test_a_command_after_a_bugfix_testers_pass_runs_the_tests_again(
     cid, run_id = bugfix_run(client, project_dir)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    # (the Debugger's reproduction, the Tester's run, the formatter, KOLONİ's run)
+    # (the Debugger's reproduction, the Tester's run, the formatter, KOLONİ's run - k-sira-016:
+    # Ready for you's checks saved the guess the Tester's run stood for; the end's pass, after the
+    # formatter, runs it as the project's - said in that order, as two passes are)
     assert len(executor.started) == 4 and len(proof_calls(snap)) == 1
-    assert texts(snap) == [f"Tests passed: {PYTEST} (guessed) - 4 passed", SAVED]
+    assert texts(snap) == [SAVED, f"Tests passed: {PYTEST} - 4 passed"]
 
 
 def test_a_to_do_turn_with_nobody_away_runs_a_guess_as_any_turn(

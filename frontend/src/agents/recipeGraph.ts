@@ -349,7 +349,7 @@ export function tidy(graph: RecipeGraph): RecipeGraph {
 }
 
 /** Where each part is drawn: where the user dragged it, else by rows from the start (`pos` set wins; the start is the board's). */
-export function layout(graph: RecipeGraph): Record<string, Place> {
+export function layout(graph: RecipeGraph, checks = false): Record<string, Place> {
   const depth: Record<string, number> = { [START]: 0 }
   const walk = (todo: string[]) => {
     while (todo.length) {
@@ -371,10 +371,11 @@ export function layout(graph: RecipeGraph): Record<string, Place> {
   const below = Math.max(0, ...Object.values(depth)) + 1
   for (const id of firsts) depth[id] = below
   walk(firsts)
+  if (checks) checksBeforeEnds(graph, depth)
   // (Arrows that go round with no first part, as a model may draw them, and ends not joined yet: in a row at the bottom.)
   const last = Math.max(0, ...Object.values(depth)) + 1
   const rows: string[][] = []
-  for (const id of [START, ...tops]) (rows[depth[id] ?? last] ??= []).push(id)
+  for (const id of [START, ...tops, ...(depth[CHECKS] === undefined ? [] : [CHECKS])]) (rows[depth[id] ?? last] ??= []).push(id)
   // shortcut: a group's branches all in one row, so one of many makes the board zoom out (four: 0.77 in a 1024 px window); wrap
   // its columns if a wide group is too small to read.
   const inGroups = Object.fromEntries(graph.groups.map(group => [group.id, branches(graph, group.id)]))
@@ -384,7 +385,7 @@ export function layout(graph: RecipeGraph): Record<string, Place> {
       const [across, down] = [Math.max(1, inGroups[id].length), Math.max(1, ...inGroups[id].map(line => line.length))]
       return { w: across * STEP_W + (across - 1) * GAP + 2 * GROUP_PAD, h: GROUP_HEAD + 2 * FAN + down * STEP_H + (down - 1) * LINK }
     }
-    return kind === 'step' ? { w: STEP_W, h: STEP_H } : { w: 160, h: 40 }
+    return kind === 'step' || id === CHECKS ? { w: STEP_W, h: STEP_H } : { w: 160, h: 40 }
   }
   const places: Record<string, Place> = {}
   let y = 0
@@ -410,11 +411,31 @@ export function layout(graph: RecipeGraph): Record<string, Place> {
   // shortcut: a group keeps the size the board gives it, so its steps move only a little inside it; size a group by its steps'
   // places if people want to arrange inside one.
   for (const one of [...graph.steps, ...graph.groups, ...graph.ends]) if (one.pos && places[one.id]) places[one.id] = { ...places[one.id], ...one.pos }
+  if (places[CHECKS]) checksOverEnds(graph, places)
   return places
 }
 
+/**
+ * k-sira-016: the Checks step's row is the ends' - they go one row down - so the drawing reads last step(s) → Checks → end(s).
+ * Derived as it is drawn: a recipe saved before (its ends where they were laid, or dragged) is drawn so too, nothing stored.
+ */
+function checksBeforeEnds(graph: RecipeGraph, depth: Record<string, number>) {
+  const ends = graph.ends.filter(end => depth[end.id] !== undefined)
+  if (!ends.length) return
+  depth[CHECKS] = Math.min(...ends.map(end => depth[end.id]))
+  for (const end of ends) depth[end.id] += 1
+}
+
+/** Where an end was dragged (its place kept, `pos`), the Checks step goes over the ends, in the middle of them. */
+function checksOverEnds(graph: RecipeGraph, places: Record<string, Place>) {
+  if (!graph.ends.some(end => end.pos)) return
+  const ends = graph.ends.map(end => places[end.id]).filter(Boolean)
+  const [left, right] = [Math.min(...ends.map(one => one.x)), Math.max(...ends.map(one => one.x + one.w))]
+  places[CHECKS] = { x: (left + right) / 2 - STEP_W / 2, y: Math.min(...ends.map(one => one.y)) - STEP_H - 28, w: STEP_W, h: STEP_H }
+}
+
 export type Checks = NonNullable<RecipeGraph['checks']>
-/** S5c (plan decision 16): the recipe's locked Checks step - no part of the graph, drawn after its last step(s), never removed. Its choice is the graph's `checks`. */
+/** S5c (plan decision 16): the recipe's locked Checks step - no part of the graph, drawn between its last step(s) and its end(s) (k-sira-016: KOLONİ checks before Ready for you), never removed. Its choice is the graph's `checks`. */
 export const CHECKS = 'checks:end'
 /** What the Checks step may check, each with what it means, in the panel's order. */
 export const CHECK_PARTS: [part: Exclude<keyof Checks, 'fix_rounds'>, name: string, said: string][] = [
@@ -455,13 +476,20 @@ export function lastParts(graph: RecipeGraph): string[] {
   return tails.length ? tails : [START]
 }
 
-/** Where the Checks step is drawn: beside the lowest end - right of it, where the recipe ends - or, with no end yet, under its last part(s). */
+/**
+ * The board's places with the Checks step: before the recipe's end(s) - its own row, the ends under it (`layout`'s `checks`) - or,
+ * with no end joined yet, under its last part(s).
+ */
+export function boardPlaces(graph: RecipeGraph): Record<string, Place> {
+  const laid = layout(graph, true)
+  return laid[CHECKS] ? laid : { ...laid, [CHECKS]: checksPlace(graph, laid) }
+}
+
+/** The ends the Checks step leads to: each an arrow reaches (one not joined yet is drawn alone). */
+export const checkedEnds = (graph: RecipeGraph): string[] => graph.ends.filter(end => graph.arrows.some(arrow => arrow.to === end.id)).map(end => end.id)
+
+/** Where the Checks step is drawn with no end joined: under its last part(s). */
 export function checksPlace(graph: RecipeGraph, places: Record<string, Place>): Place {
-  const ends = graph.ends.map(end => places[end.id]).filter(Boolean)
-  if (ends.length) {
-    const low = Math.max(...ends.map(one => one.y))
-    return { x: Math.max(...ends.map(one => one.x + one.w)) + GAP, y: low, w: STEP_W, h: STEP_H }
-  }
   const last = lastParts(graph).map(id => places[id]).filter(Boolean)
   const x = last.length ? Math.min(...last.map(one => one.x)) : 0
   const y = last.length ? Math.max(...last.map(one => one.y + one.h)) + 28 : 0

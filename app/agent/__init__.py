@@ -248,7 +248,7 @@ from app.agent.spawn_mixin import SpawnMixin
 from app.agent.spawn_mixin import _relative as _relative
 from app.agent.spawn_mixin import _said_from_here as _said_from_here
 from app.agent.spawn_mixin import thin_task as thin_task
-from app.agent.stronger_mixin import NOT_TAKEN_KEPT, NOT_TAKEN_TOLD, StrongerMixin
+from app.agent.stronger_mixin import NOT_TAKEN_KEPT, StrongerMixin
 from app.agent.summary import COMPACT_FLAG as COMPACT_FLAG
 from app.agent.summary import STATE as STATE
 from app.agent.summary import THEIRS as THEIRS
@@ -7504,9 +7504,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # in unasked at Full auto.
         failed = [team.name for team, state in rows if state["status"] == recipe_run.FAILED]
         also += "".join(f" {name} failed: its work is not finished." for name in failed)
-        if held := self._recipe_held(ctx, rows):
-            self._held_back[ctx.run_id] = held
-            return NOT_TAKEN_TOLD.format(why=held)
+        # (k-sira-016: KOLONİ's checks first, on the work in the recipe's copy - Ready for you
+        # after them; never for work they left failing, S11)
+        if (not_yet := await self._not_yet_ready(ctx, rows)) is not None:
+            return not_yet
         self._readying.add(ctx.run_id)
         # K-fullauto-sorma: at Full auto the work is taken in by itself, as work outside a
         # recipe is - `_merge` still cards a clash, a root file or a failing check - unless a

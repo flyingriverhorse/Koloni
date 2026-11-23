@@ -336,6 +336,10 @@ own check ran nothing still waits on its Ready for you card, as before - never t
 A Reviewer's hold at the end of the Fix rounds is not handed to a stronger model yet: the user
 decides, as before (Fix it).
 
+The order is always the same: KOLONİ's checks first, on the work where it is (a recipe's copy), then
+**Ready for you**. Its card, or Full auto's own Take in, comes only after the Checked section - never
+for work the checks left failing.
+
 ## Documents, diagrams, data and slides
 
 Under **Test and review**, a turn that wrote documents, diagrams, data or slides gets KOLONİ's

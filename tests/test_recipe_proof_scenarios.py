@@ -374,7 +374,10 @@ def test_a_reproduce_step_must_fail_the_test_it_wrote(make_client, wait_run, pro
                          cmd(PYTEST, "dd1"), text("Reproduced: calc(2) crashes.")]
     client, _model = make_client(shown, executor=ScriptedExecutor([other, PASSED]))
     cid, _run_id = bugfix_run(client, project_dir)
-    snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"])
+    # (k-sira-016: its failing run stands for the project's tests - KOLONİ's checks send the work
+    # back before any Ready for you; the step's finding is on record as it ends)
+    snap = until(client, cid, lambda s: any(a["name"] == "Debugger" and a["findings"]
+                                            for a in s["agents"]))
     held = agent(snap, "Debugger")["findings"] or []
     assert NOT_ITS_TEST.format(files="tests/test_repro.py") in [f["what"] for f in held], held
 
