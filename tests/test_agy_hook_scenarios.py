@@ -19,7 +19,7 @@ from app.model_agy import AgyClient, asked_as
 from tests.fakes import ScriptedModel
 from tests.keyed import TestClient
 from tests.test_agent_writes import wait_status
-from tests.test_agy_agent import FAKE, SKIP
+from tests.test_agy_agent import FAKE, SKIP, read_record
 from tests.test_claude_native import NOBODY, ORIGIN, nothing_was_asked, unattended
 from tests.test_codex_app_server_scenarios import card_for, hello, watched
 from tests.test_native_agent import start
@@ -94,7 +94,7 @@ def hooked_app(settings_env, tmp_path, monkeypatch):
 
     make.real = real
     make.homes = tmp_path / "runtime" / "agy-home"
-    make.record = lambda: json.loads(record.read_text(encoding="utf-8"))
+    make.record = lambda: read_record(record)
     make.ran = record.exists
     yield make
     for client in opened:
