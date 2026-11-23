@@ -30,7 +30,9 @@ Each recipe in the list, and in the chat's recipe picker, says how many agents a
 counted from its drawing: "Feature · 6–16 agents" - the fewest where no review finds a problem (a
 step that runs only on a problem left out), the most where every loop goes back all its rounds. A
 team's experts or stages count as one agent there, and the helpers a step's agents open are not
-counted.
+counted. The number is the recipe's alone: the Orchestrator, each team's lead and what KOLONİ's
+own checks at the end of the turn open (a reviewer, the agent of a fix round) come on top of it - a
+one-step recipe says "1 agent", and a turn of it may open several more.
 
 ## The parts of a recipe
 
