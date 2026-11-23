@@ -86,7 +86,8 @@ def _phpunit(text: str) -> Counts | None:
     lines = re.findall(r"^Tests: \d+, Assertions: \d+.*$", text, re.M)
     if not lines:
         return None
-    said = {word.casefold(): int(n) for word, n in re.findall(r"(\w+): (\d+)", lines[-1])}
+    # (`\b`: from a word's start - tried at each of its letters, a long one was quadratic)
+    said = {word.casefold(): int(n) for word, n in re.findall(r"\b(\w+): (\d+)", lines[-1])}
     failed = said.get("failures", 0) + said.get("errors", 0)
     skipped = said.get("skipped", 0) + said.get("incomplete", 0)
     return Counts(said["tests"] - failed - skipped, failed, skipped)

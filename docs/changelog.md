@@ -60,6 +60,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ### Security
 
+- **Commands**: a command line built to make KOLONİ's command reader slow (a long run of spaces) is read in time - so are a test run's output and a reviewer's report.
 - **Agents**: a command that only reads no longer runs unasked when a path it names leads out of the project, or to a secret file, through a link or junction inside it (`cat out/secret.txt` where `out` points elsewhere) - it is asked as other commands are, as reading the file already was ([docs](use/permissions.md)).
 - **Chat**: under **Test and review**, a change that touches sign-in, secrets, permissions, the network or running commands gets a second, adversarial look by a read-only Security reviewer agent, told to try to refute that it is safe; the Reviewers get read tools only and no MCP server, whatever their role is given, and are never opened on a CLI that works with tools of its own; their findings reach the Orchestrator as data, and **Fix it** sends your words only.
 - **Chat**: a line a launcher hands to a shell is read as the command it is - `Start-Process powershell -ArgumentList '-Command','taskkill …'`, `Start-Process cmd -ArgumentList '/c …'`, `npx -c '…'`, `[scriptblock]::Create('…')`, `schtasks /tr "…"` - and a command PowerShell is handed encoded (`-EncodedCommand`) is asked at every level ([docs](use/permissions.md)).

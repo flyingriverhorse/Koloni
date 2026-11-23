@@ -518,7 +518,8 @@ def failing_named(output: str) -> list[str]:
 
 
 # A test file a report's line names (`tests/x.py`, `src/a.test.ts`); a vitest / jest suite's step.
-_TEST_FILE = re.compile(r"[\w./-]+\.(?:py|[cm]?[jt]sx?|go|rb|php|rs|java|cs)\b")
+# (from a word's start only: tried at each of its characters, a long one was quadratic)
+_TEST_FILE = re.compile(r"(?<![\w./-])[\w./-]+\.(?:py|[cm]?[jt]sx?|go|rb|php|rs|java|cs)\b")
 _SUITE = re.compile(r" > | › ")
 
 

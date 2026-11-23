@@ -34,9 +34,10 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 FIX_INCOMPLETE, TEST_WRONG, APPROACH_WRONG = "fix-incomplete", "test-wrong", "approach-wrong"
-DIAGNOSIS = re.compile(r"^\s*(?:#+\s*|[-*]\s+)?\**\s*Diagnosis\W*(fix-incomplete|test-wrong|"
+# (possessive spaces and stars: one run of spaces was tried split between each `\s*`)
+DIAGNOSIS = re.compile(r"^\s*+(?:#+\s*+|[-*]\s++)?\**+\s*+Diagnosis\W*(fix-incomplete|test-wrong|"
                        r"approach-wrong)\b\W*(.*)$", re.IGNORECASE)
-QUESTION = re.compile(r"^\s*(?:#+\s*|[-*]\s+)?\**\s*Question\W*(.+)$", re.IGNORECASE)
+QUESTION = re.compile(r"^\s*+(?:#+\s*+|[-*]\s++)?\**+\s*+Question\W*(.+)$", re.IGNORECASE)
 CODER = "Coder"  # (where the Orchestrator itself wrote the work: the role that writes code)
 MOST_SAID = 300
 HANDED = "Handed to {model} ({tier}) after {n} by {by}"
@@ -119,6 +120,12 @@ def steers_tests(path: str) -> bool:
     return name in TEST_CONFIGS or bool(TEST_CONFIG.match(name))
 
 
+def _cancelled_outside() -> bool:
+    """Whether the task awaiting a look is itself being cancelled (KOLONİ closing, a cancel that
+    is not Stop this check): its look's cancel is that one's, never swallowed."""
+    return (task := asyncio.current_task()) is not None and task.cancelling() > 0
+
+
 def rounds_said(n: int) -> str:
     return f"{n} round" + ("" if n == 1 else "s")
 
@@ -168,6 +175,7 @@ class StrongerMixin:
             return None
         held.escalated = True
         await self._hand_up(ctx, held)
+        # (not always true, as a static read has it: `_hand_up`'s rounds empty `left_failing`)
         if held.left_failing and self._works_in(ctx) is not None:
             # (decision 18: failing work in a copy of the turn's own is never taken in - kept)
             self._held_back.setdefault(ctx.run_id, TESTS_FAILING)
@@ -443,7 +451,7 @@ class StrongerMixin:
         try:
             status, said = await going
         except asyncio.CancelledError:
-            if not going.cancelled() or self._turn_stopping():
+            if not going.cancelled() or self._turn_stopping() or _cancelled_outside():
                 raise
             held = self._proofs.get(ctx.run_id)
             if held is not None:

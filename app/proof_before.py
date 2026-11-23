@@ -22,7 +22,9 @@ TEST_FILE = re.compile(
     r"(?:^|/)(?:test_[^/]+\.py|[^/]+_test\.(?:py|go)|[^/]+\.(?:test|spec)\.[cm]?[jt]sx?)$")
 # The passes a run lists: pytest's "<id> PASSED" (with -v / -rA), jest's "PASS <file>", vitest's
 # " ✓ <file>". A run that lists none keeps only its counts.
-_PYTEST_PASSED = re.compile(r"^(\S+::\S+) PASSED", re.MULTILINE)
+# (a node id is a word with `::` inside it, kept by `passed_ids`: `\S+::\S+` split a long word
+# every way)
+_PYTEST_PASSED = re.compile(r"^(\S+) PASSED", re.MULTILINE)
 _FILE_PASS = re.compile(r"^\s*(?:PASS|✓)\s+(\S+)", re.MULTILINE)
 # shortcut: at most this many passed ids are kept of a green run - a regression past them is said
 # by file; keep more if a project that big is seen naming one wrong.
@@ -57,8 +59,8 @@ def passed_ids(command: str, output: str) -> list[str] | None:
     read = ledger.read_test(command)
     tool = read[0] if read else ""
     text = ledger.tail(output, max(len(output), 1))
-    found = _PYTEST_PASSED.findall(text) if tool == "pytest" else _FILE_PASS.findall(text) if (
-        tool in _FILE_TOOLS) else []
+    found = [one for one in _PYTEST_PASSED.findall(text) if "::" in one[1:-1]] if (
+        tool == "pytest") else _FILE_PASS.findall(text) if tool in _FILE_TOOLS else []
     return list(dict.fromkeys(found))[:MOST_IDS] or None
 
 
