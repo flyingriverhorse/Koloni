@@ -409,9 +409,11 @@ a user would:
 
 - **A command-line tool** the turn changed - a script in `bin/`, a `bin` of `package.json`, a
   console script of `pyproject.toml` - is asked for its `--help`, and nothing more: KOLONİ never
-  runs it plainly, as a deploy or a sync script would do its work. Only a script that reads its
-  arguments is asked (Python's argparse, click, typer or `sys.argv`; Node's `process.argv`,
-  commander or yargs; sh's `getopts` or `$1`); another is "Not tried: … it reads no arguments".
+  runs it plainly, as a deploy or a sync script would do its work. Only a script that answers
+  `--help` by itself is asked: a Python script that imports argparse, click, typer, docopt, fire
+  or optparse; a Node script that requires or imports commander, yargs, meow or cac; a shell
+  script with its own case for `--help` (`-h|--help)`, `"--help"`) - read outside its comments.
+  Another is "Not tried: … it does not answer --help".
   Its line is KOLONİ's own command, asked about as an agent's would be (a card below Full auto
   where one is asked). "Tried python 'bin/tool.py' --help: exit 0, 12 lines" passes; a `--help`
   that fails (or runs on past 30 s) goes back as a fix round. A file name or a module that is not

@@ -20,16 +20,27 @@ BY_SUFFIX = {".py": "python", ".js": "node", ".mjs": "node", ".cjs": "node", ".s
 SHEBANG = {"python": "python", "python3": "python", "node": "node", "sh": "sh", "bash": "sh"}
 NO_MAIN = 'its module {module} has no `if __name__ == "__main__"` to run'
 UNUSUAL = "an unusual name - KOLONİ runs only plain names"
-NO_ARGUMENTS = "it reads no arguments - a --help would run its work"
+NO_ARGUMENTS = "it does not answer --help - asked, it would do its work"
 _PATH = re.compile(r"[A-Za-z0-9_./-]{1,200}")
 _MODULE = re.compile(r"[A-Za-z0-9_.]{1,200}")
-# What reads a script's arguments, by its runner: Python's parsers and sys.argv; Node's
-# process.argv and its parsers; sh's positional parameters.
-ARGUMENTS = {
-    "python": re.compile(r"\b(?:argparse|click|typer|docopt|fire|optparse)\b|sys\.argv"),
-    "node": re.compile(r"process\.argv|\b(?:commander|yargs|minimist|meow|cac|arg)\b"),
-    "sh": re.compile(r"\bgetopts\b|\$\{?[1-9@*#]"),
+# What answers `--help` by itself, by runner (review of S5b, round 2: a word in a comment, a
+# default for `$1` or a variable called `arg` is no such thing - a deploy script ran with `--help`
+# as its target): Python's parsers imported, Node's required or imported, sh's own case for it.
+_PARSERS_PY = "argparse|click|typer|docopt|fire|optparse"
+_PARSERS_JS = "commander|yargs|meow|cac"
+ANSWERS_HELP = {
+    "python": re.compile(
+        rf"^[ \t]*(?:from[ \t]+(?:{_PARSERS_PY})\b|import[ \t]+(?:[\w.]+[ \t]*,[ \t]*)*"
+        rf"(?:{_PARSERS_PY})\b)", re.MULTILINE),
+    "node": re.compile(
+        rf"""\brequire\([ \t]*['"](?:{_PARSERS_JS})(?:/[\w./-]*)?['"][ \t]*\)|"""
+        rf"""^[ \t]*import\b[^\n]*?['"](?:{_PARSERS_JS})(?:/[\w./-]*)?['"]""", re.MULTILINE),
+    "sh": re.compile(r"""(?:-h[ \t]*\|[ \t]*)?--help[ \t]*\)|['"]--help['"]"""),
 }
+# A whole line that is a comment, by runner; and sh's comment after a word.
+_COMMENT = {"python": re.compile(r"^[ \t]*#[^\n]*", re.MULTILINE),
+            "node": re.compile(r"^[ \t]*(?://|/?\*)[^\n]*", re.MULTILINE),
+            "sh": re.compile(r"(?:^|[ \t])#[^\n]*", re.MULTILINE)}
 
 
 def _read(ws: Workspace, rel: str) -> str | None:
@@ -81,10 +92,12 @@ def _plain(path: str, module: bool = False) -> bool:
         ".." not in parts and not any(part.startswith("-") for part in parts))
 
 
-def _reads_arguments(text: str, runner: str) -> bool:
-    """Whether a script reads its arguments - so that `--help` asks it for its help, not to do
-    its work (a deploy or a sync script that ignores it is never run: review of S5b)."""
-    return bool(ARGUMENTS.get(runner, ARGUMENTS["python"]).search(text))
+def _answers_help(text: str, runner: str) -> bool:
+    """Whether a script answers `--help` itself - a parser it imports (Python, Node), or its own
+    case for it (sh) - read outside its comments: so that `--help` asks it for its help, never
+    to do its work (a deploy or a sync script that ignores it is never run: review of S5b)."""
+    kind = runner if runner in ANSWERS_HELP else "python"
+    return bool(ANSWERS_HELP[kind].search(_COMMENT[kind].sub("", text)))
 
 
 def _quoted(path: str) -> str:
@@ -107,7 +120,7 @@ def cli_tools(root: Path | Workspace, changed: list[str]) -> list[tuple[str, str
         seen.add(path)
         if not _plain(path):
             found.append((path, UNUSUAL))
-        elif not _reads_arguments(_read(ws, path) or "", runner):
+        elif not _answers_help(_read(ws, path) or "", runner):
             found.append((path, NO_ARGUMENTS))
         else:
             found.append((f"{runner} {_quoted(path)}", None))
@@ -134,7 +147,7 @@ def cli_tools(root: Path | Workspace, changed: list[str]) -> list[tuple[str, str
         text = _read(ws, hit) or ""
         runs = hit.endswith("__main__.py") or ("__name__" in text and "__main__" in text)
         found.append((name, NO_MAIN.format(module=module)) if not runs else (
-            (name, NO_ARGUMENTS) if not _reads_arguments(text, "python") else (
+            (name, NO_ARGUMENTS) if not _answers_help(text, "python") else (
                 f"python -m {module}", None)))
     return found[:MOST_TOOLS]
 

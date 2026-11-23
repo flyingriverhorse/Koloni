@@ -146,7 +146,8 @@ def test_no_preview_and_no_dev_script_is_said(fake, make_client, wait_run, proje
     assert f"Not tried: {try_mixin.NO_DEV}" in texts(snap) and snap["agents"][1:] == []
 
 
-TOOL = "import sys\nprint(sys.argv)\n"  # (it reads its arguments: its --help is asked for)
+# (it answers --help by itself - a parser it imports: its --help is asked for)
+TOOL = "import argparse\nargparse.ArgumentParser().parse_args()\n"
 HELP = "python 'bin/tool.py' --help"
 
 
@@ -170,6 +171,33 @@ def test_a_script_that_reads_no_arguments_is_never_run(make_client, wait_run, pr
     snap = wait_run(client, cid, run_id)
     assert [line for line, _cwd in executor.started] == [CHECK]
     assert f"Not tried: bin/deploy.py - {proof_try.NO_ARGUMENTS}" in texts(snap), texts(snap)
+
+
+@pytest.mark.parametrize(("name", "script"), [
+    # (Review of S5b, round 2, probe_try_r2: each was taken to read its arguments - a word in a
+    # comment, a default for $1 that `--help` would have deployed to, a variable called arg.)
+    ("bin/deploy.py", "# reads sys.argv later\nprint('DEPLOYING')\n"),
+    ("bin/deploy.sh", "#!/bin/sh\nENV=${1:-prod}\necho deploying to $ENV\n"),
+    ("bin/s.js", "const arg = 1; console.log('work')\n"),
+    ("bin/sync.py", "import sys\nsync(sys.argv[1:])\n"),
+    ("bin/note.sh", "#!/bin/sh\n# -h|--help) usage\necho $1\n"),
+])
+def test_a_script_that_does_not_answer_help_is_never_put_on_a_line(tmp_path, name, script):
+    (tmp_path / "bin").mkdir()
+    (tmp_path / name).write_text(script, encoding="utf-8")
+    assert proof_try.cli_tools(tmp_path, [name]) == [(name, proof_try.NO_ARGUMENTS)]
+
+
+@pytest.mark.parametrize(("name", "script", "line"), [
+    ("bin/a.py", "import os, click\n", "python 'bin/a.py'"),
+    ("bin/b.js", "const { program } = require('commander')\n", "node 'bin/b.js'"),
+    ("bin/c.mjs", "import yargs from 'yargs/yargs'\n", "node 'bin/c.mjs'"),
+    ("bin/d.sh", '#!/bin/sh\ncase "$1" in\n  -h|--help) echo usage;;\nesac\n', "sh 'bin/d.sh'"),
+])
+def test_a_script_that_answers_help_is_asked_for_it(tmp_path, name, script, line):
+    (tmp_path / "bin").mkdir()
+    (tmp_path / name).write_text(script, encoding="utf-8")
+    assert proof_try.cli_tools(tmp_path, [name]) == [(line, None)]
 
 
 def test_a_cli_help_that_fails_goes_back_as_a_fix_round(make_client, wait_run, project_dir):
@@ -275,7 +303,7 @@ def test_at_ask_the_testers_spawn_opens_no_card_and_it_reaches_no_site_and_write
 
 def test_the_tools_a_turn_changed_are_read_off_the_projects_files(tmp_path):
     (tmp_path / "bin").mkdir()
-    (tmp_path / "bin" / "go").write_text("#!/usr/bin/env node\nconsole.log(process.argv)\n",
+    (tmp_path / "bin" / "go").write_text("#!/usr/bin/env node\nrequire('meow')\n",
                                          encoding="utf-8")
     (tmp_path / "cli").mkdir()
     (tmp_path / "cli" / "x.js").write_text("require('yargs')\n", encoding="utf-8")
