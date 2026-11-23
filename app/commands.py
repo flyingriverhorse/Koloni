@@ -143,7 +143,7 @@ def _offer(command: str) -> str:  # noqa: C901
         return ""
     if program in _LINTERS:
         return " ".join(
-            words[: next((at for at, w in enumerate(words) if w.startswith("./")), None)]
+            words[: next((at for at, w in enumerate(words) if at and w.startswith("./")), None)]
         )
     if _INTERPRETER.fullmatch(program):
         if len(rest) >= 2 and rest[0] == "-m":

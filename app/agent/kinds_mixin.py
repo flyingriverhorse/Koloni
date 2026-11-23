@@ -8,6 +8,7 @@ review: a turn of documents alone runs no test and gets these checks."""
 
 import asyncio
 import json
+import logging
 import math
 import time
 import uuid
@@ -15,17 +16,28 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from sqlalchemy import literal_column, select
+from sqlalchemy import func, literal_column, or_, select
 
 from app import browser, injection, koloni, proof, proof_kinds, proof_style
 from app.agent.ctx import Ctx, _GateRefused
 from app.agent.proof_mixin import SLOT_BUSY
-from app.db.models import Agent, Command, Conversation, Message, Run, ShownFile, now
+from app.db.models import (
+    Agent,
+    Command,
+    Conversation,
+    FileChange,
+    Message,
+    Run,
+    ShownFile,
+    now,
+)
 from app.model_client import ToolCallRequest
 from app.proof import Change, Row
 from app.team import quoted
 from app.tools import ToolError
 from app.workspace import Workspace
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from app.agent import AgentRunner
@@ -152,11 +164,16 @@ class KindsMixin:
     async def _style_seen(self: "AgentRunner", ctx: Ctx, changes: list[Change]) -> bool:
         """Whether a tool of Code style and types is set up for the turn's code, where the work is
         (`_ws`: a recipe's copy, not the project) - read once a pass, off the event loop: the
-        kinds' check and what is said of it at the turn's end (`_kinds_left`) go by it."""
+        kinds' check and what is said of it at the turn's end (`_kinds_left`) go by it. A look
+        that broke fails nothing of the turn: none set up, and logged."""
         paths = _written(changes).get(proof_style.STYLE)
-        return bool(paths) and await asyncio.to_thread(
-            proof_style.configured, self._ws(ctx).root, paths
-        )
+        try:
+            return bool(paths) and await asyncio.to_thread(
+                proof_style.configured, self._ws(ctx).root, paths
+            )
+        except Exception as exc:
+            log.warning("run %s: whether a style tool is set up not read: %r", ctx.run_id, exc)
+            return False
 
     async def _style(
         self: "AgentRunner", ctx: Ctx, ws: Workspace, paths: list[str], held: "Proof"
@@ -237,7 +254,11 @@ class KindsMixin:
 
         if (run.tool, run.cwd) in held.style:
             return note(proof_style.DECLINED)
-        written = [one.path for one in held.changes]
+        before = self._installs_written(ctx)
+        written = [
+            *(one.path for one in held.changes),
+            *await asyncio.to_thread(proof_style.still_written, ws.root, before),
+        ]
         if why := await asyncio.to_thread(
             proof_style.planted, ws.root, Path(ctx.folder), run, written
         ):
@@ -247,6 +268,34 @@ class KindsMixin:
             said = proof_style.NEEDS_LEAVE.format(tool=run.tool, why=how)
             return [proof.row(proof_style.STYLE, "note", said)]
         return how
+
+    def _installs_written(self: "AgentRunner", ctx: Ctx) -> list[tuple[str, str]]:
+        """What agents of any turn in this project wrote on record under an install folder
+        (`proof_style.INSTALLS`), each path's newest: (path, digest of what it wrote)."""
+        with self._factory() as session:
+            project_id = session.get_one(Conversation, ctx.cid).project_id
+            found = session.execute(
+                select(FileChange.path, FileChange.after_sha)
+                .join(Run, Run.id == FileChange.run_id)
+                .join(Conversation, Conversation.id == Run.conversation_id)
+                .where(
+                    Conversation.project_id == project_id,
+                    FileChange.status == "applied",
+                    or_(
+                        *(
+                            func.lower(FileChange.path).contains(folder)
+                            for folder in proof_style.INSTALLS
+                        )
+                    ),
+                )
+                .order_by(FileChange.created_at, literal_column("file_changes.rowid"))
+            ).all()
+        newest = {path: digest for path, digest in found}
+        return [
+            (path, digest)
+            for path, digest in newest.items()
+            if any(part.casefold() in proof_style.INSTALLS for part in Path(path).parts)
+        ]
 
     async def _style_run(
         self: "AgentRunner",

@@ -18,7 +18,7 @@ from typing import NamedTuple
 
 from app.proof import Row, row
 from app.proof_kinds import _json
-from app.workspace import WorkspaceError
+from app.workspace import WorkspaceError, sha256_text
 
 STYLE = "style"
 PY = (".py", ".pyi")
@@ -34,8 +34,9 @@ MOST_CONFIG = 256 * 1024  # of a pyproject.toml or setup.cfg read
 MOST_LINE = 2048
 # A path put in a command line as it is - no quoting needed in PowerShell or sh; another is said.
 _PLAIN = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_./@+-]*")
-# Colour codes a tool may write all the same (FORCE_COLOR set: NO_COLOR is not enough for ruff).
-_COLOUR = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
+# Colour codes a tool may write all the same (FORCE_COLOR set: NO_COLOR is not enough for ruff),
+# and its links around a rule's code (OSC 8: `ESC ] 8 ;; url ESC \`).
+_COLOUR = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
 _ESLINT_CONFIGS = (
     *(f"eslint.config.{one}" for one in ("js", "mjs", "cjs", "ts", "mts", "cts")),
     *(f".eslintrc{one}" for one in ("", ".js", ".cjs", ".json", ".yml", ".yaml")),
@@ -279,6 +280,26 @@ def planted(work: Path, project: Path, run: Run, written: Iterable[str]) -> str 
             folder = PurePosixPath(run.cwd, program.split("/")[0]).as_posix()
             return WROTE_IT.format(folder=folder.removeprefix("./"))
     return None
+
+
+# The folders a tool's program is installed in: an agent's write under one is a program planted.
+INSTALLS = ("node_modules", ".venv")
+
+
+def still_written(work: Path, records: Iterable[tuple[str, str]]) -> list[str]:
+    """Of an earlier turn's writes under an install folder (`records`: path from the root, the
+    digest of what the agent wrote), those whose file still holds it in the work's folder - a
+    program planted then and run by a rule now (B1 across turns: an Always rule matches by its
+    text, in any folder). One the user's install wrote over since is theirs again."""
+    held = []
+    for rel, digest in records:
+        try:
+            text = (work / rel).read_bytes().decode("utf-8", "replace")
+        except OSError:
+            continue
+        if digest in (sha256_text(text), sha256_text(text.replace("\r\n", "\n"))):
+            held.append(rel)
+    return held
 
 
 def _on_path(tool: str) -> bool:

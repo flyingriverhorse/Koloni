@@ -4,6 +4,7 @@ where it sets one up and has it installed - on the files a turn changed, run as 
 asked). A problem on a line the turn wrote fails, the others are said. The tools are scripted
 (`ScriptedExecutor`); one test runs this machine's own ruff through the shell as KOLONİ would."""
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -311,7 +312,8 @@ REAL = Path(sys.executable).with_name("ruff.exe" if sys.platform == "win32" else
 
 
 @pytest.mark.skipif(not REAL.is_file(), reason="no ruff beside this Python")
-def test_the_real_ruffs_line_runs_in_koloni_s_shell_and_is_read(tmp_path):
+@pytest.mark.parametrize("forced", [False, True], ids=["no-colour", "FORCE_COLOR"])
+def test_the_real_ruffs_line_runs_in_koloni_s_shell_and_is_read(tmp_path, forced):
     import os
     import shutil
 
@@ -324,8 +326,15 @@ def test_the_real_ruffs_line_runs_in_koloni_s_shell_and_is_read(tmp_path):
         (tmp_path / RUFF).chmod(0o755)
     (tmp_path / "app.py").write_text(NEW, encoding="utf-8")
     (run,), _notes = proof_style.planned(tmp_path, ["app.py"])
+    # (KOLONİ gives NO_COLOR; a FORCE_COLOR of the user's wins over it in ruff - read past)
+    env = {**os.environ, "NO_COLOR": "1", **({"FORCE_COLOR": "1"} if forced else {})}
     done = subprocess.run(
-        host.shell_argv(run.command), cwd=tmp_path, capture_output=True, timeout=120, check=False
+        host.shell_argv(run.command),
+        cwd=tmp_path,
+        capture_output=True,
+        timeout=120,
+        check=False,
+        env=env,
     )
     output = (done.stdout + done.stderr).decode("utf-8", "replace")
     rows = proof_style.rows_of(run, done.returncode, output, tmp_path, {"app.py": [1, 2]})
@@ -661,11 +670,18 @@ def test_a_long_line_is_read_in_time_linear_in_its_length(line):
         check=False,
     )
     short, long = map(float, done.stdout.split())
-    assert long < max(short, 0.001) * 20, (short, long, done.stderr)
+    # (the old mypy line: 0.26 s a 16 KB line, 5 s the 20 - far past either bound)
+    room = 80 if os.environ.get("CI") else 20
+    assert long < max(short, 0.01) * room, (short, long, done.stderr)
 
 
 def test_colour_codes_are_read_past():
-    said = "\x1b[1mapp.py\x1b[0m:1:8: \x1b[1;31mF401\x1b[0m [*] `os` imported but unused\n"
+    # (FORCE_COLOR: ruff's colours, and the link it puts around a rule's code - OSC 8)
+    link = "\x1b]8;;https://docs.astral.sh/ruff/rules/unused-import\x1b\\"
+    said = (
+        f"\x1b[1mapp.py\x1b[0m:1:8: \x1b[1;31m{link}F401\x1b]8;;\x1b\\\x1b[0m"
+        " [*] `os` imported but unused\n"
+    )
     (one,) = proof_style.problems("ruff", said, Path("."), ".")
     assert (one.path, one.line, one.said) == ("app.py", 1, "ruff F401 - `os` imported but unused")
 
@@ -733,6 +749,9 @@ def test_the_rule_a_card_offers_is_the_line_koloni_runs_and_covers_nothing_more(
                    "-o C:/x/out.txt", "--config C:/x/evil.js"],
         "tsc": ["--outDir C:/x", "-p C:/x/tsconfig.json"],
     }  # fmt: skip
+    assert suggest_prefix("./node_modules/.bin/eslint --format stylish ./a.js") == (
+        "./node_modules/.bin/eslint --format stylish"
+    )
     for tool, line in lines.items():
         offered = suggest_prefix(line)
         fixed = line.split(" ./")[0]
@@ -745,3 +764,52 @@ def test_the_rule_a_card_offers_is_the_line_koloni_runs_and_covers_nothing_more(
             assert not matches(f"{fixed} {escape} ./b.py", offered), (tool, escape)
             # (nor an older rule of the bare program's)
             assert not matches(f"{program} {escape} ./b.py", program), (tool, escape)
+
+
+@pytest.mark.no_po
+def test_a_program_an_earlier_turn_planted_is_not_run_by_a_rule_either(
+    make_client, wait_run, project_dir
+):
+    """B1 across turns: an Always rule matches by its text, in any folder - the eslint a turn
+    wrote in admin's node_modules is never run by it in a later turn, while it holds what was
+    written; the project's own install over it is the project's again."""
+    from tests.test_proof_ci_scenarios import again
+
+    eslint_in(project_dir, "web")
+    planted = f"admin/{NODE}"
+    executor = ScriptedExecutor([PASS, PASS, ESLINT_CLEAN, ESLINT_CLEAN, PASS, ESLINT_CLEAN])
+    client, _model = make_client(
+        [
+            write("admin/eslint.config.js", "export default []\n", "w1"),
+            write(planted, "@echo PLANTED %*\n", "w2"),
+            text("done"),
+            write("admin/x.js", "let x = 1\n", "w3"),
+            text("done again"),
+            write("admin/x.js", "let x = 2\n", "w4"),
+            text("done once more"),
+        ],
+        executor=executor,
+    )
+    cid, run_id = begin(client, project_dir, mode="auto_edit", check_command="python check.py")
+    wait_run(client, cid, run_id)
+    assert (project_dir / planted).read_text() == "@echo PLANTED %*\n"
+    # (an Always rule of web's eslint, said on a card before: the same text in admin)
+    rule = f"{NODE} --format stylish --no-color"
+    made = client.post(
+        f"/api/conversations/{cid}/allowed-commands", json={"prefix": rule}, headers=OWN
+    )
+    assert made.status_code in (200, 201), made.text
+    second, snap = again(client, wait_run, cid)
+    assert not [cwd for _c, cwd in executor.started if Path(cwd).name == "admin"], executor.started
+    said = "eslint: not run - this turn wrote in admin/node_modules: no install of the project's"
+    rows = [
+        row["text"]
+        for m in snap["messages"]
+        if m["role"] == "checked" and m["run_id"] == second
+        for row in m["checked"]
+    ]
+    assert said in rows, rows
+    # (the project's own install over it: theirs again - the rule runs it)
+    (project_dir / planted).write_text("@echo the project's\n", encoding="utf-8")
+    again(client, wait_run, cid)
+    assert [Path(cwd).name for _c, cwd in executor.started].count("admin") == 1, executor.started

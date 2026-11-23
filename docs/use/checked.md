@@ -450,7 +450,7 @@ says "needs your leave once". A program the turn wrote itself - in the folder a 
 in (`node_modules`, `.venv`), in any case of its name, or through a link - is never run, nor one
 whose real place is outside the project. It waits for KOLONİ's test-run slot (Settings › The
 app), so a type check never runs beside the whole test suite. tsc is told not to build
-incrementally and mypy keeps its cache in the folder: nothing is written outside it. In a
+incrementally and mypy to keep its cache in the folder (`.mypy_cache`). In a
 recipe's copy it runs there, and what it writes (a cache, a report) is put back - never taken
 in. At most 50 files a run, 2 minutes for them all, its wait for the slot too. Where the project
 sets none of them up, nothing at all is said of it.
