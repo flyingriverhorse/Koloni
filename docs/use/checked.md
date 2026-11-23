@@ -572,7 +572,9 @@ the Orchestrator's window, whose record holds the runs.
 | – Not checked: off for this chat | This chat's **Test and review changes** is off. |
 | – Handed to `model` (Strongest) after 2 rounds by `model` | The Fix rounds were spent with a test still failing: the next stronger tier tries. Its model's use counts. |
 | – `model` says fix-incomplete: `why` | The stronger model's diagnosis, before it changed anything (fix-incomplete, test-wrong, approach-wrong). |
-| – Test changed: `why` | The stronger model changed a test, with its reason in the request's words. The Reviewer reads it. |
+| – Test changed: `why` | The stronger model changed a test, with its reason in the request's words. The Reviewer reads it, whatever the change's size. |
+| ✗ Not a pass: `model` changed a test without leave (`files`) | Its diagnosis was not test-wrong, yet it changed or deleted a test: the tests passing then is no pass, and the work stays as failing. |
+| ✗ Not a pass: the Reviewer held `model`'s test change | Its test-wrong change did not get the Reviewer's MERGE: the work stays as failing. |
 | – Started over in a fresh copy: `why` | The stronger model said approach-wrong: the copy's changes were dropped and the work began again from the start state. |
 | – Strongest skipped: over its limit | That tier's provider is past its limit of spend: it is not handed the fix. |
 | ✗ Not taken in: 2 tests still fail after rounds by `A` and `B` | The work stays in its copy, with the stronger model's question: **Take in anyway** or **Fix it** with your answer. |

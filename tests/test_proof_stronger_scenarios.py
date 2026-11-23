@@ -209,3 +209,64 @@ def test_a_tier_over_its_limit_is_skipped_and_said(team, wait_run, project_dir, 
     texts = [one[2] for one in rows_of(snap, run_id)]
     assert s11.SKIPPED.format(tier="Strongest", why=s11.OVER_ITS_LIMIT) in texts, texts
     assert not any("(Strongest)" in one for one in texts), texts
+
+
+def test_a_round_that_loosens_the_test_without_leave_is_no_pass(team, wait_run,  # noqa: F811
+                                                                 project_dir):
+    # (S11 review: under fix-incomplete the stronger model rewrote the failing test to pass)
+    (project_dir / "test_a.py").write_text("def test_a():\n    assert 1 == 2\n", encoding="utf-8")
+    texts, _snap, _executor = one_tier(team, wait_run, project_dir, {
+        "Coder 2": [said(s11.FIX_INCOMPLETE)],
+        "Coder 3": [step(write("test_a.py", "def test_a(): pass\n").tool_calls[0]),
+                    text("fixed")]},
+        [PASS, failing(), PASS, PASS])
+    assert s11.TESTS_TOUCHED.format(model="big-model", paths="test_a.py") in texts, texts
+    assert s11.STILL_HANDED.format(by="fast-model and big-model") in texts, texts
+
+
+def test_a_test_wrong_round_is_read_by_the_reviewer(team, wait_run, project_dir,  # noqa: F811
+                                                     monkeypatch):
+    from app.agent.review_mixin import ReviewMixin
+    seen = []
+
+    async def recording(_self, _ctx, held):
+        seen.append((len(held.handed), held.review_forced))
+        held.verdict = "HOLD"  # (it holds the change)
+        return None
+    monkeypatch.setattr(ReviewMixin, "_proof_review", recording)
+    why = 'the request asks to "check my greeting", the test wants another'
+    texts, _snap, _executor = one_tier(team, wait_run, project_dir, {
+        "Coder 2": [said(s11.TEST_WRONG, why)],
+        "Coder 3": [step(write("test_a.py", "def test_a(): pass\n").tool_calls[0]),
+                    text("changed the test as the request asks")]},
+        [PASS, failing(), PASS, PASS])
+    assert (1, True) in seen, (seen, texts)
+    assert s11.TEST_HELD.format(model="big-model") in texts, texts
+
+
+def test_s7s_failed_row_is_no_stronger_pass():
+    from app import proof
+    from app.agent.proof_mixin import Proof
+    run = proof.TestRun(CHECK, ".", True)
+    held = Proof()
+    held.rows = [proof.row("tests", "passed", f"Tests passed: {CHECK} - 3 passed", CHECK),
+                 proof.row("tests", "failed", "Fewer tests than the last green run: 3 of 4",
+                           CHECK)]
+    assert s11.StrongerMixin._handed_passed(held, [(run, "1 failed")]) is False
+
+
+def test_held_fix_refuses_another_origin_a_made_up_merge_and_a_second_click(make_client,
+                                                                            project_dir):
+    from tests.test_proof_end_scenarios import away_job, job_rows
+    check = "import sys\nprint('FAILED test_x - no')\nprint('1 failed')\nsys.exit(1)\n"
+    client, _pid, job = away_job(make_client, project_dir, "full_auto", check=check,
+                                 check_command=CHECK, fix_rounds=1)
+    snap, _rows = job_rows(client, job)
+    row, run_id = next((r, m["run_id"]) for m in snap["messages"] if m["role"] == "checked"
+                       for r in m["checked"] if r["kind"] == "not_taken")
+    body = {"merge_id": row["merge_id"], "reply": "the code"}
+    url = f"/api/runs/{run_id}/held/fix"
+    assert client.post(url, json=body, headers={"Origin": "http://evil.invalid"}).status_code == 403
+    assert client.post(url, headers=OWN, json={**body, "merge_id": "x" * 32}).status_code == 409
+    assert client.post(url, headers=OWN, json=body).status_code == 202
+    assert client.post(url, headers=OWN, json=body).status_code == 409  # (on its way, or taken up)

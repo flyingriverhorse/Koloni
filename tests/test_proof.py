@@ -536,3 +536,36 @@ def test_kolonis_own_flagged_run_is_known_by_the_command_it_built_it_from(factor
                       tool_call_id=call.id, started_at=at, ended_at=at + timedelta(seconds=1)))
         s.commit()
         assert (proof.fresh(s, "r", "lead", run, at - timedelta(seconds=30)) is not None) is known
+
+
+def test_a_kolonis_fixers_commands_count_as_a_change_its_reviewers_do_not(factory):
+    # (S11 x k-kucuk: `changed_since` leaves out agents KOLONİ opened only where they only read)
+    at = now()
+    with factory() as s:
+        said = Message(conversation_id="c", run_id="r", agent_id="lead", role="assistant",
+                       content="done")
+        s.add(said)
+        s.flush()
+        calls = {kind: ToolCall(run_id="r", agent_id="lead", message_id=said.id, seq=n,
+                                provider_call_id=f"{proof.PROOF_CALL}{kind}_1",
+                                name="spawn_agent", arguments="{}")
+                 for n, kind in enumerate(("fix", "review"))}
+        s.add_all(calls.values())
+        s.flush()
+        s.add_all([Agent(id=kind, run_id="r", role_name="Coder", tools=[], depth=1,
+                         tool_call_id=call.id) for kind, call in calls.items()])
+        ran = Command(run_id="r", agent_id="lead", command="pytest -q", cwd=".",
+                      location="host", status="exited", exit_code=0, output="",
+                      timeout_seconds=60, started_at=at, ended_at=at + timedelta(seconds=1))
+        s.add(ran)
+        s.flush()
+        s.add(Command(run_id="r", agent_id="review", command="python fix.py", cwd=".",
+                      location="host", status="exited", exit_code=0, output="",
+                      timeout_seconds=60, started_at=at + timedelta(seconds=2)))
+        s.commit()
+        assert not proof.changed_since(s, "p", at - timedelta(seconds=5), ran)
+        s.add(Command(run_id="r", agent_id="fix", command="python fix.py", cwd=".",
+                      location="host", status="exited", exit_code=0, output="",
+                      timeout_seconds=60, started_at=at + timedelta(seconds=3)))
+        s.commit()
+        assert proof.changed_since(s, "p", at - timedelta(seconds=5), ran)

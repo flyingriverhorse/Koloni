@@ -14,7 +14,7 @@ import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from sqlalchemy import literal_column, select
+from sqlalchemy import literal_column, or_, select
 
 from app import copies, injection, proof, proof_before
 from app.agent.ctx import Ctx
@@ -49,6 +49,9 @@ SKIPPED = "{tier} skipped: {why}"
 NONE_HANDED = "No stronger model tried: {why}"
 OVER_ITS_LIMIT = "over its limit"
 TURN_LIMIT = "the turn's token limit is reached"
+TESTS_TOUCHED = ("Not a pass: {model} changed a test without leave ({paths}) - its diagnosis "
+                 "was not test-wrong")
+TEST_HELD = "Not a pass: the Reviewer held {model}'s test change"
 NO_VERDICT = "Not handed further: the tests gave no verdict after its round (not run or not ended)"
 STARTED_OVER = "Started over in a fresh copy: {why}"
 NOT_STARTED_OVER = "approach-wrong, but {why}: it goes on from the work as it is"
@@ -96,6 +99,7 @@ ASK_DEFAULT = "Should the code change, or the test?"
 RESUME_FAILED = ("Fix it could not go on in the kept work: {why}. This turn works in the project; "
                  "the kept work still waits (Take in anyway).")
 DECIDED = "it was decided since"
+ON_ITS_WAY = "a fix of it is on its way already"
 FIX_HELD = ("The last turn's work was not taken in: its tests still fail. {question} My answer: "
             "{reply} Fix it - you work in that turn's copy, as it was left.")
 
@@ -169,7 +173,7 @@ class StrongerMixin:
         tiers, said = self._stronger_tiers(ctx, held, first)
         held.rows += said
         for tier, provider, model in tiers:
-            if held.stopped or not held.left_failing:
+            if held.stopped or held.no_more or not held.left_failing:
                 break
             await self._one_tier(ctx, held, role, tier, provider, model)
         return None
@@ -199,6 +203,8 @@ class StrongerMixin:
         can - the caller starts the turn (`resume_on`)."""
         with self._factory() as session:
             merge = session.get(Merge, merge_id)
+            if merge_id in self._resume_in.values():
+                return ON_ITS_WAY
             return None if merge is not None and merge.run_id == run_id and self._undecided(
                 merge) else DECIDED
 
@@ -312,7 +318,7 @@ class StrongerMixin:
         if kind == APPROACH_WRONG:  # (started over: only the short note of what was tried)
             held.attempts = [f"Tried before, and why it failed: {why}"]
         for _round in range(held.most):
-            status, said = await self._koloni_agent(ctx, "fix", {
+            status, said, fixer = await self._koloni_agent(ctx, "fix", {
                 "role": role, "tier": tier,
                 "why": f"KOLONİ hands it the fix: the tests still fail after rounds by {by}",
                 "task": FIX_TASK.format(n=held.rounds, by=by, how=HOW[kind],
@@ -330,11 +336,9 @@ class StrongerMixin:
             await self._recheck(ctx, held)
             if held.stopped or held.left_failing:
                 continue
-            if not self._handed_passed(held, wanted):
-                # (not run, timed out, still running: no verdict - it still counts as failing)
-                held.left_failing = wanted
-                held.rows.append(proof.row("stronger", "not_run", NO_VERDICT))
-                held.stopped = True  # (no tier more: the next would stand on no verdict too)
+            if why_not := await self._not_a_pass(ctx, held, kind, model, fixer, wanted):
+                held.left_failing, held.no_more = wanted, True  # (no tier more: it stands held)
+                held.rows.append(why_not)
             return
 
     async def _diagnose(self: "AgentRunner", ctx: Ctx, held: "Proof", role: str, tier: str,
@@ -350,7 +354,7 @@ class StrongerMixin:
                                                   self._sharing(ctx))
         # (a tier, not a model named: KOLONİ's own hand-off within the user's rule - no card;
         # `_stronger_tiers` read the same pick)
-        status, report = await self._koloni_agent(ctx, "diagnose", {
+        status, report, _agent = await self._koloni_agent(ctx, "diagnose", {
             "role": role, "tier": tier,
             "why": "KOLONİ asks it what is wrong before it changes anything",
             "task": DIAGNOSE_TASK.format(
@@ -402,16 +406,16 @@ class StrongerMixin:
         await self._proof_tests(ctx, held)
 
     async def _koloni_agent(self: "AgentRunner", ctx: Ctx, kind: str, args: dict,
-                            read_only: bool = False) -> tuple[str, str]:
-        """An agent KOLONİ opens on the Orchestrator's last answer, as its own spawn: its status
-        and its report. `read_only`: held to reading, as S3's Reviewer is."""
+                            read_only: bool = False) -> tuple[str, str, str | None]:
+        """An agent KOLONİ opens on the Orchestrator's last answer, as its own spawn: its status,
+        its report and its id. `read_only`: held to reading, as S3's Reviewer is."""
         with self._factory() as session:
             message_id = session.scalar(select(Message.id).where(
                 Message.agent_id == ctx.agent_id, Message.run_id == ctx.run_id,
                 Message.role == "assistant").order_by(
                 Message.created_at.desc(), literal_column("messages.rowid").desc()).limit(1))
         if message_id is None:
-            return "failed", "the Orchestrator's answer is not on record"
+            return "failed", "the Orchestrator's answer is not on record", None
         request = ToolCallRequest(f"{proof.PROOF_CALL}{kind}_{uuid.uuid4().hex[:12]}",
                                   "spawn_agent", json.dumps(args))
         ((call_id, _payload),) = self._record_calls(ctx, message_id, [request])
@@ -429,10 +433,10 @@ class StrongerMixin:
             held = self._proofs.get(ctx.run_id)
             if held is not None:
                 held.stopped = True
-            return "failed", "stopped"
+            return "failed", "stopped", None
         except Exception as exc:  # (a hand-off that broke is said, never the turn's failure)
             log.warning("run %s: KOLONİ's %s agent failed: %r", ctx.run_id, kind, exc)
-            return "failed", str(exc) or type(exc).__name__
+            return "failed", str(exc) or type(exc).__name__, None
         finally:
             self._read_only_calls.discard(call_id)
             self._joins_copy.discard(call_id)
@@ -440,15 +444,51 @@ class StrongerMixin:
         with self._factory() as session:
             agent = session.scalar(select(Agent).where(Agent.tool_call_id == call_id))
             report = agent.report if agent is not None else None
-        return (status, report or said) if status == "succeeded" else (status, said)
+            agent_id = agent.id if agent is not None else None
+        return (status, report or said if status == "succeeded" else said, agent_id)
+
+    async def _not_a_pass(self: "AgentRunner", ctx: Ctx, held: "Proof", kind: str, model: str,
+                          fixer: str | None, wanted: list) -> Row | None:
+        """Why a round whose tests pass is no pass (its row); None: it is one. No verdict (a run
+        not run, timed out, still running; S7's failed rows); a test changed without a test-wrong
+        verdict; a test-wrong change the Reviewer held (S3's look, whatever its size)."""
+        if not self._handed_passed(held, wanted):
+            return proof.row("stronger", "not_run", NO_VERDICT)
+        touched = self._tests_touched(ctx, fixer) if kind != TEST_WRONG else []
+        if touched:
+            return proof.row("stronger", "failed", TESTS_TOUCHED.format(
+                model=model, paths=", ".join(touched[:5])))
+        if kind == TEST_WRONG:
+            held.review_forced = True
+            try:
+                await self._proof_review(ctx, held)
+            finally:
+                held.review_forced = False
+            if held.verdict == "HOLD":
+                return proof.row("stronger", "failed", TEST_HELD.format(model=model))
+        return None
+
+    def _tests_touched(self: "AgentRunner", ctx: Ctx, fixer: str | None) -> list[str]:
+        """The test files a round's agent (and those it opened) changed or deleted (`is_test`).
+        shortcut: one a command rewrote (`sed -i`) has no FileChange; read the copy's moved files
+        if that is seen."""
+        if fixer is None:
+            return []
+        with self._factory() as session:
+            line = select(Agent.id).where(or_(Agent.id == fixer, Agent.parent_agent_id == fixer))
+            paths = session.scalars(select(FileChange.path).where(
+                FileChange.run_id == ctx.run_id, FileChange.agent_id.in_(line))).all()
+        return sorted({path for path in paths if proof.is_test(path)})
 
     @staticmethod
     def _handed_passed(held: "Proof", wanted: list) -> bool:
-        """Whether every run that failed has a passed row now (decision 18: a pass, not a lack of
-        a failure - a run not run, timed out or still running is none)."""
+        """Whether every run that failed has a passed row now and no test row failed (decision
+        18: a pass, not a lack of a failure - a run not run, timed out or still running is none;
+        S7's count drop, skipped rise or regression is a failure)."""
         passed = {one["command"] for one in held.rows
                   if one["kind"] == "tests" and one["state"] == "passed"}
-        return all(run.command in passed for run, _output in wanted)
+        failed = any(one["kind"] == "tests" and one["state"] == "failed" for one in held.rows)
+        return not failed and all(run.command in passed for run, _output in wanted)
 
     @staticmethod
     def _failing_tail(held: "Proof") -> str:

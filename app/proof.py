@@ -33,6 +33,8 @@ from app.workspace import in_scratch, secret_in_project, unified_diff
 
 # KOLONİ's own end-of-turn test run: its call's id starts so (`ProofMixin`).
 PROOF_CALL = "koloni_proof_"
+# The spawns of KOLONİ's own that only read (S3's Reviewer, S11's diagnosis): `PROOF_CALL` + kind.
+READ_ONLY_LOOKS = ("review", "diagnose")
 
 # Project.after_change, shown as Test and review ("check"), Tests only, Nothing.
 AFTER_CHANGE = ("check", "tests", "nothing")
@@ -663,10 +665,13 @@ def changed_since(session: Session, project_id: str, since: datetime,
     if ran is None or ran.started_at is None:
         return False
     # (Not KOLONİ's own test runs - another suite of the same turn, say: they change nothing the
-    # tests read, and a standing file they write is put back as they end. Nor its Reviewer's - a
-    # read, or the approved test command: decision 6 - an agent its own call opened.)
+    # tests read, and a standing file they write is put back as they end. Nor its read-only looks
+    # - the Reviewer's (a read, or the approved test command: decision 6) and S11's diagnosis.
+    # S11's fixer, though KOLONİ opened it, writes: its commands count.)
     proofs = select(ToolCall.id).where(ToolCall.provider_call_id.startswith(PROOF_CALL))
-    looks = select(Agent.id).where(Agent.tool_call_id.in_(proofs))
+    reads = select(ToolCall.id).where(or_(*(ToolCall.provider_call_id.startswith(
+        f"{PROOF_CALL}{kind}_") for kind in READ_ONLY_LOOKS)))
+    looks = select(Agent.id).where(Agent.tool_call_id.in_(reads))
     agents: dict[str, set[str]] = {}
     for run_id, agent_id in session.execute(
             select(Command.run_id, Command.agent_id).join(Run, Run.id == Command.run_id)

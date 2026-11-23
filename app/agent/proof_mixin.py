@@ -137,6 +137,10 @@ class Proof:
     diagnosis: tuple[str, str] | None = None
     question: str = ""
     passed_by_stronger: bool = False
+    # ...no tier more (a round that touched a test without leave, a held test change, no verdict),
+    # and S3's look asked for whatever the change's size (a stronger model's test change).
+    no_more: bool = False
+    review_forced: bool = False
 
 
 class ProofMixin:
@@ -515,7 +519,7 @@ class ProofMixin:
             rounds.append(proof.row("rounds", "note", proof.SENT_BACK.format(
                 n=held.rounds, most=held.most) + why))
         failing = any(one["state"] == "failed" for one in held.rows if one["kind"] == "tests")
-        if failing and held.handed:
+        if held.handed and held.left_failing:  # (S11: still held - a pass that was none too)
             rounds += self._stronger_left(held)  # (S11: after the stronger models' rounds too)
         elif failing and (held.rounds >= held.most or held.recipe_spent):
             rounds.append(proof.row("rounds", "failed", proof.RECIPE_SPENT if held.recipe_spent
