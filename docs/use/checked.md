@@ -72,7 +72,7 @@ project:
 - **Nothing** runs nothing and sends nothing back. The Checked section still says that nothing
   was checked, and names the last test run an agent made in the turn.
 
-![Settings, This project, Checks and git: After a change on Test and review with the line of what it does here, Fix rounds at 2, Then a stronger model ticked, and Check by kind of work with Documents, Slides, Diagrams, Data and Pages](../images/settings-checks.png)
+![Settings, This project, Checks and git: After a change on Test and review with the line of what it does here, Fix rounds on Until it passes, Then a stronger model ticked, and Check by kind of work with Documents, Slides, Diagrams, Data and Pages](../images/settings-checks.png)
 
 The line under the choice says what it does in this project now, from its real state - for
 example "Runs python -m pytest -q in ./ (found by KOLONİ), related tests first, the whole suite in
@@ -85,7 +85,7 @@ test command is known it says KOLONİ finds one and asks you once. Its ⓘ leads
 
 ### For one chat
 
-![The permission level's menu: Ask before changes, Auto-edit files, Full auto, Check what I said first, Plan first, and Test and review changes switched on with its line, As the project](../images/level-menu-checks.png)
+![The permission level's menu: Ask before changes, Auto-edit files, Full auto, Check what I said first, Plan first, and Test and review changes switched on with its line, As the project: failing work goes back until it passes](../images/level-menu-checks.png)
 
 **Test and review changes**, in the permission level's menu beside **Plan first**, turns it on
 or off for this chat only. Its line says what this chat's changes get: "As the project: runs
