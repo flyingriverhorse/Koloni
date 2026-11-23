@@ -782,24 +782,33 @@ def check_slides(
 # files `proof.kind_of` calls config (a Makefile, a lock file) are not its (`kinds_mixin._written`).
 CONFIG_FILES = (".json", ".yaml", ".yml", ".toml")
 # How deep a config file nests, at most, to be read - a parser recurses: a deeper one is no
-# config anyone writes. And YAML is read in Python, slowly: a bigger file is not read.
+# config anyone writes. YAML and TOML are read in Python, slowly - TOML's dotted keys in time and
+# memory squared (review of Config): a bigger file is not read, nor more YAML in all a turn than
+# S8 reads of the CI's files.
 MOST_DEPTH = 100
-MOST_YAML = 2**20
+MOST_READ = ci_commands.MOST_BYTES
+MOST_YAML_ALL = ci_commands.MOST_ALL
 TOO_DEEP = f"it nests over {MOST_DEPTH} deep"
 SECRET = "a secret file is never read"
+# (Not secrets by name elsewhere - an agent may read them - but they often hold one.)
+MAY_HOLD = "it may hold a secret"
+_MAY_HOLD = re.compile(r"credentials\.json|token\.json|kubeconfig[^/]*|client_secret[^/]*\.json")
 NO_PARSE = "does not parse - "
 _BRACKET = re.compile(r"[\[\]{}]")
-# (Each one unended runs to the end of its line - or of the file, for a comment or a long
-# string - in one match: never read again from each later quote, which takes time squared.)
-_QUOTED = r'"(?:[^"\\\n]|\\.)*(?:"|\n|\Z)'
+# (Each one unended - a lone backslash before the end too - runs to the end of its line, or of the
+# file for a comment or a long string, in one match: never read again from each later quote,
+# which takes time squared. `re` holds the GIL: a slow one stops the whole server.)
+_QUOTED = r'"(?:[^"\\\n]|\\.)*(?:"|\\?(?:\n|\Z))'
 _JSON_STRING = re.compile(_QUOTED)
 _TOML_SKIP = re.compile(
-    r'"""[\s\S]*?(?:"""|\Z)'
+    r'"""(?:[^"\\]|\\[\s\S]|"(?!""))*(?:"""|\\?\Z)'  # (its escaped quotes are its own)
     r"|'''[\s\S]*?(?:'''|\Z)"
     rf"|{_QUOTED}"
     r"|'[^'\n]*(?:'|\n|\Z)"
     r"|#.*"
 )
+# A TOML key of over MOST_DEPTH dotted parts, outside its strings: each part a table deeper.
+_DOTTED = re.compile(rf"(?:\.[^.=\n\[\]{{}},]*){{{MOST_DEPTH}}}")
 # JSON with comments (tsconfig.json, VS Code's): its comments and trailing commas left out, its
 # lines kept where they were, its strings as they are.
 _JSONC = re.compile(rf"({_QUOTED})|//.*|/\*[\s\S]*?(?:\*/|\Z)|,(?=\s*[}}\]])")
@@ -809,7 +818,8 @@ _JSONC = re.compile(rf"({_QUOTED})|//.*|/\*[\s\S]*?(?:\*/|\Z)|,(?=\s*[}}\]])")
 _COMMENTED = re.compile(
     r"/(tsconfig[^/]*|jsconfig[^/]*|\.eslintrc|\.?devcontainer)\.json$|/\.vscode/[^/]+\.json$"
 )
-_TOML_AT = re.compile(r"\s*\(at line (\d+), column \d+\)$")
+_TOML_AT = re.compile(r" \(at line (\d+), column \d+\)$")  # (one space: never a run of them)
+_TOML_END = " (at end of document)"
 _COMPOSE = re.compile(r"(docker-)?compose([.-][\w.-]*)?\.ya?ml")
 
 
@@ -818,7 +828,9 @@ class _Deep(Exception):
 
 
 class _Nested(ci_commands.NoAliases):
-    """S8's YAML with no aliases, its nesting capped as it is composed (`MOST_DEPTH`)."""
+    """S8's YAML with no aliases, its nesting capped as it is composed (`MOST_DEPTH`); a tag it
+    does not know (mkdocs' `!!python/name:`, Compose's `!reset`) read as the plain value under
+    it - never constructed, and never said back (a verbatim tag is any text)."""
 
     depth = 0
 
@@ -832,10 +844,21 @@ class _Nested(ci_commands.NoAliases):
             self.depth -= 1
 
 
-def _deep(text: str, skip: re.Pattern) -> bool:
-    """Whether its brackets - outside its strings (`skip`) - nest over MOST_DEPTH."""
+def _untagged(loader: yaml.SafeLoader, _tag: str, node: yaml.Node) -> object:
+    if isinstance(node, yaml.MappingNode):
+        return loader.construct_mapping(node, deep=True)
+    if isinstance(node, yaml.SequenceNode):
+        return loader.construct_sequence(node, deep=True)
+    return loader.construct_scalar(node)  # type: ignore[arg-type]
+
+
+_Nested.add_multi_constructor("", _untagged)
+
+
+def _deep(bare: str) -> bool:
+    """Whether its brackets - its strings left out - nest over MOST_DEPTH."""
     depth = 0
-    for found in _BRACKET.finditer(skip.sub("", text)):
+    for found in _BRACKET.finditer(bare):
         depth += 1 if found.group() in "[{" else -1
         if depth > MOST_DEPTH:
             return True
@@ -843,22 +866,28 @@ def _deep(text: str, skip: re.Pattern) -> bool:
 
 
 def _toml(text: str, rel: str) -> tuple[object, str | None]:
-    if _deep(text, _TOML_SKIP):
+    if len(text) > MOST_READ:
+        raise WorkspaceError(f"it is over {MOST_READ // 1024} KB of TOML")
+    bare = _TOML_SKIP.sub("", text)
+    if _deep(bare) or _DOTTED.search(bare):
         raise WorkspaceError(TOO_DEEP)
     try:
         return tomllib.loads(text), None
+    except RecursionError:
+        raise WorkspaceError(TOO_DEEP) from None
     except tomllib.TOMLDecodeError as exc:
-        at = _TOML_AT.search(str(exc))
-        return (
-            None,
-            f"{rel}:{at.group(1) if at else 1}: {NO_PARSE}{_said(_TOML_AT.sub('', str(exc)))}",
-        )
+        said, line = str(exc), 1
+        if at := _TOML_AT.search(said):
+            said, line = said[: at.start()], int(at.group(1))
+        elif said.endswith(_TOML_END):
+            said, line = said.removesuffix(_TOML_END), text.count("\n") + 1
+        return None, f"{rel}:{line}: {NO_PARSE}{_said(said)}"
 
 
 def _yaml(text: str, rel: str) -> tuple[object, str | None]:
     """Its first document (each parses), and its parser's first complaint."""
-    if len(text) > MOST_YAML:
-        raise WorkspaceError(f"it is over {MOST_YAML // 2**20} MB of YAML")
+    if len(text) > MOST_READ:
+        raise WorkspaceError(f"it is over {MOST_READ // 1024} KB of YAML")
     try:
         docs = list(yaml.load_all(text, Loader=_Nested))  # noqa: S506 (SafeLoader's)
     except ci_commands.Alias:
@@ -876,7 +905,7 @@ def _yaml(text: str, rel: str) -> tuple[object, str | None]:
 def _json(text: str, rel: str) -> tuple[object, str | None]:
     """Strict JSON - or, for a file its tool reads with comments and trailing commas
     (`_COMMENTED`), JSON with them."""
-    if _deep(text, _JSON_STRING):
+    if _deep(_JSON_STRING.sub("", text)):
         raise WorkspaceError(TOO_DEEP)
     try:
         return json.loads(text), None
@@ -996,20 +1025,35 @@ def check_config(
 ) -> list[Row]:
     """Config: a JSON, YAML or TOML file parses - else failed, with its parser's first complaint
     and its line - and a package.json, a pyproject.toml, a GitHub workflow or a Compose file has
-    the shape its tool reads; a secret file is never read, nor one that nests too deep or uses
-    YAML aliases."""
-    ws = _workspace(root)
+    the shape its tool reads; a secret file is never read, nor one whose name often holds a
+    secret (credentials.json), one that nests too deep, YAML with aliases, nor a file past its
+    size (`MOST_READ`, and `MOST_YAML_ALL` of YAML in all)."""
+    ws, left = _workspace(root), MOST_YAML_ALL
 
-    def secret(rel: str) -> bool:
+    def kept_out(rel: str) -> str | None:
+        """Why it is not read: a secret, or a name that often holds one; None: it is read."""
         try:  # (by its name, and by where a link of that name leads in the project)
-            return secret_named(rel, ws.rel(ws.resolve(rel)))
-        except (WorkspaceError, ValueError):
-            return secret_in_project(rel)
+            secret = secret_named(rel, ws.rel(ws.resolve(rel)))
+        except Exception:  # (a link loop: RuntimeError on 3.12 - the read says so, in `_each`)
+            secret = secret_in_project(rel)
+        name = rel.replace("\\", "/").rsplit("/", 1)[-1].casefold()
+        return SECRET if secret else MAY_HOLD if _MAY_HOLD.fullmatch(name) else None
 
-    hidden = [rel for rel in paths if secret(rel)]
+    def one(data: bytes, rel: str) -> list[Row]:
+        nonlocal left
+        if rel.casefold().endswith(("yml", "yaml")) and len(data) <= MOST_READ:
+            if len(data) > left:
+                raise WorkspaceError(f"past {MOST_YAML_ALL // 1024} KB of YAML in all")
+            left -= len(data)
+        return _config(data, rel)
+
+    out = {rel: why for rel in paths if (why := kept_out(rel)) is not None}
     return [
-        *(row("config", "note", NOT_CHECKED_FILE.format(path=rel, why=SECRET)) for rel in hidden),
-        *_each(ws, [rel for rel in paths if rel not in hidden], "config", _config, before or {}),
+        *(
+            row("config", "note", NOT_CHECKED_FILE.format(path=rel, why=why))
+            for rel, why in out.items()
+        ),
+        *_each(ws, [rel for rel in paths if rel not in out], "config", one, before or {}),
     ]
 
 
