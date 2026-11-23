@@ -396,6 +396,14 @@ def touched_since(folder: Path, since: datetime | None, recorded: Collection[str
     return sorted(found)
 
 
+def change_states(session: Session, run_id: str) -> dict[str, tuple[str, str | None]]:
+    """k-sira-016: the turn's kept change records - each one's status and agent, by id: what
+    Ready for you's pass saw, to tell its own Take in from work that came in after it."""
+    return {one: (status, agent) for one, status, agent in session.execute(select(
+        FileChange.id, FileChange.status, FileChange.agent_id).where(
+        FileChange.run_id == run_id, FileChange.status.in_((*ledger.KEPT, MERGED))))}
+
+
 def last_change(session: Session, run_id: str, made_there: Collection[str] = ()
                 ) -> datetime | None:
     """When the turn's newest kept change was made or taken in: a test run that started before

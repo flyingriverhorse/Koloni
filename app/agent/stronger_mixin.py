@@ -192,7 +192,7 @@ class StrongerMixin:
             if self._held_back.pop(ctx.run_id, None):  # (held before, at the Lead's end: never
                 # inside Ready for you, which asks nothing while held - it asks now, these
                 # checks standing for it, k-sira-016)
-                held.ready_calls = self._calls_of(ctx)
+                self._mark_ready(ctx, held)
                 await self._ready_at_end(ctx)
         return None
 
@@ -585,7 +585,7 @@ class StrongerMixin:
             back = self._rows_to(ctx, "Ask for changes", "") if fixing else ""
             return f"\n\n{said}" + (FIX_IN_RECIPE.format(back=back) if back else "")
         if was := self._proofs.get(ctx.run_id):  # (not again at the Lead's end, `_proof_left`)
-            was.ready_calls = self._calls_of(ctx)
+            self._mark_ready(ctx, was)
         if held := self._recipe_held(ctx, rows) or self._held_back.get(ctx.run_id):
             self._held_back[ctx.run_id] = held
             return NOT_TAKEN_TOLD.format(why=held)

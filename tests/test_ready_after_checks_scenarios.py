@@ -112,3 +112,37 @@ def test_until_it_passes_a_round_that_made_no_progress_stops_the_recipe_short(ma
     assert "Stopped after round 1: no progress in two rounds - you decide (Fix it)" in said, said
     assert any(kind == "not_taken" for kind, _s, _t in rows(snap, run_id)), said
     assert not (project_dir / "greet.py").exists()
+
+
+
+def test_an_agent_beside_the_recipe_that_ends_after_its_take_in_is_checked(make_client, wait_run,
+                                                                          project_dir, gate):
+    # (review of k-sira-016: Ready for you's pass checked the recipe's copy only - a Debugger
+    # opened beside it, ending after its Take in at Full auto, brings work of its own in: the end
+    # gate runs again for it, though the Lead made no call since. Every run passes here: Take
+    # in's own check runs too, and a failing one would only card the merge.)
+    from tests.test_proof_end_scenarios import proof_calls
+    from tests.test_spawn import call
+    executor = ScriptedExecutor([PASS for _ in range(6)])
+    client, _model = make_client({
+        "Lead": [step(call("spawn_agent", {"role": "Debugger", "task": "look at it"}, "d1"),
+                      call("spawn_agent", {"role": "Coder", "task": "build greet.py"}, "c1")),
+                 *DONE],
+        "Debugger": [gate.step(step(write("b.py", "b = 1\n", "wb"))), text("debugged")],
+        **CODERS}, executor=executor)
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    assert client.patch(f"/api/projects/{pid}", json={"check_command": "python check.py",
+                        "fix_rounds": 1}, headers=OWN).status_code == 200
+    web, recipe = teams_of(client)["Web app"], one_step(client, "Build", "Coder")
+    cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never",
+                        content="fix it, with the Debugger too", teams_mode="manual",
+                        teams=[{"team_id": web["id"], "recipe_id": recipe["id"]}])
+    gate.wait_partial()
+    until(client, cid, lambda _s: (project_dir / "greet.py").exists(), timeout=20)
+    assert len(proof_calls(until(client, cid, lambda _s: True))) == 1  # (Ready for you's pass)
+    gate.release()
+    snap = wait_run(client, cid, run_id)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert (project_dir / "b.py").exists(), [(f["path"], f["status"]) for f in snap["file_changes"]]
+    # (its change was tested at the end, not taken as checked)
+    assert len(proof_calls(snap)) == 2, (executor.started, rows(snap, run_id))

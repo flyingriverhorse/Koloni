@@ -170,9 +170,12 @@ class Proof:
     # and S3's look asked for whatever the change's size (a stronger model's test change).
     no_more: bool = False
     review_forced: bool = False
-    # k-sira-016: the Lead's calls when Ready for you's pass ended (it ran first, on the recipe's
-    # copy); the end gate looks again only after a call since - a command, more work.
+    # k-sira-016: what Ready for you's pass (first, on the recipe's copy) checked - the Lead's
+    # calls then, the change records then, and whose work it was (the Lead's and its recipe's
+    # agents'): the end gate looks again after a call since or a change of anyone else's.
     ready_calls: int | None = None
+    ready_seen: dict[str, tuple[str, str | None]] = field(default_factory=dict)
+    ready_by: frozenset[str] = frozenset()
 
 
 class ProofMixin:
@@ -228,17 +231,28 @@ class ProofMixin:
             log.warning("run %s: the stronger model's hand-off failed: %r", ctx.run_id, exc)
         return None
 
+    def _mark_ready(self: "AgentRunner", ctx: Ctx, held: Proof) -> None:
+        """k-sira-016: what Ready for you's pass checked (`Proof.ready_*`, `_checked_at_ready`)."""
+        with self._factory() as session:
+            held.ready_seen = proof.change_states(session, ctx.run_id)
+            mine = {agent for row, _team, _lead in self._rows(session, ctx.cid)
+                    if (state := self._live_state(row, ctx.run_id)) for agent in state["agents"]}
+        held.ready_by = frozenset({ctx.agent_id, *self._sharing(ctx), *mine})
+        held.ready_calls = self._calls_of(ctx)
+
     def _checked_at_ready(self: "AgentRunner", ctx: Ctx) -> bool:
-        """k-sira-016: Ready for you ran this pass first, on the recipe's copy, and the Lead has
-        made no call since: the work is as it was checked - what Take in brought in is that work,
-        no change after the check.
-        shortcut: "since" is the Lead's own calls - an agent at work after Ready for you is not
-        counted (none is: it asks only with the copy free, `_busy_in_copy`); count the turn's
-        changes since if one is seen."""
+        """k-sira-016: Ready for you ran this pass first, on the recipe's copy; the Lead has made
+        no call since, and every change since is that work's own Take in (its records, the
+        Lead's or its recipe's agents'): the work is as it was checked. An agent beside the
+        recipe whose work came in after (its own copy, ended later) - the gate runs for it."""
         was = self._proofs.get(ctx.run_id)
         if was is None or was.ready_calls != self._calls_of(ctx):
             return False
         with self._factory() as session:
+            now = proof.change_states(session, ctx.run_id)
+            if any(agent not in was.ready_by for one, (status, agent) in now.items()
+                   if was.ready_seen.get(one, (None,))[0] != status):
+                return False
             taken = proof.last_change(session, ctx.run_id)
         was.seen = taken if was.seen is not None else None
         was.kinds_seen = taken if was.kinds_seen is not None else None
