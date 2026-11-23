@@ -56,9 +56,9 @@ if "garbage" in text:
     print("not json")
     sys.exit(0)
 errors = []
-if re.search(r"(?i)\busing\b(?!\s+namespace)", text):
+if re.search(r"(?i)\busing\b(?!:)(?!\s+namespace)", text.replace("`", "")):
     errors.append({"line": 1, "message": "Cannot load assembly './x.dll'.", "id": "x"})
-if re.search(r"(?i)import-dscresource", text):
+if re.search(r"(?i)import-dscresource", text.replace("`", "")):
     errors.append({"line": 1, "message": "Could not find the module 'x'.", "id": "x"})
 for n, line in enumerate(text.split("\n"), 1):
     if line.strip() == "if ( {":
@@ -141,6 +141,9 @@ def test_what_powershell_would_look_up_never_reaches_its_parser(tmp_path, stand_
         # (a statement whose taking out would change the rest: a comment's end, a quote)
         "<#\nusing module x #>\n$y = 1\n",
         "using assembly 'a;b.dll'\n'x'\n",
+        # (re-check: a backtick inside a keyword leaves it the keyword to pwsh 7)
+        "Configuration C { Import-Dsc`Resource -ModuleName '//h/s/m'\n Node x { } }\n",
+        "us`ing module ./x\n'x'\n",
     ],
 )
 def test_a_script_that_would_have_its_parser_look_something_up_is_not_read(
@@ -436,3 +439,10 @@ def test_bash_reads_with_extglob_on(tmp_path):
         },
     )
     assert rows[0] == ("passed", "glob.sh: parses") and rows[1][0] == "failed", rows
+
+
+def test_a_using_variable_is_no_statement_and_is_read(tmp_path, stand_in):
+    # (`$using:x` hands a variable to a remote or parallel block: nothing is looked up)
+    assert said(tmp_path, {"a.ps1": "$x = 1\n1..2 | ForEach-Object -Parallel { $using:x }\n"}) == [
+        ("passed", "a.ps1: parses")
+    ]

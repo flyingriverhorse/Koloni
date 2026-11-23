@@ -1157,7 +1157,9 @@ _RESOLVED = re.compile(
     r"(?i)(?:^|(?<=;))[ \t]*"
     r"(?:using[ \t]+(?:assembly|module)\b[^;]*|#requires\b.*-(?:assembly|modules?)\b.*)"
 )
-_LOOKED_UP = re.compile(r"(?i)\busing\b(?![ \t]+namespace\b)|import-dscresource")
+# (Read with its backticks out: `Import-Dsc`Resource` is the keyword to pwsh 7; `$using:x` is a
+# variable, no statement.)
+_LOOKED_UP = re.compile(r"(?i)\busing\b(?!:)(?![ \t]+namespace\b)|import-dscresource")
 _CONFIGURATION = re.compile(r"(?im)^[ \t]*configuration[ \t]+\w")
 # What Windows PowerShell 5.1 says of PowerShell 7's own syntax (`??`, `?.`, `&&`, `||`, `? :`).
 _ONLY_7 = re.compile(r"'(?:\?\?=?|\?\.|\?|&&|\|\|)'|not a valid statement separator")
@@ -1277,7 +1279,7 @@ def _unresolved(text: str) -> tuple[str, bool]:
     ]
     kept = "\n".join(lines)
     if (
-        _LOOKED_UP.search(kept)
+        _LOOKED_UP.search(kept.replace("`", ""))
         or any("#>" in one or "<#" in one for one in taken)
         or any(one.count('"') % 2 or one.count("'") % 2 for one in taken)
     ):
@@ -1287,7 +1289,9 @@ def _unresolved(text: str) -> tuple[str, bool]:
 
 def _powershell_said(shell: list[str], text: str) -> list[tuple[object, object]]:
     windows_51 = Path(shell[0]).name.casefold() == "powershell.exe"
-    if windows_51 and _CONFIGURATION.search(text):  # (5.1 loads DSC's module for one)
+    if windows_51 and _CONFIGURATION.search(
+        text.replace("`", "")
+    ):  # (5.1 loads DSC's module for one)
         raise WorkspaceError(NEEDS_7)
     kept, blanked = _unresolved(text)
     code, out, _err = _read_by(
