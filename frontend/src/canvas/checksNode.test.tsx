@@ -193,13 +193,14 @@ test('a turn of a chat with checks off: no node - the Orchestrator’s strip say
   expect(deriveGraph(state).nodes.some(node => node.kind === 'checks')).toBe(false)
 })
 
-test('a turn of a project whose After a change is Nothing: no node either - the strip says why', () => {
-  // (CI, 0.1.6: the e2e project at Nothing drew a Checks node for a turn KOLONİ checked nothing in)
+test('a turn of a project whose After a change is Nothing: no node, and no strip - the Checked section says it', () => {
+  // (CI, 0.1.6: the e2e project at Nothing drew a Checks node for a turn KOLONİ checked nothing in; then its strip took the
+  // agent node's last line, "3 files" - the project's standing choice is not said on every Orchestrator)
   const nodes: GraphNode[] = [{ id: 'agent:r', kind: 'agent', runId: 'r', refId: 'r', data: {} as AgentData }]
   const rows = [row('note', 'Not checked: After a change is set to Nothing', { kind: 'not_checked' }), row('note', 'Last test run: pytest -q, passed, after the last change', { kind: 'tests' })]
   const state = convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [checked(rows)] })
   expect(checksNode(state, run('r', 'completed'), nodes, [])).toBeNull()
-  expect((nodes[0].data as AgentData).checked).toBe('not checked · After a change is Nothing')
+  expect((nodes[0].data as AgentData).checked).toBeUndefined()
   expect(deriveGraph(state).nodes.some(node => node.kind === 'checks')).toBe(false)
 })
 
@@ -251,4 +252,12 @@ test('S5a: a kind of work is one line, as a test run is - its files that passed 
   const { data, nodes } = drawn(convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [checked(rows)] }))
   expect(data?.lines).toHaveLength(4)
   expect((nodes[0].data as AgentData).checked).toBe('✗ still failing')
+})
+
+test('S5c: a recipe’s turn whose Checks step checks nothing: no node - the strip says so', () => {
+  const nodes: GraphNode[] = [{ id: 'agent:r', kind: 'agent', runId: 'r', refId: 'r', data: {} as AgentData }]
+  const rows = [row('note', "Not checked: this recipe's Checks step checks nothing", { kind: 'recipe_off' })]
+  const state = convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [checked(rows)] })
+  expect(checksNode(state, run('r', 'completed'), nodes, [])).toBeNull()
+  expect((nodes[0].data as AgentData).checked).toBe('not checked · off in the recipe’s Checks step')
 })

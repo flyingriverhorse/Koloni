@@ -22,7 +22,7 @@ from app.agent.context_mixin import FINDINGS_PROMPT
 from app.agent.ctx import Ctx, _GateRefused
 from app.agent.spawn_mixin import BEFORE_THE_WORK
 from app.agent.summary import _blocking
-from app.db.models import Command, Conversation, Message, Role, Run, now
+from app.db.models import Command, Message, Role, now
 from app.model_client import ToolCallRequest
 from app.proof import Row
 from app.roles import tools_off
@@ -94,14 +94,13 @@ class TryMixin:
             mine = {id(one) for one in held.tried_rows}
             held.rows = [one for one in held.rows if id(one) not in mine] + held.tried_rows
             return None
-        with self._factory() as session:
-            setting = proof.after_change_of(session, session.get_one(Conversation, ctx.cid),
-                                            session.get(Run, ctx.run_id))
         ws = self._ws(ctx)
         tools = await asyncio.to_thread(proof_try.cli_tools, ws, [
             one.path for one in held.changes if one.in_project and not one.deleted])
         ui = _big(held.changes)
-        if setting != "check" or not (tools or ui):
+        # (A look as the review is: where the turn's checks hold the review - Test and review, or
+        # a recipe's Checks step that sets it, S5c.)
+        if "review" not in held.checks.on or not (tools or ui):
             return None
         held.tried, rows, problems = True, [], []
         tried: list[Row] = []

@@ -23,7 +23,7 @@ from app import (
     views,
     web,
 )
-from app.agent import branch_held
+from app.agent import announce, branch_held
 from app.api.deps import get_session, keyed_if_read_by_the_app, require_origin, require_own_origin
 from app.api.teams import chat_rows
 from app.db.models import (
@@ -700,6 +700,9 @@ async def patch_project(
         request.app.state.runner.let_in()  # there may be room now for agents that wait
     if {*FOLLOWED, "lead_work"} & body.model_fields_set:
         tell_chats(session, request.app.state.bus, project.id)
+    if body.forget_tests_found:  # (as a save tells it, `FoundMixin._project_changed`)
+        announce(request.app.state.session_factory, request.app.state.bus, project.id,
+                 "project.changed")
     return project
 
 

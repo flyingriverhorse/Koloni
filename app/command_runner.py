@@ -262,7 +262,7 @@ class CommandRunner:
         searched = await asyncio.to_thread(
             search_reason, planned.command, ws.root, planned.cwd_rel)
         reads = await asyncio.to_thread(
-            reads_here, planned.command, ws.root, planned.cwd_rel == ".")
+            reads_here, planned.command, ws.root, planned.cwd_rel == ".", planned.cwd_rel)
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             project = session.get_one(Project, conversation.project_id)

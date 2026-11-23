@@ -1607,6 +1607,28 @@ fieldset.choice > label .choice-note,
   background: transparent;
 }
 
+/* S5c: the recipe's locked Checks step - always its last, joined to its last step(s) in the accent. */
+.recipe-checks {
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+}
+
+.recipe-checks-edge path {
+  stroke: var(--accent);
+}
+
+.recipe-check {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 6px 0;
+  font-size: var(--text-note);
+}
+
+.recipe-check-part {
+  padding-left: 22px;
+}
+
 .recipe-node-chosen {
   border: 2px solid var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);

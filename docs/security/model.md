@@ -174,6 +174,8 @@ What is not framed:
 - **Turns nobody watches** (triggers) may do only what the trigger allows.
 - **Web searches and requests** reach only public addresses, never this machine or your local
   network. The agents' browser opens previews on this machine and the sites you allowed.
+- **KOLONİ's own calls**: a model's tool call never passes for one of KOLONİ's own - one named as
+  KOLONİ names its own (`koloni_…`, `cli_…`) gets an id of its own when it is recorded.
 - **MCP servers** you have not trusted ask before every call. But a server itself runs with your rights,
   outside KOLONİ's cards.
 

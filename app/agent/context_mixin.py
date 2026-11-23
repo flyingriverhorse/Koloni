@@ -1488,8 +1488,8 @@ class ContextMixin:
         if said is None:
             conversation = session.get_one(Conversation, ctx.cid)
             said = self._checks_said[ctx.run_id] = bool(ctx.root) and (
-                conversation.project_id is not None) and proof.after_change_of(
-                session, conversation, session.get(Run, ctx.run_id)) not in ("nothing", "off")
+                conversation.project_id is not None) and "tests" in proof.checks_of(
+                session, conversation, session.get(Run, ctx.run_id)).on
         return said
 
     def _history_sub(self: "AgentRunner", session: Session, ctx: Ctx, has: set[str], system: str,

@@ -193,7 +193,7 @@ NOTHING_AFTER = {"test_copy_part"}
 LOOK_ON = {"test_found_scenarios"}
 # S3: a big or security-touching change is looked over at a turn's end by a Reviewer agent - in a
 # test, a scripted agent more (and its row) in every turn that writes much. On only where tested.
-REVIEW_ON = {"test_proof_review_scenarios"}
+REVIEW_ON = {"test_proof_review_scenarios", "test_recipe_end_checks_scenarios"}
 # S7: a failing run is run again alone and on the old code, and a pass is held to the last green
 # state - in a test, runs of the scripted executor more. On only where tested.
 BEFORE_ON = {"test_proof_before_scenarios"}
@@ -203,7 +203,8 @@ ASK_ON = {"test_proof_test_ask_scenarios"}
 # S5a: a turn that wrote documents, diagrams, data or slides gets KOLONİ's file checks - in a test,
 # their rows in every such turn, and a step of the scripted Lead more where one fails. On only
 # where tested.
-KINDS_ON = {"test_proof_kinds_scenarios", "test_proof_pages"}
+KINDS_ON = {"test_proof_kinds_scenarios", "test_recipe_end_checks_scenarios",
+            "test_proof_pages"}
 # S5b: a turn that wrote a page or a component is looked at in KOLONİ's own browser - in a test, a
 # browser started (a real one where no stand-in is named) and rows. On only where tested.
 PAGES_ON = {"test_proof_pages"}
@@ -276,6 +277,18 @@ def _no_gate(monkeypatch):
 SWITCHES = ((LOOK_ON, _no_look), (BEFORE_ON, _no_before), (REVIEW_ON, _no_review),
             (ASK_ON, _no_ask), (KINDS_ON, _no_kinds), (PAGES_ON, _no_pages),
             (TRY_ON, _no_try))
+
+
+@pytest.fixture(autouse=True)
+def no_real_server(monkeypatch):
+    """A test never serves for real: `app.main.serve` unpatched fails it at once (two tests that
+    patched `uvicorn.run` after `run` moved to `serve` served forever - CI's part sat at 98%)."""
+    import app.main
+
+    def refused(*_args, **_more):
+        raise AssertionError("a test started a real server: patch app.main.serve")
+
+    monkeypatch.setattr(app.main, "serve", refused)
 
 
 @pytest.fixture(autouse=True)

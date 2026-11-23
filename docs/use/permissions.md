@@ -27,7 +27,7 @@ level says "· no checks"). Each chat has its own level.
 |---|---|---|---|
 | Reading, listing or searching files in the project | Runs | Runs | Runs |
 | Changing a file | Card | Runs | Runs |
-| A command that only reads, such as `cat`, `ls` or `git status` | Runs | Runs | Runs |
+| A command that only reads, such as `cat`, `ls` or `git status` (every path it names - an option's value (`--file=x`, `-Path:'x'`) and a name written in quoted pieces (`.e'nv'`) too - followed through links and junctions, inside the project and no secret file - else it is any other command) | Runs | Runs | Runs |
 | Any other command | Card, unless a rule covers it | Card, unless a rule covers it | Runs |
 | A command that keeps running, such as a dev server | Card, every time | Card, every time | Runs |
 | A command that deletes, cannot be undone, or sends data off the machine (`rm -rf`, `git reset --hard`, `git push --force`, `scp`, a `curl` that posts data, …) | Card | Card | Card, unless [Check what I said first](#check-what-i-said-first) finds a line of yours that names it |
@@ -110,11 +110,17 @@ KOLONİ reads an agent's command line the way its shell will run it, and judges 
 finds, not only the first word. A harm, an install or a write it finds anywhere is asked as it would
 be on a line of its own:
 
-- **Groups**: `(cd web && npm ci)`, `{ npm ci; }`, `if exist x (npm ci)`, `for %a in (*) do (…)` and
-  PowerShell's script blocks (`ForEach-Object { … }`, `& { … }`). A group whose brackets do not pair
-  is always asked.
+- **Groups**: `(cd web && npm ci)`, `{ npm ci; }`, `if exist x (npm ci) else (npm i)`, `for %a in (*) do (…)` and
+  PowerShell's script blocks (`if ($true) { npm ci }`, `ForEach-Object { … }`, `& { … }`,
+  `Invoke-Command -ScriptBlock { … }`). A group whose brackets do not pair is always asked - but
+  brackets a heredoc writes, a comment holds (`echo done # 1) first step`), sh's `case … esac`
+  patterns and a group only printed in quotes (`echo "(npm ci)"`, `git commit -m "run (npm ci) first"`)
+  are no group.
 - **Heredocs and comments**: what a heredoc writes to a file and a comment run nothing; a stop in
-  code a heredoc or a pipe hands an interpreter (`python - <<'EOF'`, `echo "…" | python`) is asked.
+  code a heredoc or a pipe hands an interpreter (`python - <<'EOF'`, `echo "…" | python`), or that
+  `php -r`, `lua -e`, `R -e` or `julia -e` is handed, is asked.
+- **Wrappers**: a branch switch and a patch are read behind a wrapper (`time git switch main`,
+  `bash -c '…'`), cmd's `if "%a%"=="x" …` and `trap -- '…' EXIT` are read to the command they run.
 - **Launchers**: what `Start-Process … -ArgumentList`, `npx -c` / `--call`, `schtasks /tr`,
   `[scriptblock]::Create(…)`, `cmd /c` and `bash -c` hand on is read as the command it is; a command
   PowerShell is handed encoded (`-EncodedCommand`) is asked at every level.
@@ -124,7 +130,8 @@ be on a line of its own:
   it is handed is a line handed to another program, its path spelt out too
   (`C:\Windows\System32\cmd.exe`).
 - **Substitutions**: an install inside `$( … )` (`out=$(npm ci)`) counts.
-- **Continued lines**: a line continued with a backtick, `\` or `^` is read joined as well.
+- **Continued lines**: a line continued with a backtick, `\` or `^` is read joined as well - a branch
+  switch, inline code, a patch and a git command that rewrites `.git/config` too (`git `⏎`switch main`).
 - **Writes to a place built at run time**: in a branch's worktree, a redirect (`>`, `>>`, `>|`,
   `2>`), `cp`, `mv`, `install`, `tee`, `Set-Content`, `Out-File`, `New-Item`, `Copy-Item` or
   `[IO.File]::Write…` whose target is made when the command runs - `$( … )`, a variable, cmd's

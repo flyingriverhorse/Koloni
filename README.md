@@ -42,6 +42,9 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 <td width="50%"><img src="docs/images/away-panel.png" alt="The Away panel over the message box: two To-do tasks ticked, what the Orchestrator decides for you and what always waits, a stop time and a spend limit"><br><sub><b>☾ Away.</b> Your To-do tasks worked through one at a time, each in its own copy, until you are back.</sub></td>
 <td width="50%"><img src="docs/images/usage.png" alt="The Usage page: messages, tokens sent and written, cost, by provider and model"><br><sub><b>Usage.</b> Tokens, AI credits and plan windows per run, as the CLIs reported them; nothing invented.</sub></td>
 </tr>
+<tr>
+<td colspan="2"><img src="docs/diagrams/proven-finish.svg" alt="Proven finish: the related tests, the whole suite after the answer, documents and slides, a Reviewer's look, a test for the change; a failure goes back to be fixed, then a stronger model; and where Settings sets each part"><br><sub><b>Proven finish.</b> What KOLONİ checks before an answer ends a turn that changed your project, and where you set each part.</sub></td>
+</tr>
 </table>
 
 <sub>The recording above is a real run (Claude Code, haiku), sped up five times. The screenshots are from the app with a scripted test model, so their model names read "fake-qwen".</sub>
@@ -54,7 +57,8 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
    **Auto-edit files** or **Full auto**. **Plan first** adds a plan to approve before anything moves.
 3. **The Orchestrator works or delegates.** 29 built-in roles (Coder, Reviewer, Tester, Researcher,
    UI designer, Security reviewer, …) and your own; teams with stages; recipes you draw.
-4. **Take it in.** A sub-agent's changes come back as a card with the diff and your project's test
+4. **Take it in.** Before an answer ends a turn that changed code, KOLONİ tests the work itself and
+   says under it what was checked. A sub-agent's changes come back as a card with the diff and your project's test
    command. Take in, discard, or ask for changes. At Auto-edit and Full auto, clean work lands by
    itself; a git branch merges by itself only at Full auto.
 
@@ -66,6 +70,11 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 - **Evidence**: the canvas and each agent's window show the tools, commands and real diffs as
   recorded. Undo a turn; Stop or Stop everything keeps half-done work behind a card.
   [Chat and canvas](docs/use/chat-and-canvas.md) · [Working copies](docs/use/workspace.md)
+- **Proven finish**: after a turn that changed the project, KOLONİ checks the work itself before the
+  answer ends: your tests (the related ones first, the whole suite after the answer), the documents,
+  diagrams, data and slides it wrote, and a Reviewer's read of a big or security-touching change. A
+  failure goes back to be fixed, at most **Fix rounds** times; under the answer, **Checked** says what
+  passed, what failed and what was not checked. [What KOLONİ checked](docs/use/checked.md)
 - **Control**: cards for changes, commands, web and HTTP; a delete or a send off the machine asks at
   every level, unless at Full auto **Check what I said first** finds a line of yours that allows it, or
   you let agents delete what KOLONİ checks is disposable (a build folder git ignores, a merged branch); secret

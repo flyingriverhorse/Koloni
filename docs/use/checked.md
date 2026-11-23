@@ -34,7 +34,9 @@ project:
 The line under the choice says what it does in this project now, from its real state - for
 example "Runs python -m pytest -q in ./ (found by KOLONİ), related tests first, the whole suite in
 the background; a change over 80 lines or 3 files, or one touching sign-in, secrets or commands,
-is read by a Reviewer (one more model request). Failing work goes back up to 2 times." Before a
+is read by a Reviewer (one more model request). Failing work goes back up to 2 times." It names
+your check command; else each test command you set for a part on the project map ("npm test in
+web/"), then what KOLONİ saved for any other folder - and changes as you save one there. Before a
 test command is known it says KOLONİ finds one and asks you once. Its ⓘ leads here.
 
 ### For one chat
@@ -51,7 +53,8 @@ on with the project's setting.
 
 It is free at every level. At **Full auto** with it off, the menu says so under it: "Full auto
 with no checks: nothing checks this chat's changes". A turn that runs a team's recipe follows
-the recipe, not this switch: today the project's setting.
+the recipe's **Checks** step, not this switch: the project's setting, unless the recipe sets its own
+([The Checks step](../agents/recipes.md#the-checks-step)).
 
 A project that had turned off the old **Finish only when the tests pass** switch is on
 **Nothing**, and Settings says so under the setting.
@@ -356,10 +359,14 @@ also what does not fit in the diff the Reviewer is shown.
 
 - They read: the user's request, the turn's change as a diff (cut at 12 000 characters, the files
   left out named; a secret file is named, never shown), KOLONİ's own test lines, and any file of
-  the project they open. They do not run commands: KOLONİ's test lines are what they know of the
-  tests. They get read tools only and no MCP server, whatever their role is
-  given: they change nothing. One whose model is a CLI that works with tools of its own is not
-  opened ("Review not run: …"), as KOLONİ could not hold it to reading.
+  the project they open. They get read tools only and no MCP server, whatever their role is
+  given: they change nothing. They may run two kinds of command, never asked about: one that only
+  reads (`git diff`, `cat a.py`, `ls src`), and the project's approved test command exactly as it
+  is set, in its folder - your check command or a part's test command, a saved one an **Always**
+  rule covers, or a CI line you approved with **Run these**. Any other (`rm`, `pip install`, the
+  test command with an option added) is refused, and they are told which test commands they may
+  run; no card is ever opened for a Reviewer's command. One whose model is a CLI that works with
+  tools of its own is not opened ("Review not run: …"), as KOLONİ could not hold it to reading.
 - For a change a user sees (a screen's file, a command's option) in a project with `docs/`, a
   README or a CHANGELOG, they also check the docs: "Docs not updated for: …" is a suggestion,
   blocking only where the project's own rules say docs must change with it.
@@ -413,8 +420,9 @@ a user would:
   changed - clicks, types, reads, takes screenshots - reads the console, and ends with MERGE or
   HOLD and its findings: "Tried: Tester (…) on http://127.0.0.1:5173/ - HOLD, 2 findings, 1
   blocking". A blocking finding goes back as a fix round; the try is not made again that turn. The
-  Tester gets its role's read and browser tools only - no writing, no command - and opens this
-  machine's preview alone; its screenshots are shown to its model only where that model takes
+  Tester gets what the Reviewer gets - its role's read tools, and commands that only read or are
+  the project's approved test command exactly, never a card - and its browser tools; it writes
+  nothing, and opens this machine's preview alone; its screenshots are shown to its model only where that model takes
   images (else it is told so, and reads the page's text). Its spawn opens no card at any level.
 - **With no preview running**, KOLONİ starts the project's dev server itself - `npm run dev`
   (else `npm start`) of the nearest `package.json` above the changed screens - on a free port
@@ -531,7 +539,11 @@ Orchestrator, "round 1 of 2: tests fail" - or, for the Reviewer's, "round 1 of 2
 finding". The Reviewer and Security reviewer KOLONİ opened are agent nodes after it. The
 Orchestrator's own box gets one line: "● checking…"
 while a run goes on, "✓ checked · 1 round", "✓ checked · related only" (the whole suite stopped or
-not run), "✗ still failing" or "not checked". In a recipe's turn the node says "end of the recipe".
+not run), "✗ still failing" or "not checked". In a recipe's turn the node is the recipe's last step,
+inside its frame, and says "end of the recipe". A turn KOLONİ did not check has no Checks node: off
+for this chat, the Orchestrator's box says "not checked · off for this chat"; off in the recipe's
+Checks step, "not checked · off in the recipe’s Checks step"; in a project whose After a change is
+**Nothing**, it says nothing of it - the Checked section does.
 
 Its **⋯** menu has **Stop this check** while one of its runs goes on - the same as under the
 answer, at every permission level: what ran stays, the rest says "not checked" -, **Off for this
@@ -586,6 +598,9 @@ the Orchestrator's window, whose record holds the runs.
 | – Not in this run: `name`'s work waits in Ready for you | That work was not tested. It is still in its working copy. |
 | – Not checked: After a change is set to Nothing | The project's setting. |
 | – Not checked: off for this chat | This chat's **Test and review changes** is off. |
+| – Not checked: this recipe's Checks step checks nothing | The recipe's Checks step is set for the recipe with every check off. |
+| – Tests not checked: off in this recipe's Checks step · No review: off in this recipe's Checks step · Not checked: `kind` off in this recipe's Checks step | The recipe's Checks step leaves that check off. |
+| ✗ Checked only: this recipe's Checks step sends nothing back to fix - you decide (Fix it) | The recipe's Fix rounds are 0: the tests failed and nothing went back. |
 | – CI commands found: `lines` - not run until you approve them once (Run these) | The project's CI lint, typecheck and test lines, offered. **Run these** approves exactly these. |
 | – CI step `name`: not run: `why` / e2e not run: `name` / CI file not read: `file` - `why` | What of the CI is left out beside the lines it offers or runs: an e2e step, a line not plain, an install, a secret, another shell, a folder outside, a file past the limits. |
 | – CI commands not used: a workflow changed in this turn | A workflow file changed in the turn: its lines wait for the next one. |

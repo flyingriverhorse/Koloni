@@ -412,3 +412,58 @@ export function layout(graph: RecipeGraph): Record<string, Place> {
   for (const one of [...graph.steps, ...graph.groups, ...graph.ends]) if (one.pos && places[one.id]) places[one.id] = { ...places[one.id], ...one.pos }
   return places
 }
+
+export type Checks = NonNullable<RecipeGraph['checks']>
+/** S5c (plan decision 16): the recipe's locked Checks step - no part of the graph, drawn after its last step(s), never removed. Its choice is the graph's `checks`. */
+export const CHECKS = 'checks:end'
+/** What the Checks step may check, each with what it means, in the panel's order. */
+export const CHECK_PARTS: [part: Exclude<keyof Checks, 'fix_rounds'>, name: string, said: string][] = [
+  ['tests', 'Tests', 'the project’s tests on the work'],
+  ['review', 'Review', 'a Reviewer reads a big or security-touching change'],
+  ['docs', 'Docs', 'links, headings, the sections you asked for'],
+  ['diagram', 'Diagrams', 'parses, every edge reaches a shape'],
+  ['data', 'Data', 'CSV rows, notebook cells'],
+  ['slides', 'Slides', 'empty slides, notes'],
+  ['ui', 'Pages', 'a changed page at phone, tablet and desktop widths, in KOLONİ’s browser'],
+]
+/** "Set for this recipe" as it starts: the project's usual Test and review for code. */
+export const ownChecks = (): Checks => ({ tests: true, review: true, docs: false, diagram: false, data: false, slides: false, ui: false, fix_rounds: null })
+
+/** The Checks step's choice: set for the recipe, or - null - following the project (no `checks` kept, as the server keeps it). */
+export function setChecks(graph: RecipeGraph, checks: Checks | null): RecipeGraph {
+  if (checks) return { ...graph, checks }
+  const rest = { ...graph }
+  delete rest.checks
+  return rest
+}
+
+/** The Checks step's line: "follows the project", or what it checks and its rounds ("Docs · Review · rounds 2", "nothing · check only"). */
+export function checksLine(checks: Checks | null | undefined): string {
+  if (!checks) return 'follows the project'
+  const on = CHECK_PARTS.filter(([part]) => checks[part]).map(([, name]) => name)
+  const rounds = checks.fix_rounds == null ? 'the project’s rounds' : checks.fix_rounds === 0 ? 'check only' : `rounds ${checks.fix_rounds}`
+  return `${on.join(' · ') || 'nothing'} · ${rounds}`
+}
+
+/** The parts the Checks step is joined to: each an arrow leads from to an end; with none yet, each no arrow leaves (the start, on an empty board). */
+export function lastParts(graph: RecipeGraph): string[] {
+  const ends = new Set(graph.ends.map(end => end.id))
+  const toEnd = [...new Set(graph.arrows.filter(arrow => ends.has(arrow.to)).map(arrow => arrow.from))]
+  if (toEnd.length) return toEnd
+  const tops = [...graph.steps.filter(step => !step.group).map(step => step.id), ...graph.groups.map(group => group.id)]
+  const tails = tops.filter(id => !graph.arrows.some(arrow => arrow.from === id))
+  return tails.length ? tails : [START]
+}
+
+/** Where the Checks step is drawn: beside the lowest end - right of it, where the recipe ends - or, with no end yet, under its last part(s). */
+export function checksPlace(graph: RecipeGraph, places: Record<string, Place>): Place {
+  const ends = graph.ends.map(end => places[end.id]).filter(Boolean)
+  if (ends.length) {
+    const low = Math.max(...ends.map(one => one.y))
+    return { x: Math.max(...ends.map(one => one.x + one.w)) + GAP, y: low, w: STEP_W, h: STEP_H }
+  }
+  const last = lastParts(graph).map(id => places[id]).filter(Boolean)
+  const x = last.length ? Math.min(...last.map(one => one.x)) : 0
+  const y = last.length ? Math.max(...last.map(one => one.y + one.h)) + 28 : 0
+  return { x, y, w: STEP_W, h: STEP_H }
+}

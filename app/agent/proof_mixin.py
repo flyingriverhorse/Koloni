@@ -89,6 +89,8 @@ class Proof:
     yes: dict[str, set[str]] = field(default_factory=dict)
     # Plan decision 13: a recipe of the turn ran its own fix loop to its end - rounds never stack.
     recipe_spent: bool = False
+    # S5c: what this pass checks (`proof.checks_of`: the project's, or its recipe's Checks step).
+    checks: proof.Checks = proof.Checks(frozenset(proof.PARTS), MAX_SENT_BACK, "check", False)
     changes: list[Change] = field(default_factory=list)
     # When the newest change its last pass saw was made: one made later was not tested.
     seen: datetime | None = None
@@ -150,16 +152,15 @@ class ProofMixin:
             return None
         with self._factory() as session:
             project = self._project(session, ctx.cid)
-            if project is None or proof.after_change_of(
-                    session, session.get_one(Conversation, ctx.cid),
-                    session.get(Run, ctx.run_id)) in ("nothing", "off"):
+            checks = proof.checks_of(session, session.get_one(Conversation, ctx.cid),
+                                     session.get(Run, ctx.run_id))
+            if project is None or not checks.on:  # (S5c: a recipe's Checks step may turn all off)
                 return None
             found = proof.changes(session, ctx.run_id, ctx.agent_id, self._sharing(ctx))
-            most = project.fix_rounds
         if not any(one.in_project for one in found):
             return None
-        held = self._proofs.setdefault(ctx.run_id, Proof(most=most))
-        held.changes = found
+        held = self._proofs.setdefault(ctx.run_id, Proof(most=checks.rounds))
+        held.changes, held.checks, held.most = found, checks, checks.rounds
         held.recipe_spent = held.recipe_spent or self._recipe_spent(ctx)
         for name in self.PROOF_STEPS:
             try:
@@ -206,6 +207,9 @@ class ProofMixin:
         each is run; a failure goes back to the Orchestrator while rounds are left."""
         held.rows = [one for one in held.rows if one["kind"] not in ("tests", "coverage")]
         held.uncovered.clear()  # (S9: this pass's word on the new lines, not an earlier one's)
+        if "tests" not in held.checks.on:  # (S5c: off in the recipe's Checks step)
+            held.rows.append(proof.row("tests", "note", proof.TESTS_OFF))
+            return None
         if not proof.needs_tests(one.path for one in held.changes if one.in_project):
             held.rows.append(proof.row("tests", "note", proof.NO_TESTS_ROW))
             return None
@@ -481,12 +485,14 @@ class ProofMixin:
         if project is None or not any(one.in_project for one in found):
             return []
         waiting = self._waiting_rows(session, found)
-        setting = proof.after_change_of(session, session.get_one(Conversation, cid),
-                                        session.get(Run, run_id))
-        if setting in ("nothing", "off"):
+        # (What the gate used where it ran: the recipe's row may have run again since.)
+        checks = held.checks if held is not None else proof.checks_of(
+            session, session.get_one(Conversation, cid), session.get(Run, run_id))
+        if not checks.on:
             # (Off for this chat: its own kind - the canvas draws no Checks node for it.)
-            said = proof.row("chat_off", "note", proof.OFF_FOR_CHAT) if setting == "off" else (
-                proof.row("not_checked", "note", proof.NOT_CHECKED))
+            said = proof.row("recipe_off", "note", proof.RECIPE_OFF) if checks.own else (
+                proof.row("chat_off", "note", proof.OFF_FOR_CHAT) if checks.setting == "off" else (
+                    proof.row("not_checked", "note", proof.NOT_CHECKED)))
             return [said, *self._last_run_rows(session, run_id), *waiting]
         if held is None or not held.rows:
             return [proof.row("tests", "not_run", proof.NOT_RUN.format(
@@ -500,7 +506,8 @@ class ProofMixin:
         failing = any(one["state"] == "failed" for one in held.rows if one["kind"] == "tests")
         if failing and (held.rounds >= held.most or held.recipe_spent):
             rounds.append(proof.row("rounds", "failed", proof.RECIPE_SPENT if held.recipe_spent
-                                    and held.rounds < held.most else proof.STILL_FAILING.format(
+                                    and held.rounds < held.most else proof.CHECK_ONLY if (
+                                        not held.most) else proof.STILL_FAILING.format(
                                         most=held.most)))
         later = proof.last_change(session, run_id)
         rounds += self._hold_left(held)  # (S3: a hold nothing settled)

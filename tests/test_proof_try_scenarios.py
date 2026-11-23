@@ -84,9 +84,10 @@ def test_a_big_screen_change_is_tried_by_the_tester_on_the_running_preview(
     snap = wait_run(client, cid, run_id, timeout=30)
     assert f"Tried: Tester ({SIGN}) on {preview} - MERGE, no findings" in texts(snap), texts(snap)
     (tester,) = the_testers(snap)
-    # (KOLONİ's own look: its role's read and browser tools - no write, no command)
-    assert "browser_open" in tester["tools"] and not {
-        "write_file", "edit_file", "run_command"} & set(tester["tools"]), tester["tools"]
+    # (KOLONİ's own look, as the Reviewer's - decision 6: its read tools, run_command held to
+    # reads and the approved test command - and its browser tools; no write)
+    assert {"browser_open", "run_command"} <= set(tester["tools"]) and not {
+        "write_file", "edit_file"} & set(tester["tools"]), tester["tools"]
     made = calls_by(snap, tester)
     assert made["browser_open"]["status"] == "succeeded", made["browser_open"]
     # (a picture reaches a model only where its model takes images: this one takes none)
@@ -205,7 +206,9 @@ def test_at_ask_the_testers_spawn_opens_no_card_and_it_reaches_no_site_and_write
         fake, preview, make_client, wait_run, project_dir):
     out = StepResult("", [ToolCallRequest("t3", "browser_open", json.dumps(
         {"url": "https://example.com/"})), ToolCallRequest("t4", "write_file", json.dumps(
-        {"path": "src/App.tsx", "content": "gone\n"}))], 1, 1)
+        {"path": "src/App.tsx", "content": "gone\n"})), ToolCallRequest("t5", "run_command",
+        json.dumps({"command": "pip install requests"})), ToolCallRequest(
+        "t6", "run_command", json.dumps({"command": "rm -rf src"}))], 1, 1)
     client, _model = make_client({"Lead": [write("src/App.tsx", SCREEN), text("done")],
                                   "Tester": [out, WORKS]}, executor=ScriptedExecutor([PASS]))
     cid, run_id = begin(client, project_dir, mode="ask", check_command=CHECK)
@@ -218,6 +221,13 @@ def test_at_ask_the_testers_spawn_opens_no_card_and_it_reaches_no_site_and_write
     assert "KOLONİ's Tester opens this machine's preview alone" in made["browser_open"]["result"]
     assert made["write_file"]["status"] != "succeeded"
     assert (project_dir / "src" / "App.tsx").read_text(encoding="utf-8") == SCREEN
+    # (an install, any command that neither only reads nor is the approved test: refused, no card)
+    ran = {json.loads(c["arguments"])["command"]: c for c in snap["tool_calls"]
+           if c["agent_id"] == tester["id"] and c["name"] == "run_command"}
+    assert set(ran) == {"pip install requests", "rm -rf src"}
+    assert all(c["status"] == "failed" and "is not available" in c["result"]
+               for c in ran.values()), ran
+    assert not [c for c in snap["commands"] if c["agent_id"] == tester["id"]], snap["commands"]
 
 
 # --- what is tried, read off the project's own files -----------------------------------------

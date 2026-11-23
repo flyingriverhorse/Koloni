@@ -284,6 +284,9 @@ class ProjectOut(Out):
     # one look for one (None: not yet).
     tests_found: dict[str, dict]
     tests_look: dict | None
+    # K-buyuk-proje: the user's own test command by part of the project map ("./" the root part,
+    # "sub/" another; "" their "no test" there) - run before what KOLONİ saved for that folder.
+    test_commands: dict[str, str]
     # K-yargic: at Full auto a harmful-looking command waits for the user ("ask"), or is first
     # checked against what they wrote ("judge").
     full_auto_check: FullAutoCheck
@@ -2947,6 +2950,20 @@ class RecipeLoop(Shut):
     rounds: int | None = Field(None, ge=1, le=5)
 
 
+class RecipeChecks(Shut):
+    """S5c (plan decision 16): what KOLONİ checks at the end of this recipe's turn, set for the
+    recipe - its Checks step's "Set for this recipe"; each part on or off."""
+    tests: bool = True
+    review: bool = True
+    docs: bool = False
+    diagram: bool = False
+    data: bool = False
+    slides: bool = False
+    ui: bool = False  # (S5b: pages in KOLONİ's own browser - Settings calls them Pages)
+    # How often a problem goes back to fix; 0: check only; None: the project's Fix rounds.
+    fix_rounds: int | None = Field(None, ge=0, le=5)
+
+
 class RecipeGraph(Shut):
     version: Literal[1] = 1
     steps: list[RecipeStep] = Field(max_length=60)
@@ -2954,6 +2971,9 @@ class RecipeGraph(Shut):
     ends: list[RecipeEnd] = Field([], max_length=10)
     arrows: list[RecipeArrow] = Field([], max_length=200)
     loops: list[RecipeLoop] = Field([], max_length=20)
+    # S5c: its locked Checks step's own choice; None: it follows the project's After a change.
+    # Left out of what is written when not set, so an old recipe's file reads as it did.
+    checks: Annotated[RecipeChecks | None, Field(None, exclude_if=lambda value: value is None)]
 
 
 class RecipeIn(BaseModel):

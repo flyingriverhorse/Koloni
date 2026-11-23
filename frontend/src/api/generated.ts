@@ -9018,6 +9018,10 @@ export interface components {
              * @enum {string}
              */
             teams_mode: "lead" | "manual" | "none";
+            /** Test Commands */
+            test_commands: {
+                [key: string]: string;
+            };
             /** Tests Found */
             tests_found: {
                 [key: string]: {
@@ -9461,6 +9465,50 @@ export interface components {
              */
             state: "done" | "now" | "next" | "stopped";
         };
+        /**
+         * RecipeChecks
+         * @description S5c (plan decision 16): what KOLONİ checks at the end of this recipe's turn, set for the
+         *     recipe - its Checks step's "Set for this recipe"; each part on or off.
+         */
+        RecipeChecks: {
+            /**
+             * Data
+             * @default false
+             */
+            data: boolean;
+            /**
+             * Diagram
+             * @default false
+             */
+            diagram: boolean;
+            /**
+             * Docs
+             * @default false
+             */
+            docs: boolean;
+            /** Fix Rounds */
+            fix_rounds?: number | null;
+            /**
+             * Review
+             * @default true
+             */
+            review: boolean;
+            /**
+             * Slides
+             * @default false
+             */
+            slides: boolean;
+            /**
+             * Tests
+             * @default true
+             */
+            tests: boolean;
+            /**
+             * Ui
+             * @default false
+             */
+            ui: boolean;
+        };
         /** RecipeDraftIn */
         RecipeDraftIn: {
             /** Text */
@@ -9498,6 +9546,7 @@ export interface components {
              * @default []
              */
             arrows: components["schemas"]["RecipeArrow"][];
+            checks?: components["schemas"]["RecipeChecks"] | null;
             /**
              * Ends
              * @default []

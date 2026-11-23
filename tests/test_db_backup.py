@@ -156,8 +156,6 @@ def test_the_start_that_serves_makes_the_copy_and_an_app_a_test_makes_does_not(
     import logging.config
     from types import SimpleNamespace
 
-    import uvicorn
-
     from app import main
 
     main.create_app(settings)
@@ -170,6 +168,6 @@ def test_the_start_that_serves_makes_the_copy_and_an_app_a_test_makes_does_not(
         state=SimpleNamespace(page_key="k")))
     monkeypatch.setattr(main, "show_link", lambda *_: None)
     monkeypatch.setattr(main, "back_up_daily", copied.append)
-    monkeypatch.setattr(uvicorn, "run", lambda *_, **__: copied.append("served"))
+    monkeypatch.setattr(main, "serve", lambda *_, **__: copied.append("served"))
     main.run()
     assert copied == [tmp_path / "served" / "data" / "koloni.db", "served"]
