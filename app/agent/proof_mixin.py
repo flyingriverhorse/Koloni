@@ -15,7 +15,8 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TYPE_CHECKING, Literal
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal
 
 from sqlalchemy import literal_column, select
 
@@ -156,7 +157,8 @@ class ProofMixin:
                 return None
             found = proof.changes(session, ctx.run_id, ctx.agent_id, self._sharing(ctx))
             # (CL-321 Bulgu D: a change a command made is on no record - the gate opens for it.)
-            unrecorded = proof.unrecorded(session, ctx.run_id, {ctx.agent_id, *self._sharing(ctx)})
+            ran = proof.unrecorded(session, ctx.run_id, {ctx.agent_id, *self._sharing(ctx)})
+        unrecorded = await self._what_it_touched(ctx, ran, found) if ran is not None else None
         if not any(one.in_project for one in found) and unrecorded is None:
             return None
         held = self._proofs.setdefault(ctx.run_id, Proof(most=checks.rounds))
@@ -174,6 +176,23 @@ class ProofMixin:
             if said is not None:
                 return said
         return None
+
+    async def _what_it_touched(self: "AgentRunner", ctx: Ctx, ran: tuple[str, Any],
+                               found: list[Change]) -> str | None:
+        """Review of CL-321 D: in a git project, an unrecorded command counts only where git lists
+        a file written since it started - then said with up to MOST_TOUCHED of them ("a.py, b.py
+        - python gen.py"); none: it changed nothing (a question's `python main.py`). Not a git
+        project: the command alone, as it may have changed anything."""
+        command, since = ran
+        touched = await asyncio.to_thread(
+            proof.touched_since, Path(ctx.folder), since, {one.path for one in found})
+        if touched is None:
+            return command
+        if not touched:
+            return None
+        more = f" +{len(touched) - proof.MOST_TOUCHED} more" if len(
+            touched) > proof.MOST_TOUCHED else ""
+        return f"{', '.join(touched[:proof.MOST_TOUCHED])}{more} - {command}"
 
     def _recipe_spent(self: "AgentRunner", ctx: Ctx) -> bool:
         """Whether a recipe of this turn ran a test-to-fix loop of its own to its last round (S4's

@@ -479,6 +479,18 @@ def test_a_hold_is_a_hold_however_its_findings_are_written(make_client, wait_run
     ("Verdict: I would HOLD this", "HOLD"), ("Overall verdict: MERGE", "MERGE"),
     ("## Verdict\n\n**MERGE**", "MERGE"), ("Verdict: MERGE - no blocking findings", "MERGE"),
     ("Verdict: MERGE, no findings", "MERGE"), ("No verdict here, it looks fine.", None),
+    # (its review: the first verdict word decides - a hold word negated is none; an earlier
+    # look's verdict is not this one's)
+    ("Verdict: MERGE (nothing blocked)", "MERGE"),
+    ("Verdict: MERGE - no reason to hold this back", "MERGE"),
+    ("Verdict: MERGE. Don't hold it.", "MERGE"),
+    ("Verdict: MERGE - no need to reject anything", "MERGE"),
+    ("Verdict: I'd not block: MERGE", "MERGE"), ("## Verdict\nI'd not block: MERGE", "MERGE"),
+    ("Previous verdict: HOLD. Now it is fixed.\nVerdict: MERGE", "MERGE"),
+    ("Verdict: MERGE - nothing blocks", "MERGE"), ("## Verdict\nMERGE, no blocking findings", "MERGE"),
+    ("Verdict: MERGE - no changes requested", "MERGE"), ("Final verdict: MERGE", "MERGE"),
+    ("Verdict: MERGE is not possible yet", "HOLD"), ("Verdict:\n**MERGE**", "MERGE"),
+    ("My verdict: MERGE, with minor nits", "MERGE"),
 ])
 def test_the_verdict_is_a_line_of_its_own_and_hold_wins(report, verdict):
     assert review_mixin.verdict_of(report) == verdict

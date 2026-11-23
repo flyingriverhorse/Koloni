@@ -109,12 +109,17 @@ FINDING = "{mark}: {what}"
 # "My verdict:"); what it says is read from the rest of it (`_verdict_said`).
 VERDICT = re.compile(r"^\s*(?:#+\s*|[-*]\s+)?(?:\d{1,3}[.)]\s+)?\**\s*(?:[A-Za-z]+\s+){0,2}"
                      r"Verdict\b(?P<rest>.*)$", re.IGNORECASE)
-# What holds: HOLD, a change asked for, a rejection, a block - or MERGE said not to be.
-_HOLDS = re.compile(r"\b(?:HOLD|REQUEST(?:ED|ING)?\s+CHANGES|REJECT(?:ED)?|BLOCK(?:ED)?)\b",
-                    re.IGNORECASE)
-_NOT_MERGE = re.compile(r"\b(?:not|no|never|cannot|can't|don't|won't|shouldn't)\b[^.]*?\bMERGE\b"
-                        r"|\bMERGE\s+(?:is|was|should|would)?\s*(?:not|never)\b|\bMERGE\s+isn't\b",
+# A verdict's words (review of CL-321 E): the first of MERGE and what holds - HOLD, a change asked
+# for, a rejection, a block - decides; a hold word negated ("I'd not block", "no need to reject")
+# is none, a MERGE negated ("do not MERGE") or said not to be ("MERGE is not possible") holds.
+_KEYWORD = re.compile(r"\b(MERGE|HOLD|REQUEST(?:ED|ING)?\s+CHANGES|REJECT(?:ED)?|BLOCK(?:ED)?)\b",
+                      re.IGNORECASE)
+_NEGATION = re.compile(r"^(?:not|no|never|cannot)$|n't$", re.IGNORECASE)
+_MERGE_NOT = re.compile(r"\s*(?:is|was|should|would|will)?\s*(?:not|never)\b|\s*isn't\b",
                         re.IGNORECASE)
+_CHOICE = re.compile(r"\b(?:MERGE|HOLD)\s+or\s+(?:MERGE|HOLD)\b", re.IGNORECASE)  # (a question)
+# A verdict not this look's: "Previous verdict: HOLD. Now it is fixed."
+_EARLIER = re.compile(r"\b(?:previous|last|earlier|old)\s+verdict\b", re.IGNORECASE)
 NO_VERDICT = "Review gave no verdict: not counted ({role}, {sign})"
 # A change a user sees: a screen's file, or a command's option added.
 USER_FACING = re.compile(r"add_argument\(|click\.option\(|\.option\(|process\.argv|argparse")
@@ -139,28 +144,30 @@ def verdict_of(report: str) -> str | None:
             fenced = not fenced
         elif not fenced and not bare.startswith((">", "+")) and not (
                 bare.startswith("-") and not bare.startswith("- ")) and (
-                head := VERDICT.match(line)):
-            # (A heading, or "Verdict:" alone: what it says is the next line's first word.)
-            rest = head["rest"] if re.search(r"[A-Za-z]", head["rest"]) else _first_word(
-                lines[at + 1:])
+                head := VERDICT.match(line)) and not _EARLIER.search(line[:head.start("rest")]):
+            # (A heading, or "Verdict:" alone: what it says is on the next line with words.)
+            rest = head["rest"] if re.search(r"[A-Za-z]", head["rest"]) else next(
+                (one for one in lines[at + 1:] if one.strip()), "")
             if said := _verdict_said(rest):
                 found.add(said)
     return "HOLD" if "HOLD" in found else "MERGE" if found else None
 
 
 def _verdict_said(words: str) -> str | None:
-    """What a verdict's words say: HOLD where they hold, ask for changes, reject or block, or
-    say MERGE is not to be (`do NOT MERGE`, `MERGE is not possible`); else MERGE where they
-    name it. None: neither."""
-    if _HOLDS.search(words) or _NOT_MERGE.search(words):
-        return "HOLD"
-    return "MERGE" if re.search(r"\bMERGE\b", words, re.IGNORECASE) else None
-
-
-def _first_word(lines: list[str]) -> str:
-    """The next line with words: its first, past a heading's or a list's marks."""
-    line = next((one for one in lines if one.strip()), "")
-    return next(iter(re.findall(r"[A-Za-z]+", line)), "")
+    """What a verdict's words say, by the first that is one (`_KEYWORD`): a hold word not
+    negated in the three words before it holds; MERGE merges unless a negation is among the two
+    words before it or it is said not to be (`MERGE is not possible`). None: neither."""
+    words, since = _CHOICE.sub(" ", words), 0
+    for found in _KEYWORD.finditer(words):
+        # (only the words since the last keyword: "I'd not block: MERGE" negates no MERGE)
+        before = [one.strip("*:,.;()") for one in words[since:found.start()].split()]
+        since = found.end()
+        if found[1].upper() == "MERGE":
+            near = any(_NEGATION.search(one) for one in before[-2:])
+            return "HOLD" if near or _MERGE_NOT.match(words[found.end():]) else "MERGE"
+        if not any(_NEGATION.search(one) for one in before[-3:]):
+            return "HOLD"
+    return None
 
 
 def _held_in_words(report: str, findings: list[dict] | None) -> list[dict] | None:

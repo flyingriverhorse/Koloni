@@ -1005,3 +1005,46 @@ def test_a_turn_that_only_read_or_tested_opens_no_gate(make_client, wait_run, pr
     cid, run_id = begin(client, project_dir, check_command="python check.py")
     snap = wait_run(client, cid, run_id)
     assert len(executor.started) == 3 and checked(snap) is None, (executor.started, texts(snap))
+
+
+def test_a_line_that_may_write_is_judged_by_each_of_its_parts():
+    # (Review of D: `black . && pytest -q` names a test run, yet black rewrites the files.)
+    for line in ["black . && pytest -q", "sed -i s/a/b/ a.py && python -m pytest",
+                 "ruff format . ; pytest", "python main.py", "mkdir build"]:
+        assert proof.may_write(line), line
+    for line in ["git status && pytest -q", "ls", "python -m pytest -q", "cat a.py | grep x"]:
+        assert not proof.may_write(line), line
+
+
+def _git_project(project_dir, monkeypatch):
+    from tests.test_take_in_scenarios import repository
+    empty = project_dir.parent / "gitconfig"
+    empty.write_text("")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(empty))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    repository(project_dir)
+
+
+@pytest.mark.skipif(__import__("shutil").which("git") is None, reason="git is not installed")
+def test_in_a_git_project_a_command_counts_by_the_files_it_wrote(make_client, wait_run,
+                                                                  project_dir, monkeypatch):
+    # (Review of D: every command but a read opened the gate - `python main.py` answering a
+    # question too. In a git project it counts where git lists a file written since it began.)
+    _git_project(project_dir, monkeypatch)
+    executor = ScriptedExecutor([Script(["\n"], writes={"gen.py": "x = 1\n"}), PASS])
+    client, _model = make_client([run("python gen_it.py"), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    snap = wait_run(client, cid, run_id)
+    assert texts(snap) == [proof.UNRECORDED.format(command="gen.py - python gen_it.py"),
+                           "Tests passed: python check.py - 4 passed in 0.1s"], texts(snap)
+
+
+@pytest.mark.skipif(__import__("shutil").which("git") is None, reason="git is not installed")
+def test_in_a_git_project_a_command_that_wrote_nothing_opens_no_gate(make_client, wait_run,
+                                                                      project_dir, monkeypatch):
+    _git_project(project_dir, monkeypatch)
+    executor = ScriptedExecutor([Script(["The answer is 42.\n"]), PASS])
+    client, _model = make_client([run("python main.py"), text("42")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    snap = wait_run(client, cid, run_id)
+    assert len(executor.started) == 1 and checked(snap) is None, (executor.started, texts(snap))

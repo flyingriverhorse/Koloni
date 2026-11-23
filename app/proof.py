@@ -2,19 +2,20 @@
 project's test command(s), the turn's changes on record, whether a test run on record stands for
 this turn's, and the rows of the Checked section KOLONİ writes under the answer (`ProofMixin`)."""
 
+import contextlib
 import difflib
 import fnmatch
 import json
 import re
 from collections.abc import Collection, Iterable
 from datetime import datetime
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import NamedTuple, NotRequired, TypedDict
 
 from sqlalchemy import literal_column, or_, select
 from sqlalchemy.orm import Session
 
-from app import finish_tests, ledger, project_map, test_found
+from app import finish_tests, git, ledger, project_map, test_found
 from app.code_map import PYTHON, SCRIPT, tested
 from app.commands import only_reads, plain
 from app.db.models import (
@@ -319,21 +320,51 @@ def turn_diff(session: Session, run_id: str, lead_id: str, most: int,
     return shown, whole, left
 
 
-def unrecorded(session: Session, run_id: str, by: Collection[str]) -> str | None:
+def unrecorded(session: Session, run_id: str, by: Collection[str]
+               ) -> tuple[str, datetime | None] | None:
     """CL-321 Bulgu D: the newest command of `by` (the Lead and the agents working where it
-    does) this turn that may have changed files no change record holds - not a mere read
-    (`only_reads`), not a test run (`ledger.read_test`), not KOLONİ's own: `python -c "open(…)"`,
-    `sed -i`, a heredoc to a file, a formatter. None: none ran."""
+    does) this turn that may have changed files no change record holds - one with a part that
+    is neither a mere read (`only_reads`) nor a test run (`ledger.read_test`), not KOLONİ's own:
+    `python -c "open(…)"`, `sed -i`, a heredoc to a file, `black . && pytest -q`. Its line,
+    shortened, and when it started; None: none ran."""
     mine = select(ToolCall.id).where(ToolCall.provider_call_id.startswith(PROOF_CALL))
-    for line in session.scalars(select(Command.command).where(
+    for line, started in session.execute(select(Command.command, Command.started_at).where(
             Command.run_id == run_id, Command.agent_id.in_(by),
             Command.status.in_(("exited", "timed_out")),
             or_(Command.tool_call_id.is_(None), Command.tool_call_id.not_in(mine)))
             .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc())):
-        if ledger.read_test(line) is None and not only_reads(line):
+        if may_write(line):
             said = " ".join(line.split())
-            return said if len(said) <= MOST_COMMAND else said[:MOST_COMMAND - 1] + "…"
+            return (said if len(said) <= MOST_COMMAND else said[:MOST_COMMAND - 1] + "…"), started
     return None
+
+
+def may_write(line: str) -> bool:
+    """Whether a command line may change files: a part of it (`ledger._split`) is neither a mere
+    read (`only_reads`) nor a test run (`ledger.read_test`) - `black . && pytest -q` may."""
+    return any(ledger.read_test(part) is None and not only_reads(part)
+               for part in (" ".join(words) for words, _op in ledger._split(line) if words))
+
+
+def touched_since(folder: Path, since: datetime | None, recorded: Collection[str]
+                  ) -> list[str] | None:
+    """Review of CL-321 D: what a command may have changed, by git - the files `git status`
+    lists in `folder` (changed, added, untracked; not ignored), but those on record
+    (`recorded`), written at or after `since`. None: no git there (or it did not answer in
+    time). shortcut: a file it deleted is not seen (no time to read); count git's deletions if
+    that is missed. Blocking: call it off the event loop."""
+    listed = git.changes(folder)
+    if listed is None:
+        return None
+    edge = since.timestamp() - MTIME_SLACK if since is not None else float("-inf")
+    found = []
+    for one in listed:
+        if one["path"] in recorded:
+            continue
+        with contextlib.suppress(OSError):
+            if (folder / one["path"]).stat().st_mtime >= edge:
+                found.append(one["path"])
+    return found
 
 
 def last_change(session: Session, run_id: str, made_there: Collection[str] = ()
@@ -565,6 +596,9 @@ NOT_CHECKED = "Not checked: After a change is set to Nothing"
 # CL-321 Bulgu D: a turn whose only change a command made - no change of it on record.
 UNRECORDED = "A command of this turn may have changed files KOLONİ did not record: {command}"
 MOST_COMMAND = 120  # characters of such a command said
+MOST_TOUCHED = 5  # files it changed named, then "+N more"
+# A file's time against a command's start: what a file system rounds down (FAT: 2 s).
+MTIME_SLACK = 2.0
 OFF_FOR_CHAT = "Not checked: off for this chat"
 # S5c: a recipe's Checks step set to check nothing; its tests set off; its Fix rounds at 0.
 RECIPE_OFF = "Not checked: this recipe's Checks step checks nothing"
