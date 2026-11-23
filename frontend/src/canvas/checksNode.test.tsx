@@ -52,7 +52,7 @@ test('the Checked rows are its lines, with their counts where the runner gave th
   expect((nodes[0].data as AgentData).checked).toBe('✓ checked')
 })
 
-test('a fix round is a line back to the Orchestrator, and its strip counts it', () => {
+test('a fix round is counted on the Orchestrator’s strip - no line goes back to it (tuval-kontrol-dongusu)', () => {
   const passes = {
     runs: [run('r', 'completed')],
     agents: [agent('r', 'completed')],
@@ -62,22 +62,21 @@ test('a fix round is a line back to the Orchestrator, and its strip counts it', 
   // (Before the Checked section says its rounds: a pass again is one; neither the Fix rounds nor why are known.)
   const live = drawn(convState(passes))
   expect(live.data?.rounds).toBe(1)
-  expect(live.edges.find(e => e.round)).toMatchObject({ source: 'checks:r', target: 'agent:r', round: 'round 1' })
   const passed = row('passed', 'Tests passed', { command: 'python -m pytest -q', counts: { passed: 4, failed: 0, skipped: 0, unit: 'tests' } })
   const sent = row('note', 'Sent back to fix: 1 of 2 rounds', { kind: 'rounds' })
   const { data, edges, nodes } = drawn(convState({ ...passes, messages: [checked([sent, passed])] }))
   expect(data?.rounds).toBe(1)
-  expect(edges.find(e => e.round)).toMatchObject({ source: 'checks:r', target: 'agent:r', round: 'round 1 of 2: tests fail' })
+  expect(edges.map(e => e.target)).toEqual(['checks:r'])
   expect((nodes[0].data as AgentData).checked).toBe('✓ checked · 1 round')
 })
 
-test('k-canli-016: until it passes - the rounds the Checked section says, each a line back with no count of rounds', () => {
+test('k-canli-016: until it passes - the rounds the Checked section says, on the strip', () => {
   const failed = row('failed', 'Tests failed', { command: 'pytest' })
   const sent = row('note', 'Sent back to fix: round 3 (until it passes, 3 failing → 1)', { kind: 'rounds' })
   const stop = row('failed', 'Stopped after round 3: no progress in two rounds - you decide (Fix it)', { kind: 'rounds' })
   const { data, edges, nodes } = drawn(convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [checked([failed, sent, stop])] }))
   expect(data?.rounds).toBe(3)
-  expect(edges.filter(e => e.round).map(e => e.round)).toEqual(['round 1', 'round 2', 'round 3'])
+  expect(edges.map(e => e.target)).toEqual(['checks:r'])
   expect((nodes[0].data as AgentData).checked).toBe('✗ still failing · 3 rounds')
 })
 
@@ -94,7 +93,7 @@ test('the tests run again on the test KOLONİ asked for are no fix round: at its
     }),
   )
   expect(data?.rounds).toBe(0)
-  expect(edges.some(e => e.round)).toBe(false)
+  expect(edges).toHaveLength(1)
   expect((nodes[0].data as AgentData).checked).toBe('✓ checked')
 })
 
@@ -258,16 +257,18 @@ test('the menu turns checks off for this chat - not where they are off already',
   expect(screen.queryByRole('menuitem', { name: 'Off for this chat' })).toBeNull()
 })
 
-test('S3: a review round is a line back saying its findings, of the project’s Fix rounds; KOLONİ’s Reviewer comes after the node', () => {
+test('S3: KOLONİ’s Reviewer is drawn in the Checks box, not as a node of its own; no round goes back as a line', () => {
   const state = convState({
     runs: [run('r', 'completed')],
-    agents: [agent('r', 'completed'), { ...agent('rv', 'completed'), run_id: 'r', depth: 1, parent_agent_id: 'r', tool_call_id: 'look', role_name: 'Reviewer' }],
+    agents: [agent('r', 'completed'), { ...agent('rv', 'completed', { role_name: 'Reviewer' }), run_id: 'r', depth: 1, parent_agent_id: 'r', tool_call_id: 'look' }],
     toolCalls: [proofCall('p1', 'succeeded'), toolCall('look', 'r', 'spawn_agent', 'succeeded', '{}', { provider_call_id: 'koloni_proof_review_1' })],
     messages: [checked([row('passed', 'Tests passed'), row('note', 'Sent back to fix: 2 of 3 rounds (tests fail; 2 blocking findings)', { kind: 'rounds' })])],
   })
   const graph = deriveGraph(state)
-  expect(graph.edges.filter(e => e.round).map(e => e.round)).toEqual(['round 1 of 3: tests fail', 'round 2 of 3: 2 blocking findings'])
-  expect(graph.edges.find(e => e.target === 'agent:rv')?.source).toBe('checks:r')
+  expect(graph.nodes.some(n => n.id === 'agent:rv')).toBe(false)
+  expect(graph.edges.some(e => e.source === 'agent:rv' || e.target === 'agent:rv')).toBe(false)
+  expect(graph.edges.filter(e => e.target === 'checks:r' || e.source === 'checks:r').map(e => e.id)).toEqual(['agent:r>checks:r'])
+  expect((graph.nodes.find(n => n.kind === 'checks')!.data as ChecksData).loop).toMatchObject({ agents: ['rv'], looks: [{ agentId: 'rv', name: 'Reviewer' }] })
   // (Its spawn is no test run: the node runs nothing now.)
   expect(graph.nodes.find(n => n.kind === 'checks')?.data).toMatchObject({ running: null })
 })

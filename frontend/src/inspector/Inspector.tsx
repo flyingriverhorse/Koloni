@@ -1,5 +1,8 @@
 import { ChatsCircle, FileText, Lightbulb, ListChecks, Robot, TerminalWindow, User, UsersThree, Wrench, X } from '@phosphor-icons/react'
+import { loopOf } from '../canvas/checksLoop'
+import { checksNode, stripOf } from '../canvas/checksNode'
 import { poSaid, poTokens } from '../canvas/deriveGraph'
+import { ChecksPanel } from './ChecksPanel'
 import { discussionLine, nameIn } from '../discussion/discussionText'
 import { type ReactNode, useEffect, useRef } from 'react'
 import { flushSync } from 'react-dom'
@@ -548,7 +551,21 @@ function filePanel({ kind, change, roleOf, onClose, renderChange }: Shown): Reac
 }
 
 /** Each kind of node's panel, in the order they are tried. */
-const PANELS = [requestPanel, attachmentPanel, filesPanel, agentPanel, discussionPanel, roomPanel, planPanel, subAgentPanel, toolsPanel, commandsPanel, changesPanel, callPanel, commandPanel, filePanel]
+/** The Checks node (tuval-kontrol-dongusu F): its rounds, as `ChecksPanel` lists them; the canvas stays as it is. */
+function checksPanel({ state, kind, refId, onClose, openWindow }: Shown): ReactNode {
+  const run = kind === 'checks' ? state.runs.find(r => r.id === refId) : undefined
+  const data = run && checksNode(state, run, [], [])
+  if (!run || !data) return null
+  const loop = loopOf(state, run, data)
+  return (
+    <>
+      <Header icon={<ListChecks size={16} />} title="Checks" sub={(loop?.tone === 'run' && loop.status) || stripOf(data) || 'KOLONİ'} onClose={onClose} />
+      <ChecksPanel state={state} run={run} loop={loop} openWindow={openWindow} />
+    </>
+  )
+}
+
+const PANELS = [checksPanel, requestPanel, attachmentPanel, filesPanel, agentPanel, discussionPanel, roomPanel, planPanel, subAgentPanel, toolsPanel, commandsPanel, changesPanel, callPanel, commandPanel, filePanel]
 
 /** The panel of the node chosen: the first that has something to show, else none. */
 function panelOf(shown: Shown): ReactNode {

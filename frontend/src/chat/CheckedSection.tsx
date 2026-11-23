@@ -19,7 +19,7 @@ export function CheckedSection({ message, over, latest }: { message?: Message; o
   const rows = message?.checked
   if (!message || !over || !rows?.length) return null
   return (
-    <section className="checked" aria-label="Checked" title="From KOLONİ’s records, not the model’s words">
+    <section className="checked" id={message.run_id ? `checked-${message.run_id}` : undefined} aria-label="Checked" title="From KOLONİ’s records, not the model’s words">
       <span className="checked-head">Checked</span>
       <ul className="checked-rows">
         {rows.map((row, index) => (
@@ -83,7 +83,7 @@ export function RunningFor({ since }: { since: string }) {
   return <span className="muted"> ({runClock(since, useNow(1000))})</span>
 }
 
-function FixIt({ asked }: { asked: string }) {
+export function FixIt({ asked }: { asked: string }) {
   const [error, setError] = useState<string | null>(null)
   return (
     <span className="checked-fix">

@@ -14,6 +14,7 @@ import { doneSaid } from '../backlog/awayText'
 import { useApp } from '../state/store'
 import { type AgentData, type AttachmentData, type AwayData, type AwayJobData, type DiscussionData, type GroupData, type PlanData, type PoData, poSaid, poTokens, type ReadyData, type RequestData, type RoomData, type RoundData, type TeamData, statusWords } from './deriveGraph'
 import { runClock } from '../chat/checked'
+import type { Loop, LoopCard } from './checksLoop'
 import { type ChecksData, toolOf } from './checksNode'
 import { NodeActions, ToggleGroup } from './toggleGroup'
 
@@ -252,6 +253,7 @@ const MARK: Record<string, string> = { passed: '✓', failed: '✗', running: '�
 export function ChecksNode({ data, selected }: NodeProps<Node<ChecksData>>) {
   const now = useNow(1000)
   const running = data.running
+  if (data.loop) return <ChecksBox data={data} loop={data.loop} selected={selected} now={now} />
   return (
     <div className={`node node-checks${selected ? ' node-selected' : ''}`}>
       <Handle type="target" position={Position.Left} isConnectable={false} />
@@ -278,6 +280,79 @@ export function ChecksNode({ data, selected }: NodeProps<Node<ChecksData>>) {
       </div>
       <Handle type="source" position={Position.Right} isConnectable={false} />
       <Ends />
+    </div>
+  )
+}
+
+/**
+ * The Checks node with the agents its checks opened (tuval-kontrol-dongusu D): each role once - its latest agent; where work
+ * was sent back, a dashed loop with the earlier ones as shadows behind it (×N), its looks ⇄ its fixes, the rounds in its head
+ * and a dot each at its foot, under its test runs. A click opens the inspector's panel of its rounds (F).
+ */
+function ChecksBox({ data, loop, selected, now }: { data: ChecksData; loop: Loop; selected: boolean; now: number }) {
+  const running = data.running
+  const tests = loop.tests.map(line => `${MARK[line.state] ?? '–'} ${line.text}${line.since ? ` · ${runClock(line.since, now)} …` : ''}`)
+  if (running) tests.unshift(`● ${[toolOf(running.command), ...liveFactList(now, running.since, null, null)].join(' · ')}`)
+  return (
+    <div className={['node', 'node-checks', 'node-checks-box', loop.loop && 'node-checks-loop', selected && 'node-selected'].filter(Boolean).join(' ')}>
+      <Handle type="target" position={Position.Left} isConnectable={false} />
+      <div className="node-head">
+        <span className="node-icon">
+          <ListChecks size={13} />
+        </span>
+        <span className="node-title">{data.recipe ? 'Checks · end of the recipe' : 'Checks · KOLONİ'}</span>
+        {loop.loop && (
+          <span className="checks-status" data-tone={loop.tone}>
+            {loop.status}
+          </span>
+        )}
+        <ChecksMenu runId={data.runId} leadId={data.leadId} stoppable={data.stoppable} />
+      </div>
+      <div className="checks-cards">
+        <div className="checks-col">
+          {loop.looks.map(card => (
+            <ChecksCard key={card.agentId} card={card} stacked={loop.loop} />
+          ))}
+        </div>
+        {loop.fixes.length > 0 && (
+          <>
+            <span className="checks-way" aria-hidden="true">
+              ⇄
+            </span>
+            <div className="checks-col">
+              {loop.fixes.map(card => (
+                <ChecksCard key={card.agentId} card={card} stacked={loop.loop} />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+      <div className="checks-foot">
+        <span className="checks-tests" title={tests.join('\n')}>
+          {tests.join(' · ')}
+        </span>
+        {loop.loop && (
+          <span className="checks-dots" role="img" aria-label={`${loop.dots.length} rounds: ${loop.dots.join(', ')}`}>
+            {loop.dots.map((dot, n) => (
+              <i key={n} data-dot={dot} />
+            ))}
+          </span>
+        )}
+      </div>
+      <Handle type="source" position={Position.Right} isConnectable={false} />
+      <Ends />
+    </div>
+  )
+}
+
+/** A role in the box: its latest agent's name and what it said; ×N and shadows behind it where there were more. */
+function ChecksCard({ card, stacked }: { card: LoopCard; stacked: boolean }) {
+  const more = stacked && card.count > 1
+  return (
+    <div className={`checks-card${more ? ' checks-stack' : ''}`} data-tone={card.tone}>
+      {more && <span className="checks-badge">×{card.count}</span>}
+      <b>{card.name}</b>
+      <small>{card.said}</small>
     </div>
   )
 }

@@ -27,6 +27,7 @@ How to write an entry (every release looks the same):
 
 ### Changed
 
+- **Canvas**: KOLONİ's checks of a turn are one box: the agents its checks opened (the Reviewer, the Security reviewer, the Tester, a stronger model's) and those the Orchestrator opened to fix what it sent back are drawn in it, each role once with how many there were (×3) - a dashed loop, **Checks · KOLONİ**, saying "⟲ 3 looks · 2 fix rounds · on hold" or "● round 2 · looking…", where work went back; the long line down to it and the rounds' lines back to the Orchestrator are gone. Click it for its rounds in the panel on the right: who looked and what each said, the first blocking finding, who fixed it, why the last round stopped, with **Fix it** and **Open the Checked section** ([docs](docs/use/checked.md#on-the-canvas))
 - **Chat**: under **Orchestrator decides**, a small change - a few lines in one or two files - gets no team: the Orchestrator makes it itself or with one agent and says why in one line, and KOLONİ's checks run at the end all the same; picking a team, it sees how many agents each recipe opens ([docs](docs/agents/teams.md#teams-for-a-chat)).
 
 ### Fixed

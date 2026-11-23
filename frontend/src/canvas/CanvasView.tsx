@@ -222,7 +222,7 @@ const edgeClass = (e: GraphEdge, lit: GraphEdge[] | null): string | undefined =>
 
 /** What a line React Flow draws says on it: its messages, or its findings, counted. */
 const edgeLabel = (e: GraphEdge): string | undefined =>
-  e.round ?? (e.messages ? `${e.messages} message${e.messages > 1 ? 's' : ''}` : e.findings !== undefined ? `${e.findings} finding${e.findings === 1 ? '' : 's'}` : undefined)
+  e.messages ? `${e.messages} message${e.messages > 1 ? 's' : ''}` : e.findings !== undefined ? `${e.findings} finding${e.findings === 1 ? '' : 's'}` : undefined
 
 /** How thick a line is: lit, a contract's arm, at work or talk or to a card, waiting, or any other. */
 const edgeWidth = (e: GraphEdge, lit: GraphEdge[] | null, talking: boolean): number =>
@@ -688,9 +688,6 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
    * inside the frames' left wall (React Flow's curve cut there too); route it left of the frames if that is seen.
    */
   const looseLine = (e: GraphEdge, s: Rect, t: Rect, data: LineData): Partial<Edge> => {
-    // A fix round, from the Checks node back up to the Orchestrator over it: out of its right side and in at the
-    // Orchestrator's, its label beside them - not round behind both boxes to the Orchestrator's left dot.
-    if (e.round && byId.get(e.source)?.kind === 'checks') return { targetHandle: 'side-in' }
     const fromFrame = byId.get(e.source)?.kind === 'team'
     if (e.messages && (e.talk || !fromFrame)) return { type: 'lane', data }
     // (Not a line moved onto a frame: the frame spans the column of any agent under it, so it would seem stacked.)
@@ -827,7 +824,7 @@ export function CanvasView({ state, selectedId, onSelect, onOpenNode, turnId = n
       // (Drawn by its own line where it is one of edges.tsx's.)
       label: drawn.type ? undefined : edgeLabel(e),
       // (a findings label in its line's colour: between two boxes close together, the label is most of the line)
-      labelStyle: { fill: e.findings !== undefined || e.round ? 'var(--warn)' : 'var(--muted)', fontSize: 'var(--text-kicker)' },
+      labelStyle: { fill: e.findings !== undefined ? 'var(--warn)' : 'var(--muted)', fontSize: 'var(--text-kicker)' },
       // The canvas's own background (there is no --canvas: that drew the label on black).
       labelBgStyle: { fill: 'var(--bg)' },
       // Which way the work, the findings and the talk go, in a team's frame.

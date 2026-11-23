@@ -1,3 +1,5 @@
+import { checksSize } from './checksLoop'
+import type { ChecksData } from './checksNode'
 import type { AgentData, GraphEdge, GraphNode, GroupData, TeamData } from './deriveGraph'
 import type { SharedData } from './sharedColumn'
 
@@ -288,7 +290,7 @@ export function layoutGraph(nodes: GraphNode[], edges: GraphEdge[] = []): Layout
     // shortcut: a line that would still cross a box is not drawn (the card stays); route it round if that is met.
     used = sharedCards({ own, edges, positions, sizes, lines, byId, top }, everyone, used)
     used = besideTurn(own, talks, lane, top, used, positions, sizes)
-    used += checksUnder(own, top + used, positions)
+    used += checksUnder(own, top + used, positions, sizes)
     used += poUnder(own, top + used, positions)
     const under = filesUnder(own, runId, top, positions, box)
     top += Math.max(under - top, used)
@@ -497,16 +499,28 @@ function poUnder(own: GraphNode[], top: number, positions: Record<string, Point>
 }
 
 /**
- * KOLONİ's Checks node (`checks:`), under the turn's Orchestrator in its column, its line straight down from it - before the
- * Assistant PO; returns the room it takes. (In a recipe's turn it is in the frame: `checksInFrame`.)
- * shortcut: under the Orchestrator, not right of it as the sketch has it: placed as the PO is; move it once the canvas's
- * columns make room.
+ * KOLONİ's Checks node (`checks:`), under all of the turn - before the Assistant PO: under the Orchestrator in its column, its
+ * line straight down from it; where the Orchestrator's own agents stand right of it, in their column under them, with no line
+ * (tuval-kontrol-dongusu: no long line down past them). Returns the room it takes. (In a recipe's turn it is in the frame:
+ * `checksInFrame`.)
  */
-function checksUnder(own: GraphNode[], top: number, positions: Record<string, Point>): number {
+function checksUnder(own: GraphNode[], top: number, positions: Record<string, Point>, sizes: Record<string, Size>): number {
   const checks = own.find(n => n.kind === 'checks')
   if (!checks || positions[checks.id]) return 0
-  positions[checks.id] = { x: NODE_W + COL_GAP, y: top }
-  return NODE_H + ROW_GAP
+  const { leadId } = checks.data as ChecksData
+  const beside = own.some(n => n.kind === 'agent' && (n.data as AgentData).parentId === leadId && positions[n.id])
+  const size = sized(checks, sizes)
+  // (Under the Orchestrator, its middle under the Orchestrator's: its line straight down, however wide its loop.)
+  const x = (positions[`agent:${leadId}`]?.x ?? NODE_W + COL_GAP) + (beside ? NODE_W + COL_GAP : (NODE_W - size.width) / 2)
+  positions[checks.id] = { x, y: top }
+  return size.height + ROW_GAP
+}
+
+/** The Checks node's size, put down where its loop makes it bigger than a node. */
+function sized(checks: GraphNode, sizes: Record<string, Size>): Size {
+  const size = checksSize(checks.data as ChecksData)
+  if (size) sizes[checks.id] = size
+  return size ?? { width: NODE_W, height: NODE_H }
 }
 
 /**
@@ -522,7 +536,7 @@ function checksInFrame(own: GraphNode[], edges: GraphEdge[], positions: Record<s
   const x = from ? positions[from].x : Math.max(...members.map(n => positions[n.id].x))
   const y = Math.max(...members.map(n => positions[n.id].y + (sizes[n.id]?.height ?? NODE_H))) + ROW_GAP
   positions[checks.id] = { x, y }
-  return NODE_H + ROW_GAP
+  return sized(checks, sizes).height + ROW_GAP
 }
 
 /** A column's nodes in rows: an agent of a round or of steps at once beside the one before it of its round, so many to a row. */
