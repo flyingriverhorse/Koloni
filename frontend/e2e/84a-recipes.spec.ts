@@ -95,8 +95,10 @@ for (const theme of ['light', 'dark'] as const) {
     await part(page).getByLabel('Who').selectOption('role:Coder')
     await page.getByRole('button', { name: '+ Ask me' }).click()
     // Every arrow drawn as it is made, and still drawn once saved (B-85: they were gone till the recipe was opened again).
-    const arrows = page.locator('.recipe-flow .react-flow__edge')
+    // (The drawing's own arrows: not the Checks step's, S5c - joined to the last step, one.)
+    const arrows = page.locator('.recipe-flow .react-flow__edge:not(.recipe-checks-edge)')
     await expect(arrows).toHaveCount(2)
+    await expect(page.locator('.recipe-flow .react-flow__edge.recipe-checks-edge')).toHaveCount(1)
     const gone = await arrowsTakenAway(page)
     await page.getByRole('button', { name: 'Save recipe' }).click()
     await expect(page.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible()
@@ -171,7 +173,7 @@ test('an arrow is dragged from a part’s bottom to anywhere on another, a loop 
   await page.getByRole('button', { name: '+ Step' }).click()
   await page.getByRole('button', { name: '+ Step' }).click()
   const node = (id: string) => page.locator(`.recipe-flow .react-flow__node[data-id="${id}"]`)
-  const arrows = page.locator('.recipe-flow .react-flow__edge')
+  const arrows = page.locator('.recipe-flow .react-flow__edge:not(.recipe-checks-edge)')
   await expect(arrows).toHaveCount(1)
   // Let go on the part, not on its handle: the arrow is drawn all the same.
   await drag(page, node('start').locator('[data-handleid="out"]'), node('s1'))

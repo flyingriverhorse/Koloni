@@ -2,7 +2,30 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, expect, onTestFinished, test, vi } from 'vitest'
 import { ApiError } from '../api/client'
 import type { Provider, Recipe, RecipeDraft, RecipeGraph, Recipes, Role, RoleModel, Team } from '../api/types'
-import { addGroup, addRoom, addStep, changeStep, connect, emptyGraph, layout, loopBack, loopCurve, loopTargets, place, remove, renameGroup, summary, START, targets, tidy, waitFor as waitOn } from './recipeGraph'
+import {
+  addGroup,
+  addRoom,
+  addStep,
+  CHECKS as CHECKS_STEP,
+  changeStep,
+  checksLine,
+  connect,
+  emptyGraph,
+  lastParts,
+  layout,
+  loopBack,
+  loopCurve,
+  loopTargets,
+  ownChecks,
+  place,
+  remove,
+  renameGroup,
+  summary,
+  START,
+  targets,
+  tidy,
+  waitFor as waitOn,
+} from './recipeGraph'
 import { type RecipeActions, RecipesTab } from './RecipesTab'
 
 beforeEach(() => {
@@ -882,4 +905,54 @@ test('a refused save is said in words: its parts counted, the request’s own ch
   // nothing the page can read at a part: the server's own words
   await refuse(undefined, 'the recipe could not be saved')
   await waitFor(() => expect(alerts()).toEqual(['the recipe could not be saved']))
+})
+
+// --- S5c: the recipe's locked Checks step --------------------------------------------------------------------------------------------
+
+test('S5c: the Checks step is joined to the last step(s) - each an arrow to an end leaves, else the tail - and follows a step added after', () => {
+  expect(lastParts(FEATURE.graph)).toEqual(['g'])
+  let [graph, first] = addStep(emptyGraph(), START)
+  expect(lastParts(emptyGraph())).toEqual([START])
+  expect(lastParts(graph)).toEqual([first])
+  let second
+  ;[graph, second] = addStep(graph, first)
+  expect(lastParts(graph)).toEqual([second])
+  expect(checksLine(undefined)).toBe('follows the project')
+  expect(checksLine({ ...ownChecks(), tests: false, docs: true, fix_rounds: 0 })).toBe('Review · Docs · check only')
+})
+
+test('S5c: the Checks step is drawn after the last step, never dragged nor removed; its panel sets it for the recipe, saved with it', async () => {
+  vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(100)
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(50)
+  onTestFinished(() => {
+    vi.restoreAllMocks()
+  })
+  const mine: Recipe = { ...FEATURE, id: 'mine', ready: false }
+  const given = draw(actions(), { ...list, recipes: [mine] })
+  const node = document.querySelector(`.react-flow__node[data-id="${CHECKS_STEP}"]`) as HTMLElement
+  expect(node).not.toBeNull()
+  expect(node).not.toHaveClass('draggable')
+  await waitFor(() => expect(document.querySelector('.react-flow__edge[data-id="checks-g"]')).not.toBeNull())
+  fireEvent.click(part(/^Checks 🔒/))
+  expect(within(panel()).getByRole('heading', { name: 'Checks - the end of this recipe' })).toBeVisible()
+  expect(within(panel()).queryByRole('button', { name: /^Remove/ })).toBeNull()
+  expect(within(panel()).getByRole('radio', { name: /^Follow the project/ })).toBeChecked()
+  fireEvent.click(within(panel()).getByRole('radio', { name: 'Set for this recipe' }))
+  fireEvent.click(within(panel()).getByRole('checkbox', { name: /^Tests/ }))
+  fireEvent.click(within(panel()).getByRole('checkbox', { name: /^Docs/ }))
+  expect(within(panel()).getByRole('checkbox', { name: /^Pages/ })).toBeDisabled()
+  fireEvent.change(within(panel()).getByRole('combobox', { name: 'Fix rounds' }), { target: { value: '0' } })
+  expect(part(/^Checks 🔒/)).toHaveTextContent('Review · Docs · check only')
+  fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }))
+  await waitFor(() => expect(given.saveRecipe).toHaveBeenCalled())
+  const [, body] = (given.saveRecipe as ReturnType<typeof vi.fn>).mock.calls[0]
+  expect(body.graph.checks).toEqual({ tests: false, review: true, docs: true, diagram: false, data: false, slides: false, fix_rounds: 0 })
+})
+
+test('S5c: a ready recipe’s Checks step is shown, not changed', () => {
+  draw(actions(), { ...list, recipes: [{ ...FEATURE, graph: { ...FEATURE.graph, checks: { ...ownChecks(), fix_rounds: null } } }] })
+  fireEvent.click(part(/^Checks 🔒/))
+  expect(within(panel()).getByRole('radio', { name: 'Set for this recipe' })).toBeChecked()
+  expect(within(panel()).getByRole('checkbox', { name: /^Tests/ })).toBeDisabled()
+  expect(part(/^Checks 🔒/)).toHaveTextContent('Tests · Review · the project’s rounds')
 })

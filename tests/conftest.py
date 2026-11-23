@@ -193,7 +193,7 @@ NOTHING_AFTER = {"test_copy_part"}
 LOOK_ON = {"test_found_scenarios"}
 # S3: a big or security-touching change is looked over at a turn's end by a Reviewer agent - in a
 # test, a scripted agent more (and its row) in every turn that writes much. On only where tested.
-REVIEW_ON = {"test_proof_review_scenarios"}
+REVIEW_ON = {"test_proof_review_scenarios", "test_recipe_end_checks_scenarios"}
 # S7: a failing run is run again alone and on the old code, and a pass is held to the last green
 # state - in a test, runs of the scripted executor more. On only where tested.
 BEFORE_ON = {"test_proof_before_scenarios"}
@@ -203,7 +203,7 @@ ASK_ON = {"test_proof_test_ask_scenarios"}
 # S5a: a turn that wrote documents, diagrams, data or slides gets KOLONİ's file checks - in a test,
 # their rows in every such turn, and a step of the scripted Lead more where one fails. On only
 # where tested.
-KINDS_ON = {"test_proof_kinds_scenarios"}
+KINDS_ON = {"test_proof_kinds_scenarios", "test_recipe_end_checks_scenarios"}
 
 
 async def _none(*_args, **_more):

@@ -33,7 +33,7 @@ from app.commands import (
     standing_asked,
     with_cwd,
 )
-from app.db.models import Agent, Conversation, Message, Run, now
+from app.db.models import Agent, Conversation, Message, now
 from app.model_client import ToolCallRequest
 from app.proof import Row
 from app.roles import READ, effective_tools, shown_name
@@ -98,6 +98,7 @@ SMALL = "No review: a small change ({lines} lines, {files} files)"
 TESTS_ONLY = "No review: After a change is Tests only"
 TESTS_FAIL = "No review: the tests still fail"
 RECIPE_DID = "No review: the recipe's own Review step looked it over"
+REVIEW_OFF = "No review: off in this recipe's Checks step"
 OVER_LIMIT = "the turn's token limit is reached"
 CAPPED = "Still on hold after {most} fix rounds: you decide (Fix it)"
 FINDING = "{mark}: {what}"
@@ -178,9 +179,6 @@ class ReviewMixin:
         sent back, until MERGE or Fix rounds are spent. Its rows replace the last pass's."""
         held.rows = [one for one in held.rows if one["kind"] not in ("review", "finding")]
         with self._factory() as session:
-            conversation = session.get_one(Conversation, ctx.cid)
-            run = session.get(Run, ctx.run_id)
-            setting = proof.after_change_of(session, conversation, run)
             project = self._project(session, ctx.cid)
             seen = proof.last_change(session, ctx.run_id)
             over = self._review_over(session, project, ctx.run_id)
@@ -188,8 +186,10 @@ class ReviewMixin:
                                                 MAX_REVIEW_DIFF, self._sharing(ctx))
             reviewed = self._recipe_reviewed(session, ctx.run_id, seen)
             root = project.root_path if project is not None else None
-        why = (TESTS_ONLY if setting != "check" else RECIPE_DID if reviewed else TESTS_FAIL if any(
-            one["kind"] == "tests" and one["state"] == "failed" for one in held.rows) else None)
+        off = REVIEW_OFF if held.checks.own else TESTS_ONLY  # (S5c: the recipe's, or Tests only)
+        failing = any(one["kind"] == "tests" and one["state"] == "failed" for one in held.rows)
+        why = (off if "review" not in held.checks.on else RECIPE_DID if reviewed
+               else TESTS_FAIL if failing else None)
         if why is not None:  # (a HOLD's findings still stand under it)
             held.rows += [*held.looked, proof.row("review", "note", why)]
             return None
