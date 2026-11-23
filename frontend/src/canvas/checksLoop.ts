@@ -94,6 +94,8 @@ interface Box {
   fixes: Agent[]
   /** Each in the order it was opened. */
   ordered: Agent[]
+  /** How many of KOLONİ's calls came before an agent was opened: where nothing looked, which round it fixed in. */
+  before: (agent: Agent) => number
 }
 
 /** The call that opened each agent, by its id. */
@@ -120,7 +122,7 @@ function boxOf(state: ConvState, run: Run, lead: Agent): Box {
   const fixes = [...kolonis.filter(fixer), ...state.agents.filter(a => a.run_id === run.id && sentBack(a))]
   const looks = kolonis.filter(a => !fixer(a))
   const ordered = [...looks, ...fixes].sort((a, b) => seqOf(a) - seqOf(b) || a.created_at.localeCompare(b.created_at))
-  return { looks, fixes, ordered }
+  return { looks, fixes, ordered, before: agent => own.filter(c => c.seq < seqOf(agent)).length }
 }
 
 /** Its looks and fixes in rounds, each but the last with why it went back (as the Checked section says). */
@@ -154,11 +156,15 @@ function lookedRounds(box: Box, state: ConvState): LoopRound[] {
 }
 
 /**
- * Where nothing looked (sent back for the tests alone), KOLONİ's test run is each round's look: a round a fix, and the run
- * after the last one - once that fix is over - the last round.
+ * Where nothing looked (sent back for the tests alone), KOLONİ's test run is each round's look: the agents opened between two of
+ * its runs one round (a Coder and a Tester a send-back reran), and the run after the last - once those are over - the last.
  */
 function testedRounds(box: Box, state: ConvState): LoopRound[] {
-  const rounds = box.ordered.map((agent, at) => ({ ...roundOf(at + 1), fixed: [fixOf(state, agent)] }))
+  const rounds: LoopRound[] = []
+  for (const [at, agent] of box.ordered.entries()) {
+    if (!at || box.before(agent) !== box.before(box.ordered[at - 1])) rounds.push(roundOf(rounds.length + 1))
+    rounds.at(-1)!.fixed.push(fixOf(state, agent))
+  }
   if (!box.ordered.some(atWork)) rounds.push(roundOf(rounds.length + 1))
   return rounds
 }

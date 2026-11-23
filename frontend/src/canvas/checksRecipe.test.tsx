@@ -193,6 +193,38 @@ test('case 3: sent back for the tests alone - the loop’s left end is the tests
   orchestratorReachesTheFrameAtItsDoor(graph)
 })
 
+test('case 3, a Coder and a Tester each send-back: one round each, not one an agent', () => {
+  const steps = [step('fix', 'Fix it', 'done'), step('test', 'Test it', 'done'), step('end', 'You', 'next')]
+  const parts = [
+    opened('c1', 'Coder', 'Coder', 1, false),
+    opened('t1', 'Tester', 'Tester', 2, false),
+    opened('f1', 'Coder', 'Coder 2', 4, false),
+    opened('ft1', 'Tester', 'Tester 2', 5, false),
+    opened('f2', 'Coder', 'Coder 3', 7, false),
+    opened('ft2', 'Tester', 'Tester 3', 8, false),
+  ]
+  const passes = [
+    { part: 'fix', agents: ['c1'] },
+    { part: 'test', agents: ['t1'] },
+    { part: 'fix', agents: ['f1'] },
+    { part: 'test', agents: ['ft1'] },
+    { part: 'fix', agents: ['f2'] },
+    { part: 'test', agents: ['ft2'] },
+  ]
+  const rows = [
+    row('failed', 'Tests went from 48 to 45 (3 removed)'),
+    row('note', 'Sent back to fix: 2 of 2 rounds (tests removed or skipped; tests removed or skipped)', { kind: 'rounds' }),
+    row('failed', 'Not taken in: fewer of its tests run, or more are skipped, after its fix rounds', { kind: 'not_taken' }),
+  ]
+  const loop = dataIn(graphOf(turn(parts, [3, 6, 9], team(['c1', 't1', 'f1', 'ft1', 'f2', 'ft2'], passes, steps), rows))).loop as Loop
+  expect(loop.rounds.map(one => [one.fixed.map(f => f.name), one.why])).toEqual([
+    [['Coder 2', 'Tester 2'], 'tests removed or skipped'],
+    [['Coder 3', 'Tester 3'], 'tests removed or skipped'],
+    [[], null],
+  ])
+  expect(loop).toMatchObject({ dots: ['held', 'held', 'held'], status: '⟲ 2 fix rounds · not taken in' })
+})
+
 test('layout: the box is the frame’s last part - right of its last step, inside it, clear of its edges and of every other node', () => {
   for (const state of [looksAndFixes(), ownLoop(), testsOnly()]) {
     const graph = graphOf(state)
