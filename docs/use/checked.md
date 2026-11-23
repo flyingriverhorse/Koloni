@@ -393,7 +393,11 @@ there, and its report lists it. Work that is already in the project (no copy) ge
 model's rounds, then the failing line: "Still failing after rounds by `A` and `B`". A recipe whose
 own check ran nothing still waits on its Ready for you card, as before - never taken in unasked.
 A Reviewer's hold at the end of the Fix rounds is not handed to a stronger model yet: the user
-decides, as before (Fix it).
+decides (Fix it). Work in a copy - a recipe's, before Ready for you - that a look still holds is
+not taken in by itself either, at any level: no Ready for you card, not even at Auto-edit, and
+not at Full auto; the section says "Not taken in: on hold - a look's findings still stand after
+its fix rounds", with **Take in anyway** and **Fix it** (your answer goes on in the kept work's
+copy).
 
 The order is always the same: KOLONİ's checks first, on the work where it is (a recipe's copy), then
 **Ready for you**. Its card, or Full auto's own Take in, comes only after the Checked section - never
@@ -520,7 +524,8 @@ also what does not fit in the diff the Reviewer is shown.
 
 - They read: the user's request, the turn's change as a diff (cut at 12 000 characters, the files
   left out named; a secret file is named, never shown), KOLONİ's own test lines, and any file of
-  the project they open. They get read tools only and no MCP server, whatever their role is
+  the project they open - where the work is: in a recipe's turn, the recipe's copy, as KOLONİ's own
+  tests there; what their commands write there (a report, a cache) is put back, never taken in. They get read tools only and no MCP server, whatever their role is
   given: they change nothing. They may run two kinds of command, never asked about: one that only
   reads (`git diff`, `cat a.py`, `ls src`), and the project's approved test command exactly as it
   is set, in its folder - your check command or a part's test command, a saved one an **Always**
@@ -818,6 +823,7 @@ the Orchestrator's window, whose record holds the runs.
 | – Started over in a fresh copy: `why` | The stronger model said approach-wrong: the copy's changes were dropped and the work began again from the start state. |
 | – Strongest skipped: over its limit | That tier's provider is past its limit of spend: it is not handed the fix. |
 | ✗ Not taken in: 2 tests still fail after rounds by `A` and `B` | The work stays in its copy, with the stronger model's question: **Take in anyway** or **Fix it** with your answer. |
+| ✗ Not taken in: on hold - a look's findings still stand after its fix rounds | Work in a copy (a recipe's) that the Reviewer or Security reviewer still holds stays there, at every level: **Take in anyway** or **Fix it** with your answer. |
 | ✗ Still failing after rounds by `A` and `B`: you decide (Fix it) | The work is in the project already; the stronger models' rounds did not make it pass. |
 | – Not checked: this recipe's Checks step checks nothing | The recipe's Checks step is set for the recipe with every check off. |
 | – Tests not checked: off in this recipe's Checks step · No review: off in this recipe's Checks step · Not checked: `kind` off in this recipe's Checks step | The recipe's Checks step leaves that check off. |

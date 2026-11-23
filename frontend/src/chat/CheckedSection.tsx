@@ -110,16 +110,16 @@ function NotTaken({ row, runId }: { row: Row; runId: string | null }) {
       <button type="button" className="btn btn-small" onClick={() => setAnswering(true)}>
         Fix it
       </button>
-      {answering && <Answer question={question} onError={setSaid} held={runId && row.merge_id ? { runId, mergeId: row.merge_id } : null} />}
+      {answering && <Answer question={question} reason={row.reason} onError={setSaid} held={runId && row.merge_id ? { runId, mergeId: row.merge_id } : null} />}
       {said && <span role="status">{said}</span>}
     </span>
   )
 }
 
 /** Fix it's answer to the question: a turn that goes on in the kept work's copy where there is one (else a new message of the user's). */
-function Answer({ question, onError, held }: { question: string; onError: (said: string) => void; held: { runId: string; mergeId: string } | null }) {
+function Answer({ question, reason, onError, held }: { question: string; reason?: Row['reason']; onError: (said: string) => void; held: { runId: string; mergeId: string } | null }) {
   const [reply, setReply] = useState('')
-  const sent = () => (held ? api.post(`/runs/${held.runId}/held/fix`, { merge_id: held.mergeId, reply }) : useApp.getState().send(FIX_HELD(question, reply)))
+  const sent = () => (held ? api.post(`/runs/${held.runId}/held/fix`, { merge_id: held.mergeId, reply }) : useApp.getState().send(FIX_HELD(question, reply, reason)))
   return (
     <form
       className="checked-answer"

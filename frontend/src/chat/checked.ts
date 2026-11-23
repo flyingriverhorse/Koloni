@@ -6,10 +6,11 @@ export const FIX_IT = (command: string) => `The tests KOLONİ ran at the end of 
 /** S3: what Fix it sends where the Reviewer still held the change after the Fix rounds: words of the user's own - the findings reach the Orchestrator as data (`review_held`), never as theirs. */
 export const FIX_REVIEW = 'The Reviewer KOLONİ opened at the end of the last turn still held its change. Fix its blocking findings.'
 
-/** S11 (decision 18): what Fix it sends on a "Not taken in" row - the user's answer to the stronger model's question, their own words. */
-export const FIX_HELD = (question: string, reply: string) => `The last turn's work was not taken in: its tests still fail. ${question} My answer: ${reply.trim()} Fix it.`
-
 type Row = NonNullable<Message['checked']>[number]
+
+/** S11 (decision 18): what Fix it sends on a "Not taken in" row - the user's answer to its question, their own words; why it was held by the row's reason code (P: a look still holding it), never by its text. */
+export const FIX_HELD = (question: string, reply: string, reason?: Row['reason']) =>
+  `The last turn's work was not taken in: ${reason === 'on_hold' ? "a look of KOLONİ's still held it" : 'its tests still fail'}. ${question} My answer: ${reply.trim()} Fix it.`
 
 /**
  * S11: where a stronger model's rounds ended as no pass (its tests may pass), Fix it's words - the command and a fixed sentence by the row's
@@ -22,6 +23,7 @@ const NOT_DONE: Record<NonNullable<Row['reason']>, string> = {
   unread: 'the Reviewer did not pass the test change',
   no_verdict: 'the tests gave no verdict after a round',
   still: 'it still fails after the rounds',
+  on_hold: 'a look still held it',
 }
 export const FIX_NOT_DONE = (command: string, reason: Row['reason']) => `${FIX_IT(command)} The stronger model's rounds were no pass: ${NOT_DONE[reason ?? 'still']}.`
 

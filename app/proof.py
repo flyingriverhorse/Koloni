@@ -923,7 +923,7 @@ def too_slow(session: Session, project_id: str, run: TestRun, seconds: int) -> s
 
 # S11: why a stronger model's rounds were no pass - a test changed without leave, the Reviewer
 # held or did not read the test change, the tests gave no verdict, or they still fail.
-Reason = Literal["touched", "held", "unread", "no_verdict", "still"]
+Reason = Literal["touched", "held", "unread", "no_verdict", "still", "on_hold"]
 
 
 class Row(TypedDict):

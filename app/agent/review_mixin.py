@@ -9,6 +9,7 @@ the tests again and the Reviewer looks again, until MERGE or the cap - then the 
 it). `ReviewMixin._proof_review`, the gate's step after the tests."""
 
 import asyncio
+import contextlib
 import json
 import logging
 import re
@@ -680,7 +681,8 @@ class ReviewMixin:
         going = asyncio.ensure_future(self._run_call(ctx, call_id, request))
         self._looks.setdefault(ctx.run_id, set()).add(going)
         try:
-            status, said = await going
+            async with self._look_leaves_no_trace(ctx):
+                status, said = await going
         except asyncio.CancelledError:
             if not going.cancelled() or self._turn_stopping() or _cancelled_outside():
                 raise  # (the turn's own Stop; KOLONİ closing: the task's own cancel)
@@ -710,6 +712,25 @@ class ReviewMixin:
         return Look(
             role, sign, verdict, _held_in_words(report, found) if verdict == "HOLD" else found, None
         )
+
+    @contextlib.asynccontextmanager
+    async def _look_leaves_no_trace(self: "AgentRunner", ctx: Ctx):
+        """P: what a look's command writes in the copy of the work it looks at (`_ws`: a report, a
+        cache) is not the work - put back as the end gate's own run's is (`_tests_put_back`), never
+        taken in. In the project (no copy) it stays, as any agent's command's."""
+        copy = self._copies.get(self._works_in(ctx) or "")
+        was, kept = ({}, {})
+        if copy is not None:
+            with contextlib.suppress(OSError):
+                was, kept = await asyncio.to_thread(
+                    lambda: copy.snapshot([path for path, _kind, _state in copy.changes()])
+                )
+        try:
+            yield
+        finally:
+            if was:
+                with contextlib.suppress(OSError):
+                    await self._tests_put_back(copy, was, kept)
 
     def _review_over(self: "AgentRunner", session, project, run_id: str) -> bool:
         """Whether the turn is past its token limit: a look would cost more of it."""

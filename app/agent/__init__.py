@@ -2405,6 +2405,11 @@ class AgentRunner(
         of its line once there is one (`_works_in`), the project until then - and, answering a
         message (B-102), the copy its line's work was kept in, set aside: what its team did is
         there."""
+        opener = self._ctxs.get(ctx.parent_id or "")
+        if ctx.agent_id in self._read_only_agents and opener is not None:
+            # (P: KOLONİ's look reads and runs where the work it looks at is - its opener's place,
+            # where the end gate's tests ran: a recipe's copy, not the project)
+            return self._ws(opener)
         copy = self._copies.get(self._works_in(ctx) or "")
         if copy is not None:
             return copy.workspace()

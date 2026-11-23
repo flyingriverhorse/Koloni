@@ -203,6 +203,7 @@ REVIEW_ON = {
     "test_small_work_scenarios",
     "test_proof_until_scenarios",
     "test_recipe_review_once_scenarios",
+    "test_look_where_scenarios",
 }
 # S7: a failing run is run again alone and on the old code, and a pass is held to the last green
 # state - in a test, runs of the scripted executor more. On only where tested.

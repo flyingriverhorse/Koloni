@@ -143,6 +143,9 @@ test('S11: Not taken in - Take in anyway takes the kept copy in, Fix it sends th
     expect(post).toHaveBeenCalledWith('/runs/r/held/fix', { merge_id: 'm1', reply: 'yes, zero is fine' })
     expect(send).not.toHaveBeenCalled()
     expect(FIX_HELD('Q?', ' a ')).toContain('My answer: a')
+    // (P: a look still holding the work - said by the row's code, never by its text)
+    expect(FIX_HELD('Q?', 'a', 'on_hold')).toContain("not taken in: a look of KOLONİ's still held it.")
+    expect(FIX_HELD('Q?', 'a')).toContain('not taken in: its tests still fail.')
   } finally {
     vi.restoreAllMocks()
   }

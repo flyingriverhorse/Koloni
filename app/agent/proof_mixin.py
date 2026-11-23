@@ -275,6 +275,7 @@ class ProofMixin:
             await self._stronger(ctx, held)
         except Exception as exc:  # (a hand-off that broke fails nothing of the turn)
             log.warning("run %s: the stronger model's hand-off failed: %r", ctx.run_id, exc)
+        await self._on_hold(ctx, held)  # (P: a hold that stands keeps the work out)
         return None
 
     def _mark_ready(self: "AgentRunner", ctx: Ctx, held: Proof) -> None:

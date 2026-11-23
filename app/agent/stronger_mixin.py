@@ -7,6 +7,7 @@ approach-wrong), then fixes as that allows. Failing work is never taken in (`_no
 `StrongerMixin`."""
 
 import asyncio
+import contextlib
 import json
 import logging
 import re
@@ -115,6 +116,8 @@ TIER_NAMES = {"fast": "Fast", "balanced": "Balanced", "strongest": "Strongest"}
 # Decision 18: failing work is not taken in, at any level - its copy kept, said in Checked.
 RECIPE_FAILING = "the recipe's tests still fail after its fix rounds"
 TESTS_FAILING = "its tests still fail after its fix rounds"
+# P: and so is work a look of KOLONİ's still holds after its fix rounds.
+ON_HOLD = "on hold - a look's findings still stand after its fix rounds"
 NOT_TAKEN_TOLD = (
     "\n\nNot taken in: {why}. The work stays in its copy, with no card at any "
     "level: change it and KOLONİ checks it again at your answer's end; else the "
@@ -129,6 +132,7 @@ NOT_TAKEN_KEPT = "not taken in: {why}"
 NOT_TAKEN = "Not taken in: {what} after rounds by {by}"
 NOT_TAKEN_PLAIN = "Not taken in: {why}"
 ASK_DEFAULT = "Should the code change, or the test?"
+ASK_HOLD = "What should change for the look's findings?"
 RESUME_FAILED = (
     "Fix it could not go on in the kept work: {why}. This turn works in the project; "
     "the kept work still waits (Take in anyway)."
@@ -136,9 +140,12 @@ RESUME_FAILED = (
 DECIDED = "it was decided since"
 ON_ITS_WAY = "a fix of it is on its way already"
 FIX_HELD = (
-    "The last turn's work was not taken in: its tests still fail. {question} My answer: "
+    "The last turn's work was not taken in: {why}. {question} My answer: "
     "{reply} Fix it - you work in that turn's copy, as it was left."
 )
+# (Fix it's words by the row's reason code, which KOLONİ sets - never by its text)
+HELD_WHY = {"on_hold": "a look of KOLONİ's still held it"}
+HELD_WHY_TESTS = "its tests still fail"
 
 
 def steers_tests(path: str) -> bool:
@@ -219,9 +226,10 @@ class StrongerMixin:
             self._held_back.setdefault(ctx.run_id, TESTS_FAILING)
         elif not still and held.handed:
             held.passed_by_stronger = True  # (its recipe's row still says findings were left)
-            if self._held_back.pop(ctx.run_id, None):  # (held before, at the Lead's end: never
-                # inside Ready for you, which asks nothing while held - it asks now, these
-                # checks standing for it, k-sira-016)
+            # (held before, at the Lead's end: never inside Ready for you, which asks nothing while
+            # held - it asks now, these checks standing for it, k-sira-016; P: not while a look
+            # still holds the fixed work - `_on_hold`)
+            if held.verdict != "HOLD" and self._held_back.pop(ctx.run_id, None):
                 self._mark_ready(ctx, held)
                 await self._ready_at_end(ctx)
         return None
@@ -258,6 +266,20 @@ class StrongerMixin:
             await self._stronger(ctx, held)
         except Exception as exc:  # (a hand-off that broke fails nothing of the turn)
             log.warning("run %s: the stronger model's hand-off failed: %r", ctx.run_id, exc)
+
+    async def _on_hold(self: "AgentRunner", ctx: Ctx, held: "Proof") -> None:
+        """P (decision 18's spirit): work in a copy of the turn's own that a look of KOLONİ's
+        still holds after its fix rounds is never taken in by itself, at any level - kept, as
+        failing work is ("Not taken in: on hold", Take in anyway or Fix it). A later look's
+        MERGE lets it go: Ready for you asks now, as after a stronger model's pass."""
+        if self._works_in(ctx) is None:
+            return
+        if held.verdict == "HOLD" and not held.left_failing:
+            self._held_back[ctx.run_id] = ON_HOLD
+        elif held.verdict != "HOLD" and self._held_back.get(ctx.run_id) == ON_HOLD:
+            del self._held_back[ctx.run_id]  # (held at the Lead's end: never inside Ready for you)
+            self._mark_ready(ctx, held)
+            await self._ready_at_end(ctx)
 
     def _join_copy(self: "AgentRunner", call_id: str, agent_id: str) -> None:
         """A fixer KOLONİ opened in a turn whose recipe's copy holds the work: one of the
@@ -632,7 +654,8 @@ class StrongerMixin:
         going = asyncio.ensure_future(self._run_call(ctx, call_id, request))
         self._looks.setdefault(ctx.run_id, set()).add(going)
         try:
-            status, said = await going
+            async with self._look_leaves_no_trace(ctx) if read_only else contextlib.nullcontext():
+                status, said = await going
         except asyncio.CancelledError:
             if not going.cancelled() or self._turn_stopping() or _cancelled_outside():
                 raise
@@ -853,7 +876,10 @@ class StrongerMixin:
             if by and (held and held.left_failing)
             else NOT_TAKEN_PLAIN.format(why=why),
         )
-        made["question"] = (held.question if held else "") or ASK_DEFAULT
+        if why == ON_HOLD:
+            made["question"], made["reason"] = ASK_HOLD, "on_hold"
+        else:
+            made["question"] = (held.question if held else "") or ASK_DEFAULT
         if merge_id:
             made["merge_id"] = merge_id
         return [made]
