@@ -8,17 +8,25 @@ the turn is a note too: the turn did not make it.
 
 Each check reads only inside the project, through `Workspace` - a link that leads out of it is
 never looked at - with what it reads capped: the files are the project's, untrusted input.
-`check_docs`, `check_diagrams`, `check_data`, `check_slides` and `check_config` (0.1.7: a JSON,
-YAML or TOML file parses, a well-known one keeps its shape) hold no state of a turn: S5c's recipe
-Checks step runs them too."""
+`check_docs`, `check_diagrams`, `check_data`, `check_slides`, `check_config` (0.1.7: a JSON,
+YAML or TOML file parses, a well-known one keeps its shape) and `check_scripts` (0.1.7: a shell
+script parses, read by its own shell, never run) hold no state of a turn: S5c's recipe Checks
+step runs them too."""
 
 import asyncio
 import base64
 import csv
 import io
 import json
+import os
 import posixpath
 import re
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import threading
 import tomllib
 import zipfile
 import zlib
@@ -34,12 +42,13 @@ import yaml
 import yaml.reader
 
 from app import browser, ci_commands
+from app.executors.host import _pwsh
 from app.proof import Row, row
 from app.workspace import Outside, Workspace, WorkspaceError, secret_in_project, secret_named
 
 # The kinds a project switches (`Project.check_kinds`) checked with no browser, each as Settings
 # says it; and S5b's pages (`check_pages`, "ui"), which need KOLONİ's own browser.
-KINDS = ("docs", "slides", "diagram", "data", "config")
+KINDS = ("docs", "slides", "diagram", "data", "config", "scripts")
 UI = "ui"
 WRITTEN = (*KINDS, UI)
 SHOWN = {
@@ -48,6 +57,7 @@ SHOWN = {
     "diagram": "diagrams",
     "data": "data",
     "config": "config files",
+    "scripts": "scripts",
     UI: "pages",
 }
 KINDS_TO_FIX = (
@@ -1080,12 +1090,8 @@ def check_config(
 
     def kept_out(rel: str) -> str | None:
         """Why it is not read: a secret, or a name that often holds one; None: it is read."""
-        try:  # (by its name, and by where a link of that name leads in the project)
-            secret = secret_named(rel, ws.rel(ws.resolve(rel)))
-        except Exception:  # (a link loop: RuntimeError on 3.12 - the read says so, in `_each`)
-            secret = secret_in_project(rel)
         name = rel.replace("\\", "/").rsplit("/", 1)[-1].casefold()
-        return SECRET if secret else MAY_HOLD if _MAY_HOLD.fullmatch(name) else None
+        return SECRET if _secret(ws, rel) else MAY_HOLD if _MAY_HOLD.fullmatch(name) else None
 
     def one(data: bytes, rel: str) -> list[Row]:
         nonlocal left
@@ -1109,12 +1115,278 @@ def check_config(
     ]
 
 
+def _secret(ws: Workspace, rel: str) -> bool:
+    try:  # (by its name, and by where a link of that name leads in the project)
+        return secret_named(rel, ws.rel(ws.resolve(rel)))
+    except Exception:  # (a link loop: RuntimeError on 3.12 - the read says so, in `_each`)
+        return secret_in_project(rel)
+
+
+# --- scripts (0.1.7): a shell script parses - read by its own shell, never run --------------------
+
+SCRIPT_FILES = (".sh", ".bash", ".ps1", ".psm1")
+MOST_SCRIPTS = 20  # a turn
+MOST_SCRIPT = 2**20  # bytes of a script
+BASH_SECONDS, POWERSHELL_SECONDS = 10, 20
+MOST_HEARD = 64 * 1024  # of what a shell prints, each stream - the rest read and dropped
+SCRIPTS_MORE = "Scripts not checked: {named} - at most {most} a turn"
+LOADS = "it loads a module or an assembly"
+CRLF = "{path}: Windows line endings (CR LF) - bash on Linux will not run it as it is"
+NEEDS_7 = "it needs PowerShell 7"
+TYPE_UNREAD = "it uses a type of a module KOLONİ does not load"
+# What a shell is started with: none of the user's variables (a BASH_ENV, say: `bash -n` does not
+# run its file - measured, Git's bash 5.2 - and it is not given one), and C, so that its
+# complaint says "line N:" as read here; in an empty folder of its own, deleted after - nothing
+# of the project's is beside it (a powershell.config.json, a command named as one of its own).
+_KEPT = {"PATH", "SYSTEMROOT", "WINDIR", "SYSTEMDRIVE", "TEMP", "TMP", "HOME", "USERPROFILE"}
+_BASH_SAID = re.compile(r": line (\d+): (.+)")
+# PowerShell's own parser on the script's text, read from stdin: nothing of the file is in a
+# command line or in this script. Parsing runs nothing - measured 23 Nov 2026, pwsh 7.5 and 5.1:
+# a `using module`, `#requires`, a class's static member, a BEGIN block, `[ScriptBlock]::Create`
+# are not run - but its parser looks things up as it reads them: a `using assembly` DLL, and
+# (pwsh 7, review of k-scripts) an `Import-DscResource` module's files at any path. So it is
+# never asked to find anything: each `using assembly` / `using module` statement (at a line's
+# start, or after a `;`, to the next `;`) is taken out, and each `#requires` line that names
+# modules or assemblies - the lines kept where they were, a lone CR a line's end as PowerShell
+# reads it; then a text with a `using` left in it anywhere (a comment between its words, a
+# backtick's next line, a space of another kind) but `using namespace`, or an
+# `Import-DscResource`, is not given to it at all (`LOADS`). Fail closed: an English "using" in a
+# comment leaves a script unread, never a lookup made.
+_LINES = re.compile(r"\r\n|\r|\n")
+_RESOLVED = re.compile(
+    r"(?i)(?:^|(?<=;))[ \t]*"
+    r"(?:using[ \t]+(?:assembly|module)\b[^;]*|#requires\b.*-(?:assembly|modules?)\b.*)"
+)
+# (Read with its backticks out: `Import-Dsc`Resource` is the keyword to pwsh 7; `$using:x` is a
+# variable, no statement.)
+_LOOKED_UP = re.compile(r"(?i)\busing\b(?!:)(?![ \t]+namespace\b)|import-dscresource")
+_CONFIGURATION = re.compile(r"(?im)^[ \t]*configuration[ \t]+\w")
+# What Windows PowerShell 5.1 says of PowerShell 7's own syntax (`??`, `?.`, `&&`, `||`, `? :`).
+_ONLY_7 = re.compile(r"'(?:\?\?=?|\?\.|\?|&&|\|\|)'|not a valid statement separator")
+_PARSE_PS = r"""
+[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$text = [Console]::In.ReadToEnd()
+$errors = $null
+$null = [System.Management.Automation.Language.Parser]::ParseInput($text, [ref]$null, [ref]$errors)
+ConvertTo-Json -Compress -InputObject @($errors |
+  Select-Object -First 1 |
+  ForEach-Object { @{ line = $_.Extent.StartLineNumber; message = $_.Message; id = $_.ErrorId } })
+"""
+_PARSE_PS_ENCODED = base64.b64encode(_PARSE_PS.encode("utf-16-le")).decode("ascii")
+_WSL = re.compile(r"\\(windows\\system32|windowsapps)\\")
+
+
+def _bash() -> list[str] | None:
+    """The bash a script is read with: on Windows Git's, next to git - never System32's or the
+    Store's (WindowsApps) bash.exe, which start a Linux (WSL); None: no bash here."""
+    if sys.platform == "win32" and (git := shutil.which("git")):
+        for up in list(Path(git).parents)[:3]:
+            for one in (up / "usr" / "bin" / "bash.exe", up / "bin" / "bash.exe"):
+                if one.is_file():
+                    return [str(one)]
+    found = shutil.which("bash")
+    if not found or sys.platform == "win32" and _WSL.search(found.casefold()):
+        return None
+    return [found]
+
+
+def _powershell() -> list[str] | None:
+    """PowerShell 7 where it is (not the Store's: `_pwsh`), else Windows PowerShell; None: none."""
+    found = (_pwsh() or shutil.which("powershell.exe")) if sys.platform == "win32" else None
+    found = found or shutil.which("pwsh")
+    return [found] if found else None
+
+
+def _kill_tree(process: subprocess.Popen) -> None:
+    """The shell and all it started (review: a child holding its pipes kept a 2 s read for 25 s)."""
+    if sys.platform == "win32":
+        subprocess.run(  # noqa: S603, S607 (taskkill: Windows' own)
+            ["taskkill", "/T", "/F", "/PID", str(process.pid)],
+            capture_output=True,
+            timeout=10,
+            check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    else:
+        with suppress(ProcessLookupError, PermissionError):
+            os.killpg(process.pid, signal.SIGKILL)
+    with suppress(subprocess.TimeoutExpired):
+        process.wait(5)
+
+
+def _drain(pipe, into: bytearray) -> None:
+    """A stream read to its end, at most MOST_HEARD of it kept."""
+    with suppress(OSError, ValueError):
+        while chunk := pipe.read(8192):
+            into += chunk[: max(0, MOST_HEARD - len(into))]
+
+
+def _feed(pipe, data: bytes) -> None:
+    with suppress(OSError, ValueError):
+        pipe.write(data)
+        pipe.close()
+
+
+def _read_by(argv: list[str], text: str, seconds: int) -> tuple[int, str, str]:
+    """`argv` given `text` on stdin, in an empty folder of its own, with no more than `_KEPT` of
+    this machine's variables: its exit code and what it printed (each at most MOST_HEARD). A run
+    past `seconds` - the whole tree killed - or one that cannot start, is said (not checked)."""
+    env = {k: v for k, v in os.environ.items() if k.upper() in _KEPT}
+    out, err = bytearray(), bytearray()
+    with tempfile.TemporaryDirectory(prefix="koloni-script-", ignore_cleanup_errors=True) as cwd:
+        try:
+            process = subprocess.Popen(  # noqa: S603 (an argument list: nothing of the file is in it)
+                argv,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                cwd=cwd,
+                env={**env, "LC_ALL": "C", "LANG": "C"},
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                start_new_session=sys.platform != "win32",
+            )
+        except OSError as exc:
+            raise WorkspaceError(f"its shell did not start ({type(exc).__name__})") from None
+        threads = [
+            threading.Thread(target=_feed, args=(process.stdin, text.encode("utf-8")), daemon=True),
+            threading.Thread(target=_drain, args=(process.stdout, out), daemon=True),
+            threading.Thread(target=_drain, args=(process.stderr, err), daemon=True),
+        ]
+        for one in threads:
+            one.start()
+        try:
+            process.wait(seconds)
+        except subprocess.TimeoutExpired:
+            _kill_tree(process)
+            raise WorkspaceError(f"reading it took over {seconds} s") from None
+        finally:
+            if sys.platform != "win32":  # (what it left behind, in its own group, goes with it)
+                with suppress(ProcessLookupError, PermissionError):
+                    os.killpg(process.pid, signal.SIGKILL)
+            for one in threads:
+                one.join(2)  # (a pipe a grandchild still holds: not waited for longer)
+        return process.returncode, out.decode("utf-8", "replace"), err.decode("utf-8", "replace")
+
+
+def _unresolved(text: str) -> tuple[str, bool]:
+    """The script's text as PowerShell is given it (`_RESOLVED` out, lines kept, each ended with a
+    LF), and whether anything was taken out. Raises where it would still look something up, or
+    where taking out a statement would change the rest (a quote or a comment's end in it)."""
+    taken: list[str] = []
+    lines = [
+        _RESOLVED.sub(lambda m: taken.append(m.group()) or "", one) for one in _LINES.split(text)
+    ]
+    kept = "\n".join(lines)
+    if (
+        _LOOKED_UP.search(kept.replace("`", ""))
+        or any("#>" in one or "<#" in one for one in taken)
+        or any(one.count('"') % 2 or one.count("'") % 2 for one in taken)
+    ):
+        raise WorkspaceError(LOADS)
+    return kept, bool(taken)
+
+
+def _powershell_said(shell: list[str], text: str) -> list[tuple[object, object]]:
+    windows_51 = Path(shell[0]).name.casefold() == "powershell.exe"
+    if windows_51 and _CONFIGURATION.search(
+        text.replace("`", "")
+    ):  # (5.1 loads DSC's module for one)
+        raise WorkspaceError(NEEDS_7)
+    kept, blanked = _unresolved(text)
+    code, out, _err = _read_by(
+        [*shell, "-NoProfile", "-NonInteractive", "-EncodedCommand", _PARSE_PS_ENCODED],
+        kept,
+        POWERSHELL_SECONDS,
+    )
+    try:
+        said = json.loads(out or "null")
+    except ValueError:
+        said = None
+    if code or not isinstance(said, list):
+        raise WorkspaceError("PowerShell's parser gave no answer")
+    found = [one for one in said if isinstance(one, dict)]
+    if found and blanked and found[0].get("id") == "TypeNotFound":
+        raise WorkspaceError(TYPE_UNREAD)
+    if found and windows_51 and _ONLY_7.search(str(found[0].get("message"))):
+        raise WorkspaceError(NEEDS_7)
+    return [(one.get("line"), one.get("message")) for one in found]
+
+
+def _bash_said(shell: list[str], text: str) -> list[tuple[object, object]]:
+    # (extglob on: `@(a|b)` and `!(x)` are a script's own after its `shopt -s extglob`)
+    code, _out, err = _read_by(
+        [*shell, "--norc", "--noprofile", "-O", "extglob", "-n"], text, BASH_SECONDS
+    )
+    if code not in (0, 1, 2):
+        raise WorkspaceError(f"bash ended with {code}")
+    lines = err.splitlines()
+    found: list[tuple[object, object]] = [
+        (int(m[1]), m[2]) for one in lines if (m := _BASH_SAID.search(one))
+    ]
+    if code and not found:
+        found = [(None, next((one for one in lines if one.strip()), "a syntax error"))]
+    return found
+
+
+def _script(data: bytes, rel: str) -> list[Row]:
+    """A script read by its own shell (`bash -n`, PowerShell's parser) - never run: its first
+    complaint and line, or that it parses."""
+    if len(data) > MOST_SCRIPT:
+        raise WorkspaceError(f"it is over {MOST_SCRIPT // 2**20} MB")
+    text, powershell = _text(data), rel.casefold().endswith((".ps1", ".psm1"))
+    shell = _powershell() if powershell else _bash()
+    if shell is None:
+        raise WorkspaceError("no PowerShell here" if powershell else "no bash here")
+    # (A CR LF script is read as Git's bash on Windows reads it - the CR taken - and said.)
+    crlf = [] if powershell or "\r" not in text else [row("scripts", "note", CRLF.format(path=rel))]
+    found = (_powershell_said if powershell else _bash_said)(shell, _LINES.sub("\n", text))
+    if not found:
+        return [row("scripts", "passed", f"{rel}: parses"), *crlf]
+    line, message = found[0]
+    at = f"{rel}:{line}" if isinstance(line, int) else rel
+    return [row("scripts", "failed", f"{at}: {NO_PARSE}{_key(message)}"), *crlf]
+
+
+def check_scripts(
+    root: Path | Workspace, paths: list[str], before: Mapping[str, str | None] | None = None
+) -> list[Row]:
+    """Scripts: a `.sh` or `.bash` file read by `bash -n`, a `.ps1` or `.psm1` by PowerShell's
+    parser - never run - parses, else failed with its shell's first complaint and line. A secret
+    file is never read, nor one outside the project, nor one over MOST_SCRIPT; at most
+    MOST_SCRIPTS a turn."""
+    ws, passed = _workspace(root), set()
+
+    def one(data: bytes, rel: str) -> list[Row]:
+        # (`_each` reads the text before the turn after this one: only a failure needs it.)
+        if rel in passed:
+            return []
+        rows = _script(data, rel)
+        if rows[0]["state"] == "passed":
+            passed.add(rel)
+        return rows
+
+    out = [rel for rel in paths if _secret(ws, rel)]
+    read = [rel for rel in paths if rel not in out]
+    more = read[MOST_SCRIPTS:]
+    return [
+        *(row("scripts", "note", NOT_CHECKED_FILE.format(path=rel, why=SECRET)) for rel in out),
+        *_each(ws, read[:MOST_SCRIPTS], "scripts", one, before or {}),
+        *(
+            [row("scripts", "note", SCRIPTS_MORE.format(named=_named(more), most=MOST_SCRIPTS))]
+            if more
+            else []
+        ),
+    ]
+
+
 CHECKS: dict[str, Callable[..., list[Row]]] = {
     "docs": check_docs,
     "diagram": check_diagrams,
     "data": check_data,
     "slides": check_slides,
     "config": check_config,
+    "scripts": check_scripts,
 }
 
 

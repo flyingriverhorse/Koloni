@@ -9686,6 +9686,11 @@ export interface components {
              */
             review: boolean;
             /**
+             * Scripts
+             * @default true
+             */
+            scripts: boolean;
+            /**
              * Slides
              * @default false
              */
