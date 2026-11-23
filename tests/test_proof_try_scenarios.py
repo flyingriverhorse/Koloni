@@ -5,6 +5,7 @@ the chat's running preview, or on one KOLONİ starts on a free port and stops af
 per role; the stand-in browser plays Chrome."""
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -145,43 +146,76 @@ def test_no_preview_and_no_dev_script_is_said(fake, make_client, wait_run, proje
     assert f"Not tried: {try_mixin.NO_DEV}" in texts(snap) and snap["agents"][1:] == []
 
 
-def test_a_changed_cli_tool_gets_help_and_one_plain_run(make_client, wait_run, project_dir):
-    executor = ScriptedExecutor([PASS, Script(["usage: tool [-h]\n", "  -h  help\n"]),
-                                 Script(["nothing to do\n"], exit_code=2)])
-    client, model = make_client([write("bin/tool.py", "print('hi')\n"), text("done")],
-                                executor=executor)
+TOOL = "import sys\nprint(sys.argv)\n"  # (it reads its arguments: its --help is asked for)
+HELP = "python 'bin/tool.py' --help"
+
+
+def test_a_changed_cli_tool_gets_its_help_alone(make_client, wait_run, project_dir):
+    executor = ScriptedExecutor([PASS, Script(["usage: tool [-h]\n", "  -h  help\n"])])
+    client, model = make_client([write("bin/tool.py", TOOL), text("done")], executor=executor)
     cid, run_id = begin(client, project_dir, check_command=CHECK)
     snap = wait_run(client, cid, run_id)
-    assert [line for line, _cwd in executor.started] == [
-        CHECK, "python bin/tool.py --help", "python bin/tool.py"]
+    # (never a plain run: a script's work is not KOLONİ's to start - review of S5b)
+    assert [line for line, _cwd in executor.started] == [CHECK, HELP]
     shown = texts(snap)
-    assert "Tried python bin/tool.py --help: exit 0, 2 lines" in shown, shown
-    assert "Ran python bin/tool.py once: exit 2" in shown and nudged(model) == []
+    assert f"Tried {HELP}: exit 0, 2 lines" in shown and nudged(model) == [], shown
+
+
+def test_a_script_that_reads_no_arguments_is_never_run(make_client, wait_run, project_dir):
+    # (a deploy or a sync script that ignores --help would do its work)
+    executor = ScriptedExecutor([PASS])
+    client, _model = make_client([write("bin/deploy.py", "upload_everything()\n"), text("done")],
+                                 executor=executor)
+    cid, run_id = begin(client, project_dir, check_command=CHECK)
+    snap = wait_run(client, cid, run_id)
+    assert [line for line, _cwd in executor.started] == [CHECK]
+    assert f"Not tried: bin/deploy.py - {proof_try.NO_ARGUMENTS}" in texts(snap), texts(snap)
 
 
 def test_a_cli_help_that_fails_goes_back_as_a_fix_round(make_client, wait_run, project_dir):
-    executor = ScriptedExecutor([PASS, Script(["Traceback: boom\n"], exit_code=1),
-                                 Script(["x\n"]), PASS])
-    client, model = make_client([write("bin/tool.py", "raise SystemExit(1)\n"), text("done"),
-                                 text("it was the import")], executor=executor)
+    executor = ScriptedExecutor([PASS, Script(["Traceback: boom\n"], exit_code=1), PASS])
+    client, model = make_client([write("bin/tool.py", TOOL + "raise SystemExit(1)\n"),
+                                 text("done"), text("it was the import")], executor=executor)
     cid, run_id = begin(client, project_dir, check_command=CHECK)
     snap = wait_run(client, cid, run_id)
     (said,) = nudged(model)
-    assert "Tried python bin/tool.py --help: exit 1" in said
-    assert texts(snap).count("Tried python bin/tool.py --help: exit 1") == 1, texts(snap)
+    assert f"Tried {HELP}: exit 1" in said
+    assert texts(snap).count(f"Tried {HELP}: exit 1") == 1, texts(snap)
     assert texts(snap)[-1] == "Sent back to fix: 1 of 2 rounds (1 problem in the try)"
 
 
 def test_a_tool_that_cannot_start_is_said_not_sent_back(make_client, wait_run, project_dir):
     # (python not on PATH, say: no exit of its own to judge - never a fix round)
     executor = ScriptedExecutor([PASS, Script(start_error="python: command not found")])
-    client, model = make_client([write("bin/tool.py", "print(1)\n"), text("done")],
-                                executor=executor)
+    client, model = make_client([write("bin/tool.py", TOOL), text("done")], executor=executor)
     cid, run_id = begin(client, project_dir, check_command=CHECK)
     snap = wait_run(client, cid, run_id)
     assert nudged(model) == [] and [line for line, _cwd in executor.started] == [CHECK]
-    assert ("Not tried: python bin/tool.py --help - python: command not found"
-            in texts(snap)), texts(snap)
+    assert f"Not tried: {HELP} - python: command not found" in texts(snap), texts(snap)
+
+
+@pytest.mark.parametrize("name", [
+    "bin/a;Write-Output INJECTED;b.py", "bin/$(Write-Output INJECTED).py", "bin/a&b.py",
+    "bin/a b.py", "bin/-rf.py", "bin/`whoami`.sh", "bin/a'b.py"])
+def test_a_tool_with_an_unusual_name_is_never_put_on_a_line(tmp_path, name):
+    # (Review of S5b, probe_try_lines: `bin/$(Write-Output INJECTED).py` ran the subexpression
+    # under KOLONİ's own call - an agent's command passed off as KOLONİ's.)
+    assert proof_try.cli_tools(tmp_path, [name]) == [(name, proof_try.UNUSUAL)]
+
+
+def test_a_console_script_of_an_unusual_module_is_never_put_on_a_line(tmp_path):
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "p"\n[project.scripts]\nt = "m;Write-Output PYINJECT:main"\n'
+        'u = "../up:main"\n', encoding="utf-8")
+    assert proof_try.cli_tools(tmp_path, ["m;Write-Output PYINJECT.py", "x.py"]) == [
+        ("t", proof_try.UNUSUAL), ("u", proof_try.UNUSUAL)]
+
+
+def test_a_plain_name_is_quoted_on_its_line_all_the_same(tmp_path):
+    (tmp_path / "bin").mkdir()
+    (tmp_path / "bin" / "my-tool_2.py").write_text(TOOL, encoding="utf-8")
+    assert proof_try.cli_tools(tmp_path, ["bin/my-tool_2.py"]) == [
+        ("python 'bin/my-tool_2.py'", None)]
 
 
 def test_failing_tests_are_fixed_before_any_try(fake, preview, make_client, wait_run,
@@ -208,7 +242,9 @@ def test_at_ask_the_testers_spawn_opens_no_card_and_it_reaches_no_site_and_write
         {"url": "https://example.com/"})), ToolCallRequest("t4", "write_file", json.dumps(
         {"path": "src/App.tsx", "content": "gone\n"})), ToolCallRequest("t5", "run_command",
         json.dumps({"command": "pip install requests"})), ToolCallRequest(
-        "t6", "run_command", json.dumps({"command": "rm -rf src"}))], 1, 1)
+        "t6", "run_command", json.dumps({"command": "rm -rf src"})), ToolCallRequest(
+        "t7", "browser_open", json.dumps({"url": "http://127.0.0.1:1/admin"})),
+        ToolCallRequest("t8", "browser_open", json.dumps({"url": "src/App.tsx"}))], 1, 1)
     client, _model = make_client({"Lead": [write("src/App.tsx", SCREEN), text("done")],
                                   "Tester": [out, WORKS]}, executor=ScriptedExecutor([PASS]))
     cid, run_id = begin(client, project_dir, mode="ask", check_command=CHECK)
@@ -217,8 +253,12 @@ def test_at_ask_the_testers_spawn_opens_no_card_and_it_reaches_no_site_and_write
     (tester,) = the_testers(snap)
     assert tester["status"] == "completed", tester
     made = calls_by(snap, tester)
-    assert made["browser_open"]["status"] != "succeeded"
-    assert "KOLONİ's Tester opens this machine's preview alone" in made["browser_open"]["result"]
+    # (a site out there, another page of this machine, a file: only the preview it tries)
+    opens = [c for c in snap["tool_calls"] if c["agent_id"] == tester["id"]
+             and c["name"] == "browser_open"]
+    assert len(opens) == 3 and all(c["status"] != "succeeded" and (
+        f"KOLONİ's Tester opens the preview it tries alone, {preview}" in c["result"])
+        for c in opens), opens
     assert made["write_file"]["status"] != "succeeded"
     assert (project_dir / "src" / "App.tsx").read_text(encoding="utf-8") == SCREEN
     # (an install, any command that neither only reads nor is the approved test: refused, no card)
@@ -235,18 +275,22 @@ def test_at_ask_the_testers_spawn_opens_no_card_and_it_reaches_no_site_and_write
 
 def test_the_tools_a_turn_changed_are_read_off_the_projects_files(tmp_path):
     (tmp_path / "bin").mkdir()
-    (tmp_path / "bin" / "go").write_text("#!/usr/bin/env node\nconsole.log(1)\n", encoding="utf-8")
+    (tmp_path / "bin" / "go").write_text("#!/usr/bin/env node\nconsole.log(process.argv)\n",
+                                         encoding="utf-8")
+    (tmp_path / "cli").mkdir()
+    (tmp_path / "cli" / "x.js").write_text("require('yargs')\n", encoding="utf-8")
     (tmp_path / "package.json").write_text(json.dumps({"bin": {"x": "./cli/x.js"}}),
                                            encoding="utf-8")
     (tmp_path / "pkg").mkdir()
     (tmp_path / "pkg" / "cli.py").write_text("def main(): pass\n", encoding="utf-8")
-    (tmp_path / "pkg" / "run.py").write_text("if __name__ == '__main__':\n    pass\n",
-                                             encoding="utf-8")
+    (tmp_path / "pkg" / "run.py").write_text(
+        "import argparse\nif __name__ == '__main__':\n    argparse.ArgumentParser()\n",
+        encoding="utf-8")
     (tmp_path / "pyproject.toml").write_text(
         '[project]\nname = "p"\n[project.scripts]\nmine = "pkg.cli:main"\nrun = "pkg.run:x"\n',
         encoding="utf-8")
     assert proof_try.cli_tools(tmp_path, ["bin/go", "cli/x.js"]) == [
-        ("node bin/go", None), ("node cli/x.js", None)]
+        ("node 'bin/go'", None), ("node 'cli/x.js'", None)]
     assert proof_try.cli_tools(tmp_path, ["pkg/cli.py", "pkg/run.py"]) == [
         ("mine", proof_try.NO_MAIN.format(module="pkg.cli")), ("python -m pkg.run", None)]
     assert proof_try.cli_tools(tmp_path, ["src/App.tsx", "bin/notes.txt"]) == []
@@ -262,3 +306,26 @@ def test_the_dev_server_is_the_nearest_package_jsons_dev_else_start(tmp_path):
     assert proof_try.dev_command(tmp_path, ["web/src/App.tsx"]) == ("npm run dev", "web")
     (tmp_path / "package.json").unlink()
     assert proof_try.dev_command(tmp_path, ["src/App.tsx"]) is None
+
+
+@pytest.mark.anyio
+async def test_the_testers_browser_loads_from_its_preview_alone(tmp_path, served):  # noqa: F811
+    # (What a page loads by itself too: another of this machine's pages or a project file is not
+    # the preview it tries - review of S5b.)
+    from app import browser
+    from app.workspace import Workspace
+
+    page = tmp_path / "other.html"
+    page.write_text("<html><title>O</title></html>", encoding="utf-8")
+    one = browser.Browser(tmp_path / "b", "tester")
+    await one.start([sys.executable, FAKE], Workspace(str(tmp_path)), set())
+    try:
+        one.only = browser.origin(served)
+        assert await one.open(served) == f"{served} - Tiny"
+        await one.open(page.resolve().as_uri())
+        assert "not the preview this browser tries" in one.refused()
+    finally:
+        await one.close()
+    assert browser.origin("http://localhost:5173/a") == browser.origin("http://127.0.0.1:5173/")
+    assert browser.origin("http://127.0.0.1:5174/") != browser.origin("http://127.0.0.1:5173/")
+    assert browser.origin("file:///x/index.html") is None

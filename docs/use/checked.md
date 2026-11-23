@@ -408,12 +408,16 @@ Under **Test and review**, once a turn, after the tests and the review, KOLONİ 
 a user would:
 
 - **A command-line tool** the turn changed - a script in `bin/`, a `bin` of `package.json`, a
-  console script of `pyproject.toml` - is run once with `--help` and once plain, as KOLONİ's own
-  commands, asked about as an agent's would be (a card below Full auto where one is asked). "Tried
-  python bin/tool.py --help: exit 0, 12 lines" passes; a `--help` that fails (or runs on past 30
-  s) goes back as a fix round; the plain run is said as it ended ("Ran python bin/tool.py once:
-  exit 2"). A console script whose module does not run itself (`if __name__ == "__main__"`) is
-  said as not tried.
+  console script of `pyproject.toml` - is asked for its `--help`, and nothing more: KOLONİ never
+  runs it plainly, as a deploy or a sync script would do its work. Only a script that reads its
+  arguments is asked (Python's argparse, click, typer or `sys.argv`; Node's `process.argv`,
+  commander or yargs; sh's `getopts` or `$1`); another is "Not tried: … it reads no arguments".
+  Its line is KOLONİ's own command, asked about as an agent's would be (a card below Full auto
+  where one is asked). "Tried python 'bin/tool.py' --help: exit 0, 12 lines" passes; a `--help`
+  that fails (or runs on past 30 s) goes back as a fix round. A file name or a module that is not
+  plain (letters, digits, `_ . / -`, no part starting with `-`, no `..`) is never put on a line:
+  "Not tried: … an unusual name". A console script whose module does not run itself
+  (`if __name__ == "__main__"`) is said as not tried.
 - **A big change of screens** (more than 80 lines or 3 files of `.tsx`, `.jsx`, `.vue`, `.svelte`,
   `.html`, `.css`...) is tried by the **Tester**, an agent KOLONİ opens itself as it opens the
   Reviewer: it opens the chat's preview in KOLONİ's own browser, goes through what your request
@@ -422,7 +426,8 @@ a user would:
   blocking". A blocking finding goes back as a fix round; the try is not made again that turn. The
   Tester gets what the Reviewer gets - its role's read tools, and commands that only read or are
   the project's approved test command exactly, never a card - and its browser tools; it writes
-  nothing, and opens this machine's preview alone; its screenshots are shown to its model only where that model takes
+  nothing, and opens the preview it tries alone (that address, nothing else of this machine, no
+  file - nor do its pages load from elsewhere); its screenshots are shown to its model only where that model takes
   images (else it is told so, and reads the page's text). Its spawn opens no card at any level.
 - **With no preview running**, KOLONİ starts the project's dev server itself - `npm run dev`
   (else `npm start`) of the nearest `package.json` above the changed screens - on a free port

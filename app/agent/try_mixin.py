@@ -1,12 +1,13 @@
 """Kanıtlı bitiş S5b (plan decision 14c): the live try - under Test and review, once a turn, last
-of the end check's steps. A command-line tool the turn changed (`proof_try.cli_tools`) is run
-once with `--help` and once plain; a big change of screens (S3's BIG_LINES / BIG_FILES over ui
-files) is tried by the **Tester** like a user would, with KOLONİ's browser tools, on the chat's
-running preview - or on one KOLONİ starts itself (package.json's `dev` / `start`, a free port,
-one of KOLONİ's own runs at once as Settings › The app says) and stops after. The Tester is
-KOLONİ's own spawn, as S3's Reviewer is: its role's read and browser tools, no writes, no command,
-nothing but this machine's previews; its blocking findings, and a `--help` that fails, go back
-as a fix round. `TryMixin._proof_try`."""
+of the end check's steps. A command-line tool the turn changed that reads its arguments, under
+a plain name (`proof_try.cli_tools`), is run with `--help` alone; a big change of screens (S3's
+BIG_LINES / BIG_FILES over ui files) is tried by the **Tester** like a user would, with KOLONİ's
+browser tools, on the chat's running preview - or on one KOLONİ starts itself (package.json's
+`dev` / `start`, a free port, one of KOLONİ's own runs at once as Settings › The app says) and
+stops after. The Tester is KOLONİ's own spawn, as S3's Reviewer is: its role's read tools and
+commands held as the Reviewer's are (decision 6), and its browser tools on that preview's own
+address alone; no writes. Its blocking findings, and a `--help` that fails, go back as a fix
+round. `TryMixin._proof_try`."""
 
 import asyncio
 import json
@@ -56,9 +57,7 @@ FINDING = "{mark}: {what}"
 HELP_PASSED = "Tried {line}: exit 0, {n} lines"
 HELP_FAILED = "Tried {line}: exit {code}"
 HELP_HUNG = "Tried {line}: it did not end in {seconds} s"
-RAN = "Ran {line} once: exit {code}"
-RAN_ON = "Ran {line} once: still running after {seconds} s - stopped"
-HELP_SECONDS, RUN_SECONDS = 30, 15
+HELP_SECONDS = 30
 # How a run of the try ended that it judges: its exit, its time limit, a server that runs on.
 RAN_TO_AN_END = ("exited", "timed_out", "running")
 COPY = "the work waits in a working copy, and a preview runs in the project itself only"
@@ -172,22 +171,17 @@ class TryMixin:
         return code, output, ended, None
 
     async def _try_tool(self: "AgentRunner", ctx: Ctx, ws: Workspace, base: str) -> list[Row]:
-        """A command-line tool the turn changed: `--help` (failed where it does not end well),
-        then one plain run (said as it ended)."""
-        rows = []
+        """A command-line tool the turn changed, one that reads its arguments: `--help` alone
+        (failed where it does not end well). Never a plain run - a script's work (a deploy, a
+        sync) is not KOLONİ's to start (review of S5b)."""
         line = f"{base} --help"
         code, output, ended, why = await self._try_run(ctx, ws, line, HELP_SECONDS)
         if why:
             return [proof.row("try", "note", NOT_TRIED.format(why=f"{line} - {why}"))]
-        rows.append(proof.row("try", "passed", HELP_PASSED.format(
+        return [proof.row("try", "passed", HELP_PASSED.format(
             line=line, n=len(output.splitlines()))) if code == 0 else proof.row(
             "try", "failed", HELP_HUNG.format(line=line, seconds=HELP_SECONDS)
-            if ended == "timed_out" else HELP_FAILED.format(line=line, code=code)))
-        code, _output, ended, why = await self._try_run(ctx, ws, base, RUN_SECONDS)
-        rows.append(proof.row("try", "note", NOT_TRIED.format(why=f"{base} - {why}") if why else (
-            RAN_ON.format(line=base, seconds=RUN_SECONDS) if ended == "timed_out"
-            else RAN.format(line=base, code=code))))
-        return rows
+            if ended == "timed_out" else HELP_FAILED.format(line=line, code=code))]
 
     async def _try_screens(self: "AgentRunner", ctx: Ctx, ws: Workspace,
                            held: "Proof") -> tuple[list[Row], list[str]]:
@@ -217,7 +211,7 @@ class TryMixin:
             if url is None:  # (none started, none running)
                 return [proof.row("try", "note", NOT_TRIED.format(why=NO_DEV))], []
             look = await self._review_look(ctx, TESTER, await self._try_brief(ctx, held, url),
-                                           tryout=True)
+                                           tryout=url)
         finally:
             if started is not None:
                 self.commands.stop(started)

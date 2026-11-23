@@ -1401,8 +1401,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         self._read_only_agents: set[str] = set()
         # S5b: of those, KOLONİ's live try (the Tester): its calls and agents - browser tools
         # too, on this machine's previews alone (`_review_refuses`, `_browser`).
-        self._try_calls: set[str] = set()
-        self._try_agents: set[str] = set()
+        self._try_calls: dict[str, str] = {}  # (call: the preview it tries)
+        self._try_agents: dict[str, str] = {}  # (agent: the same, until its run ends)
         self._recipe_reviewers: dict[str, set[str]] = {}
         self._looks: dict[str, set[asyncio.Future]] = {}
         # K-evrim: the agents opened as a step's candidates - each in a copy of its own until one
@@ -2017,6 +2017,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
             self._asked_leads.pop(agent_id, None)
             self._beside.pop(agent_id, None)
             self._paid_asked.pop(agent_id, None)
+            self._try_agents.pop(agent_id, None)  # (S5b: the live try's Tester)
         self._picked.discard(run_id)
         self._answered.discard(run_id)
         self._pick_names.pop(run_id, None)

@@ -1,11 +1,13 @@
 """Kanıtlı bitiş S5b (plan decision 14c): what the live try at a turn's end runs - read off the
 project's own files, never a model's word: the command-line tools the turn changed (a script in
-`bin/`, a `bin` of package.json, a console script of pyproject.toml), each run once with `--help`
-and once plain; and the dev server that serves its screens (package.json's `dev`, else `start`).
+`bin/`, a `bin` of package.json, a console script of pyproject.toml) that read their arguments,
+under plain names, each asked for its `--help` alone; and the dev server that serves its screens
+(package.json's `dev`, else `start`).
 Each file is read inside the project only (`Workspace`), with what is read capped."""
 
 import json
 import posixpath
+import re
 import tomllib
 from pathlib import Path, PurePosixPath
 
@@ -17,6 +19,17 @@ MOST_TOOLS = 2  # tools tried a turn
 BY_SUFFIX = {".py": "python", ".js": "node", ".mjs": "node", ".cjs": "node", ".sh": "sh"}
 SHEBANG = {"python": "python", "python3": "python", "node": "node", "sh": "sh", "bash": "sh"}
 NO_MAIN = 'its module {module} has no `if __name__ == "__main__"` to run'
+UNUSUAL = "an unusual name - KOLONİ runs only plain names"
+NO_ARGUMENTS = "it reads no arguments - a --help would run its work"
+_PATH = re.compile(r"[A-Za-z0-9_./-]{1,200}")
+_MODULE = re.compile(r"[A-Za-z0-9_.]{1,200}")
+# What reads a script's arguments, by its runner: Python's parsers and sys.argv; Node's
+# process.argv and its parsers; sh's positional parameters.
+ARGUMENTS = {
+    "python": re.compile(r"\b(?:argparse|click|typer|docopt|fire|optparse)\b|sys\.argv"),
+    "node": re.compile(r"process\.argv|\b(?:commander|yargs|minimist|meow|cac|arg)\b"),
+    "sh": re.compile(r"\bgetopts\b|\$\{?[1-9@*#]"),
+}
 
 
 def _read(ws: Workspace, rel: str) -> str | None:
@@ -58,25 +71,61 @@ def _scripts(ws: Workspace) -> dict[str, str]:
     return {str(name): str(spec) for name, spec in found.items()} if isinstance(found, dict) else {}
 
 
+def _plain(path: str, module: bool = False) -> bool:
+    """Whether a name may go on a line KOLONİ runs (S7's `plain_id` rule): plain characters
+    (a module's: no `/`), relative - no part that starts with `-` (an option), no `..` part. A
+    name the agent chose is never a way to a command of its own under KOLONİ's call (review of
+    S5b: `bin/$(...).py` ran)."""
+    parts = path.split("." if module else "/")
+    return bool((_MODULE if module else _PATH).fullmatch(path)) and not path.startswith("/") and (
+        ".." not in parts and not any(part.startswith("-") for part in parts))
+
+
+def _reads_arguments(text: str, runner: str) -> bool:
+    """Whether a script reads its arguments - so that `--help` asks it for its help, not to do
+    its work (a deploy or a sync script that ignores it is never run: review of S5b)."""
+    return bool(ARGUMENTS.get(runner, ARGUMENTS["python"]).search(text))
+
+
+def _quoted(path: str) -> str:
+    """In single quotes on both platforms: literal to sh and to PowerShell alike (a plain name
+    holds no quote: `_plain`)."""
+    return f"'{path}'"
+
+
 def cli_tools(root: Path | Workspace, changed: list[str]) -> list[tuple[str, str | None]]:
-    """The command-line tools the turn changed, each as (the line that runs it, None) - or
-    (its name, why it is not tried). At most MOST_TOOLS. A console script of pyproject.toml is
-    run as `python -m module` only where that module runs itself (`__main__`)."""
+    """The command-line tools the turn changed, each as (the line that asks it for its help -
+    `--help` is added by the caller - None), or (its name, why it is not tried): a name that is
+    not plain, a script that reads no arguments, a console script whose module does not run
+    itself (`__main__`). At most MOST_TOOLS."""
     ws = root if isinstance(root, Workspace) else Workspace(str(root))
     paths = {posixpath.normpath(one.replace("\\", "/")) for one in changed}
     found: list[tuple[str, str | None]] = []
+    seen: set[str] = set()
+
+    def tool(runner: str, path: str) -> None:
+        seen.add(path)
+        if not _plain(path):
+            found.append((path, UNUSUAL))
+        elif not _reads_arguments(_read(ws, path) or "", runner):
+            found.append((path, NO_ARGUMENTS))
+        else:
+            found.append((f"{runner} {_quoted(path)}", None))
     for path in sorted(paths):
         if PurePosixPath(path).parent == PurePosixPath("bin"):
             runner = BY_SUFFIX.get(PurePosixPath(path).suffix) or _shebang(ws, path)
             if runner:
-                found.append((f"{runner} {path}", None))
+                tool(runner, path)
     bins = _package(ws).get("bin")
     for target in (bins.values() if isinstance(bins, dict) else [bins] if bins else []):
         rel = posixpath.normpath(str(target))
-        if rel in paths and not any(line.endswith(f" {rel}") for line, _why in found):
-            found.append((f"node {rel}", None))
+        if rel in paths and rel not in seen:
+            tool("node", rel)
     for name, spec in _scripts(ws).items():
         module = spec.split(":", 1)[0].strip()
+        if not _plain(module, module=True):
+            found.append((name, UNUSUAL))
+            continue
         dotted = module.replace(".", "/")
         hit = next((one for one in (f"{dotted}.py", f"src/{dotted}.py", f"{dotted}/__main__.py",
                                     f"src/{dotted}/__main__.py") if one in paths), None)
@@ -84,8 +133,9 @@ def cli_tools(root: Path | Workspace, changed: list[str]) -> list[tuple[str, str
             continue
         text = _read(ws, hit) or ""
         runs = hit.endswith("__main__.py") or ("__name__" in text and "__main__" in text)
-        found.append((f"python -m {module}", None) if runs else (
-            name, NO_MAIN.format(module=module)))
+        found.append((name, NO_MAIN.format(module=module)) if not runs else (
+            (name, NO_ARGUMENTS) if not _reads_arguments(text, "python") else (
+                f"python -m {module}", None)))
     return found[:MOST_TOOLS]
 
 

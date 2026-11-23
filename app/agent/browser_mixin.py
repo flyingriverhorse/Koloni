@@ -47,8 +47,8 @@ SITE_UNWATCHED = (
 )
 
 # S5b: KOLONİ's Tester at its live try opens this machine's preview alone.
-TRY_ONLY_HERE = ("browser_open is not available here: KOLONİ's Tester opens this machine's "
-                 "preview alone")
+TRY_ONLY_HERE = ("browser_open is not available here: KOLONİ's Tester opens the preview it "
+                 "tries alone, {url}")
 
 KEY_HELD = (
     "not pressed: on a site, a key goes into a password field (or a field KOLONİ cannot see, "
@@ -114,6 +114,8 @@ class BrowserMixin:
                     raise
             # (A provider added since: its port is closed from this call on.)
             one.closed = self._closed_ports() | {one.port or 0}
+            if (tried := self._try_agents.get(ctx.agent_id)) is not None:
+                one.only = browser.origin(tried)  # (S5b: what its pages load, too)
             if one.away:
                 # A yes held for this browser (`_site`) lets its pages go on within the site.
                 # A site on the list taken off it is out from this call; one marked Ask first
@@ -137,8 +139,10 @@ class BrowserMixin:
             site = browser.site_of(args.get("url")) if name == "browser_open" else None
         except browser.BrowserError as exc:
             raise ToolError(str(exc)) from None
-        if site is not None and ctx.agent_id in self._try_agents:
-            raise ToolError(TRY_ONLY_HERE)
+        tried = self._try_agents.get(ctx.agent_id)
+        if tried is not None and name == "browser_open" and (
+                site is not None or browser.origin(args.get("url")) != browser.origin(tried)):
+            raise ToolError(TRY_ONLY_HERE.format(url=tried))
         return site
 
     async def _browser_does(

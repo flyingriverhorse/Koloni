@@ -104,6 +104,22 @@ def find_browser() -> list[str] | None:
     return None
 
 
+def origin(url: object) -> tuple[str, str, int | None] | None:
+    """S5b: an http(s) address's scheme, host (loopback's names as one) and port - what KOLONİ's
+    Tester may open is its preview's alone; None for anything else."""
+    if not isinstance(url, str):
+        return None
+    try:
+        parts = urlsplit(url.strip())
+        port = parts.port or {"http": 80, "https": 443}.get(parts.scheme)
+    except ValueError:
+        return None
+    if parts.scheme not in ("http", "https"):
+        return None
+    host = parts.hostname or ""
+    return parts.scheme, "loopback" if host in LOOPBACK else host, port
+
+
 def allowed(url: object, ws: Workspace, closed: set[int]) -> str:
     """The address as the browser is given it, if it is on this machine: http(s) on loopback
     on a port that is neither KOLONİ's own nor a model server's (`closed`), or a file of the
@@ -528,6 +544,8 @@ class Browser:
         self.marked: tuple[str, list[tuple[float, float]]] = ("", [])
         self._refused: list[str] = []
         self.gone = False
+        # S5b: the one preview a browser of KOLONİ's Tester may load from (`origin`); None: any.
+        self.only: tuple[str, str, int | None] | None = None
 
     async def start(self, command: list[str], project: Workspace | None, closed: set[int],
                     away: bool = False, resolver: str = "") -> None:
@@ -750,6 +768,8 @@ class Browser:
                     self.posting = 0.0
             elif not url.startswith(LOCAL):
                 allowed(url, cast(Workspace, self._project), self.closed)
+                if self.only is not None and origin(url) != self.only:
+                    raise BrowserError(f"{url}: not the preview this browser tries")
         except Exception as exc:
             why = str(exc) if isinstance(exc, BrowserError) else f"{url}: it could not be judged"
             self._note(f"refused: {why}")
