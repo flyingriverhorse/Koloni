@@ -2308,7 +2308,9 @@ def names_secret(command: str) -> bool:
         for word in {*_words(part.strip()), *_joined_words(part.strip())}:
             # (split at `:` too: a drive letter's path is left starting with `/`, out of it;
             # and at `,`: PowerShell's list of paths, `gc a,.env`)
-            if any(_secret_path(piece) for piece in re.split(r"[=:<>,]", _dequoted(word))
+            # (each spelling: sh's `.e\\nv` is `.env`, pwsh's is no such name)
+            if any(_secret_path(piece) for spelt in _read_spellings(word)
+                   for piece in re.split(r"[=:<>,]", spelt)
                    if piece and not (members and _MEMBER.fullmatch(piece))):
                 return True
     return False
@@ -3737,11 +3739,42 @@ def _dequoted(word: str) -> str:
     return word.replace("'", "").replace('"', "")
 
 
+def _unescaped(word: str) -> str:
+    """A word as sh hands it on: its backslash escapes resolved - any outside quotes (`ou\\t`
+    is `out`, `.e\\nv` is `.env`), only `\\ " $ ` ` in double quotes, none in single ones -
+    and its quotes gone."""
+    out: list[str] = []
+    quote, at = "", 0
+    while at < len(word):
+        char = word[at]
+        if char == "\\" and quote != "'" and at + 1 < len(word) and (
+                not quote or word[at + 1] in '\\"$`'):
+            out.append(word[at + 1])
+            at += 2
+            continue
+        if char in "'\"" and quote in ("", char):
+            quote = "" if quote else char
+        else:
+            out.append(char)
+        at += 1
+    return "".join(out)
+
+
+def _read_spellings(word: str) -> list[str]:
+    """A word as each shell may hand it on: with its backslashes kept (pwsh, cmd: a separator)
+    and resolved as sh's escapes (Git Bash, a CLI's Bash tool) - followed both ways everywhere,
+    a spelling that names no file passing."""
+    return list(dict.fromkeys((_dequoted(word), _unescaped(word))))
+
+
 def _names_in(word: str) -> list[str]:
-    """What a read's word may name (review of k-okuma-yol): the word, unquoted - or, for an
-    option, its value (`-Path:x`, `--file=x`) and an attached short option's tail (`-fx`).
-    More candidates cost nothing: one that is no file passes."""
-    word = _dequoted(word)
+    """What a read's word may name (review of k-okuma-yol): the word, unquoted - each spelling
+    (`_read_spellings`) - or, for an option, its value (`-Path:x`, `--file=x`) and an attached short
+    option's tail (`-fx`). More candidates cost nothing: one that is no file passes."""
+    return [name for spelt in _read_spellings(word) for name in _option_names(spelt)]
+
+
+def _option_names(word: str) -> list[str]:
     if not word.startswith("-"):
         return [word]
     value = re.split(r"[=:]", word, maxsplit=1)

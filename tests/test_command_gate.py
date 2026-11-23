@@ -197,13 +197,37 @@ def test_quotes_inside_a_word_and_option_values_are_followed_too(tmp_path):
              "cat out/'secret.txt'", "grep --file=out/secret.txt README.md", "cat .e'nv'",
              'cat ".e"nv', "grep -fout/secret.txt README.md"]
     if sys.platform == "win32":
-        asked += ['Get-Content -Path:"out\secret.txt"', "type .\.e'nv'"]
+        asked += [r'Get-Content -Path:"out\secret.txt"', r"type .\.e'nv'"]
     for line in asked:
         assert not commands.reads_here(line, project, True), line
     # (the project's own .env by a quoted name is a secret's name: asked at every level)
-    for line in ["cat .e'nv'", 'cat ".e"nv', "type .\.e'nv'"]:
+    for line in ["cat .e'nv'", 'cat ".e"nv', r"type .\.e'nv'"]:
         assert commands.names_secret(line), line
     # (the plain forms that held still hold)
     for line in ["cat README.md", "cat 'README.md'", "Get-Content -Path:'README.md'",
                  "grep --file=README.md README.md", "head -n 5 README.md"]:
         assert commands.reads_here(line, project, True), line
+
+
+def test_a_reads_backslash_escapes_are_followed_as_sh_reads_them(tmp_path):
+    # (review of k-okuma-yol: in sh `ou\t` is `out` and `.e\nv` is `.env` - a CLI's Bash tool,
+    # Git Bash on Windows too; both spellings are followed everywhere, one that is no file passes)
+    project = tmp_path / "proj"
+    (project / "src").mkdir(parents=True)
+    (project / "src" / "a.py").write_text("x = 1\n", encoding="utf-8")
+    (project / ".env").write_text("TOKEN=x\n", encoding="utf-8")
+    assert commands.names_secret(r"cat .e\nv")
+    assert not commands.reads_here(r"cat .e\nv", project, True)
+    for line in [r"type src\a.py", "cat src/a.py"]:  # (pwsh's separator still a plain read)
+        assert commands.reads_here(line, project, True), line
+        assert not commands.names_secret(line), line
+
+
+def test_an_escaped_name_through_a_link_out_of_the_project_is_no_plain_read(tmp_path):
+    project, outside = tmp_path / "proj", tmp_path / "outside"
+    project.mkdir()
+    outside.mkdir()
+    (outside / "secret.txt").write_text("s", encoding="utf-8")
+    _link_out(project / "out", outside)
+    assert commands.only_reads(r"cat ou\t/secret.txt")  # (by its words, a plain read)
+    assert not commands.reads_here(r"cat ou\t/secret.txt", project, True)
