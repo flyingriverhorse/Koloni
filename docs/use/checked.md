@@ -314,8 +314,8 @@ Before a failure goes back, KOLONİ tells what is not this turn's:
 
 ### The last green state
 
-When a whole suite passes, KOLONİ keeps what it counted - the tests that ran and the skipped ones
-- as the project's last green state. A later pass with fewer tests, or more skipped ones, is a
+When a whole suite passes, KOLONİ keeps what it counted - the tests that ran and the skipped
+ones - as the project's last green state. A later pass with fewer tests, or more skipped ones, is a
 failure unless the Orchestrator's answer says why - in one sentence that says it removed, deleted,
 dropped or skipped them and names the tests (test, tests, skip, xfail; for more skipped ones, skip
 or xfail): "Tests went from 214 to 210 (4 removed)", "Skipped rose from 3 to 9" - sent back like a
@@ -340,7 +340,7 @@ Then it is said and not sent back, "Tests went from 48 to 45 (3 removed) - not t
 change", and the new counts are the green state: tests deleted by hand, a pull, another branch
 checked out. Anything less sure is the turn's, as a turn's own removal always is. A whole suite
 that goes on after the answer is held to the green run too: a drop of the turn's is said on its
-Checked, offering Fix it, and the green state stays where it was. Where the rounds end with no
+Checked as failed, and the green state stays where it was. Where the rounds end with no
 test failing but fewer run, or more skipped, the line says so: "Still fewer tests, or more
 skipped, after 2 fix rounds: you decide (Fix it)"; work in a copy is then not taken in, "Not taken
 in: fewer of its tests run, or more are skipped, after its fix rounds". Where the green run listed

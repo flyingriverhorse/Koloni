@@ -376,13 +376,8 @@ class BeforeMixin:
             return True  # (not known: the turn's)
         if project is None:
             return True
-        rows = session.execute(
-            select(
-                FileChange.path,
-                FileChange.kind,
-                FileChange.before_content,
-                FileChange.after_content,
-            )
+        found = session.execute(
+            select(FileChange.id, FileChange.path, FileChange.kind)
             .join(Run, Run.id == FileChange.run_id)
             .join(Conversation, Conversation.id == Run.conversation_id)
             .where(
@@ -391,14 +386,18 @@ class BeforeMixin:
                 FileChange.created_at >= at,
                 FileChange.status.in_((*ledger.KEPT, proof.MERGED)),
             )
-        )
+        ).all()
+        tests = [(id_, kind) for id_, path, kind in found if proof.is_test(path)]
+        if any(kind == "delete" for _id, kind in tests):
+            return True
+        # (the texts of test files' changes alone are read)
         return any(
-            proof.is_test(path)
-            and (
-                kind == "delete"
-                or (before is not None and not proof_before.kept_lines(before, after))
+            before is not None and not proof_before.kept_lines(before, after)
+            for before, after in session.execute(
+                select(FileChange.before_content, FileChange.after_content).where(
+                    FileChange.id.in_([id_ for id_, _kind in tests])
+                )
             )
-            for path, kind, before, after in rows
         )
 
     @staticmethod

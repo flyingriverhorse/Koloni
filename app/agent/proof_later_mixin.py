@@ -402,10 +402,14 @@ class ProofLaterMixin:
                 log.warning("run %s: the guess gone on after it not saved: %r", check.run_id, exc)
         try:
             ended = self._later_row(check, made, done)
-            green = self._green_later(ctx, held, run, ended)
         except Exception as exc:  # (a row of KOLONİ's fails nothing)
             log.warning("run %s: the tests gone on after it not said: %r", check.run_id, exc)
             return
+        try:
+            green = self._green_later(ctx, held, run, ended)
+        except Exception as exc:  # (a comparison that broke keeps the run's own row said)
+            log.warning("run %s: the suite gone on not held to green: %r", check.run_id, exc)
+            green = []
 
         def said(more: list[Row]) -> None:
             more = [*saved, *green, *more, *check.after]
