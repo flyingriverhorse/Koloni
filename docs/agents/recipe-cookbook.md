@@ -8,7 +8,7 @@ found.
 | Recipe | Steps | Loops back | Ends |
 |---|---|---|---|
 | **Feature** | Write the spec (Spec writer, asks you to approve) → Build it (Coder) → at once: Code review (Reviewer), Security review (Security reviewer), UI review (UI designer), Test it (Tester), all reviews | reviews → Build it, 2 rounds | in |
-| **Bugfix** | Reproduce it with a failing test (Debugger) → Fix it (Coder) → Test it (Tester, review) → Review it (Reviewer, review) | Test it → Fix it, 2 rounds; Review it → Fix it, 2 rounds | in |
+| **Bugfix** | Reproduce it with a failing test (Debugger) → Fix it (Coder) → Checks (tests and a review) | — (KOLONİ's fix rounds go back to Fix it) | in |
 | **Review only** | at once: Reviewer, Security reviewer, UI designer, all reviews | — | report |
 | **Integration** | Learn (the team's experts) → Plan (Planner) → Experts check the plan (review) → Build (Coder) → Test (Tester, review) | check → Plan, 2 rounds | in |
 | **Quality check** | Run the tests (Tester, review) → Find and fix the cause (Debugger, only if a problem was found) → at once: Code review (Reviewer), Security review (Security reviewer) | fix → tests, 2 rounds | report |
@@ -30,8 +30,13 @@ change**, DataOps **Pipeline change**, DevOps **Infra change**, and Docs and Res
 names. You can change a team's **Default recipe** on the Agents page.
 
 In Bugfix the Debugger only shows the bug: it writes a test that fails because of it, runs it and
-reports the failing output, and fixes nothing; the Coder's fix must make that test pass. A failing test
-at Test it goes back to Fix it, as a finding at Review it does.
+reports the failing output, and fixes nothing; the Coder's fix must make that test pass. Its Checks
+step then runs the tests, and has a Reviewer look at a big or security-touching change - the rule of
+every turn ([What KOLONİ checked](../use/checked.md)); a small change gets no agent review. A failing
+test or a blocking finding goes back to Fix it, not to Reproduce it: the failing test it showed stays.
+**Ask for changes** goes back to Fix it too. Before 0.1.7 Bugfix had its own Test it and Review it
+steps; a copy of it you changed keeps its steps - to have every change reviewed, copy Bugfix and add a
+Review it step.
 
 If you renamed or removed a ready recipe or team, yours may differ.
 

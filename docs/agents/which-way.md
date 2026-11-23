@@ -34,8 +34,8 @@ to the Coder, at most twice. You take the work in on the **Teams' work is ready*
 **"Fix this crash, and make sure it stays fixed."**
 The **Bugfix** recipe: in **Teams for this chat** choose **Manual**, then the **Backend / API** team,
 whose default recipe is Bugfix. A Debugger reproduces the crash with a test that fails, a Coder fixes
-it, a Tester and a Reviewer check it; a test that still fails goes back to the Coder. Cheaper than
-Feature: four steps, no spec and fewer reviews.
+it, then KOLONİ runs the tests - and has a big or security-touching change reviewed; a test that still
+fails goes back to the Coder. Cheaper than Feature: two agents, no spec and no review of a small fix.
 
 **"The backend and frontend teams must agree the API first."**
 A room. Open one with **Work together…** under **More**, or ask the Orchestrator to bring the teams'

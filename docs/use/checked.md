@@ -268,7 +268,7 @@ is kept. **Fix it**, on the newest turn, sends a new message that asks for the f
 until you click it.
 
 Rounds never stack: where a recipe of the turn has already run its own test-and-fix rounds to
-the end (Bugfix's **Test it** back to **Fix it**), KOLONİ does not send the Orchestrator round
+the end (a recipe's **Test it** back to **Fix it**), KOLONİ does not send the Orchestrator round
 again on top of them. A recipe's review loop that ran out leaves KOLONİ's own rounds. The section says "Still failing
 after the recipe's fix rounds: you decide (Fix it)".
 

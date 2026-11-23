@@ -23,7 +23,11 @@ How to write an entry (every release looks the same):
 
 ### Added
 
-- **Agents**: each recipe in the Recipes list, and in the chat's recipe picker, says how many agents a run of it opens, counted from its drawing - "Bugfix · 4–14 agents": the fewest where no review finds a problem, the most where every loop goes back all its rounds ([docs](docs/agents/recipes.md#making-a-recipe)).
+- **Agents**: each recipe in the Recipes list, and in the chat's recipe picker, says how many agents a run of it opens, counted from its drawing - "Feature · 6–16 agents": the fewest where no review finds a problem, the most where every loop goes back all its rounds ([docs](docs/agents/recipes.md#making-a-recipe)).
+
+### Changed
+
+- **Agents**: the ready Bugfix is Reproduce it → Fix it → Checks: KOLONİ's own checks run the tests and, for a big or security-touching change, have it reviewed - two agents for a small fix instead of four, and no agent review of a small change; a failing test or **Ask for changes** goes back to Fix it, keeping the failing test Reproduce it showed, and the Debugger is told to reproduce the bug itself. A copy of Bugfix you changed keeps its steps ([docs](docs/agents/recipe-cookbook.md)).
 
 ## [0.1.6] - 2026-11-23
 

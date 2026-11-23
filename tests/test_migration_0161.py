@@ -142,6 +142,6 @@ def test_downgrade_puts_bugfix_back(tmp_path):
     command.downgrade(cfg, "0159")
     with sqlite3.connect(db) as conn:
         assert _graph(conn) == was
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "0171")  # (0172 thins it: tests/test_migration_0172.py)
     with sqlite3.connect(db) as conn:  # (0170 gives it its Checks step's choice besides)
         assert {key: value for key, value in _graph(conn).items() if key != "checks"} == now

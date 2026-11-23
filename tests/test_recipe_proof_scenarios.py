@@ -1,5 +1,6 @@
-"""Kanıtlı bitiş S4 - the recipes' own proof (R1-R4), with the fake model and the ready Bugfix:
-a failing test goes back to Fix it (R1); a check that reports nothing wrong while a test run on
+"""Kanıtlı bitiş S4 - the recipes' own proof (R1-R4), with the fake model and a Bugfix with Test it
+and Review it, as the ready one was drawn before T1 thinned it (`TESTED`; the rules hold for such
+a recipe of the user's): a failing test goes back to Fix it (R1); a check that reports nothing wrong while a test run on
 record failed is blocked (R2) - a later help, list or narrower run of the tool hides none; a
 Tester that ran no command but reads or ones that check nothing (`python -c "pass"`) does not pass
 (R3); Reproduce it writes a failing test and fixes nothing (R4)."""
@@ -23,17 +24,40 @@ FAILED = Script(["1 failed, 3 passed\n"], exit_code=1)
 PASSED = Script(["4 passed\n"], exit_code=0)
 
 
-def bugfix_run(client, project_dir, mode="full_auto"):
-    """The Backend / API team by its ready recipe, Bugfix; at Full auto its commands run unasked."""
+# The ready Bugfix as 0161 and 0170 drew it: Reproduce it, Fix it, Test it, Review it, each review
+# looping back to Fix it twice; its Checks step tests and a review.
+TESTED = {
+    **graph(
+        [
+            part("reproduce", "Reproduce it with a failing test", {"role": "Debugger"}),
+            part("fix", "Fix it", {"role": "Coder"}),
+            part("test", "Test it", {"role": "Tester"}, done_when="no_findings"),
+            part("review", "Review it", {"role": "Reviewer"}, done_when="no_findings"),
+        ],
+        [("start", "reproduce"), ("reproduce", "fix"), ("fix", "test"), ("test", "review")]
+        + [("review", "end")],
+        loops=[
+            {"from": "review", "to": "fix", "rounds": 2},
+            {"from": "test", "to": "fix", "rounds": 2},
+        ],
+    ),
+    "checks": {"tests": True, "review": True},
+}
+
+
+def bugfix_run(client, project_dir, mode="full_auto", ready=False):
+    """The Backend / API team by a Bugfix drawn as `TESTED` - or, `ready`, by its default: the
+    ready Bugfix; at Full auto its commands run unasked."""
     backend = teams_of(client)["Backend / API"]
     assert backend["default_recipe_id"] == recipe_named(client, "Bugfix")["id"]
+    drawn = None if ready else made(client, "Bugfix with tests", TESTED)["id"]
     return begin(
         client,
         project_dir,
         mode=mode,
         spawn_approval="never",
         teams_mode="manual",
-        teams=[{"team_id": backend["id"], "recipe_id": None}],
+        teams=[{"team_id": backend["id"], "recipe_id": drawn}],
     )
 
 

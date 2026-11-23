@@ -8,7 +8,7 @@ hand. A file KOLONİ cannot read is listed with the reason.
 
 ```json
 {
-  "name": "Bugfix",
+  "name": "Fix and test",
   "graph": {
     "version": 1,
     "steps": [
