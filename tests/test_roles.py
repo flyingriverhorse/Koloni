@@ -17,7 +17,10 @@ MEMORY = ["remember", "recall"]
 
 def test_effective_tools_is_the_intersection_in_a_fixed_order():
     assert effective_tools(["search", "write_file", "list_dir"], None) == [
-        "list_dir", "search", "write_file"]
+        "list_dir",
+        "search",
+        "write_file",
+    ]
     assert effective_tools(ALL_TOOLS, READ) == READ
     assert effective_tools(["write_file", "run_command"], READ) == []
     assert effective_tools(["read_file", "teleport"], None) == ["read_file"]
@@ -32,41 +35,102 @@ def test_can_change_things():
 def test_built_in_roles_match_the_design():
     tools = {name: list(spec.tools) for name, spec in BUILTIN_ROLES.items()}
     assert list(tools) == [
-        "Lead", "Planner", "Coder", "Tester", "Reviewer", "Researcher",
+        "Lead",
+        "Planner",
+        "Coder",
+        "Tester",
+        "Reviewer",
+        "Researcher",
         # slice 28a
-        "Debugger", "Architect", "Security reviewer", "Docs writer", "Refactorer",
+        "Debugger",
+        "Architect",
+        "Security reviewer",
+        "Docs writer",
+        "Refactorer",
         # slice 43
-        "UI designer", "Data analyst", "DevOps", "Spec writer", "Performance engineer",
-        "Database engineer", "Dependency keeper", "Translator", "Summarizer",
+        "UI designer",
+        "Data analyst",
+        "DevOps",
+        "Spec writer",
+        "Performance engineer",
+        "Database engineer",
+        "Dependency keeper",
+        "Translator",
+        "Summarizer",
         # slice 52
-        "Product owner", "Assistant product owner",
+        "Product owner",
+        "Assistant product owner",
         # slice 33b: asked by KOLONİ itself, with no tools
         "Observer",
         # K-takim-duzen
-        "Data engineer", "ML engineer", "Data scientist", "Model evaluator", "MLOps engineer",
+        "Data engineer",
+        "ML engineer",
+        "Data scientist",
+        "Model evaluator",
+        "MLOps engineer",
         # K-belge-ciktilari
         "Designer",
         # K-site-roller
-        "SEO specialist", "Copywriter", "Accessibility reviewer"]
+        "SEO specialist",
+        "Copywriter",
+        "Accessibility reviewer",
+    ]
     assert tools["Lead"] == list(ALL_TOOLS)
     assert tools["Planner"] == READ + [
-        "spawn_agent", "create_role", "ask_user", "ask_folder", "message_agent", "discuss",
-        "propose_trigger", *NOTEBOOK, *MEMORY]  # (slice 69: it proposes, the user approves)
+        "spawn_agent",
+        "create_role",
+        "ask_user",
+        "ask_folder",
+        "message_agent",
+        "discuss",
+        "propose_trigger",
+        *NOTEBOOK,
+        *MEMORY,
+    ]  # (slice 69: it proposes, the user approves)
     # (slice 51: the roles that try a page get the browser after their commands or web)
     # (K-drawio: who writes documents, designs or code draws diagrams, after its file tools)
-    assert tools["Coder"] == READ + ["write_file", "edit_file", *DIAGRAM, "run_command", *BROWSER,
-                                     "spawn_agent", "ask_user", "message_agent", *NOTEBOOK, *MEMORY]
+    assert tools["Coder"] == READ + [
+        "write_file",
+        "edit_file",
+        *DIAGRAM,
+        "run_command",
+        *BROWSER,
+        "spawn_agent",
+        "ask_user",
+        "message_agent",
+        *NOTEBOOK,
+        *MEMORY,
+    ]
     assert tools["Tester"] == READ + [
-        "run_command", *BROWSER, "ask_user", "message_agent", *NOTEBOOK, *MEMORY]
+        "run_command",
+        *BROWSER,
+        "ask_user",
+        "message_agent",
+        *NOTEBOOK,
+        *MEMORY,
+    ]
     assert tools["Reviewer"] == READ + ["ask_user", "message_agent", *NOTEBOOK, *MEMORY]
     # the Researcher also looks things up on the web (slice 18c)
     assert tools["Researcher"] == READ + [
-        "web_search", "http_request", *BROWSER, "ask_user", "message_agent", *NOTEBOOK, *MEMORY]
+        "web_search",
+        "http_request",
+        *BROWSER,
+        "ask_user",
+        "message_agent",
+        *NOTEBOOK,
+        *MEMORY,
+    ]
     # slice 28a: who may write, who may run a command, and the tier each asks for
     talk = ["ask_user", "message_agent", *NOTEBOOK, *MEMORY]
     # K-spawn-roller (R121): six more roles open helpers; the ones that read and judge do not
-    assert tools["Debugger"] == READ + ["write_file", "edit_file", "run_command", *BROWSER,
-                                        "spawn_agent", *talk]
+    assert tools["Debugger"] == READ + [
+        "write_file",
+        "edit_file",
+        "run_command",
+        *BROWSER,
+        "spawn_agent",
+        *talk,
+    ]
     assert tools["Architect"] == READ + ["spawn_agent", *talk]
     assert tools["Security reviewer"] == READ + talk
     assert tools["Docs writer"] == READ + ["write_file", "edit_file", *DIAGRAM, *talk]
@@ -85,10 +149,22 @@ def test_built_in_roles_match_the_design():
     # slice 52: they keep the backlog, and change nothing in the project
     backlog = ["read_backlog", "add_task", "change_task", "assess_task"]
     assert tools["Product owner"] == READ + [
-        "spawn_agent", "ask_user", "message_agent", *backlog, *NOTEBOOK, *MEMORY]
+        "spawn_agent",
+        "ask_user",
+        "message_agent",
+        *backlog,
+        *NOTEBOOK,
+        *MEMORY,
+    ]
     assert tools["Assistant product owner"] == READ + [
-        "ask_user", "message_agent", *backlog, *NOTEBOOK, *MEMORY]
+        "ask_user",
+        "message_agent",
+        *backlog,
+        *NOTEBOOK,
+        *MEMORY,
+    ]
     assert tools["Observer"] == []
+
     # K-takim-duzen: each takes an existing role's tools as they are - slice 51's browser aside,
     # which only the six roles that try a page hold, and K-drawio's diagrams, the five's
     def without_browser(name):
@@ -104,18 +180,40 @@ def test_built_in_roles_match_the_design():
     assert tools["Accessibility reviewer"] == READ + [*BROWSER, *talk]
     # slice 81b: no tier (the Lead picks one for each job), and the group each is drawn in
     assert {name: spec.kind for name, spec in BUILTIN_ROLES.items()} == {
-        "Lead": "plan", "Planner": "plan", "Coder": "build", "Tester": "check",
-        "Reviewer": "check", "Researcher": "plan", "Debugger": "build",
-        "Architect": "plan", "Security reviewer": "check", "Docs writer": "write",
-        "Refactorer": "build", "UI designer": "build", "Data analyst": "check",
-        "DevOps": "ops", "Spec writer": "write", "Performance engineer": "check",
-        "Database engineer": "data", "Dependency keeper": "ops", "Translator": "write",
-        "Summarizer": "write", "Product owner": "plan",
-        "Assistant product owner": "plan", "Observer": "check",
+        "Lead": "plan",
+        "Planner": "plan",
+        "Coder": "build",
+        "Tester": "check",
+        "Reviewer": "check",
+        "Researcher": "plan",
+        "Debugger": "build",
+        "Architect": "plan",
+        "Security reviewer": "check",
+        "Docs writer": "write",
+        "Refactorer": "build",
+        "UI designer": "build",
+        "Data analyst": "check",
+        "DevOps": "ops",
+        "Spec writer": "write",
+        "Performance engineer": "check",
+        "Database engineer": "data",
+        "Dependency keeper": "ops",
+        "Translator": "write",
+        "Summarizer": "write",
+        "Product owner": "plan",
+        "Assistant product owner": "plan",
+        "Observer": "check",
         # K-takim-duzen: the Data, ML and Ops categories; the Model evaluator checks
-        "Data engineer": "data", "ML engineer": "ml", "Data scientist": "ml",
-        "Model evaluator": "check", "MLOps engineer": "ops", "Designer": "build",
-        "SEO specialist": "build", "Copywriter": "build", "Accessibility reviewer": "check"}
+        "Data engineer": "data",
+        "ML engineer": "ml",
+        "Data scientist": "ml",
+        "Model evaluator": "check",
+        "MLOps engineer": "ops",
+        "Designer": "build",
+        "SEO specialist": "build",
+        "Copywriter": "build",
+        "Accessibility reviewer": "check",
+    }
 
 
 def roles(client):
@@ -129,21 +227,37 @@ def test_built_in_roles_exist_after_startup(client):
     assert len(BUILTIN_ROLES) == 32
     assert all(r["builtin"] and not r["created_by_agent"] for r in listed[:32])
     assert roles(client)["Reviewer"]["tools"] == [
-        *READ, "ask_user", "message_agent", *NOTEBOOK, *MEMORY]
+        *READ,
+        "ask_user",
+        "message_agent",
+        *NOTEBOOK,
+        *MEMORY,
+    ]
     assert roles(client)["Reviewer"]["description"]
 
 
 def test_create_edit_and_delete_a_role(client):
-    created = client.post("/api/roles", json={
-        "name": " Documenter ", "description": "Writes docs", "instructions": "Write clearly.",
-        "tools": ["write_file", "read_file"]})
+    created = client.post(
+        "/api/roles",
+        json={
+            "name": " Documenter ",
+            "description": "Writes docs",
+            "instructions": "Write clearly.",
+            "tools": ["write_file", "read_file"],
+        },
+    )
     assert created.status_code == 201
     role = created.json()
     assert (role["name"], role["tools"], role["builtin"]) == (
-        "Documenter", ["read_file", "write_file"], False)
+        "Documenter",
+        ["read_file", "write_file"],
+        False,
+    )
 
-    patched = client.patch(f"/api/roles/{role['id']}", json={
-        "name": "Doc writer", "description": "Docs", "tools": ["read_file"]})
+    patched = client.patch(
+        f"/api/roles/{role['id']}",
+        json={"name": "Doc writer", "description": "Docs", "tools": ["read_file"]},
+    )
     assert (patched.json()["name"], patched.json()["tools"]) == ("Doc writer", ["read_file"])
     assert patched.json()["instructions"] == "Write clearly."
 
@@ -152,13 +266,36 @@ def test_create_edit_and_delete_a_role(client):
     assert client.delete(f"/api/roles/{role['id']}").status_code == 404
 
 
-@pytest.mark.parametrize("body, status, message", [
-    ({"name": "  ", "description": "d", "instructions": "", "tools": ["read_file"]}, 422, "name is empty"),
-    ({"name": "x" * 61, "description": "d", "instructions": "", "tools": ["read_file"]}, 422, "at most 60"),
-    ({"name": "Flyer", "description": "d", "instructions": "", "tools": ["teleport"]}, 422, "unknown tool: teleport"),
-    ({"name": "reviewer", "description": "d", "instructions": "", "tools": ["read_file"]}, 409, "already a role named Reviewer"),
-    ({"name": "Idle", "description": "d", "instructions": "", "tools": []}, 422, "at least one tool"),
-])
+@pytest.mark.parametrize(
+    "body, status, message",
+    [
+        (
+            {"name": "  ", "description": "d", "instructions": "", "tools": ["read_file"]},
+            422,
+            "name is empty",
+        ),
+        (
+            {"name": "x" * 61, "description": "d", "instructions": "", "tools": ["read_file"]},
+            422,
+            "at most 60",
+        ),
+        (
+            {"name": "Flyer", "description": "d", "instructions": "", "tools": ["teleport"]},
+            422,
+            "unknown tool: teleport",
+        ),
+        (
+            {"name": "reviewer", "description": "d", "instructions": "", "tools": ["read_file"]},
+            409,
+            "already a role named Reviewer",
+        ),
+        (
+            {"name": "Idle", "description": "d", "instructions": "", "tools": []},
+            422,
+            "at least one tool",
+        ),
+    ],
+)
 def test_invalid_roles_are_refused_with_a_reason(client, body, status, message):
     r = client.post("/api/roles", json=body)
     assert r.status_code == status and message in r.json()["detail"]
@@ -166,31 +303,39 @@ def test_invalid_roles_are_refused_with_a_reason(client, body, status, message):
 
 def test_built_in_roles_can_be_edited_and_reset_but_not_renamed_or_deleted(client):
     reviewer = roles(client)["Reviewer"]
-    edited = client.patch(f"/api/roles/{reviewer['id']}", json={
-        "tools": [*READ, "run_command"], "instructions": "Be strict."})
+    edited = client.patch(
+        f"/api/roles/{reviewer['id']}",
+        json={"tools": [*READ, "run_command"], "instructions": "Be strict."},
+    )
     assert edited.json()["tools"] == [*READ, "run_command"]
 
     renamed = client.patch(f"/api/roles/{reviewer['id']}", json={"name": "Critic"})
-    assert renamed.status_code == 422 and "built-in roles keep their name" in renamed.json()["detail"]
+    assert (
+        renamed.status_code == 422 and "built-in roles keep their name" in renamed.json()["detail"]
+    )
     deleted = client.delete(f"/api/roles/{reviewer['id']}")
     assert deleted.status_code == 409 and "cannot be deleted" in deleted.json()["detail"]
 
     reset = client.post(f"/api/roles/{reviewer['id']}/reset")
-    assert reset.json()["tools"] == [
-        *READ, "ask_user", "message_agent", *NOTEBOOK, *MEMORY]
+    assert reset.json()["tools"] == [*READ, "ask_user", "message_agent", *NOTEBOOK, *MEMORY]
     assert reset.json()["instructions"] == BUILTIN_ROLES["Reviewer"].instructions
 
 
 def test_only_built_in_roles_can_be_reset(client):
-    role = client.post("/api/roles", json={
-        "name": "Temp", "description": "d", "instructions": "", "tools": ["read_file"]}).json()
+    role = client.post(
+        "/api/roles",
+        json={"name": "Temp", "description": "d", "instructions": "", "tools": ["read_file"]},
+    ).json()
     r = client.post(f"/api/roles/{role['id']}/reset")
     assert r.status_code == 409 and "only built-in roles" in r.json()["detail"]
 
 
 def test_role_changes_need_an_allowed_origin(client):
-    r = client.post("/api/roles", headers={"Origin": "http://evil.example"}, json={
-        "name": "X", "description": "d", "instructions": "", "tools": ["read_file"]})
+    r = client.post(
+        "/api/roles",
+        headers={"Origin": "http://evil.example"},
+        json={"name": "X", "description": "d", "instructions": "", "tools": ["read_file"]},
+    )
     assert r.status_code == 403
 
 
@@ -216,14 +361,17 @@ def test_two_old_names_that_read_alike_open_neither_in_the_others_place(tmp_path
     upgrade_db(db)
     with Session(make_engine(db)) as session:
         zero_width, bidi = chr(0x200B), chr(0x202E)
-        session.add(Role(name=f"Co{zero_width}der", description="", instructions="", tools=["read_file"]))
+        session.add(
+            Role(name=f"Co{zero_width}der", description="", instructions="", tools=["read_file"])
+        )
         session.commit()
         # one old name reads as "Co der": it is found by what agents are shown
         assert find_role(session, "co der").name == f"Co{zero_width}der"
-        session.add(Role(name=f"Co{bidi}der", description="", instructions="", tools=["write_file"]))
+        session.add(
+            Role(name=f"Co{bidi}der", description="", instructions="", tools=["write_file"])
+        )
         session.commit()
         assert find_role(session, "Co der") is None
-
 
 
 CORE_ROLES = ("Coder", "Tester", "Reviewer", "Debugger", "Security reviewer")
@@ -247,7 +395,8 @@ def test_a_core_roles_locked_tool_cannot_be_taken_away(client):
     refused = client.patch(f"/api/roles/{tester['id']}", json={"tools": kept}, headers=OWN)
     assert refused.status_code == 422, refused.text
     assert refused.json()["detail"] == (
-        "the Tester keeps run_command: KOLONİ's checks and recipes need them")
+        "the Tester keeps run_command: KOLONİ's checks and recipes need them"
+    )
     assert roles(client)["Tester"]["tools"] == tester["tools"]
     # Its other tools are the user's: one taken away, one given.
     browser_off = [one for one in tester["tools"] if one not in BROWSER] + ["web_search"]
@@ -258,7 +407,8 @@ def test_a_core_roles_locked_tool_cannot_be_taken_away(client):
     refused = client.patch(f"/api/roles/{coder['id']}", json={"tools": ["read_file"]}, headers=OWN)
     assert refused.json()["detail"] == (
         "the Coder keeps list_dir, search, view_image, write_file, edit_file, run_command: "
-        "KOLONİ's checks and recipes need them")
+        "KOLONİ's checks and recipes need them"
+    )
 
 
 def test_a_core_role_cannot_be_switched_off(client):
@@ -270,12 +420,19 @@ def test_a_core_role_cannot_be_switched_off(client):
         off = client.patch(f"/api/roles/{role['id']}", json={"enabled": False}, headers=OWN)
         assert off.status_code == 422, off.text
         assert off.json()["detail"] == (
-            f"the {name} role is always on: KOLONİ's checks and recipes use it")
+            f"the {name} role is always on: KOLONİ's checks and recipes use it"
+        )
         assert roles(client)[name]["enabled"] is True
     # (On, as it is: no change, no refusal - the page's form sends it unchanged.)
     reviewer = roles(client)["Reviewer"]
-    assert client.patch(f"/api/roles/{reviewer['id']}", json={"enabled": True, "instructions": "Be strict."},
-                        headers=OWN).status_code == 200
+    assert (
+        client.patch(
+            f"/api/roles/{reviewer['id']}",
+            json={"enabled": True, "instructions": "Be strict."},
+            headers=OWN,
+        ).status_code
+        == 200
+    )
 
 
 def test_reset_of_a_core_role_still_works(client):
@@ -292,19 +449,36 @@ def test_reset_of_a_core_role_still_works(client):
 def test_a_users_role_is_never_locked(client):
     from tests.test_chat_teams_scenarios import OWN
 
-    mine = client.post("/api/roles", json={
-        "name": "Checker", "description": "d", "instructions": "", "tools": ["read_file", "run_command"]},
-        headers=OWN).json()
+    mine = client.post(
+        "/api/roles",
+        json={
+            "name": "Checker",
+            "description": "d",
+            "instructions": "",
+            "tools": ["read_file", "run_command"],
+        },
+        headers=OWN,
+    ).json()
     assert mine["locked_tools"] == []
-    assert client.patch(f"/api/roles/{mine['id']}", json={"tools": ["read_file"]},
-                        headers=OWN).status_code == 200
-    assert client.patch(f"/api/roles/{mine['id']}", json={"enabled": False},
-                        headers=OWN).status_code == 200
+    assert (
+        client.patch(
+            f"/api/roles/{mine['id']}", json={"tools": ["read_file"]}, headers=OWN
+        ).status_code
+        == 200
+    )
+    assert (
+        client.patch(f"/api/roles/{mine['id']}", json={"enabled": False}, headers=OWN).status_code
+        == 200
+    )
     # Nor is a built-in role that is no core one: the Data analyst's switch and tools are the user's.
     analyst = roles(client)["Data analyst"]
     assert analyst["locked_tools"] == []
-    assert client.patch(f"/api/roles/{analyst['id']}", json={"enabled": False},
-                        headers=OWN).status_code == 200
+    assert (
+        client.patch(
+            f"/api/roles/{analyst['id']}", json={"enabled": False}, headers=OWN
+        ).status_code
+        == 200
+    )
 
 
 def test_title_of_names_the_lead_and_a_teams_lead_for_people_only():

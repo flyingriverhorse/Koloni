@@ -7,16 +7,30 @@ from fastapi import testclient
 
 CHAT = re.compile(r"^(?:https?://[^/]+)?/api/conversations/([0-9a-f]+)$")
 # What a chat of a project does not set itself (`app.api.conversations.PROJECT_WIDE`).
-PROJECT_WIDE = {"spawn_approval", "spawn_max_depth", "spawn_max_agents", "spawn_max_parallel",
-                "discussion_budget", "when_away", "away_minutes", "room_posts", "room_tokens",
-                "room_minutes", "room_min_tokens", "lead_work", "lead_hands_code"}
+PROJECT_WIDE = {
+    "spawn_approval",
+    "spawn_max_depth",
+    "spawn_max_agents",
+    "spawn_max_parallel",
+    "discussion_budget",
+    "when_away",
+    "away_minutes",
+    "room_posts",
+    "room_tokens",
+    "room_minutes",
+    "room_min_tokens",
+    "lead_work",
+    "lead_hands_code",
+}
 
 
 # The approvals and their kin the app's own page alone may send (security review 0.1.0, 9).
 OWN_ONLY = {
-    "POST": re.compile(r"(?:https?://[^/]+)?/api/(?:(?:commands|agents|tool-calls|file-changes)"
-                       r"/[^/]+/(?:approve|reject|revert)|(?:discussions|rooms)/[^/]+/posts"
-                       r"|providers/[^/]+/default|roles|roles/[^/]+/reset|conversations/[^/]+/attachments/project)"),
+    "POST": re.compile(
+        r"(?:https?://[^/]+)?/api/(?:(?:commands|agents|tool-calls|file-changes)"
+        r"/[^/]+/(?:approve|reject|revert)|(?:discussions|rooms)/[^/]+/posts"
+        r"|providers/[^/]+/default|roles|roles/[^/]+/reset|conversations/[^/]+/attachments/project)"
+    ),
     "DELETE": re.compile(r"(?:https?://[^/]+)?/api/(?:providers|roles|allowed-commands)/[^/]+"),
 }
 OWN = {"Origin": "http://127.0.0.1:8790"}
@@ -47,15 +61,18 @@ class TestClient(testclient.TestClient):
         shortcut: so the tests of before tek-ev set a chat's turn up as they did; a test of
         that refusal itself sends `request("PATCH", ...)`. Move them over if this misleads."""
         chat = CHAT.match(str(url))
-        moved = {key: json[key] for key in PROJECT_WIDE & set(json)} if (
-            chat and isinstance(json, dict)) else {}
-        pid = moved and self.get(f"/api/conversations/{chat[1]}").json()["conversation"][
-            "project_id"]
+        moved = (
+            {key: json[key] for key in PROJECT_WIDE & set(json)}
+            if (chat and isinstance(json, dict))
+            else {}
+        )
+        pid = (
+            moved and self.get(f"/api/conversations/{chat[1]}").json()["conversation"]["project_id"]
+        )
         if pid:
             if "lead_hands_code" in moved:
                 moved["lead_work"] = "delegates" if moved.pop("lead_hands_code") else "itself"
-            done = super().patch(f"/api/projects/{pid}", json=moved,
-                                 headers=kwargs.get("headers"))
+            done = super().patch(f"/api/projects/{pid}", json=moved, headers=kwargs.get("headers"))
             if done.status_code != 200:
                 return done
             json = {key: value for key, value in json.items() if key not in PROJECT_WIDE}

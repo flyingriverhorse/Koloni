@@ -8,6 +8,7 @@ it was set to is kept. Going back: until it passes is 2 again.
 Revision ID: 0171
 Revises: 0169
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -20,13 +21,15 @@ depends_on = None
 
 def upgrade() -> None:
     with op.batch_alter_table("projects") as batch:
-        batch.alter_column("fix_rounds", existing_type=sa.Integer(), nullable=True,
-                           server_default=None)
+        batch.alter_column(
+            "fix_rounds", existing_type=sa.Integer(), nullable=True, server_default=None
+        )
     op.execute("UPDATE projects SET fix_rounds = NULL WHERE fix_rounds = 2")
 
 
 def downgrade() -> None:
     op.execute("UPDATE projects SET fix_rounds = 2 WHERE fix_rounds IS NULL")
     with op.batch_alter_table("projects") as batch:
-        batch.alter_column("fix_rounds", existing_type=sa.Integer(), nullable=False,
-                           server_default="2")
+        batch.alter_column(
+            "fix_rounds", existing_type=sa.Integer(), nullable=False, server_default="2"
+        )

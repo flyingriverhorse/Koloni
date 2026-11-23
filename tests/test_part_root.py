@@ -26,18 +26,33 @@ CORE_RULES = "Core rules: tests live in core/tests."
 
 def two_parts(root: Path) -> Path:
     """A repository of two parts: core (Python, its own AGENTS.md) and web, and a secret."""
-    return _put(root, {
-        "AGENTS.md": "Root rules: be brief.", ".env": "TOKEN=sk-part-test",
-        "core/pyproject.toml": "[tool.pytest.ini_options]\n", "core/tests/test_a.py": "",
-        "core/AGENTS.md": CORE_RULES,
-        "web/package.json": json.dumps({"scripts": {"test": "vitest run"}}),
-        "web/notes.txt": "web notes", "docs/guide.md": "",
-    })
+    return _put(
+        root,
+        {
+            "AGENTS.md": "Root rules: be brief.",
+            ".env": "TOKEN=sk-part-test",
+            "core/pyproject.toml": "[tool.pytest.ini_options]\n",
+            "core/tests/test_a.py": "",
+            "core/AGENTS.md": CORE_RULES,
+            "web/package.json": json.dumps({"scripts": {"test": "vitest run"}}),
+            "web/notes.txt": "web notes",
+            "docs/guide.md": "",
+        },
+    )
 
 
 def spawn(folder=None, id="s"):
-    return step(call("spawn_agent", {"role": "Coder", "task": "do it",
-                                     **({"folder": folder} if folder is not None else {})}, id))
+    return step(
+        call(
+            "spawn_agent",
+            {
+                "role": "Coder",
+                "task": "do it",
+                **({"folder": folder} if folder is not None else {}),
+            },
+            id,
+        )
+    )
 
 
 def at(said):
@@ -51,14 +66,21 @@ def system(model, name):
 
 @pytest.mark.usefixtures("map_ready")
 def test_a_sub_agent_given_a_part_runs_its_commands_there_in_its_copy_and_is_told_the_part(
-        make_client, wait_run, tmp_path):
+    make_client, wait_run, tmp_path
+):
     root = two_parts(tmp_path / "repo")
-    client, model, cid, run_id = setup(make_client, root, {
-        "Lead": [spawn("core"), text("done")],
-        "Coder": [step(call("run_command", {"command": WHERE}, "c")),
-                  step(call("read_file", {"path": f"{root}/web/notes.txt"}, "r")),
-                  text("did it")],
-    })
+    client, model, cid, run_id = setup(
+        make_client,
+        root,
+        {
+            "Lead": [spawn("core"), text("done")],
+            "Coder": [
+                step(call("run_command", {"command": WHERE}, "c")),
+                step(call("read_file", {"path": f"{root}/web/notes.txt"}, "r")),
+                text("did it"),
+            ],
+        },
+    )
     snap = wait_run(client, cid, run_id, timeout=15)
     assert snap["runs"][0]["status"] == "completed"
     ((status, said),) = calls(snap, "Coder", "run_command")
@@ -83,16 +105,23 @@ def test_a_folder_that_is_not_a_part_is_refused_with_why(make_client, wait_run, 
     root = two_parts(tmp_path / "repo")
     _link(root / "core", root / "link")
     wanted = ["../repo/core", str(root / "core"), "C:/Windows", "docs", "link"]
-    client, model, cid, run_id = setup(make_client, root, {
-        "Lead": [*(spawn(one, f"s{at}") for at, one in enumerate(wanted)), text("done")],
-    })
+    client, model, cid, run_id = setup(
+        make_client,
+        root,
+        {
+            "Lead": [*(spawn(one, f"s{at}") for at, one in enumerate(wanted)), text("done")],
+        },
+    )
     snap = wait_run(client, cid, run_id, timeout=15)
     refused = [t for t in snap["tool_calls"] if t["name"] == "spawn_agent"]
     assert [t["status"] for t in refused] == ["failed"] * len(wanted)
     said = [t["result"] for t in refused]
     assert all('".", "core/", "web/"' in one for one in said), said
-    assert "nor one with .." in said[0] and "nor one with .." in said[1] and (
-        "nor one with .." in said[2])
+    assert (
+        "nor one with .." in said[0]
+        and "nor one with .." in said[1]
+        and ("nor one with .." in said[2])
+    )
     assert '"docs" is not one of the project\'s parts' in said[3]
     assert '"link" is not one of the project\'s parts' in said[4]
     assert not [a for a in snap["agents"] if a["name"] == "Coder"]
@@ -102,26 +131,40 @@ def test_a_part_that_turned_into_a_link_is_refused(tmp_path, monkeypatch):
     root = two_parts(tmp_path / "repo")
     _link(root / "core", root / "link")
     kept = project_map.scan(str(root))  # (as a map kept from before the folder became a link)
-    monkeypatch.setattr(project_map, "scan", lambda *_a: {
-        **kept, "parts": [*kept["parts"], {**kept["parts"][0], "path": "link/"}]})
+    monkeypatch.setattr(
+        project_map,
+        "scan",
+        lambda *_a: {**kept, "parts": [*kept["parts"], {**kept["parts"][0], "path": "link/"}]},
+    )
     with pytest.raises(ValueError, match="a link, or gone"):
         project_map.part_of(str(root), "link/")
     assert project_map.part_of(str(root), "core\\") == "core/"
-    assert project_map.part_of(str(root), "./core") == project_map.part_of(
-        str(root), ".\\core\\") == "core/"
+    assert (
+        project_map.part_of(str(root), "./core")
+        == project_map.part_of(str(root), ".\\core\\")
+        == "core/"
+    )
     assert project_map.part_of(str(root), ".") is None
 
 
 def test_the_chats_part_is_the_leads_and_its_sub_agents_unless_the_lead_says(
-        make_client, wait_run, tmp_path):
+    make_client, wait_run, tmp_path
+):
     root = two_parts(tmp_path / "repo")
-    client, model = make_client({
-        "Lead": [step(call("run_command", {"command": WHERE}, "c")),
-                 step(call("read_file", {"path": "web/notes.txt"}, "r")),
-                 step(call("read_file", {"path": ".env"}, "e")),
-                 spawn(id="s1"), spawn(".", "s2"), text("done")],
-        "Coder": [text("in core")], "Coder 2": [text("in all")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [
+                step(call("run_command", {"command": WHERE}, "c")),
+                step(call("read_file", {"path": "web/notes.txt"}, "r")),
+                step(call("read_file", {"path": ".env"}, "e")),
+                spawn(id="s1"),
+                spawn(".", "s2"),
+                text("done"),
+            ],
+            "Coder": [text("in core")],
+            "Coder 2": [text("in all")],
+        }
+    )
     pid = client.post("/api/projects", json={"root_path": str(root)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     url = f"/api/conversations/{cid}"
@@ -134,8 +177,11 @@ def test_the_chats_part_is_the_leads_and_its_sub_agents_unless_the_lead_says(
     assert patched.status_code == 200 and patched.json()["part"] == "core/"
     run_id = client.post(f"{url}/messages", json={"content": "go"}, headers=OWN).json()["run"]["id"]
     # A secret is asked about as before, in a part too.
-    (secret,) = [t for t in wait_status(client, cid, "waiting_approval")["tool_calls"]
-                 if t["status"] == "pending"]
+    (secret,) = [
+        t
+        for t in wait_status(client, cid, "waiting_approval")["tool_calls"]
+        if t["status"] == "pending"
+    ]
     assert json.loads(secret["arguments"])["path"] == ".env"
     client.post(f"/api/tool-calls/{secret['id']}/approve", headers=OWN)
     snap = wait_run(client, cid, run_id, timeout=15)
@@ -161,15 +207,18 @@ def in_part(make_client, root, lead, ran=0, **settings):
     client.headers.update(OWN)
     pid = client.post("/api/projects", json={"root_path": str(root)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    patched = client.patch(f"/api/conversations/{cid}", json={
-        "part": "core", "permission_mode": "full_auto", **settings})
+    patched = client.patch(
+        f"/api/conversations/{cid}",
+        json={"part": "core", "permission_mode": "full_auto", **settings},
+    )
     assert patched.status_code == 200, patched.text
     return client, model, pid, cid
 
 
 def go(client, cid):
-    return client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()[
-        "run"]["id"]
+    return client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()["run"][
+        "id"
+    ]
 
 
 def commands_of(lines):
@@ -189,10 +238,12 @@ def asked(client, cid, wait_run, run_id, count):
 
 
 def test_from_a_part_a_command_reading_the_roots_secret_is_asked_at_full_auto(
-        make_client, wait_run, tmp_path):
+    make_client, wait_run, tmp_path
+):
     lines = ["cat ../.env", "Get-Content ..\\.env"]
     client, _model, _pid, cid = in_part(
-        make_client, two_parts(tmp_path / "repo"), [*commands_of(lines), text("done")])
+        make_client, two_parts(tmp_path / "repo"), [*commands_of(lines), text("done")]
+    )
     said, _snap = asked(client, cid, wait_run, go(client, cid), 2)
     assert said == lines
 
@@ -201,43 +252,54 @@ def test_from_a_part_its_parents_venv_runs_unasked_at_full_auto(make_client, wai
     root = _put(two_parts(tmp_path / "repo"), {".venv/Scripts/python.exe": ""})
     line = "..\\.venv\\Scripts\\python.exe -m pytest"
     client, _model, _pid, cid = in_part(
-        make_client, root, [*commands_of([line]), text("done")], ran=1)
+        make_client, root, [*commands_of([line]), text("done")], ran=1
+    )
     _said, snap = asked(client, cid, wait_run, go(client, cid), 0)
     assert [(c["command"], c["cwd"], c["status"]) for c in snap["commands"]] == [
-        (line, "core", "exited")]
+        (line, "core", "exited")
+    ]
 
 
 @pytest.mark.parametrize("secret_in_part", [False, True])
 def test_a_search_from_a_part_is_judged_from_its_folder(
-        make_client, wait_run, tmp_path, secret_in_part):
+    make_client, wait_run, tmp_path, secret_in_part
+):
     root = two_parts(tmp_path / "repo")  # (its .env at the root: out of the part's reach)
     if secret_in_part:
         _put(root, {"core/tests/.env": "TOKEN=sk-part-test"})  # (in reach of all three)
     lines = ["rg KEY .", "rg KEY tests", "rg KEY"]
     client, _model, _pid, cid = in_part(
-        make_client, root, [*commands_of(lines), text("done")], ran=0 if secret_in_part else 3)
+        make_client, root, [*commands_of(lines), text("done")], ran=0 if secret_in_part else 3
+    )
     said, snap = asked(client, cid, wait_run, go(client, cid), 3 if secret_in_part else 0)
     assert said == (lines if secret_in_part else [])
     assert [c["status"] for c in snap["commands"]] == (
-        ["rejected"] * 3 if secret_in_part else ["exited"] * 3)
+        ["rejected"] * 3 if secret_in_part else ["exited"] * 3
+    )
 
 
 def test_a_triggers_turn_in_a_chat_with_a_part_runs_its_ticked_command(
-        make_client, wait_run, tmp_path):
+    make_client, wait_run, tmp_path
+):
     client, model, pid, cid = in_part(
-        make_client, two_parts(tmp_path / "repo"),
-        [*commands_of(["python --version"]), text("done")], ran=1)
+        make_client,
+        two_parts(tmp_path / "repo"),
+        [*commands_of(["python --version"]), text("done")],
+        ran=1,
+    )
     given = leave(commands=[allow(client, cid, "python --version")])
     run_id = run_now(client, trigger(client, pid, cid, permissions=given)["id"])
     snap = wait_run(client, cid, run_id, timeout=15)
     assert [(c["command"], c["status"]) for c in snap["commands"]] == [
-        ("python --version", "exited")]
+        ("python --version", "exited")
+    ]
     # (It is told where its commands run in this turn: the trigger allowed them at the root.)
     assert "runs at the project root in this turn" in model.calls[0][0]["content"]
 
 
 def test_a_part_whose_folder_is_gone_is_taken_off_the_chat_and_the_lead_told(
-        make_client, wait_run, tmp_path):
+    make_client, wait_run, tmp_path
+):
     root = two_parts(tmp_path / "repo")
     client, model, _pid, cid = in_part(make_client, root, [text("done")])
     shutil.rmtree(root / "core")
@@ -270,41 +332,70 @@ def run_in(command, cwd=None, id="c"):
 
 @pytest.mark.usefixtures("map_ready")
 def test_the_users_own_test_command_runs_unasked_in_its_part_below_full_auto(
-        make_client, wait_run, tmp_path):
+    make_client, wait_run, tmp_path
+):
     """Slice 4: what the user wrote for a part counts as a ticked rule there - exactly it, in
     that folder; KOLONİ's guess, another folder or a further argument are asked as before."""
-    lines = [("pytest -q", None), ("pytest -q", "core"), ("pytest -q", "."), ("npm test", "web"),
-             ("pytest -q --tb=short", None)]
+    lines = [
+        ("pytest -q", None),
+        ("pytest -q", "core"),
+        ("pytest -q", "."),
+        ("npm test", "web"),
+        ("pytest -q --tb=short", None),
+    ]
     client, model, pid, cid = in_part(
-        make_client, two_parts(tmp_path / "repo"),
+        make_client,
+        two_parts(tmp_path / "repo"),
         [*(run_in(line, cwd, f"c{at}") for at, (line, cwd) in enumerate(lines)), text("done")],
-        ran=2, permission_mode="ask")
-    assert client.put(f"/api/projects/{pid}/map/test",
-                      json={"path": "core/", "command": "pytest -q"}).status_code == 200
+        ran=2,
+        permission_mode="ask",
+    )
+    assert (
+        client.put(
+            f"/api/projects/{pid}/map/test", json={"path": "core/", "command": "pytest -q"}
+        ).status_code
+        == 200
+    )
     run_id = go(client, cid)
     for at in (3, 4, 5):
         card = waiting(client, cid, at)[at - 1]
         client.post(f"/api/commands/{card['id']}/reject")
     snap = wait_run(client, cid, run_id, timeout=15)
     assert [(c["command"], c["cwd"], c["status"]) for c in snap["commands"]] == [
-        ("pytest -q", "core", "exited"), ("pytest -q", "core", "exited"),
-        ("pytest -q", ".", "rejected"), ("npm test", "web", "rejected"),
-        ("pytest -q --tb=short", "core", "rejected")]
-    assert ("its test command is \"pytest -q\", run in that folder (the user's own: run_command "
-            "runs it there without a card, as it is)") in model.calls[0][0]["content"]
+        ("pytest -q", "core", "exited"),
+        ("pytest -q", "core", "exited"),
+        ("pytest -q", ".", "rejected"),
+        ("npm test", "web", "rejected"),
+        ("pytest -q --tb=short", "core", "rejected"),
+    ]
+    assert (
+        'its test command is "pytest -q", run in that folder (the user\'s own: run_command '
+        "runs it there without a card, as it is)"
+    ) in model.calls[0][0]["content"]
 
 
 def test_in_a_triggers_turn_the_users_own_test_command_runs_in_its_part_unticked(
-        make_client, wait_run, tmp_path):
+    make_client, wait_run, tmp_path
+):
     client, _model, pid, cid = in_part(
-        make_client, two_parts(tmp_path / "repo"),
-        [run_in("pytest -q", "core", "c0"), run_in("pytest -q", None, "c1"), text("done")], ran=1)
-    assert client.put(f"/api/projects/{pid}/map/test",
-                      json={"path": "core/", "command": "pytest -q"}).status_code == 200
+        make_client,
+        two_parts(tmp_path / "repo"),
+        [run_in("pytest -q", "core", "c0"), run_in("pytest -q", None, "c1"), text("done")],
+        ran=1,
+    )
+    assert (
+        client.put(
+            f"/api/projects/{pid}/map/test", json={"path": "core/", "command": "pytest -q"}
+        ).status_code
+        == 200
+    )
     run_id = run_now(client, trigger(client, pid, cid, permissions=leave())["id"])
     snap = wait_run(client, cid, run_id, timeout=15)
     assert [(c["command"], c["cwd"], c["status"]) for c in snap["commands"]] == [
-        ("pytest -q", "core", "exited")]
+        ("pytest -q", "core", "exited")
+    ]
     # (given no cwd it would run at the root in this turn: not the part's folder - refused)
     assert [t["status"] for t in snap["tool_calls"] if t["name"] == "run_command"] == [
-        "succeeded", "denied"]
+        "succeeded",
+        "denied",
+    ]

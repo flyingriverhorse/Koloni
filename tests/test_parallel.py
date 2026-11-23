@@ -34,8 +34,7 @@ def until(client, cid, ready, timeout=5.0):
         snap = now_snap(client, cid)
         if ready(snap):
             return snap
-        assert time.monotonic() < deadline, [
-            (a["name"], a["status"]) for a in snap["agents"]]
+        assert time.monotonic() < deadline, [(a["name"], a["status"]) for a in snap["agents"]]
         time.sleep(0.02)
 
 
@@ -58,9 +57,12 @@ def test_the_parallel_setting_is_kept_and_bounded(client, project_dir):
     assert patched.status_code == 200 and patched.json()["spawn_max_parallel"] == 4
     assert client.get(f"/api/projects/{pid}").json()["spawn_max_parallel"] == 4
     for bad in (0, 33):
-        assert client.patch(
-            f"/api/conversations/{made['id']}", json={"spawn_max_parallel": bad}
-        ).status_code == 422
+        assert (
+            client.patch(
+                f"/api/conversations/{made['id']}", json={"spawn_max_parallel": bad}
+            ).status_code
+            == 422
+        )
 
 
 def test_migration_0009_and_back(tmp_path):
@@ -72,7 +74,9 @@ def test_migration_0009_and_back(tmp_path):
         for id, role in (("m1", "agent"), ("m2", "assistant")):
             conn.execute(
                 "INSERT INTO messages (id, conversation_id, run_id, role, content, status, "
-                "created_at) VALUES (?, 'c', 'r', ?, 'x', 'complete', ?)", (id, role, at))
+                "created_at) VALUES (?, 'c', 'r', ?, 'x', 'complete', ?)",
+                (id, role, at),
+            )
     command.upgrade(cfg, "head")
     with sqlite3.connect(db) as conn:
         delivered = dict(conn.execute("SELECT id, delivered_at FROM messages"))
@@ -84,7 +88,8 @@ def test_migration_0009_and_back(tmp_path):
     with sqlite3.connect(db) as conn:
         assert "delivered_at" not in [r[1] for r in conn.execute("PRAGMA table_info(messages)")]
         assert "spawn_max_parallel" not in [
-            r[1] for r in conn.execute("PRAGMA table_info(conversations)")]
+            r[1] for r in conn.execute("PRAGMA table_info(conversations)")
+        ]
 
 
 # --- sub-agents at the same time --------------------------------------------------
@@ -92,16 +97,21 @@ def test_migration_0009_and_back(tmp_path):
 
 def test_two_sub_agents_work_at_the_same_time(make_client, wait_run, project_dir):
     a, b = Gate(), Gate()
-    client, model = make_client({
-        "Lead": [SPAWN_BOTH, text("both done")],
-        "Coder": [a.step(text("A done"))],
-        "Tester": [b.step(text("B done"))],
-    })
+    client, model = make_client(
+        {
+            "Lead": [SPAWN_BOTH, text("both done")],
+            "Coder": [a.step(text("A done"))],
+            "Tester": [b.step(text("B done"))],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     a.wait_partial()
     b.wait_partial()  # both are inside a model step at once
     assert statuses(now_snap(client, cid)) == {
-        "Lead": "waiting", "Coder": "running", "Tester": "running"}
+        "Lead": "waiting",
+        "Coder": "running",
+        "Tester": "running",
+    }
     b.release()  # the second finishes first
     until(client, cid, lambda s: statuses(s)["Tester"] == "completed")
     assert statuses(now_snap(client, cid))["Lead"] == "waiting"  # until every one is back
@@ -114,26 +124,33 @@ def test_two_sub_agents_work_at_the_same_time(make_client, wait_run, project_dir
 
 def test_with_one_slot_they_take_turns(make_client, wait_run, project_dir):
     a = Gate()
-    client, model = make_client({
-        "Lead": [SPAWN_BOTH, text("both done")],
-        "Coder": [a.step(text("A done"))],
-        "Tester": [text("B done")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [SPAWN_BOTH, text("both done")],
+            "Coder": [a.step(text("A done"))],
+            "Tester": [text("B done")],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_max_parallel=1)
     a.wait_partial()
     assert statuses(now_snap(client, cid)) == {
-        "Lead": "waiting", "Coder": "running", "Tester": "queued"}
+        "Lead": "waiting",
+        "Coder": "running",
+        "Tester": "queued",
+    }
     a.release()
     snap = wait_run(client, cid, run_id)
     assert set(statuses(snap).values()) == {"completed"}
 
 
 def test_one_failing_does_not_stop_the_other(make_client, wait_run, project_dir):
-    client, model = make_client({
-        "Lead": [SPAWN_BOTH, text("one of two")],
-        "Coder": [ModelUnavailable("model server unreachable: refused")],
-        "Tester": [text("B done")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [SPAWN_BOTH, text("one of two")],
+            "Coder": [ModelUnavailable("model server unreachable: refused")],
+            "Tester": [text("B done")],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id)
     assert statuses(snap) == {"Lead": "completed", "Coder": "failed", "Tester": "completed"}
@@ -143,38 +160,54 @@ def test_one_failing_does_not_stop_the_other(make_client, wait_run, project_dir)
 
 def test_other_tools_between_spawns_keep_their_order(make_client, wait_run, project_dir):
     a = Gate()
-    client, model = make_client({
-        "Lead": [step(
-            call("spawn_agent", {"role": "Coder", "task": "do A"}, "s1"),
-            call("read_file", {"path": "hello.py"}, "r1"),
-            call("spawn_agent", {"role": "Tester", "task": "do B"}, "s2"),
-        ), text("done")],
-        "Coder": [a.step(text("A done"))],
-        "Tester": [text("B done")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [
+                step(
+                    call("spawn_agent", {"role": "Coder", "task": "do A"}, "s1"),
+                    call("read_file", {"path": "hello.py"}, "r1"),
+                    call("spawn_agent", {"role": "Tester", "task": "do B"}, "s2"),
+                ),
+                text("done"),
+            ],
+            "Coder": [a.step(text("A done"))],
+            "Tester": [text("B done")],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     a.wait_partial()
     snap = now_snap(client, cid)
     # the read waits for the Coder, and the Tester for the read
     assert [(t["name"], t["status"]) for t in snap["tool_calls"]] == [
-        ("spawn_agent", "running"), ("read_file", "pending"), ("spawn_agent", "pending")]
+        ("spawn_agent", "running"),
+        ("read_file", "pending"),
+        ("spawn_agent", "pending"),
+    ]
     assert [a["name"] for a in snap["agents"]] == ["Lead", "Coder"]
     a.release()
     assert set(statuses(wait_run(client, cid, run_id)).values()) == {"completed"}
 
 
 def test_call_numbers_stay_unique_and_the_agent_limit_holds(make_client, wait_run, project_dir):
-    reads = step(call("read_file", {"path": "hello.py"}, "a"),
-                 call("list_dir", {}, "b"), call("search", {"pattern": "hi"}, "c"))
-    client, model = make_client({
-        "Lead": [step(
-            call("spawn_agent", {"role": "Coder", "task": "A"}, "s1"),
-            call("spawn_agent", {"role": "Tester", "task": "B"}, "s2"),
-            call("spawn_agent", {"role": "Reviewer", "task": "C"}, "s3"),
-        ), text("done")],
-        "Coder": [reads, text("A done")],
-        "Tester": [reads, text("B done")],
-    })
+    reads = step(
+        call("read_file", {"path": "hello.py"}, "a"),
+        call("list_dir", {}, "b"),
+        call("search", {"pattern": "hi"}, "c"),
+    )
+    client, model = make_client(
+        {
+            "Lead": [
+                step(
+                    call("spawn_agent", {"role": "Coder", "task": "A"}, "s1"),
+                    call("spawn_agent", {"role": "Tester", "task": "B"}, "s2"),
+                    call("spawn_agent", {"role": "Reviewer", "task": "C"}, "s3"),
+                ),
+                text("done"),
+            ],
+            "Coder": [reads, text("A done")],
+            "Tester": [reads, text("B done")],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_max_agents=2)
     snap = wait_run(client, cid, run_id)
     numbers = [t["seq"] for t in snap["tool_calls"]]
@@ -186,11 +219,13 @@ def test_call_numbers_stay_unique_and_the_agent_limit_holds(make_client, wait_ru
 
 def test_the_turn_waits_until_the_last_decision(make_client, wait_run, project_dir):
     write = lambda name: step(call("write_file", {"path": name, "content": "x\n"}, "w"))  # noqa: E731
-    client, model = make_client({
-        "Lead": [SPAWN_BOTH, text("done")],
-        "Coder": [write("a.txt"), text("A done")],
-        "Tester": [step(call("run_command", {"command": "pytest"}, "c")), text("B done")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [SPAWN_BOTH, text("done")],
+            "Coder": [write("a.txt"), text("A done")],
+            "Tester": [step(call("run_command", {"command": "pytest"}, "c")), text("B done")],
+        }
+    )
     # sub-agents open without asking; their work asks (since slice 19b a sub-agent's
     # file changes are asked about once, when its working copy is taken into the project)
     cid, run_id = begin(client, project_dir, mode="ask", spawn_approval="never")
@@ -198,10 +233,13 @@ def test_the_turn_waits_until_the_last_decision(make_client, wait_run, project_d
     assert snap["runs"][0]["status"] == "waiting_approval"
     card, asked = snap["merges"][0], snap["commands"][0]
     assert (card["status"], asked["status"]) == ("pending", "proposed")
-    client.headers["Origin"] = "http://127.0.0.1:8790"     # the app's own page decides it
+    client.headers["Origin"] = "http://127.0.0.1:8790"  # the app's own page decides it
     assert client.post(f"/api/merges/{card['id']}/approve").status_code == 200
-    until(client, cid, lambda s: s["merges"][0]["status"] == "applied"
-          and statuses(s)["Coder"] == "completed")
+    until(
+        client,
+        cid,
+        lambda s: s["merges"][0]["status"] == "applied" and statuses(s)["Coder"] == "completed",
+    )
     assert now_snap(client, cid)["runs"][0]["status"] == "waiting_approval"  # one still asks
     assert client.post(f"/api/commands/{asked['id']}/reject").status_code == 200
     snap = wait_run(client, cid, run_id)
@@ -211,11 +249,13 @@ def test_the_turn_waits_until_the_last_decision(make_client, wait_run, project_d
 
 def test_stop_ends_every_agent_at_work(make_client, wait_run, project_dir):
     a, b = Gate(), Gate()
-    client, model = make_client({
-        "Lead": [SPAWN_BOTH],
-        "Coder": [a.step(text("never"))],
-        "Tester": [b.step(text("never"))],
-    })
+    client, model = make_client(
+        {
+            "Lead": [SPAWN_BOTH],
+            "Coder": [a.step(text("never"))],
+            "Tester": [b.step(text("never"))],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     a.wait_partial()
     b.wait_partial()
@@ -230,15 +270,21 @@ def test_two_agents_writing_one_file_are_both_recorded_truthfully(
 ):
     a = Gate()
     write = lambda body, id: step(  # noqa: E731
-        call("write_file", {"path": "shared.txt", "content": body}, id))
-    client, model = make_client({
-        "Lead": [step(
-            call("spawn_agent", {"role": "Coder", "task": "do A"}, "s1"),
-            call("spawn_agent", {"role": "Coder", "task": "do B"}, "s2"),
-        ), text("done")],
-        "Coder": [a.step(write("from the first\n", "w1")), text("A done")],
-        "Coder 2": [write("from the second\n", "w2"), text("B done")],
-    })
+        call("write_file", {"path": "shared.txt", "content": body}, id)
+    )
+    client, model = make_client(
+        {
+            "Lead": [
+                step(
+                    call("spawn_agent", {"role": "Coder", "task": "do A"}, "s1"),
+                    call("spawn_agent", {"role": "Coder", "task": "do B"}, "s2"),
+                ),
+                text("done"),
+            ],
+            "Coder": [a.step(write("from the first\n", "w1")), text("A done")],
+            "Coder 2": [write("from the second\n", "w2"), text("B done")],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     a.wait_partial()
     until(client, cid, lambda s: statuses(s).get("Coder 2") == "completed")
@@ -247,7 +293,9 @@ def test_two_agents_writing_one_file_are_both_recorded_truthfully(
     first, second = snap["file_changes"]
     by = {x["id"]: x["name"] for x in snap["agents"]}
     assert [(by[c["agent_id"]], c["kind"]) for c in (first, second)] == [
-        ("Coder 2", "create"), ("Coder", "modify")]
+        ("Coder 2", "create"),
+        ("Coder", "modify"),
+    ]
     assert "-from the second" in second["diff"] and "+from the first" in second["diff"]
     assert (project_dir / "shared.txt").read_text() == "from the first\n"
 
@@ -267,11 +315,13 @@ def sent_to(snap, name):
 
 def test_a_note_reaches_a_working_agent_at_its_next_step(make_client, wait_run, project_dir):
     a = Gate()
-    client, model = make_client({
-        "Lead": [SPAWN_BOTH, text("done")],
-        "Coder": [a.step(step(call("list_dir", {}, "l1"))), text("A done")],
-        "Tester": [note("Coder", "use tabs"), text("B done")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [SPAWN_BOTH, text("done")],
+            "Coder": [a.step(step(call("list_dir", {}, "l1"))), text("A done")],
+            "Tester": [note("Coder", "use tabs"), text("B done")],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     a.wait_partial()
     snap = until(client, cid, lambda s: statuses(s).get("Tester") == "completed")
@@ -279,15 +329,21 @@ def test_a_note_reaches_a_working_agent_at_its_next_step(make_client, wait_run, 
     left = next(t for t in snap["tool_calls"] if t["name"] == "message_agent")
     assert left["status"] == "succeeded" and left["result"] == (
         "noted: Coder is at work and is handed this at its next step, if it takes one. "
-        "It does not reply unless it messages you; go on with your own work.")
+        "It does not reply unless it messages you; go on with your own work."
+    )
     # what the tool says of a message to an agent at work promises no more than that
     described = [
-        t["function"]["description"] for offered in model.tool_args if offered
-        for t in offered if t["function"]["name"] == "message_agent"]
+        t["function"]["description"]
+        for offered in model.tool_args
+        if offered
+        for t in offered
+        if t["function"]["name"] == "message_agent"
+    ]
     assert any(
         "- Coder (Coder role): it is at work; your message is left for it and handed to it "
-        "at its next step, if it takes one, and you get no reply unless it messages you."
-        in said for said in described)
+        "at its next step, if it takes one, and you get no reply unless it messages you." in said
+        for said in described
+    )
     assert [m["delivered_at"] for m in sent_to(snap, "Coder")] == [None]
     assert [c["kind"] for c in snap["channel_messages"]].count("note") == 1
     assert statuses(snap)["Coder"] == "running"
@@ -301,11 +357,13 @@ def test_a_note_reaches_a_working_agent_at_its_next_step(make_client, wait_run, 
 
 def test_a_note_that_was_never_read_stays_undelivered(make_client, wait_run, project_dir):
     a = Gate()
-    client, model = make_client({
-        "Lead": [SPAWN_BOTH, text("done")],
-        "Coder": [a.step(text("A done"))],  # its last step: it never takes another
-        "Tester": [note("Coder", "too late"), text("B done")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [SPAWN_BOTH, text("done")],
+            "Coder": [a.step(text("A done"))],  # its last step: it never takes another
+            "Tester": [note("Coder", "too late"), text("B done")],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     a.wait_partial()
     until(client, cid, lambda s: statuses(s).get("Tester") == "completed")
@@ -321,15 +379,20 @@ def test_two_children_asking_the_waiting_parent_are_answered_in_turn(
 ):
     g = Gate()
     ask = lambda q: step(call("message_agent", {"to": "Lead", "message": q}, "q"))  # noqa: E731
-    client, model = make_client({
-        "Lead": [SPAWN_BOTH, g.step(text("first answer")), text("second answer"), text("done")],
-        "Coder": [ask("q1"), text("A done")],
-        "Tester": [ask("q2"), text("B done")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [SPAWN_BOTH, g.step(text("first answer")), text("second answer"), text("done")],
+            "Coder": [ask("q1"), text("A done")],
+            "Tester": [ask("q2"), text("B done")],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     g.wait_partial()
-    snap = until(client, cid, lambda s: len(
-        [t for t in s["tool_calls"] if t["name"] == "message_agent"]) == 2)
+    snap = until(
+        client,
+        cid,
+        lambda s: len([t for t in s["tool_calls"] if t["name"] == "message_agent"]) == 2,
+    )
     time.sleep(0.2)
     # both have asked; the Lead is in one answer, not two at once
     assert len(model.calls_of["Lead"]) == 2
@@ -343,14 +406,21 @@ def test_two_children_asking_the_waiting_parent_are_answered_in_turn(
 
 def test_a_waiting_agent_does_not_go_on_while_it_answers(make_client, wait_run, project_dir):
     r, g = Gate(), Gate()
-    client, model = make_client({
-        "Lead": [SPAWN_BOTH, text("done")],
-        "Coder": [step(call("spawn_agent", {"role": "Reviewer", "task": "look"}, "s3")),
-                  g.step(text("my answer")), text("A done")],
-        "Reviewer": [r.step(text("looked"))],
-        "Tester": [step(call("message_agent", {"to": "Coder", "message": "status?"}, "q")),
-                   text("B done")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [SPAWN_BOTH, text("done")],
+            "Coder": [
+                step(call("spawn_agent", {"role": "Reviewer", "task": "look"}, "s3")),
+                g.step(text("my answer")),
+                text("A done"),
+            ],
+            "Reviewer": [r.step(text("looked"))],
+            "Tester": [
+                step(call("message_agent", {"to": "Coder", "message": "status?"}, "q")),
+                text("B done"),
+            ],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_max_parallel=3)
     r.wait_partial()
     g.wait_partial()  # the Coder, waiting for its Reviewer, is answering the Tester
@@ -364,22 +434,27 @@ def test_a_waiting_agent_does_not_go_on_while_it_answers(make_client, wait_run, 
     assert set(statuses(snap).values()) == {"completed"}
     assert len(model.calls_of["Coder"]) == 3
     last = model.calls_of["Coder"][2]
-    assert "Reviewer finished.\n\nlooked" in [reported(m["content"]) for m in last if m["role"] == "tool"]
-
+    assert "Reviewer finished.\n\nlooked" in [
+        reported(m["content"]) for m in last if m["role"] == "tool"
+    ]
 
 
 # --- review fixes: an agent that already holds something waits again ----------------
 
 
-def test_a_continued_agent_can_ask_the_agent_that_continued_it(
-    make_client, wait_run, project_dir
-):
+def test_a_continued_agent_can_ask_the_agent_that_continued_it(make_client, wait_run, project_dir):
     ask = step(call("message_agent", {"to": "Lead", "message": "Like this?"}, "q"))
-    client, model = make_client({
-        "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "do A"}, "s1")),
-                 note("Coder", "one more thing"), text("yes"), text("done")],
-        "Coder": [text("first"), ask, text("second")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [
+                step(call("spawn_agent", {"role": "Coder", "task": "do A"}, "s1")),
+                note("Coder", "one more thing"),
+                text("yes"),
+                text("done"),
+            ],
+            "Coder": [text("first"), ask, text("second")],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id)  # it used to hang here, each waiting for the other
     assert set(statuses(snap).values()) == {"completed"}
@@ -388,14 +463,21 @@ def test_a_continued_agent_can_ask_the_agent_that_continued_it(
 
 
 def test_a_continued_agent_can_open_a_sub_agent(make_client, wait_run, project_dir):
-    client, model = make_client({
-        "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "do A"}, "s1")),
-                 note("Coder", "have it reviewed"), text("done")],
-        "Coder": [text("first"),
-                  step(call("spawn_agent", {"role": "Reviewer", "task": "look"}, "s2")),
-                  text("second")],
-        "Reviewer": [text("looked")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [
+                step(call("spawn_agent", {"role": "Coder", "task": "do A"}, "s1")),
+                note("Coder", "have it reviewed"),
+                text("done"),
+            ],
+            "Coder": [
+                text("first"),
+                step(call("spawn_agent", {"role": "Reviewer", "task": "look"}, "s2")),
+                text("second"),
+            ],
+            "Reviewer": [text("looked")],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id)
     assert set(statuses(snap).values()) == {"completed"}
@@ -417,11 +499,18 @@ def test_a_refused_message_leaves_the_sender_at_work(
             raise ToolError("limit reached meanwhile")
 
     monkeypatch.setattr(agent_module.AgentRunner, "_within_limit", limit)
-    client, model = make_client({
-        "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "do A"}, "s1")), text("done")],
-        "Coder": [step(call("message_agent", {"to": "Lead", "message": "ok?"}, "q")),
-                  g.step(text("went on"))],
-    })
+    client, model = make_client(
+        {
+            "Lead": [
+                step(call("spawn_agent", {"role": "Coder", "task": "do A"}, "s1")),
+                text("done"),
+            ],
+            "Coder": [
+                step(call("message_agent", {"to": "Lead", "message": "ok?"}, "q")),
+                g.step(text("went on")),
+            ],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     g.wait_partial()
     snap = now_snap(client, cid)

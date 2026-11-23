@@ -28,8 +28,11 @@ BAD = {"report": "Reviewed.", "findings": [{**FOUND, "kind": "perf"}]}
 
 def run_as(claude_app, wait_run, project_dir, structured, role="Reviewer", **more):  # noqa: F811
     client, provider, _ = claude_app(
-        [WORDS], default_steps=[spawn(role, "Review hello.py"), text("ok")],
-        structured=structured, **more)
+        [WORDS],
+        default_steps=[spawn(role, "Review hello.py"), text("ok")],
+        structured=structured,
+        **more,
+    )
     client.patch(f"/api/roles/{role_id(client, role)}", json={"provider_id": provider["id"]})
     cid, run_id = start(client, project_dir, None, "full_auto")
     snap = wait_run(client, cid, run_id)
@@ -40,7 +43,9 @@ def run_as(claude_app, wait_run, project_dir, structured, role="Reviewer", **mor
 
 
 def test_a_check_role_hands_its_report_back_in_the_schema_and_its_fields_are_read(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     reviewer, notes, seen = run_as(claude_app, wait_run, project_dir, [GOOD])
     argv = seen["argv"]
@@ -51,27 +56,37 @@ def test_a_check_role_hands_its_report_back_in_the_schema_and_its_fields_are_rea
     assert "`## Findings`" not in seen["stdin"]
     assert reviewer["findings"] == [FOUND]  # (a "|" in it is only a character)
     assert reviewer["report"] == "Reviewed hello.py."  # its words, no findings written in
-    assert notes == [("succeeded", "its report came back in its schema: its findings are read "
-                                   "from it")]
+    assert notes == [
+        ("succeeded", "its report came back in its schema: its findings are read from it")
+    ]
     assert "steered" not in seen
 
 
 def test_findings_in_its_words_with_none_in_findings_are_read_fail_closed(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     # (Review, Critical: KOLONİ wrote "Findings: none" after them, and the review passed.)
-    said = {"report": "One problem.\n\n## Findings\n- the key is logged | kind: security | "
-                      "role: Coder | suggestion", "findings": []}
+    said = {
+        "report": "One problem.\n\n## Findings\n- the key is logged | kind: security | "
+        "role: Coder | suggestion",
+        "findings": [],
+    }
     reviewer, _notes, _seen = run_as(claude_app, wait_run, project_dir, [said])
-    assert reviewer["findings"] == [{"what": "the key is logged", "kind": "security",
-                                     "role": "Coder", "blocking": True}]
+    assert reviewer["findings"] == [
+        {"what": "the key is logged", "kind": "security", "role": "Coder", "blocking": True}
+    ]
 
 
 def test_an_answer_off_the_schema_is_asked_for_once_more_with_its_errors_not_the_schema(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    reviewer, notes, seen = run_as(claude_app, wait_run, project_dir, [BAD, GOOD],
-                                   again_say="Here it is again.")
+    reviewer, notes, seen = run_as(
+        claude_app, wait_run, project_dir, [BAD, GOOD], again_say="Here it is again."
+    )
     (again,) = seen["steered"]
     said = again["message"]["content"]
     assert "report.findings[0].kind is not one of code" in said
@@ -82,10 +97,13 @@ def test_an_answer_off_the_schema_is_asked_for_once_more_with_its_errors_not_the
 
 
 def test_it_is_asked_once_only_and_then_its_first_words_are_its_report(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    reviewer, notes, seen = run_as(claude_app, wait_run, project_dir, [BAD, BAD, GOOD],
-                                   again_say="Sorry, here it is.")
+    reviewer, notes, seen = run_as(
+        claude_app, wait_run, project_dir, [BAD, BAD, GOOD], again_say="Sorry, here it is."
+    )
     assert len(seen["steered"]) == 1
     assert reviewer["report"] == WORDS["say"] and reviewer["findings"] is None
     assert [status for status, _ in notes] == ["failed", "failed"]
@@ -93,7 +111,10 @@ def test_it_is_asked_once_only_and_then_its_first_words_are_its_report(
 
 
 def test_a_retry_never_answered_leaves_its_first_answer_and_the_review_finished(
-    claude_app, wait_run, project_dir, monkeypatch  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,
+    monkeypatch,  # noqa: F811
 ):
     monkeypatch.setattr(model_native, "LATE_SECONDS", 0.5)
     reviewer, notes, seen = run_as(claude_app, wait_run, project_dir, [BAD], linger=True)
@@ -104,28 +125,44 @@ def test_a_retry_never_answered_leaves_its_first_answer_and_the_review_finished(
 
 @pytest.mark.parametrize("handed", [None, "gave_up"])
 def test_with_no_structured_answer_its_words_are_its_report_and_it_is_not_asked_again(
-    claude_app, wait_run, project_dir, handed  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,
+    handed,  # noqa: F811
 ):
     reviewer, notes, seen = run_as(claude_app, wait_run, project_dir, [handed])
     assert "steered" not in seen
     assert reviewer["report"] == WORDS["say"]
-    assert notes == [("failed", "no report in its schema (none came back): its words are its "
-                                "report")]
+    assert notes == [
+        ("failed", "no report in its schema (none came back): its words are its report")
+    ]
 
 
 @pytest.mark.parametrize(("role", "schema"), [("Reviewer", True), ("Coder", False)])
 def test_only_a_check_role_is_given_the_schema(
-    claude_app, wait_run, project_dir, role, schema  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,
+    role,
+    schema,  # noqa: F811
 ):
     _agent, notes, seen = run_as(claude_app, wait_run, project_dir, [None], role=role)
     assert ("--json-schema" in seen["argv"]) is schema and bool(notes) is schema
 
 
 def test_a_check_role_answering_a_message_is_given_no_schema(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider, _ = claude_app([WORDS], default_steps=[
-        spawn("Reviewer", "Review hello.py"), message("Reviewer", "and main.py?"), text("ok")])
+    client, provider, _ = claude_app(
+        [WORDS],
+        default_steps=[
+            spawn("Reviewer", "Review hello.py"),
+            message("Reviewer", "and main.py?"),
+            text("ok"),
+        ],
+    )
     client.patch(f"/api/roles/{role_id(client, 'Reviewer')}", json={"provider_id": provider["id"]})
     cid, run_id = start(client, project_dir, None, "full_auto")
     assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
@@ -133,14 +170,20 @@ def test_a_check_role_answering_a_message_is_given_no_schema(
 
 
 def test_the_lead_is_given_no_schema_and_its_structured_output_is_asked_about(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider, _ = claude_app([
-        {"tool": "StructuredOutput", "input": {"x": 1}}, {"say": "done"}])
+    client, provider, _ = claude_app(
+        [{"tool": "StructuredOutput", "input": {"x": 1}}, {"say": "done"}]
+    )
     cid, run_id = start(client, project_dir, provider, "ask")
     question = wait_status(client, cid, "waiting_approval")["questions"][0]
-    client.post(f"/api/questions/{question['id']}/answer", json={"answer": "Deny"},
-                headers={"Origin": ORIGIN})
+    client.post(
+        f"/api/questions/{question['id']}/answer",
+        json={"answer": "Deny"},
+        headers={"Origin": ORIGIN},
+    )
     wait_run(client, cid, run_id)
     seen = claude_app.record()
     assert "--json-schema" not in seen["argv"]
@@ -150,9 +193,15 @@ def test_the_lead_is_given_no_schema_and_its_structured_output_is_asked_about(
 @pytest.mark.anyio
 async def test_a_report_handed_back_before_a_steered_turn_is_kept(tmp_path):
     # (Review: it was dropped once the steer's late turn handed none.)
-    client = ClaudeNativeClient(launcher=FAKE_CLAUDE, **plan(
-        tmp_path, [{"say": "working"}, {"await_steer": 5}, {"say": "done"}],
-        structured=[GOOD], second_turn_on_steer=True))
+    client = ClaudeNativeClient(
+        launcher=FAKE_CLAUDE,
+        **plan(
+            tmp_path,
+            [{"say": "working"}, {"await_steer": 5}, {"say": "done"}],
+            structured=[GOOD],
+            second_turn_on_steer=True,
+        ),
+    )
     doors, items = [], []
 
     async def on_text(_text):
@@ -168,22 +217,43 @@ async def test_a_report_handed_back_before_a_steered_turn_is_kept(tmp_path):
 
     trying = asyncio.ensure_future(steer())
     await client.run_native(
-        "m", [{"role": "system", "content": "s"}, {"role": "user", "content": "go"}], [],
-        str(tmp_path), answered, on_text, on_item,
-        on_live=lambda door: door and doors.append(door), report_schema=REPORT_SCHEMA)
+        "m",
+        [{"role": "system", "content": "s"}, {"role": "user", "content": "go"}],
+        [],
+        str(tmp_path),
+        answered,
+        on_text,
+        on_item,
+        on_live=lambda door: door and doors.append(door),
+        report_schema=REPORT_SCHEMA,
+    )
     assert await trying is True and record(tmp_path)["handed"] == ["allow"]
     assert [one for one in items if one.get("type") == "structured_report"] == [
-        {"type": "structured_report", "report": GOOD}]
+        {"type": "structured_report", "report": GOOD}
+    ]
 
 
 def test_handed_findings_keep_b_192s_rules_and_cut_what_is_long():
     roles = ["Coder"]
-    found, checked, before = _handed_findings({"report": "", "findings": [
-        {"what": "token in the log", "kind": "security", "role": "coder", "blocking": False},
-        {"what": "test_x fails", "kind": "code", "role": "Coder", "blocking": False},
-        {"what": "a nicer name", "kind": "code", "role": "Wizard", "blocking": False},
-        {"what": "x" * 5000, "kind": "docs", "role": "Coder", "blocking": True},
-    ], "checked": "nothing", "failing_before": ["old\ntest", " "]}, roles)
+    found, checked, before = _handed_findings(
+        {
+            "report": "",
+            "findings": [
+                {
+                    "what": "token in the log",
+                    "kind": "security",
+                    "role": "coder",
+                    "blocking": False,
+                },
+                {"what": "test_x fails", "kind": "code", "role": "Coder", "blocking": False},
+                {"what": "a nicer name", "kind": "code", "role": "Wizard", "blocking": False},
+                {"what": "x" * 5000, "kind": "docs", "role": "Coder", "blocking": True},
+            ],
+            "checked": "nothing",
+            "failing_before": ["old\ntest", " "],
+        },
+        roles,
+    )
     assert [f["blocking"] for f in found] == [True, True, False, True]
     assert found[0]["role"] == "Coder" and found[2]["role"] is None
     assert found[3]["what"] == "x" * MAX_WHAT
@@ -200,8 +270,11 @@ def test_the_schema_fits_a_cmd_shims_line():
 def test_schema_errors_say_where():
     assert schema_errors(GOOD, REPORT_SCHEMA) == []
     assert schema_errors({"report": 3, "extra": 1}, REPORT_SCHEMA) == [
-        "report.findings is missing", "report.extra is not in the schema",
-        "report.report is not a string"]
+        "report.findings is missing",
+        "report.extra is not in the schema",
+        "report.report is not a string",
+    ]
     assert schema_errors({**GOOD, "findings": [{**FOUND, "blocking": "yes"}]}, REPORT_SCHEMA) == [
-        "report.findings[0].blocking is not true or false"]
+        "report.findings[0].blocking is not true or false"
+    ]
     assert schema_errors("x", REPORT_SCHEMA) == ["report is not an object"]

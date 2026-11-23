@@ -54,9 +54,15 @@ def heard() -> dict | None:
 
 NOTHING = {"type": "object", "properties": {}}
 TOOLS = [
-    {"name": "echo", "description": "Says back what it is given.",
-     "inputSchema": {"type": "object", "properties": {"text": {"type": "string"}},
-                     "required": ["text"]}},
+    {
+        "name": "echo",
+        "description": "Says back what it is given.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"text": {"type": "string"}},
+            "required": ["text"],
+        },
+    },
     {"name": "where", "description": "Says where it runs.", "inputSchema": NOTHING},
     {"name": "boom", "description": "Fails.", "inputSchema": NOTHING},
     {"name": "picture", "description": "Shows a picture.", "inputSchema": NOTHING},
@@ -71,7 +77,8 @@ def listed() -> list[dict]:
     now = json.loads(plan_file.read_text(encoding="utf-8"))  # the plan as it is at this read
     tools = [
         {**tool, "description": now.get("describe", {}).get(tool["name"], tool["description"])}
-        for tool in TOOLS if tool["name"] not in now.get("without", [])
+        for tool in TOOLS
+        if tool["name"] not in now.get("without", [])
     ]
     return tools + now.get("more", [])
 
@@ -87,17 +94,25 @@ def call(name: str, arguments: dict) -> dict | None:
         os.makedirs(arguments["path"], exist_ok=True)
         return text("made")
     if name == "where":
-        return text(json.dumps({
-            "cwd": os.getcwd(),
-            "koloni": sorted(k for k in os.environ if k.upper().startswith("KOLONI_")),
-            "secret": os.environ.get("THE_SECRET"),
-            "argv": sys.argv[1:],
-        }))
+        return text(
+            json.dumps(
+                {
+                    "cwd": os.getcwd(),
+                    "koloni": sorted(k for k in os.environ if k.upper().startswith("KOLONI_")),
+                    "secret": os.environ.get("THE_SECRET"),
+                    "argv": sys.argv[1:],
+                }
+            )
+        )
     if name == "boom":
         return text("it broke", isError=True)
     if name == "picture":
-        return {"content": [{"type": "text", "text": "a caption"},
-                            {"type": "image", "data": "AAAA", "mimeType": "image/png"}]}
+        return {
+            "content": [
+                {"type": "text", "text": "a caption"},
+                {"type": "image", "data": "AAAA", "mimeType": "image/png"},
+            ]
+        }
     if name == "big":
         return text("x" * 300_000)
     if name == "hang":
@@ -107,9 +122,16 @@ def call(name: str, arguments: dict) -> dict | None:
         sys.stderr.flush()
         sys.exit(3)
     if name == "sample":
-        say({"id": "s1", "method": "sampling/createMessage", "params": {
-            "messages": [{"role": "user", "content": {"type": "text", "text": "hello"}}],
-            "maxTokens": 10}})
+        say(
+            {
+                "id": "s1",
+                "method": "sampling/createMessage",
+                "params": {
+                    "messages": [{"role": "user", "content": {"type": "text", "text": "hello"}}],
+                    "maxTokens": 10,
+                },
+            }
+        )
         while (told := heard()) is not None:
             if told.get("id") == "s1" and "method" not in told:
                 record("answer", message=told)
@@ -118,8 +140,14 @@ def call(name: str, arguments: dict) -> dict | None:
     return text(f"no tool named {name}", isError=True)
 
 
-record("start", cwd=os.getcwd(), files=sorted(os.listdir()), env=dict(os.environ),
-       argv=sys.argv[1:], pid=os.getpid())
+record(
+    "start",
+    cwd=os.getcwd(),
+    files=sorted(os.listdir()),
+    env=dict(os.environ),
+    argv=sys.argv[1:],
+    pid=os.getpid(),
+)
 if plan.get("argv_on_stderr"):
     sys.stderr.write(f"fatal: started with {' '.join(sys.argv[1:])}\n")
     sys.stderr.flush()
@@ -127,10 +155,18 @@ if plan.get("argv_on_stderr"):
 while (message := heard()) is not None:
     method, mid = message.get("method"), message.get("id")
     if method == "initialize":
-        say({"id": mid, "result": {
-            "protocolVersion": message.get("params", {}).get("protocolVersion", "2025-06-18"),
-            "capabilities": {"tools": {}},
-            "serverInfo": {"name": "fake", "version": "1"}}})
+        say(
+            {
+                "id": mid,
+                "result": {
+                    "protocolVersion": message.get("params", {}).get(
+                        "protocolVersion", "2025-06-18"
+                    ),
+                    "capabilities": {"tools": {}},
+                    "serverInfo": {"name": "fake", "version": "1"},
+                },
+            }
+        )
     elif method == "ping":
         say({"id": mid, "result": {}})
     elif method == "tools/list":

@@ -123,28 +123,44 @@ def said_in(session: Session, run_id: str) -> list[tuple[str | None, datetime, s
     """What was said in a turn: who (an agent's name; None for the user), when, the words.
     A trigger's message is not the user's word of that moment and is not among them.
     (Also what a fast model is given of a turn: `AgentRunner._note_what_it_found`.)"""
-    said = [(None, at, words) for at, words in session.execute(
-        select(Message.created_at, Message.content)
-        .where(Message.run_id == run_id, Message.role == "user", Message.agent_id.is_(None))
-        .order_by(Message.created_at)
-    )]
+    said = [
+        (None, at, words)
+        for at, words in session.execute(
+            select(Message.created_at, Message.content)
+            .where(Message.run_id == run_id, Message.role == "user", Message.agent_id.is_(None))
+            .order_by(Message.created_at)
+        )
+    ]
     answer = session.execute(
         select(Agent.name, Message.created_at, Message.content)
         .join(Agent, Agent.id == Message.agent_id)
-        .where(Message.run_id == run_id, Agent.depth == 0, Message.role == "assistant",
-               Message.discussion_id.is_(None), Message.content != "")
-        .order_by(Message.created_at.desc(), literal_column("messages.rowid").desc()).limit(1)
+        .where(
+            Message.run_id == run_id,
+            Agent.depth == 0,
+            Message.role == "assistant",
+            Message.discussion_id.is_(None),
+            Message.content != "",
+        )
+        .order_by(Message.created_at.desc(), literal_column("messages.rowid").desc())
+        .limit(1)
     ).first()
     if answer is not None:
         said.append(tuple(answer))
     # An agent opened for a discussion has what it said there last as its report.
     talked = select(DiscussionMember.agent_id).where(DiscussionMember.opened_here)
-    said += [tuple(row) for row in session.execute(
-        select(Agent.name, func.coalesce(Agent.ended_at, Agent.created_at), Agent.report)
-        .where(Agent.run_id == run_id, Agent.depth > 0, Agent.report.is_not(None),
-               Agent.id.not_in(talked))
-        .order_by(Agent.created_at)
-    )]
+    said += [
+        tuple(row)
+        for row in session.execute(
+            select(Agent.name, func.coalesce(Agent.ended_at, Agent.created_at), Agent.report)
+            .where(
+                Agent.run_id == run_id,
+                Agent.depth > 0,
+                Agent.report.is_not(None),
+                Agent.id.not_in(talked),
+            )
+            .order_by(Agent.created_at)
+        )
+    ]
     return said
 
 
@@ -157,7 +173,8 @@ def index_run(session: Session, run_id: str) -> None:
     that is missed."""
     where = session.execute(
         select(Run.conversation_id, Conversation.project_id)
-        .join(Conversation, Conversation.id == Run.conversation_id).where(Run.id == run_id)
+        .join(Conversation, Conversation.id == Run.conversation_id)
+        .where(Run.id == run_id)
     ).first()
     if where is None:
         return
@@ -169,9 +186,15 @@ def index_run(session: Session, run_id: str) -> None:
         if heard:
             rows.append({"words": heard, "said": said, "agent": agent, "at": at.isoformat()})
     for row in rows or [{"words": "", "said": "", "agent": None, "at": None}]:
-        session.execute(_INSERT, {
-            **row, "project": where.project_id, "conversation": where.conversation_id,
-            "run": run_id})
+        session.execute(
+            _INSERT,
+            {
+                **row,
+                "project": where.project_id,
+                "conversation": where.conversation_id,
+                "run": run_id,
+            },
+        )
 
 
 def index_task(session: Session, task: BacklogTask, at: datetime | None) -> None:
@@ -186,11 +209,20 @@ def index_task(session: Session, task: BacklogTask, at: datetime | None) -> None
     if task.status != "done":
         return
     said = unicodedata.normalize(
-        "NFC", " — ".join(filter(None, [task.title, task.detail]))[:MAX_SAID])
-    session.execute(_INSERT, {
-        "words": " ".join(_words(said)), "said": said, "project": task.project_id,
-        "conversation": task.conversation_id, "run": TASK + task.id, "agent": None,
-        "at": was.at if was else (at.isoformat() if at else None)})
+        "NFC", " — ".join(filter(None, [task.title, task.detail]))[:MAX_SAID]
+    )
+    session.execute(
+        _INSERT,
+        {
+            "words": " ".join(_words(said)),
+            "said": said,
+            "project": task.project_id,
+            "conversation": task.conversation_id,
+            "run": TASK + task.id,
+            "agent": None,
+            "at": was.at if was else (at.isoformat() if at else None),
+        },
+    )
 
 
 def unindex_task(session: Session, task_id: str):
@@ -198,11 +230,16 @@ def unindex_task(session: Session, task_id: str):
     for when it was closed, or None."""
     key = TASK + task_id
     was = session.execute(
-        text("SELECT at FROM said_in_turns WHERE run_id = :key"), {"key": key}).first()
+        text("SELECT at FROM said_in_turns WHERE run_id = :key"), {"key": key}
+    ).first()
     # (Its vector too, 22c: the index gives a row's number again once the row is gone.)
-    session.execute(text(
-        "DELETE FROM embeddings WHERE kind = 'turn' AND record_id IN "
-        "(SELECT CAST(rowid AS TEXT) FROM said_in_turns WHERE run_id = :key)"), {"key": key})
+    session.execute(
+        text(
+            "DELETE FROM embeddings WHERE kind = 'turn' AND record_id IN "
+            "(SELECT CAST(rowid AS TEXT) FROM said_in_turns WHERE run_id = :key)"
+        ),
+        {"key": key},
+    )
     session.execute(text("DELETE FROM said_in_turns WHERE run_id = :key"), {"key": key})
     return was
 
@@ -212,22 +249,30 @@ def missing(session: Session) -> list[str]:
     from before there was an index, and those that did not end in `AgentRunner._finish`
     (a restart closed them)."""
     indexed = select(literal_column("run_id")).select_from(text("said_in_turns"))
-    return list(session.scalars(
-        select(Run.id)
-        .where(Run.started_at.is_not(None), Run.ended_at.is_not(None), Run.id.not_in(indexed))
-        .order_by(Run.created_at.desc())
-    ))
+    return list(
+        session.scalars(
+            select(Run.id)
+            .where(Run.started_at.is_not(None), Run.ended_at.is_not(None), Run.id.not_in(indexed))
+            .order_by(Run.created_at.desc())
+        )
+    )
 
 
 def missing_tasks(session: Session) -> list[str]:
     """The backlog tasks that are done and have nothing in the index: closed before there
     was a row for one. When they were closed is not on record."""
-    indexed = select(func.substr(literal_column("run_id"), len(TASK) + 1)).select_from(
-        text("said_in_turns")).where(literal_column("run_id").like(TASK + "%"))
-    return list(session.scalars(
-        select(BacklogTask.id)
-        .where(BacklogTask.status == "done", BacklogTask.id.not_in(indexed))
-    ))
+    indexed = (
+        select(func.substr(literal_column("run_id"), len(TASK) + 1))
+        .select_from(text("said_in_turns"))
+        .where(literal_column("run_id").like(TASK + "%"))
+    )
+    return list(
+        session.scalars(
+            select(BacklogTask.id).where(
+                BacklogTask.status == "done", BacklogTask.id.not_in(indexed)
+            )
+        )
+    )
 
 
 async def index_what_is_there(session_factory) -> None:
@@ -239,7 +284,7 @@ async def index_what_is_there(session_factory) -> None:
         runs = missing(session)
     for at in range(0, len(runs), BATCH):
         with session_factory() as session:
-            for run_id in runs[at:at + BATCH]:
+            for run_id in runs[at : at + BATCH]:
                 # One turn that cannot be indexed is left for the next start; the rest go on.
                 try:
                     with session.begin_nested():
@@ -304,15 +349,20 @@ def _tried(session: Session, rows) -> set[tuple[str, str]]:
     keys = {(row.run_id, row.agent) for row in rows if row.agent is not None}
     if not keys:
         return set()
-    agents = session.scalars(select(Agent).where(
-        Agent.run_id.in_({run for run, _name in keys}), Agent.depth > 0,
-        Agent.name.in_({name for _run, name in keys}))).all()
+    agents = session.scalars(
+        select(Agent).where(
+            Agent.run_id.in_({run for run, _name in keys}),
+            Agent.depth > 0,
+            Agent.name.in_({name for _run, name in keys}),
+        )
+    ).all()
     why = handoff.did_not_work(session, list(agents))
     return {(agent.run_id, agent.name) for agent in agents if agent.id in why} & keys
 
 
-def found(session: Session, project_id: str, query: str,
-          also: "kept.Also | None" = None) -> list[Said]:
+def found(
+    session: Session, project_id: str, query: str, also: "kept.Also | None" = None
+) -> list[Said]:
     """What was said in the project's earlier turns that speaks to the query: the best
     matched first (bm25), at most MAX_FOUND. With `also` (22c): the linked projects' turns
     too, each tagged with its project; and after the word matches, the ones the search
@@ -328,7 +378,7 @@ def found(session: Session, project_id: str, query: str,
     # towards a word of it, as it does in the memory (`memory.search`'s intent) - bm25
     # ranks are hardly ever equal, and a second window would be a second pass over the
     # text; do both if an agent is ever seen to get the less fitting excerpt first.
-    asked = kept.one_line(query)[:kept.MAX_QUERY]
+    asked = kept.one_line(query)[: kept.MAX_QUERY]
     wanted = {word for word in _words(asked) if len(word) > 1 and word not in _STOP}
     linked = also.linked if also else {}
     near = also.near.turns if also and also.near else []
@@ -336,19 +386,39 @@ def found(session: Session, project_id: str, query: str,
         return []
     # Each word in quotes, so that nothing of it is read as the index's own syntax; the
     # star lets it be the beginning of a word.
-    rows = session.execute(text(
-        "SELECT rowid, said, conversation_id, run_id, agent, at, project_id, rank "
-        "FROM said_in_turns WHERE said_in_turns MATCH :asked AND project_id IN :projects "
-        "ORDER BY rank LIMIT :most"
-    ).bindparams(bindparam("projects", expanding=True)), {
-        "asked": " OR ".join(f'"{word}"*' for word in sorted(wanted)),
-        "projects": [project_id, *linked], "most": LOOKED_AT}).all() if wanted else []
+    rows = (
+        session.execute(
+            text(
+                "SELECT rowid, said, conversation_id, run_id, agent, at, project_id, rank "
+                "FROM said_in_turns WHERE said_in_turns MATCH :asked AND project_id IN :projects "
+                "ORDER BY rank LIMIT :most"
+            ).bindparams(bindparam("projects", expanding=True)),
+            {
+                "asked": " OR ".join(f'"{word}"*' for word in sorted(wanted)),
+                "projects": [project_id, *linked],
+                "most": LOOKED_AT,
+            },
+        ).all()
+        if wanted
+        else []
+    )
     # The ones near in meaning, after the word matches, nearest first (`meaning.search`).
-    by_row = {row.rowid: row for row in session.execute(text(
-        "SELECT rowid, said, conversation_id, run_id, agent, at, project_id, 0 AS rank "
-        "FROM said_in_turns WHERE rowid IN :rows AND project_id IN :projects"
-    ).bindparams(bindparam("rows", expanding=True), bindparam("projects", expanding=True)),
-        {"rows": near, "projects": [project_id, *linked]})} if near else {}
+    by_row = (
+        {
+            row.rowid: row
+            for row in session.execute(
+                text(
+                    "SELECT rowid, said, conversation_id, run_id, agent, at, project_id, 0 AS rank "
+                    "FROM said_in_turns WHERE rowid IN :rows AND project_id IN :projects"
+                ).bindparams(
+                    bindparam("rows", expanding=True), bindparam("projects", expanding=True)
+                ),
+                {"rows": near, "projects": [project_id, *linked]},
+            )
+        }
+        if near
+        else {}
+    )
     tried = _tried(session, [*rows, *by_row.values()])
 
     def ranked(row) -> float:
@@ -369,26 +439,43 @@ def found(session: Session, project_id: str, query: str,
         if len(matched) == MAX_FOUND:
             break
     found_by_words = {row.rowid for row, _first in matched}
-    meant = [(by_row[rowid], 0) for rowid in near if rowid in by_row
-             and rowid not in found_by_words]
-    titles = {cid: title for cid, title in session.execute(
-        select(Conversation.id, Conversation.title)
-        .where(Conversation.id.in_({row.conversation_id for row, _first in matched + meant}))
-    )}
+    meant = [
+        (by_row[rowid], 0) for rowid in near if rowid in by_row and rowid not in found_by_words
+    ]
+    titles = {
+        cid: title
+        for cid, title in session.execute(
+            select(Conversation.id, Conversation.title).where(
+                Conversation.id.in_({row.conversation_id for row, _first in matched + meant})
+            )
+        )
+    }
     # A trigger's turn - one nobody watched - stands below the user's own of the same rank.
     # shortcut: only among the MAX_FOUND that are found; a watched hit of the same rank
     # past them is not pulled in - sort before the cut if that is ever seen to matter.
-    unwatched = {rid for rid in session.scalars(
-        select(Run.id).where(Run.id.in_({row.run_id for row, _first in matched + meant}),
-                             Run.unattended.is_(True))
-    )}
+    unwatched = {
+        rid
+        for rid in session.scalars(
+            select(Run.id).where(
+                Run.id.in_({row.run_id for row, _first in matched + meant}),
+                Run.unattended.is_(True),
+            )
+        )
+    }
     matched.sort(key=lambda hit: (ranked(hit[0]), hit[0].run_id in unwatched))
     return [
-        Said(row.agent, row.conversation_id, titles.get(row.conversation_id, ""), row.run_id,
-             datetime.fromisoformat(row.at) if row.at else None, _excerpt(row.said, first),
-             trigger=row.run_id in unwatched, project=linked.get(row.project_id),
-             by_meaning=row.rowid not in found_by_words,
-             tried=(row.run_id, row.agent) in tried)
+        Said(
+            row.agent,
+            row.conversation_id,
+            titles.get(row.conversation_id, ""),
+            row.run_id,
+            datetime.fromisoformat(row.at) if row.at else None,
+            _excerpt(row.said, first),
+            trigger=row.run_id in unwatched,
+            project=linked.get(row.project_id),
+            by_meaning=row.rowid not in found_by_words,
+            tried=(row.run_id, row.agent) in tried,
+        )
         for row, first in matched + meant
     ]
 
@@ -400,10 +487,14 @@ def told(session: Session, project_id: str, query: str, also: "kept.Also | None"
     conversation's title - is in quotes; the rest is KOLONİ's."""
     lines = []
     for said in found(session, project_id, query, also):
-        who = f"the user, {quoted(YOU)}," if said.agent is None else (
-            f"the agent {quoted(said.who)}")
-        where = (f" in the conversation {quoted(kept.one_line(said.conversation_title))}"
-                 if said.conversation_id is not None else "")
+        who = (
+            f"the user, {quoted(YOU)}," if said.agent is None else (f"the agent {quoted(said.who)}")
+        )
+        where = (
+            f" in the conversation {quoted(kept.one_line(said.conversation_title))}"
+            if said.conversation_id is not None
+            else ""
+        )
         when = f" on {said.at:%Y-%m-%d}" if said.at else " on a day not on record"
         kind = "a backlog task closed by" if said.kind == "task" else "said by"
         tag = ", in a trigger's turn" if said.trigger else ""
@@ -413,16 +504,21 @@ def told(session: Session, project_id: str, query: str, also: "kept.Also | None"
             tag += f"; {kept.BY_MEANING}"
         if said.tried:
             tag += f"; {TRIED}"
-        lines.append(
-            f"- {quoted(kept.one_line(said.excerpt))} ({kind} {who}{where}{when}{tag})")
+        lines.append(f"- {quoted(kept.one_line(said.excerpt))} ({kind} {who}{where}{when}{tag})")
     return "\n".join([HEAD, *lines]) if lines else NOTHING
 
 
 # --- K-zor-ipucu: what KOLONİ knows beside the lead's "how hard" question ------------------
 
 
-def how_hard_facts(session: Session, root: str | None, project_id: str | None, run_id: str,
-                   message: str, parts_map: dict | None) -> str:
+def how_hard_facts(
+    session: Session,
+    root: str | None,
+    project_id: str | None,
+    run_id: str,
+    message: str,
+    parts_map: dict | None,
+) -> str:
     """K-zor-ipucu: a "Facts:" block for the "how hard" question, from what KOLONİ knows and no
     model: how many files the message names are in the project, the parts of the map
     (`project_map.scan`; None: not made) they or the message name, with their size, and the
@@ -439,27 +535,54 @@ def how_hard_facts(session: Session, root: str | None, project_id: str | None, r
             with contextlib.suppress(WorkspaceError, OSError, ValueError):
                 if ws.resolve(named).is_file():
                     files.append(named)
-    parts = {one["path"]: one for one in (parts_map or {}).get("parts", ())
-             if one["path"] != project_map.ROOT}
-    touched = [max((part for part in parts if file.startswith(part)), key=len, default="")
-               for file in files] + [project_map.named(parts_map, message) or ""]
-    runs = list(dict.fromkeys(
-        said.run_id for said in found(session, project_id, message) if said.run_id != run_id
-    )) if project_id else []
+    parts = {
+        one["path"]: one
+        for one in (parts_map or {}).get("parts", ())
+        if one["path"] != project_map.ROOT
+    }
+    touched = [
+        max((part for part in parts if file.startswith(part)), key=len, default="")
+        for file in files
+    ] + [project_map.named(parts_map, message) or ""]
+    runs = (
+        list(
+            dict.fromkeys(
+                said.run_id for said in found(session, project_id, message) if said.run_id != run_id
+            )
+        )
+        if project_id
+        else []
+    )
     leads = session.scalars(
-        select(Agent.id).join(Run, Run.id == Agent.run_id)
+        select(Agent.id)
+        .join(Run, Run.id == Agent.run_id)
         .where(Agent.run_id.in_(runs), Agent.depth == 0, Agent.status == "completed")
-        .order_by(Run.created_at.desc()).limit(SIMILAR_JOBS)).all()
-    steps = [session.scalar(select(func.count()).where(
-        Message.agent_id == lead, Message.role == "assistant")) or 0 for lead in leads]
+        .order_by(Run.created_at.desc())
+        .limit(SIMILAR_JOBS)
+    ).all()
+    steps = [
+        session.scalar(
+            select(func.count()).where(Message.agent_id == lead, Message.role == "assistant")
+        )
+        or 0
+        for lead in leads
+    ]
     lines = []
     if files:
-        lines.append(f"Files it names that are in the project: {len(files)} ("
-                     + ", ".join(map(quoted, files[:MOST_NAMED])) + ")")
-    if shown := [f"{quoted(part)} ({parts[part]['files']}{'+' if parts[part]['more'] else ''}"
-                 " files)" for part in dict.fromkeys(touched) if part in parts]:
+        lines.append(
+            f"Files it names that are in the project: {len(files)} ("
+            + ", ".join(map(quoted, files[:MOST_NAMED]))
+            + ")"
+        )
+    if shown := [
+        f"{quoted(part)} ({parts[part]['files']}{'+' if parts[part]['more'] else ''} files)"
+        for part in dict.fromkeys(touched)
+        if part in parts
+    ]:
         lines.append("Parts of the project it touches: " + ", ".join(shown))
     if steps:
-        lines.append(f"Steps the Orchestrator took on similar earlier jobs: median "
-                     f"{statistics.median(steps):g} (of {len(steps)})")
+        lines.append(
+            f"Steps the Orchestrator took on similar earlier jobs: median "
+            f"{statistics.median(steps):g} (of {len(steps)})"
+        )
     return "Facts:\n" + "\n".join(lines) if lines else NO_FACTS

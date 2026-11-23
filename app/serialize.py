@@ -64,8 +64,11 @@ def tell_chats(session, bus, project_id: str) -> None:
     """Every chat of a project follows its settings (tek-ev): a page open on one shows them anew.
     shortcut: told to each chat not put away, one at a time, and not kept; a project of thousands
     of chats would want one project-wide event."""
-    for chat in session.scalars(select(Conversation).where(
-            Conversation.project_id == project_id, Conversation.archived_at.is_(None))):
+    for chat in session.scalars(
+        select(Conversation).where(
+            Conversation.project_id == project_id, Conversation.archived_at.is_(None)
+        )
+    ):
         bus.emit_transient(chat.id, "conversation.updated", conversation_out(chat))
 
 
@@ -95,60 +98,66 @@ def file_change_out(change: FileChange) -> dict:
     diff, additions, deletions = unified_diff(
         change.before_content, change.after_content, change.path
     )
-    return FileChangeOut.model_validate({
-        "id": change.id,
-        "run_id": change.run_id,
-        "agent_id": change.agent_id,
-        "origin": change.origin,
-        "tool_call_id": change.tool_call_id,
-        "path": change.path,
-        "kind": change.kind,
-        "status": change.status,
-        "diff": diff,
-        "additions": additions,
-        "deletions": deletions,
-        "created_at": change.created_at,
-        "decided_at": change.decided_at,
-        # (KOLONİ keeps an attached file under its id: `attachments.keep`)
-        "attachment_id": PurePath(change.after_from).name if change.after_from else None,
-    }).model_dump(mode="json")
+    return FileChangeOut.model_validate(
+        {
+            "id": change.id,
+            "run_id": change.run_id,
+            "agent_id": change.agent_id,
+            "origin": change.origin,
+            "tool_call_id": change.tool_call_id,
+            "path": change.path,
+            "kind": change.kind,
+            "status": change.status,
+            "diff": diff,
+            "additions": additions,
+            "deletions": deletions,
+            "created_at": change.created_at,
+            "decided_at": change.decided_at,
+            # (KOLONİ keeps an attached file under its id: `attachments.keep`)
+            "attachment_id": PurePath(change.after_from).name if change.after_from else None,
+        }
+    ).model_dump(mode="json")
 
 
 def command_out(command: Command, live_output: str | None = None, held: bool = False) -> dict:
     """A command record; `live_output` replaces the stored output while it is running.
     `held`: its search reaches a secret file of its folder (`search_reason`), as the caller found
     (B-44, B-316) - not said unlooked."""
-    return CommandOut.model_validate({
-        "id": command.id,
-        "run_id": command.run_id,
-        "agent_id": command.agent_id,
-        "origin": command.origin,
-        "tool_call_id": command.tool_call_id,
-        "command": command.command,
-        "cwd": command.cwd,
-        "location": command.location,
-        "image": command.image,
-        "status": command.status,
-        "exit_code": command.exit_code,
-        "output": command.output if live_output is None else live_output,
-        "output_truncated": command.output_truncated,
-        "timeout_seconds": command.timeout_seconds,
-        "suggested_prefix": "" if command.keep_running or command.web_off
-        else suggest_prefix(command.command),
-        "web_off": command.web_off,
-        # The card's reason, a send-off's too (R118: `danger` alone left a push's empty), and
-        # one its call was given (R125: a branch switch, a copy's link - `why_asked`).
-        # (Said on its card alone, while it waits: so a live event and a reload say the same.)
-        "danger": harms(with_cwd(command.command, command.cwd)) or _why_asked(command)
-        or (SEARCHES_FOLDER if held and command.status == "proposed" else ""),
-        "keep_running": command.keep_running,
-        "preview_url": command.preview_url,
-        "judged": command.judged,
-        "disposable": command.disposable,
-        "created_at": command.created_at,
-        "started_at": command.started_at,
-        "ended_at": command.ended_at,
-    }).model_dump(mode="json")
+    return CommandOut.model_validate(
+        {
+            "id": command.id,
+            "run_id": command.run_id,
+            "agent_id": command.agent_id,
+            "origin": command.origin,
+            "tool_call_id": command.tool_call_id,
+            "command": command.command,
+            "cwd": command.cwd,
+            "location": command.location,
+            "image": command.image,
+            "status": command.status,
+            "exit_code": command.exit_code,
+            "output": command.output if live_output is None else live_output,
+            "output_truncated": command.output_truncated,
+            "timeout_seconds": command.timeout_seconds,
+            "suggested_prefix": ""
+            if command.keep_running or command.web_off
+            else suggest_prefix(command.command),
+            "web_off": command.web_off,
+            # The card's reason, a send-off's too (R118: `danger` alone left a push's empty), and
+            # one its call was given (R125: a branch switch, a copy's link - `why_asked`).
+            # (Said on its card alone, while it waits: so a live event and a reload say the same.)
+            "danger": harms(with_cwd(command.command, command.cwd))
+            or _why_asked(command)
+            or (SEARCHES_FOLDER if held and command.status == "proposed" else ""),
+            "keep_running": command.keep_running,
+            "preview_url": command.preview_url,
+            "judged": command.judged,
+            "disposable": command.disposable,
+            "created_at": command.created_at,
+            "started_at": command.started_at,
+            "ended_at": command.ended_at,
+        }
+    ).model_dump(mode="json")
 
 
 def _why_asked(command: Command) -> str:
@@ -160,10 +169,15 @@ def _why_asked(command: Command) -> str:
 
 
 def allowed_command_out(rule: AllowedCommand) -> dict:
-    return AllowedCommandOut.model_validate({
-        "id": rule.id, "conversation_id": rule.conversation_id, "prefix": rule.prefix,
-        "danger": danger(rule.prefix), "created_at": rule.created_at,
-    }).model_dump(mode="json")
+    return AllowedCommandOut.model_validate(
+        {
+            "id": rule.id,
+            "conversation_id": rule.conversation_id,
+            "prefix": rule.prefix,
+            "danger": danger(rule.prefix),
+            "created_at": rule.created_at,
+        }
+    ).model_dump(mode="json")
 
 
 def web_request_out(asked: WebRequest) -> dict:
@@ -220,14 +234,18 @@ def discussion_out(session, discussion) -> dict:
         .where(DiscussionMember.discussion_id == discussion.id)
         .order_by(DiscussionMember.position)
     ).all()
-    return DiscussionOut.model_validate({
-        **{column.name: getattr(discussion, column.name)
-           for column in discussion.__table__.columns},
-        "members": [
-            {"agent_id": m.agent_id, "status": m.status, "opened_here": m.opened_here}
-            for m in members
-        ],
-    }).model_dump(mode="json")
+    return DiscussionOut.model_validate(
+        {
+            **{
+                column.name: getattr(discussion, column.name)
+                for column in discussion.__table__.columns
+            },
+            "members": [
+                {"agent_id": m.agent_id, "status": m.status, "opened_here": m.opened_here}
+                for m in members
+            ],
+        }
+    ).model_dump(mode="json")
 
 
 def discussion_post_out(post) -> dict:
@@ -247,11 +265,19 @@ def room_spent(session, room) -> dict:
     from app.room import POST_TYPES
 
     seconds = room.seconds + (
-        (now() - room.clock_since).total_seconds() if room.clock_since else 0.0)
+        (now() - room.clock_since).total_seconds() if room.clock_since else 0.0
+    )
     return {
-        "posts": session.scalar(select(func.count()).select_from(RoomPost).where(
-            RoomPost.room_id == room.id, RoomPost.agent_id.is_not(None),
-            RoomPost.type.in_(POST_TYPES))) or 0,
+        "posts": session.scalar(
+            select(func.count())
+            .select_from(RoomPost)
+            .where(
+                RoomPost.room_id == room.id,
+                RoomPost.agent_id.is_not(None),
+                RoomPost.type.in_(POST_TYPES),
+            )
+        )
+        or 0,
         "tokens": room.tokens,
         "minutes": round(max(0.0, seconds) / 60, 1),
     }
@@ -269,29 +295,48 @@ def room_out(session, room) -> dict:
         select(RoomMember).where(RoomMember.room_id == room.id).order_by(RoomMember.position)
     ).all()
     # What it came to: said once it is over - not read again with every post of a live room.
-    done = [] if room.status in RUNNING else session.scalars(
-        select(RoomItem.result).where(RoomItem.room_id == room.id, RoomItem.status == "done")
-        .order_by(RoomItem.number)
-    ).all()
+    done = (
+        []
+        if room.status in RUNNING
+        else session.scalars(
+            select(RoomItem.result)
+            .where(RoomItem.room_id == room.id, RoomItem.status == "done")
+            .order_by(RoomItem.number)
+        ).all()
+    )
     # (K-oda-lead: the sentence its opener ended it with, where it did)
-    ended = None if room.status in RUNNING else session.scalar(
-        select(RoomPost.text).where(RoomPost.room_id == room.id, RoomPost.type == "ended"))
-    return RoomOut.model_validate({
-        "id": room.id, "run_id": room.run_id, "goal": room.goal, "agent_id": room.agent_id,
-        "status": room.status,
-        "outcome": room.outcome, "why": room.why, "created_at": room.created_at,
-        "ended_at": room.ended_at,
-        "budget": {
-            "posts": room.max_posts, "tokens": room.max_tokens, "minutes": room.max_minutes,
-        },
-        "spent": room_spent(session, room),
-        "summary": ended or summary(done),
-        "paused": room.paused,
-        "lead_follows": room.lead_follows,
-        "members": [
-            {"agent_id": m.agent_id, "role": m.role, "status": m.status} for m in members
-        ],
-    }).model_dump(mode="json")
+    ended = (
+        None
+        if room.status in RUNNING
+        else session.scalar(
+            select(RoomPost.text).where(RoomPost.room_id == room.id, RoomPost.type == "ended")
+        )
+    )
+    return RoomOut.model_validate(
+        {
+            "id": room.id,
+            "run_id": room.run_id,
+            "goal": room.goal,
+            "agent_id": room.agent_id,
+            "status": room.status,
+            "outcome": room.outcome,
+            "why": room.why,
+            "created_at": room.created_at,
+            "ended_at": room.ended_at,
+            "budget": {
+                "posts": room.max_posts,
+                "tokens": room.max_tokens,
+                "minutes": room.max_minutes,
+            },
+            "spent": room_spent(session, room),
+            "summary": ended or summary(done),
+            "paused": room.paused,
+            "lead_follows": room.lead_follows,
+            "members": [
+                {"agent_id": m.agent_id, "role": m.role, "status": m.status} for m in members
+            ],
+        }
+    ).model_dump(mode="json")
 
 
 def room_item_out(item) -> dict:
@@ -310,8 +355,9 @@ def board_post_out(post, read_by=()) -> dict:
     """A note on the shared notebook, with the agents that were handed it."""
     from app.schemas import BoardPostOut
 
-    return BoardPostOut.model_validate({
-        **{column.name: getattr(post, column.name) for column in post.__table__.columns},
-        "read_by": list(read_by),
-    }).model_dump(mode="json")
-
+    return BoardPostOut.model_validate(
+        {
+            **{column.name: getattr(post, column.name) for column in post.__table__.columns},
+            "read_by": list(read_by),
+        }
+    ).model_dump(mode="json")

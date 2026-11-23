@@ -55,7 +55,10 @@ def test_only_the_key_of_the_setup_is_taken_and_the_setup_is_the_apps_own_pages(
         assert send(client, week(93), wrong).status_code == 403
     assert client.get(f"/api/providers/{cc}/limits").json().get("unknown")
     # The test client's own name for where it is, is not this machine.
-    assert made.post(SESSION, json=week(93), headers={"Origin": "", "X-Koloni-Key": key}).status_code == 403
+    assert (
+        made.post(SESSION, json=week(93), headers={"Origin": "", "X-Koloni-Key": key}).status_code
+        == 403
+    )
     assert send(client, week(93), key).status_code == 204
 
 
@@ -115,13 +118,18 @@ def test_what_was_read_of_an_account_goes_with_its_last_provider(here):
 
 
 def test_each_provider_with_its_own_folder_is_read_there_and_the_users_session_is_not_its(
-        here, monkeypatch):
+    here, monkeypatch
+):
     # K-claude-hesap: plan limits are read per provider, not per CLI.
     _made, client = here
     mine = provider(client, "claude_cli", "Claude Code")
-    work, home = (client.post("/api/providers", json={
-        "name": name, "kind": "claude_cli", "options": {"sign_in": "koloni"}}).json()["id"]
-        for name in ("Work", "Home"))
+    work, home = (
+        client.post(
+            "/api/providers",
+            json={"name": name, "kind": "claude_cli", "options": {"sign_in": "koloni"}},
+        ).json()["id"]
+        for name in ("Work", "Home")
+    )
     asked = []
 
     async def claude_turn(executable, timeout, home=None):

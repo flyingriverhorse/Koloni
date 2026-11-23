@@ -3,6 +3,7 @@
 Revision ID: 0040
 Revises: 0039
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -15,8 +16,9 @@ depends_on = None
 def upgrade() -> None:
     # A project from before this has nothing noted by itself: the user has not said so.
     with op.batch_alter_table("projects") as batch:
-        batch.add_column(sa.Column(
-            "auto_notes", sa.Boolean(), server_default=sa.false(), nullable=False))
+        batch.add_column(
+            sa.Column("auto_notes", sa.Boolean(), server_default=sa.false(), nullable=False)
+        )
         batch.add_column(sa.Column("last_auto", sa.JSON(), nullable=True))
     with op.batch_alter_table("memories") as batch:
         batch.add_column(sa.Column("noted_by", sa.JSON(), nullable=True))

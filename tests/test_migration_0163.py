@@ -15,12 +15,15 @@ def test_every_project_starts_with_nothing_found_and_back(tmp_path):
     cfg = _config(db)
     command.upgrade(cfg, "0162")
     with sqlite3.connect(db) as conn:
-        conn.execute("INSERT INTO projects (id, name, root_path, created_at) "
-                     "VALUES ('p', 'p', 'C:/p', ?)", (AT,))
+        conn.execute(
+            "INSERT INTO projects (id, name, root_path, created_at) VALUES ('p', 'p', 'C:/p', ?)",
+            (AT,),
+        )
     command.upgrade(cfg, "0163")
     with sqlite3.connect(db) as conn:
         assert conn.execute("SELECT tests_found, tests_look FROM projects").fetchall() == [
-            ("{}", None)]
+            ("{}", None)
+        ]
     command.downgrade(cfg, "0162")
     with sqlite3.connect(db) as conn:
         names = [row[1] for row in conn.execute("PRAGMA table_info(projects)")]

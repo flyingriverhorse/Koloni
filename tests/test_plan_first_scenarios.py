@@ -78,6 +78,7 @@ def test_a_delegating_leads_plan_is_told_to_name_who_makes_each_change(
     assert "This turn is for a plan only" in system
     assert ("say which sub-agent or role makes it" in system) is delegates
 
+
 def test_approved_the_work_turn_carries_the_plan_and_may_change_files(
     make_client, wait_run, project_dir
 ):

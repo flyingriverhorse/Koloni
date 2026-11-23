@@ -65,8 +65,9 @@ def nothing_left(runner):
 
 def on_board(client, cid):
     """The chat's row of every chat's board, and what of it waits for the user."""
-    (row,) = [c for c in client.get("/api/board").json()["conversations"]
-              if c["conversation_id"] == cid]
+    (row,) = [
+        c for c in client.get("/api/board").json()["conversations"] if c["conversation_id"] == cid
+    ]
     return row, waiting_in(row)
 
 
@@ -87,8 +88,17 @@ class Queued(ScriptedModel):
         self.lines, self.go = lines, [threading.Event() for _ in lines]
         self.at, self.ended = -1, False
 
-    async def run_session(self, model_id, messages, tools, call_tool, on_text, on_message=None,
-                          effort=None, on_live=None):
+    async def run_session(
+        self,
+        model_id,
+        messages,
+        tools,
+        call_tool,
+        on_text,
+        on_message=None,
+        effort=None,
+        on_live=None,
+    ):
         try:
             for i, elapsed in enumerate(self.lines):
                 if isinstance(elapsed, str):
@@ -106,8 +116,9 @@ class Queued(ScriptedModel):
 
 def queued_app(settings_env, lines):
     cli = Queued(lines)
-    client = TestClient(create_app(load_settings(settings_env), model=cli),
-                        base_url="http://127.0.0.1:8790")
+    client = TestClient(
+        create_app(load_settings(settings_env), model=cli), base_url="http://127.0.0.1:8790"
+    )
     client.__enter__()
     client.headers.update(OWN)
     return client, cli
@@ -121,7 +132,8 @@ def at(cli, i):
 
 
 def test_a_silent_orchestrator_is_asked_once_and_keep_waiting_waits_a_whole_limit_more(
-        make_client, wait_run, project_dir, gate):
+    make_client, wait_run, project_dir, gate
+):
     client, _model = make_client([gate.step(text("done at last"))])
     runner = client.app.state.runner
     clock = runner.call_later = HeldClock()
@@ -144,7 +156,8 @@ def test_a_silent_orchestrator_is_asked_once_and_keep_waiting_waits_a_whole_limi
     assert snap["runs"][0]["status"] == "running"
     fire(client, again)  # (still no word: the next card counts both limits)
     assert asked(until(client, cid, asked))["question"] == (
-        f"{who(snap)} has not answered for 10 min.{ASKED}")
+        f"{who(snap)} has not answered for 10 min.{ASKED}"
+    )
     gate.release()
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
@@ -154,7 +167,8 @@ def test_a_silent_orchestrator_is_asked_once_and_keep_waiting_waits_a_whole_limi
 
 
 def test_its_card_waits_for_the_user_on_the_board_until_it_is_answered_or_closed(
-        make_client, wait_run, project_dir, gate):
+    make_client, wait_run, project_dir, gate
+):
     # (live, 20 Nov 2026: while the card waited the board said the Lead "running" with no
     # question - no toast, Ready said nothing waits, no mark in Chats: a card asked beside the
     # model's work was not counted as asking)
@@ -169,7 +183,11 @@ def test_its_card_waits_for_the_user_on_the_board_until_it_is_answered_or_closed
     (lead,) = [a for a in row["agents"] if a["name"] == "Lead"]
     # (KOLONİ's own card about it, not its question: "Orchestrator waits for you", not "asks you")
     assert (lead["status"], lead["questions"], lead["own_questions"], waits) == (
-        "waiting_approval", 1, 0, 1), row
+        "waiting_approval",
+        1,
+        0,
+        1,
+    ), row
     answer(client, card, "Keep waiting")
     row, _ = once(lambda: (on := on_board(client, cid))[1] == 0 and on, "Keep waiting left it")
     (lead,) = [a for a in row["agents"] if a["name"] == "Lead"]
@@ -186,13 +204,17 @@ def test_its_card_waits_for_the_user_on_the_board_until_it_is_answered_or_closed
 
 
 def test_words_from_the_model_start_its_clock_again_and_no_card_comes(
-        make_client, wait_run, project_dir, gate):
+    make_client, wait_run, project_dir, gate
+):
     client, _model = make_client([gate.step(text("done"), partial="Looking at it")])
     clock = client.app.state.runner.call_later = HeldClock()
     cid, run_id = begin(client, project_dir)
     gate.wait_partial()
     timers = [t for t in clock.set if t.delay == SLOW]
-    assert [t.cancelled for t in timers] == [True, False]  # (set as it was asked, again at its words)
+    assert [t.cancelled for t in timers] == [
+        True,
+        False,
+    ]  # (set as it was asked, again at its words)
     gate.release()
     snap = wait_run(client, cid, run_id)
     assert snap["questions"] == [] and not slow_timers(clock)
@@ -221,7 +243,8 @@ def test_each_word_of_a_cli_session_starts_its_clock_again(settings_env, wait_ru
 
 
 def test_a_wait_that_is_not_its_models_holds_the_clock_and_the_models_answer_closes_its_card(
-        make_client, wait_run, project_dir, gate):
+    make_client, wait_run, project_dir, gate
+):
     client, _model = make_client([gate.step(text("done"))])
     runner = client.app.state.runner
     clock = runner.call_later = HeldClock()
@@ -231,13 +254,30 @@ def test_a_wait_that_is_not_its_models_holds_the_clock_and_the_models_answer_clo
     lead, message = agent(snap, "Lead")["id"], snap["messages"][0]["id"]
 
     def users_card(session):  # (any card of the turn: the user is slow, not the model)
-        session.add(Command(run_id=run_id, agent_id=lead, command="make", location="host",
-                            timeout_seconds=60, status="proposed"))
+        session.add(
+            Command(
+                run_id=run_id,
+                agent_id=lead,
+                command="make",
+                location="host",
+                timeout_seconds=60,
+                status="proposed",
+            )
+        )
 
     def call_at_work(session):  # (a call of it at work: KOLONİ's time - a sub-agent, a command)
-        session.add(ToolCall(run_id=run_id, agent_id=lead, message_id=message, seq=1,
-                             provider_call_id="c1", name="read_file", arguments="{}",
-                             status="running"))
+        session.add(
+            ToolCall(
+                run_id=run_id,
+                agent_id=lead,
+                message_id=message,
+                seq=1,
+                provider_call_id="c1",
+                name="read_file",
+                arguments="{}",
+                status="running",
+            )
+        )
 
     def in_line(session):  # (not at work itself: in line for a place)
         session.get_one(Agent, lead).status = "queued"
@@ -273,8 +313,9 @@ def test_a_wait_that_is_not_its_models_holds_the_clock_and_the_models_answer_clo
     nothing_left(runner)
 
 
-def test_stop_while_its_card_waits_ends_the_turn_as_stop_does(make_client, wait_run, project_dir,
-                                                              gate):
+def test_stop_while_its_card_waits_ends_the_turn_as_stop_does(
+    make_client, wait_run, project_dir, gate
+):
     client, _model = make_client([gate.step(text("never said"))])
     runner = client.app.state.runner
     clock = runner.call_later = HeldClock()
@@ -293,8 +334,9 @@ def test_stop_while_its_card_waits_ends_the_turn_as_stop_does(make_client, wait_
 # --- Qoder's queue -------------------------------------------------------------------------------
 
 
-def test_qoder_queuing_the_orchestrator_is_asked_sooner_and_once(settings_env, wait_run,
-                                                                 project_dir):
+def test_qoder_queuing_the_orchestrator_is_asked_sooner_and_once(
+    settings_env, wait_run, project_dir
+):
     client, cli = queued_app(settings_env, [65, 120, 150])
     try:
         runner = client.app.state.runner
@@ -306,7 +348,8 @@ def test_qoder_queuing_the_orchestrator_is_asked_sooner_and_once(settings_env, w
         snap = until(client, cid, asked)
         lead = agent(snap, "Lead")
         assert asked(snap)["question"] == (
-            f"{lead['provider_name']} has kept {lead['model_id']} queued for 2 min.{ASKED}")
+            f"{lead['provider_name']} has kept {lead['model_id']} queued for 2 min.{ASKED}"
+        )
         answer(client, asked(snap), "Keep waiting")
         cli.go[1].set()
         at(cli, 2)  # (its next queue line, 150 s: no second card before a whole limit more)
@@ -322,7 +365,8 @@ def test_qoder_queuing_the_orchestrator_is_asked_sooner_and_once(settings_env, w
 
 
 def test_stop_and_pick_another_model_ends_the_turn_and_its_cli_and_says_what_to_do(
-        settings_env, wait_run, project_dir):
+    settings_env, wait_run, project_dir
+):
     client, cli = queued_app(settings_env, [120])
     try:
         runner = client.app.state.runner
@@ -337,9 +381,11 @@ def test_stop_and_pick_another_model_ends_the_turn_and_its_cli_and_says_what_to_
         assert [m["content"] for m in snap["messages"] if m["role"] == "koloni"] == [
             f"You stopped this turn: {said} What it did so far is kept. To go on, pick another "
             "model for the Orchestrator - in the chat's model picker, or on the Agents page where "
-            "the Orchestrator role has a model of its own - and send your message again."]
+            "the Orchestrator role has a model of its own - and send your message again."
+        ]
         assert [m["content"] for m in snap["messages"] if m["role"] == "user"] == [
-            "please check my greeting"]  # (the user's message is kept)
+            "please check my greeting"
+        ]  # (the user's message is kept)
         nothing_left(runner)
     finally:
         cli.go[0].set()
@@ -350,7 +396,8 @@ def test_stop_and_pick_another_model_ends_the_turn_and_its_cli_and_says_what_to_
 
 
 def test_its_answer_to_a_message_and_its_speech_in_a_discussion_leave_its_clock_alone(
-        make_client, wait_run, project_dir, gate):
+    make_client, wait_run, project_dir, gate
+):
     # (they run on its own agent, beside its own work: their steps neither set nor stop its clock)
     client, _model = make_client([gate.step(text("done"))])
     runner = client.app.state.runner
@@ -383,8 +430,9 @@ def answering(runner, cid, agent_id):
 
 def test_a_sub_agent_has_no_slow_clock(make_client, wait_run, project_dir, gate):
     # (its provider's failure moves it on - `_moved_on`; its opener's clock is off while it waits)
-    client, _model = make_client({"Lead": [spawn("Coder", "write it"), text("done")],
-                                  "Coder": [gate.step(text("written"))]})
+    client, _model = make_client(
+        {"Lead": [spawn("Coder", "write it"), text("done")], "Coder": [gate.step(text("written"))]}
+    )
     clock = client.app.state.runner.call_later = HeldClock()
     cid, run_id = begin(client, project_dir, mode="full_auto")
     gate.wait_partial()
@@ -394,10 +442,12 @@ def test_a_sub_agent_has_no_slow_clock(make_client, wait_run, project_dir, gate)
 
 
 def test_a_turn_nobody_watches_has_no_slow_clock(make_client, wait_run, project_dir):
-    client, _model, pid, cid = trigger_setup(make_client, project_dir, [text("looked")],
-                                             permission_mode="full_auto")
+    client, _model, pid, cid = trigger_setup(
+        make_client, project_dir, [text("looked")], permission_mode="full_auto"
+    )
     clock = client.app.state.runner.call_later = HeldClock()
-    made = trigger(client, pid, cid, permissions=leave(),
-                   budget={"steps": 15, "minutes": 60, "per_day": 24})
+    made = trigger(
+        client, pid, cid, permissions=leave(), budget={"steps": 15, "minutes": 60, "per_day": 24}
+    )
     wait_run(client, cid, run_now(client, made["id"]))
     assert not [t for t in clock.set if t.delay == SLOW]

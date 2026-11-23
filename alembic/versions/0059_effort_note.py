@@ -4,6 +4,7 @@ service refused it (slice 59c).
 Revision ID: 0059
 Revises: 0058
 """
+
 import sqlalchemy as sa
 from alembic import op
 

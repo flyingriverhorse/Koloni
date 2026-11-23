@@ -3,6 +3,7 @@
 Revision ID: 0038
 Revises: 0037
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -15,8 +16,9 @@ depends_on = None
 def upgrade() -> None:
     # A conversation from before this gets the budget a new one starts with.
     with op.batch_alter_table("conversations") as batch:
-        batch.add_column(sa.Column(
-            "discussion_budget", sa.Integer(), nullable=True, server_default="200000"))
+        batch.add_column(
+            sa.Column("discussion_budget", sa.Integer(), nullable=True, server_default="200000")
+        )
 
 
 def downgrade() -> None:

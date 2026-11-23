@@ -33,9 +33,10 @@ def _written(changes: list[Change], made: Sequence[str] = ()) -> dict[str, list[
     its commands made that no change record holds (`made`: a deck or a Word file a script wrote,
     `ShownFile`), after them."""
     found: dict[str, list[str]] = {}
-    for path, kind in [*((one.path, one.kind) for one in changes
-                         if one.in_project and not one.deleted),
-                       *((path, proof.kind_of(path)) for path in made)]:
+    for path, kind in [
+        *((one.path, one.kind) for one in changes if one.in_project and not one.deleted),
+        *((path, proof.kind_of(path)) for path in made),
+    ]:
         if kind in proof_kinds.WRITTEN and path not in found.get(kind, []):
             found.setdefault(kind, []).append(path)
     return found
@@ -51,11 +52,22 @@ class KindsMixin:
         the last pass's; a failed one is a fix round while Fix rounds are left."""
         held.rows = [one for one in held.rows if one["kind"] not in proof_kinds.WRITTEN]
         with self._factory() as session:
-            made = list(session.scalars(select(ShownFile.path).join(
-                Agent, Agent.id == ShownFile.agent_id).where(Agent.run_id == ctx.run_id)))
-            asked = session.scalar(select(Message.content).where(
-                Message.run_id == ctx.run_id, Message.role == "user").order_by(
-                Message.created_at, literal_column("messages.rowid")).limit(1)) or ""
+            made = list(
+                session.scalars(
+                    select(ShownFile.path)
+                    .join(Agent, Agent.id == ShownFile.agent_id)
+                    .where(Agent.run_id == ctx.run_id)
+                )
+            )
+            asked = (
+                session.scalar(
+                    select(Message.content)
+                    .where(Message.run_id == ctx.run_id, Message.role == "user")
+                    .order_by(Message.created_at, literal_column("messages.rowid"))
+                    .limit(1)
+                )
+                or ""
+            )
             before = proof.before_of(session, ctx.run_id)
             held.kinds_seen = proof.last_change(session, ctx.run_id)
         written, checks = _written(held.changes, made), held.checks
@@ -64,25 +76,41 @@ class KindsMixin:
         ws, rows = self._ws(ctx), []
         for kind, paths in written.items():
             if kind not in checks.on:  # (off in Check by kind of work, or the recipe's step)
-                rows.append(proof.row(kind, "note", (
-                    proof_kinds.OFF_IN_RECIPE if checks.own else proof_kinds.NOT_CHECKED_KIND
-                ).format(kind=proof_kinds.SHOWN[kind])))
+                rows.append(
+                    proof.row(
+                        kind,
+                        "note",
+                        (
+                            proof_kinds.OFF_IN_RECIPE
+                            if checks.own
+                            else proof_kinds.NOT_CHECKED_KIND
+                        ).format(kind=proof_kinds.SHOWN[kind]),
+                    )
+                )
                 continue
             if kind == proof_kinds.UI:  # (S5b: in KOLONİ's own browser)
                 rows += await self._pages(ctx, ws, paths)
                 continue
             more = {"asked": asked} if kind == "docs" else {}
-            rows += await asyncio.to_thread(proof_kinds.CHECKS[kind], ws, paths, before=before,
-                                            **more)
+            rows += await asyncio.to_thread(
+                proof_kinds.CHECKS[kind], ws, paths, before=before, **more
+            )
         held.rows += rows
         failed = [one["text"] for one in rows if one["state"] == "failed"]
         if not failed or not self._round_left(
-                ctx, held, "kinds", frozenset(failed),
-                f"{len(failed)} problem" + ("s" if len(failed) > 1 else "") + " in what it wrote"):
+            ctx,
+            held,
+            "kinds",
+            frozenset(failed),
+            f"{len(failed)} problem" + ("s" if len(failed) > 1 else "") + " in what it wrote",
+        ):
             return None
         more = f"\n+{len(failed) - MOST_TOLD} more" if len(failed) > MOST_TOLD else ""
-        return proof_kinds.KINDS_TO_FIX.format(problems=injection.noted(
-            "\n".join(f"- {one}" for one in failed[:MOST_TOLD]) + more, "agent"))
+        return proof_kinds.KINDS_TO_FIX.format(
+            problems=injection.noted(
+                "\n".join(f"- {one}" for one in failed[:MOST_TOLD]) + more, "agent"
+            )
+        )
 
     async def _pages(self: "AgentRunner", ctx: Ctx, ws: Workspace, paths: list[str]) -> list[Row]:
         """S5b: the turn's pages in a browser of KOLONİ's own, fenced as an agent's is (this
@@ -92,11 +120,11 @@ class KindsMixin:
         command = browser.find_browser()
         try:
             koloni.scratch(ctx.folder)
-            folder = self._scratch_folder(ctx, f"checked/{ctx.run_id}",
-                                          "the pages are not looked at there")
+            folder = self._scratch_folder(
+                ctx, f"checked/{ctx.run_id}", "the pages are not looked at there"
+            )
         except ToolError as exc:
-            return [proof.row(proof_kinds.UI, "note", proof_kinds.PAGES_FAILED.format(
-                why=exc))]
+            return [proof.row(proof_kinds.UI, "note", proof_kinds.PAGES_FAILED.format(why=exc))]
 
         async def start() -> browser.Browser:
             one = browser.Browser(folder, "pages")
@@ -106,8 +134,10 @@ class KindsMixin:
                 await one.close()
                 raise
             return one
-        return await proof_kinds.check_pages(start if command else None, ws, paths,
-                                             self._preview_of(ctx), folder)
+
+        return await proof_kinds.check_pages(
+            start if command else None, ws, paths, self._preview_of(ctx), folder
+        )
 
     def _preview_of(self: "AgentRunner", ctx: Ctx) -> str | None:
         """The chat's newest preview still running that serves the turn's work: one an agent
@@ -118,25 +148,38 @@ class KindsMixin:
         mine = self._works_in(ctx)
         with self._factory() as session:
             for url, agent_id, depth in session.execute(
-                    select(Command.preview_url, Command.agent_id, Agent.depth)
-                    .join(Run, Run.id == Command.run_id).join(Agent, Agent.id == Command.agent_id)
-                    .where(Run.conversation_id == ctx.cid, Command.keep_running.is_(True),
-                           Command.status == "running", Command.preview_url.is_not(None))
-                    .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc())):
+                select(Command.preview_url, Command.agent_id, Agent.depth)
+                .join(Run, Run.id == Command.run_id)
+                .join(Agent, Agent.id == Command.agent_id)
+                .where(
+                    Run.conversation_id == ctx.cid,
+                    Command.keep_running.is_(True),
+                    Command.status == "running",
+                    Command.preview_url.is_not(None),
+                )
+                .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc())
+            ):
                 there = self._ctxs.get(agent_id)
-                if (self._works_in(there) if there is not None else None if depth == 0
-                        else "elsewhere") == mine:
+                if (
+                    self._works_in(there)
+                    if there is not None
+                    else None
+                    if depth == 0
+                    else "elsewhere"
+                ) == mine:
                     return url
         return None
 
-    def _kinds_left(self: "AgentRunner", session, run_id: str, cid: str, found: list[Change],
-                    held: "Proof") -> list[Row]:
+    def _kinds_left(
+        self: "AgentRunner", session, run_id: str, cid: str, found: list[Change], held: "Proof"
+    ) -> list[Row]:
         """Where the turn wrote such files under Test and review and the kinds' last look does not
         stand for them: never made (the turn ended on an earlier step's nudge), or made before
         the last change - said, never an old result for the new work."""
         written = _written(found)
-        on = proof.checks_of(session, session.get_one(Conversation, cid),
-                             session.get(Run, run_id)).on
+        on = proof.checks_of(
+            session, session.get_one(Conversation, cid), session.get(Run, run_id)
+        ).on
         if not set(written) & on:
             return []
         if held.kinds_seen is None:

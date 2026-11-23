@@ -40,8 +40,9 @@ def fetch(url: str) -> str:
     if url == "about:blank":
         return ""
     if url.startswith("file:"):
-        return Path(urllib.request.url2pathname(url[5:].lstrip("/") if sys.platform == "win32"
-                                                else url[7:])).read_text(encoding="utf-8")
+        return Path(
+            urllib.request.url2pathname(url[5:].lstrip("/") if sys.platform == "win32" else url[7:])
+        ).read_text(encoding="utf-8")
     # K-tarayici-disari: a site of a test's (site.test) is a server on loopback, as
     # --host-resolver-rules "MAP site.test 127.0.0.1" has it in Chrome.
     parts = urllib.parse.urlsplit(url)
@@ -78,15 +79,23 @@ def focus(arg: str | None) -> str | None:
 
 
 def what(arg: dict, page: str) -> str:
-    out = {"host": urllib.parse.urlsplit(state["url"]).hostname or "", "words": "",
-           "password": False, "posts": False, "frame": False,
-           "editable": False, "hidden": False}
+    out = {
+        "host": urllib.parse.urlsplit(state["url"]).hostname or "",
+        "words": "",
+        "password": False,
+        "posts": False,
+        "frame": False,
+        "editable": False,
+        "hidden": False,
+    }
     if "x" in arg:
         # (A mark's centre is its button's; any other point the last element found.)
         out["words"] = words = state.get("marks", {}).get(
-            (arg["x"], arg["y"]), state.get("found", ""))
-        out["posts"] = bool(words) and bool(re.search(
-            r'(?is)<form[^>]*method="post".*?<button[^>]*>\s*' + re.escape(words), page))
+            (arg["x"], arg["y"]), state.get("found", "")
+        )
+        out["posts"] = bool(words) and bool(
+            re.search(r'(?is)<form[^>]*method="post".*?<button[^>]*>\s*' + re.escape(words), page)
+        )
     elif selector := arg.get("selector") or state.get("focused"):
         tag = re.search(r'<input[^>]*id="' + re.escape(selector[1:]) + r'"[^>]*>', page)
         out["password"] = bool(tag) and 'type="password"' in tag[0]
@@ -114,20 +123,30 @@ def evaluate(expression: str) -> object:
         return what(arg, page)
     # K-gorsel-motor: each button and link marked, one under the other; where the page is.
     if name == "marks":
-        found = [text_of(words) for _tag, words in
-                 re.findall(r"(?s)<(button|a)[^>]*>(.*?)</\1>", page)][:arg]
+        found = [
+            text_of(words) for _tag, words in re.findall(r"(?s)<(button|a)[^>]*>(.*?)</\1>", page)
+        ][:arg]
         state["marks"] = {(100, 100 + 40 * n): words for n, words in enumerate(found)}
-        return json.dumps({"here": evaluate("/*koloni:here null*/"), "marks": [
-            {"kind": "button", "words": words, "x": x, "y": y}
-            for (x, y), words in state["marks"].items()]})
+        return json.dumps(
+            {
+                "here": evaluate("/*koloni:here null*/"),
+                "marks": [
+                    {"kind": "button", "words": words, "x": x, "y": y}
+                    for (x, y), words in state["marks"].items()
+                ],
+            }
+        )
     if name == "unmark":
         return None
     # K-drawio (`app.diagram.draw`): the viewer's scripts, then the picture it draws.
     if name == "script":
         return None
     if name == "drawio":
-        return ('<svg xmlns="http://www.w3.org/2000/svg"/>' if arg == "svg"
-                else "data:image/png;base64," + __import__("base64").b64encode(PNG).decode())
+        return (
+            '<svg xmlns="http://www.w3.org/2000/svg"/>'
+            if arg == "svg"
+            else "data:image/png;base64," + __import__("base64").b64encode(PNG).decode()
+        )
     raise AssertionError(name)
 
 
@@ -153,8 +172,12 @@ def answer(method: str, params: dict) -> dict:
     elif method == "Accessibility.getFullAXTree":
         nodes = [{"role": {"value": "RootWebArea"}, "name": {"value": title_of(state["html"])}}]
         for tag, words in re.findall(r"(?s)<(button|a)[^>]*>(.*?)</\1>", state["html"]):
-            nodes.append({"role": {"value": "button" if tag == "button" else "link"},
-                          "name": {"value": text_of(words)}})
+            nodes.append(
+                {
+                    "role": {"value": "button" if tag == "button" else "link"},
+                    "name": {"value": text_of(words)},
+                }
+            )
         result = {"nodes": nodes}
     elif method == "Emulation.setDeviceMetricsOverride":
         state["width"] = params["width"]
@@ -182,26 +205,43 @@ async def navigate(url: str, event, paused, dialogs: list[asyncio.Future]) -> No
             dialogs.append(asyncio.get_running_loop().create_future())
             await event("Page.javascriptDialogOpening", {"message": said, "type": "alert"})
             state["dialog"] = await dialogs[-1]
-        await event("Runtime.consoleAPICalled", {
-            "type": "log", "args": [{"type": "string",
-                                     "value": f"fake browser: loaded {state['url']}"}]})
+        await event(
+            "Runtime.consoleAPICalled",
+            {
+                "type": "log",
+                "args": [{"type": "string", "value": f"fake browser: loaded {state['url']}"}],
+            },
+        )
         # S5b: a page's console.error('...') is said as Chrome says it; a script it loads is
         # paused and judged as Chrome's are - one refused is a failed load in its log.
         for said in re.findall(r"console\.error\('([^']*)'\)", state["html"]):
-            await event("Runtime.consoleAPICalled", {
-                "type": "error", "args": [{"type": "string", "value": said}]})
+            await event(
+                "Runtime.consoleAPICalled",
+                {"type": "error", "args": [{"type": "string", "value": said}]},
+            )
         for src in re.findall(r'<script[^>]*src="([^"]+)"', state["html"]):
             if not await paused(urllib.parse.urljoin(url, src), "Script"):
-                await event("Log.entryAdded", {"entry": {
-                    "source": "network", "level": "error", "url": src,
-                    "text": "Failed to load resource: net::ERR_BLOCKED_BY_CLIENT"}})
+                await event(
+                    "Log.entryAdded",
+                    {
+                        "entry": {
+                            "source": "network",
+                            "level": "error",
+                            "url": src,
+                            "text": "Failed to load resource: net::ERR_BLOCKED_BY_CLIENT",
+                        }
+                    },
+                )
     await event("Page.loadEventFired", {"timestamp": 1.0})
 
 
 async def serve(ws) -> None:
     async def event(method: str, params: dict, session: str | None = "s1") -> None:
-        await ws.send(json.dumps({"method": method, "params": params,
-                                  **({"sessionId": session} if session else {})}))
+        await ws.send(
+            json.dumps(
+                {"method": method, "params": params, **({"sessionId": session} if session else {})}
+            )
+        )
 
     # Each load is paused for the driver's judge, as Chrome does at the browser's own Fetch.enable
     # (no sessionId): continueRequest or failRequest decides it.
@@ -212,8 +252,16 @@ async def serve(ws) -> None:
         request_id = f"r{len(verdicts)}"
         verdicts[request_id] = asyncio.get_running_loop().create_future()
         # (The page's own frame bears its target's id, as Chrome's does.)
-        await event("Fetch.requestPaused", {"requestId": request_id, "resourceType": kind,
-                                            "frameId": frame, "request": {"url": url}}, None)
+        await event(
+            "Fetch.requestPaused",
+            {
+                "requestId": request_id,
+                "resourceType": kind,
+                "frameId": frame,
+                "request": {"url": url},
+            },
+            None,
+        )
         return await verdicts[request_id]
 
     async for raw in ws:
@@ -231,8 +279,17 @@ async def serve(ws) -> None:
             await ws.send(json.dumps({"id": message["id"], "result": {}}))
             sys.exit(0)
         elif method == "Fake.huge":  # (a test's: one message over the limit, no close frame)
-            await ws.send(json.dumps({"method": "Runtime.consoleAPICalled", "params": {
-                "type": "log", "args": [{"type": "string", "value": "x" * params["size"]}]}}))
+            await ws.send(
+                json.dumps(
+                    {
+                        "method": "Runtime.consoleAPICalled",
+                        "params": {
+                            "type": "log",
+                            "args": [{"type": "string", "value": "x" * params["size"]}],
+                        },
+                    }
+                )
+            )
             continue
         elif method == "Fake.drop":  # (a test's: the connection drops, the browser runs on)
             await ws.close()

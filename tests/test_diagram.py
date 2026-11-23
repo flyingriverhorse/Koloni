@@ -23,10 +23,12 @@ from tests.test_chat_flow import start_in_mode, text
 from tests.test_spawn import begin, call, step
 from tests.test_trigger_scenarios import finished, results, run_now, setup, trigger
 
-FLOW = ('<mxfile><diagram id="a" name="P"><mxGraphModel><root><mxCell id="0"/>'
-        '<mxCell id="1" parent="0"/><mxCell id="2" value="Start &lt;b&gt;here&lt;/b&gt;" '
-        'style="rounded=1;html=1;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="120" '
-        'height="60" as="geometry"/></mxCell>{more}</root></mxGraphModel></diagram></mxfile>')
+FLOW = (
+    '<mxfile><diagram id="a" name="P"><mxGraphModel><root><mxCell id="0"/>'
+    '<mxCell id="1" parent="0"/><mxCell id="2" value="Start &lt;b&gt;here&lt;/b&gt;" '
+    'style="rounded=1;html=1;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="120" '
+    'height="60" as="geometry"/></mxCell>{more}</root></mxGraphModel></diagram></mxfile>'
+)
 PNG = diagram.PNG + b"rest"
 OWN = {"Origin": "http://127.0.0.1:8790"}
 
@@ -71,8 +73,9 @@ def test_a_picture_is_never_written_through_a_link_on_its_way(tmp_path):
     try:
         os.symlink(victim, tmp_path / "docs" / "flow.png")
     except OSError:
-        pytest.skip("this machine makes no symbolic link for this user (Windows without "
-                    "Developer Mode)")
+        pytest.skip(
+            "this machine makes no symbolic link for this user (Windows without Developer Mode)"
+        )
     with pytest.raises(WorkspaceError, match="a link"):
         diagram.write_picture(ws, "docs/flow.drawio", "png", PNG)
     assert victim.read_text(encoding="utf-8") == "print('kept')"
@@ -97,27 +100,34 @@ def _project(project_dir):
 
 
 def test_the_tool_draws_on_the_stand_in_writes_beside_it_unasked_and_refuses_the_rest(
-        monkeypatch, make_client, wait_run, project_dir, tmp_path):
+    monkeypatch, make_client, wait_run, project_dir, tmp_path
+):
     monkeypatch.setenv("KOLONI_BROWSER_FAKE", FAKE)
     _project(project_dir)
     (tmp_path / "outside.drawio").write_text(FLOW.format(more=""), encoding="utf-8")
-    client, _model = make_client([
-        step(call("diagram_image", {"path": "docs/flow.drawio"}, "d1")),
-        step(call("diagram_image", {"path": "docs/flow.drawio", "format": "svg"}, "d2")),
-        step(call("diagram_image", {"path": "hello.py"}, "d3")),
-        step(call("diagram_image", {"path": ".env.drawio"}, "d4")),
-        step(call("diagram_image", {"path": str(tmp_path / "outside.drawio")}, "d5")),
-        step(call("diagram_image", {"path": "docs/flow.drawio", "format": "gif"}, "d6")),
-        text("done")])
+    client, _model = make_client(
+        [
+            step(call("diagram_image", {"path": "docs/flow.drawio"}, "d1")),
+            step(call("diagram_image", {"path": "docs/flow.drawio", "format": "svg"}, "d2")),
+            step(call("diagram_image", {"path": "hello.py"}, "d3")),
+            step(call("diagram_image", {"path": ".env.drawio"}, "d4")),
+            step(call("diagram_image", {"path": str(tmp_path / "outside.drawio")}, "d5")),
+            step(call("diagram_image", {"path": "docs/flow.drawio", "format": "gif"}, "d6")),
+            text("done"),
+        ]
+    )
     # At Ask: no card - the user gave the tool by role.
     cid, run_id = start_in_mode(client, project_dir, "ask")
     snap = wait_run(client, cid, run_id, timeout=15)
     # (In the order they were called: d1 ... d6.)
-    made = {f"d{n}": t for n, t in enumerate(
-        client.get(f"/api/conversations/{cid}").json()["tool_calls"], 1)}
+    made = {
+        f"d{n}": t
+        for n, t in enumerate(client.get(f"/api/conversations/{cid}").json()["tool_calls"], 1)
+    }
     said = {key: made[key]["result"] for key in made}
-    assert said["d1"] == ("drew docs/flow.drawio as docs/flow.png (66 bytes), beside it; the "
-                          "user sees it there")
+    assert said["d1"] == (
+        "drew docs/flow.drawio as docs/flow.png (66 bytes), beside it; the user sees it there"
+    )
     # (No card asked for it: it is put in the view beside the chat.)
     shown = {(v["path"], v["kind"]) for v in client.get(f"/api/conversations/{cid}/views").json()}
     assert {("docs/flow.png", "image"), ("docs/flow.svg", "svg")} <= shown
@@ -134,18 +144,21 @@ def test_the_tool_draws_on_the_stand_in_writes_beside_it_unasked_and_refuses_the
 
 
 def test_no_chrome_or_edge_is_said_with_what_the_user_can_do(
-        monkeypatch, make_client, wait_run, project_dir):
+    monkeypatch, make_client, wait_run, project_dir
+):
     _project(project_dir)
     monkeypatch.setattr(browser, "find_browser", lambda: None)
-    client, _model = make_client([
-        step(call("diagram_image", {"path": "docs/flow.drawio"}, "d1")), text("done")])
+    client, _model = make_client(
+        [step(call("diagram_image", {"path": "docs/flow.drawio"}, "d1")), text("done")]
+    )
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
     wait_run(client, cid, run_id)
     assert _calls(client, cid)["diagram_image"]["result"] == f"error: {diagram.NO_BROWSER}"
 
 
 def test_an_orchestrator_that_hands_code_on_is_not_given_it_and_a_trigger_writes_only_if_let(
-        monkeypatch, make_client, wait_run, project_dir):
+    monkeypatch, make_client, wait_run, project_dir
+):
     monkeypatch.setenv("KOLONI_BROWSER_FAKE", FAKE)
     _project(project_dir)
     draw = step(call("diagram_image", {"path": "docs/flow.drawio"}, "d1"))
@@ -162,14 +175,14 @@ def test_an_orchestrator_that_hands_code_on_is_not_given_it_and_a_trigger_writes
         made = trigger(client, pid, cid, permissions={"write": may, "commands": [], "agents": 0})
         run_id = run_now(client, made["id"])
         snap = finished(client, wait_run, cid, run_id, timeout=20)
-        ((_name, status, said),) = [one for one in results(snap, run_id)
-                                    if one[0] == "diagram_image"]
+        ((_name, status, said),) = [
+            one for one in results(snap, run_id) if one[0] == "diagram_image"
+        ]
         assert (status == "succeeded") is drawn, said
         assert (project_dir / "docs" / "flow.png").exists() is drawn
 
 
-def test_the_users_save_writes_beside_the_diagram_from_the_apps_own_page_only(
-        client, project_dir):
+def test_the_users_save_writes_beside_the_diagram_from_the_apps_own_page_only(client, project_dir):
     _project(project_dir)
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     url = f"/api/projects/{pid}/diagram-picture"
@@ -191,7 +204,8 @@ def test_the_users_save_writes_beside_the_diagram_from_the_apps_own_page_only(
 
 
 def test_a_diagram_is_served_to_the_workspace_as_text_and_the_viewer_under_its_own_policy(
-        client, project_dir, tmp_path, settings_env):
+    client, project_dir, tmp_path, settings_env
+):
     _project(project_dir)
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     raw = client.get(f"/api/projects/{pid}/raw/docs/flow.drawio")
@@ -212,25 +226,33 @@ def test_the_viewer_page_has_its_policy_by_any_case_of_its_address(tmp_path):
     app = FastAPI()
     _serve_frontend(app, dist)
     with TestClient(app) as client:
-        for address in ("/drawio/viewer.html", "/DRAWIO/viewer.html", "/Drawio/Viewer.html",
-                        "/office/viewer.html", "/OFFICE/viewer.html",
-                        # (Windows opens a part without its trailing dot or space: refused.)
-                        "/office./viewer.html", "/drawio./viewer.html", "/office /viewer.html",
-                        "/office/viewer.html."):
+        for address in (
+            "/drawio/viewer.html",
+            "/DRAWIO/viewer.html",
+            "/Drawio/Viewer.html",
+            "/office/viewer.html",
+            "/OFFICE/viewer.html",
+            # (Windows opens a part without its trailing dot or space: refused.)
+            "/office./viewer.html",
+            "/drawio./viewer.html",
+            "/office /viewer.html",
+            "/office/viewer.html.",
+        ):
             answer = client.get(address)
             # (Where the file system tells no case apart, each is the viewer: with its policy.)
             if answer.text == "viewer":
                 assert "sandbox allow-scripts" in answer.headers["content-security-policy"], address
 
 
-REAL = pytest.mark.skipif(browser.find_browser() is None or "KOLONI_BROWSER_FAKE" in os.environ,
-                          reason="no Chrome or Edge on this machine")
+REAL = pytest.mark.skipif(
+    browser.find_browser() is None or "KOLONI_BROWSER_FAKE" in os.environ,
+    reason="no Chrome or Edge on this machine",
+)
 
 
 @REAL
 @pytest.mark.anyio
-async def test_the_real_chrome_draws_a_png_and_an_svg_and_loads_nothing_a_diagram_names(
-        tmp_path):
+async def test_the_real_chrome_draws_a_png_and_an_svg_and_loads_nothing_a_diagram_names(tmp_path):
     hits: list[str] = []
 
     class Counted(http.server.SimpleHTTPRequestHandler):
@@ -243,16 +265,19 @@ async def test_the_real_chrome_draws_a_png_and_an_svg_and_loads_nothing_a_diagra
 
     (tmp_path / "x.png").write_bytes(PNG)
     server = http.server.ThreadingHTTPServer(
-        ("127.0.0.1", 0), functools.partial(Counted, directory=str(tmp_path)))
+        ("127.0.0.1", 0), functools.partial(Counted, directory=str(tmp_path))
+    )
     threading.Thread(target=server.serve_forever, daemon=True).start()
     port = server.server_address[1]
     # A picture on this machine and one on the web, and a font from the web: none is asked for.
-    more = (f'<mxCell id="3" style="shape=image;image=http://127.0.0.1:{port}/x.png;" '
-            'vertex="1" parent="1"><mxGeometry x="200" y="0" width="40" height="40" '
-            'as="geometry"/></mxCell><mxCell id="4" value="Web" style="shape=image;'
-            'image=https://example.com/y.png;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss'
-            '%3Ffamily%3DLobster;fontFamily=Lobster;" vertex="1" parent="1"><mxGeometry x="300" '
-            'y="0" width="40" height="40" as="geometry"/></mxCell>')
+    more = (
+        f'<mxCell id="3" style="shape=image;image=http://127.0.0.1:{port}/x.png;" '
+        'vertex="1" parent="1"><mxGeometry x="200" y="0" width="40" height="40" '
+        'as="geometry"/></mxCell><mxCell id="4" value="Web" style="shape=image;'
+        "image=https://example.com/y.png;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss"
+        '%3Ffamily%3DLobster;fontFamily=Lobster;" vertex="1" parent="1"><mxGeometry x="300" '
+        'y="0" width="40" height="40" as="geometry"/></mxCell>'
+    )
     command = browser.find_browser()
     assert command is not None
     try:
@@ -292,9 +317,11 @@ async def test_the_real_render_browser_resolves_no_name_a_websocket_to_loopback_
 @REAL
 @pytest.mark.anyio
 async def test_the_real_chrome_places_shapes_a_diagram_gives_no_geometry(tmp_path):
-    bare = ('<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/>'
-            + "".join(f'<mxCell id="{n}" value="{n}" vertex="1" parent="1"/>' for n in "abc")
-            + '<mxCell id="e" edge="1" source="a" target="b" parent="1"/></root></mxGraphModel>')
+    bare = (
+        '<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/>'
+        + "".join(f'<mxCell id="{n}" value="{n}" vertex="1" parent="1"/>' for n in "abc")
+        + '<mxCell id="e" edge="1" source="a" target="b" parent="1"/></root></mxGraphModel>'
+    )
     command = browser.find_browser()
     assert command is not None
     svg = (await diagram.draw(command, tmp_path, "t", bare, "svg")).decode()
@@ -311,4 +338,5 @@ def test_the_viewer_is_as_downloaded_and_where_the_server_reads_it():
     assert page.index("koloni.js") < page.index("viewer-static.min.js")
     # draw.io v32.6.9 (jgraph/drawio, Apache-2.0), byte for byte (.gitattributes: -text)
     assert hashlib.sha256((diagram.VIEWER / "viewer-static.min.js").read_bytes()).hexdigest() == (
-        "21f5b0a744765eba94fdc14f4006f2e024ef01635579f421191529f4712b57b7")
+        "21f5b0a744765eba94fdc14f4006f2e024ef01635579f421191529f4712b57b7"
+    )

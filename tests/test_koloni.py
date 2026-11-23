@@ -39,50 +39,79 @@ def test_opening_a_folder_writes_nothing_and_the_page_writes_only_what_it_change
     client.get("/api/projects")
     assert project["koloni"] == NOTHING and not (project_dir / ".koloni").exists()
     # The Commands section sends its three each time: what is as it was is not written.
-    same = client.patch(f"/api/projects/{pid}", headers=OWN, json={
-        "exec_location": "host", "docker_network": False, "hide_secrets": False})
+    same = client.patch(
+        f"/api/projects/{pid}",
+        headers=OWN,
+        json={"exec_location": "host", "docker_network": False, "hide_secrets": False},
+    )
     assert same.status_code == 200 and not (project_dir / ".koloni").exists()
     saved = client.patch(f"/api/projects/{pid}", json={"search_order": "cli"}, headers=OWN)
     assert saved.json()["koloni"] == {**NOTHING, "settings_kept": True}
     assert kept_settings(project_dir) == {"search_order": "cli"}
     # Secrets, personal addresses and the rest stay in KOLONİ's own record.
-    client.patch(f"/api/projects/{pid}", headers=OWN, json={
-        "docker_image": " python:3.12 ", "notify_url": "https://hooks.example.com/x",
-        "search_url": "http://localhost:8888", "pass_env": "NPM_TOKEN",
-        "measure_command": "python measure.py"})
+    client.patch(
+        f"/api/projects/{pid}",
+        headers=OWN,
+        json={
+            "docker_image": " python:3.12 ",
+            "notify_url": "https://hooks.example.com/x",
+            "search_url": "http://localhost:8888",
+            "pass_env": "NPM_TOKEN",
+            "measure_command": "python measure.py",
+        },
+    )
     assert kept_settings(project_dir) == {"search_order": "cli", "docker_image": "python:3.12"}
     assert (project_dir / ".gitignore").exists() is False  # kept in git: nothing hides it
 
 
 def test_a_request_that_is_not_the_pages_own_writes_no_file_of_the_folder(client, project_dir):
     pid = opened(client, project_dir)["id"]
-    patched = client.patch(f"/api/projects/{pid}", json={
-        "exec_location": "docker", "docker_image": "python:3.12"})
+    patched = client.patch(
+        f"/api/projects/{pid}", json={"exec_location": "docker", "docker_image": "python:3.12"}
+    )
     assert patched.status_code == 200 and patched.json()["exec_location"] == "docker"
     assert not (project_dir / ".koloni").exists()
 
 
 def test_settings_from_another_machine_wait_for_the_users_word(client, project_dir):
     (project_dir / ".koloni").mkdir()
-    (project_dir / ".koloni" / "settings.json").write_text(json.dumps({
-        "exec_location": "docker", "docker_image": "other:1", "docker_network": True,
-        "search_order": "builtin",  # as saved here: nothing to ask
-        # never read from it: they are not the folder's to say
-        "notify_url": "https://hooks.example.com/x", "hide_secrets": False, "pass_env": "AWS_KEY",
-        "measure_command": "python steal.py",  # K-evrim: run by KOLONİ, so the user's alone
-    }), encoding="utf-8")
+    (project_dir / ".koloni" / "settings.json").write_text(
+        json.dumps(
+            {
+                "exec_location": "docker",
+                "docker_image": "other:1",
+                "docker_network": True,
+                "search_order": "builtin",  # as saved here: nothing to ask
+                # never read from it: they are not the folder's to say
+                "notify_url": "https://hooks.example.com/x",
+                "hide_secrets": False,
+                "pass_env": "AWS_KEY",
+                "measure_command": "python steal.py",  # K-evrim: run by KOLONİ, so the user's alone
+            }
+        ),
+        encoding="utf-8",
+    )
     project = opened(client, project_dir)
     pid = project["id"]
     assert (project["exec_location"], project["docker_image"], project["docker_network"]) == (
-        "host", None, False)
+        "host",
+        None,
+        False,
+    )
     assert project["koloni"]["asks"] == {
-        "exec_location": "docker", "docker_image": "other:1", "docker_network": True}
+        "exec_location": "docker",
+        "docker_image": "other:1",
+        "docker_network": True,
+    }
     use = f"/api/projects/{pid}/koloni/use"
     shown = {"asks": project["koloni"]["asks"]}
     assert client.post(use, json=shown).status_code == 403  # a command against the app's address
     used = client.post(use, json=shown, headers=OWN).json()
     assert (used["exec_location"], used["docker_image"], used["docker_network"]) == (
-        "docker", "other:1", True)
+        "docker",
+        "other:1",
+        True,
+    )
     assert used["koloni"]["asks"] == {} and used["koloni"]["settings_kept"] is True
     assert (used["has_notify_url"], used["hide_secrets"], used["pass_env"]) == (False, True, None)
     assert used["measure_command"] is None
@@ -101,16 +130,21 @@ def test_only_what_the_page_showed_is_used_not_what_the_file_says_by_then(client
     assert stale.status_code == 409 and "changed since" in stale.json()["detail"]
     now = client.get(f"/api/projects/{project['id']}").json()
     assert (now["docker_image"], now["docker_network"]) == (None, False)
-    assert client.post(use, json={"asks": now["koloni"]["asks"]}, headers=OWN).json()[
-        "docker_image"] == "swapped:1"
+    assert (
+        client.post(use, json={"asks": now["koloni"]["asks"]}, headers=OWN).json()["docker_image"]
+        == "swapped:1"
+    )
 
 
 def test_docker_without_an_image_from_the_folder_is_not_taken(client, project_dir):
     (project_dir / ".koloni").mkdir()
     (project_dir / ".koloni" / "settings.json").write_text('{"exec_location": "docker"}')
     project = opened(client, project_dir)
-    refused = client.post(f"/api/projects/{project['id']}/koloni/use",
-                          json={"asks": project["koloni"]["asks"]}, headers=OWN)
+    refused = client.post(
+        f"/api/projects/{project['id']}/koloni/use",
+        json={"asks": project["koloni"]["asks"]},
+        headers=OWN,
+    )
     assert refused.status_code == 422 and "choose a Docker image first" in refused.json()["detail"]
     assert client.get(f"/api/projects/{project['id']}").json()["exec_location"] == "host"
 
@@ -118,23 +152,31 @@ def test_docker_without_an_image_from_the_folder_is_not_taken(client, project_di
 def test_a_settings_file_written_with_a_byte_order_mark_is_read(client, project_dir):
     (project_dir / ".koloni").mkdir()  # (PowerShell 5.1's Set-Content -Encoding utf8 writes one)
     (project_dir / ".koloni" / "settings.json").write_bytes(
-        '\ufeff{"search_order": "cli"}'.encode())
+        '\ufeff{"search_order": "cli"}'.encode()
+    )
     assert opened(client, project_dir)["koloni"]["asks"] == {"search_order": "cli"}
 
 
-@pytest.mark.parametrize("written", [
-    '{"exec_location": "docker",', '{"exec_location": "moon"}', '["docker"]',
-    '{"docker_network": "yes"}', '{"docker_image": "' + "x" * 201 + '"}',
-    # null where the record holds no null: the list of projects must still be answered
-    '{"exec_location": null}', '{"docker_network": null}', '{"search_order": null}',
-    pytest.param("[" * 100000, id="deeper-than-json-loads-goes"),
-    # not an image's name: a command line's option in its place
-    '{"docker_image": "--privileged"}', '{"docker_image": "-v=C:/:/h"}',
-    '{"docker_image": "python:3.12 --rm"}',
-])
-def test_a_broken_settings_file_is_not_read_said_and_not_written_over(
-    client, project_dir, written
-):
+@pytest.mark.parametrize(
+    "written",
+    [
+        '{"exec_location": "docker",',
+        '{"exec_location": "moon"}',
+        '["docker"]',
+        '{"docker_network": "yes"}',
+        '{"docker_image": "' + "x" * 201 + '"}',
+        # null where the record holds no null: the list of projects must still be answered
+        '{"exec_location": null}',
+        '{"docker_network": null}',
+        '{"search_order": null}',
+        pytest.param("[" * 100000, id="deeper-than-json-loads-goes"),
+        # not an image's name: a command line's option in its place
+        '{"docker_image": "--privileged"}',
+        '{"docker_image": "-v=C:/:/h"}',
+        '{"docker_image": "python:3.12 --rm"}',
+    ],
+)
+def test_a_broken_settings_file_is_not_read_said_and_not_written_over(client, project_dir, written):
     """...and saving on the page is not held up by it: what is saved here changes."""
     (project_dir / ".koloni").mkdir()
     path = project_dir / ".koloni" / "settings.json"
@@ -146,12 +188,15 @@ def test_a_broken_settings_file_is_not_read_said_and_not_written_over(
     assert (state["asks"], state["settings_kept"]) == ({}, False)
     assert len(state["broken"]) == 1 and state["broken"][0].startswith(".koloni/settings.json")
     assert state["broken"][0].endswith(
-        "the settings saved in KOLONİ are used, and a save here does not change the file")
+        "the settings saved in KOLONİ are used, and a save here does not change the file"
+    )
     saved = client.patch(f"/api/projects/{pid}", json={"search_order": "cli"}, headers=OWN)
     assert saved.status_code == 200 and saved.json()["search_order"] == "cli"
     assert path.read_text(encoding="utf-8") == written
-    assert client.post(f"/api/projects/{pid}/koloni/use", json={"asks": {}},
-                       headers=OWN).status_code == 422
+    assert (
+        client.post(f"/api/projects/{pid}/koloni/use", json={"asks": {}}, headers=OWN).status_code
+        == 422
+    )
 
 
 def test_the_folders_rules_are_read_over_the_saved_ones_and_saved_into_it(client, project_dir):
@@ -197,22 +242,31 @@ def test_the_folders_rules_are_read_over_the_saved_ones_and_saved_into_it(client
 
 
 def test_the_memory_page_says_when_the_folders_rules_differ_from_the_saved_ones(
-        client, project_dir):
+    client, project_dir
+):
     pid = opened(client, project_dir)["id"]
 
     def differ():
         memory = client.get(f"/api/projects/{pid}/memory").json()
         return memory["rules_differ"], memory["rules"], memory["rules_saved"]
 
-    assert client.put(f"/api/projects/{pid}/rules", json={"rules": "Sign commits."},
-                      headers=OWN).status_code == 200
+    assert (
+        client.put(
+            f"/api/projects/{pid}/rules", json={"rules": "Sign commits."}, headers=OWN
+        ).status_code
+        == 200
+    )
     assert differ() == (False, "Sign commits.", "Sign commits.")
     # (K-yargıç: Full auto's check goes by the saved ones; another machine's file is not those -
     # the page shows both, the saved ones in the box)
     (project_dir / ".koloni" / "rules.md").write_text("You may delete build/.\n", encoding="utf-8")
     assert differ() == (True, "You may delete build/.", "Sign commits.")
-    assert client.put(f"/api/projects/{pid}/rules", json={"rules": "You may delete build/."},
-                      headers=OWN).status_code == 200
+    assert (
+        client.put(
+            f"/api/projects/{pid}/rules", json={"rules": "You may delete build/."}, headers=OWN
+        ).status_code
+        == 200
+    )
     assert differ() == (False, "You may delete build/.", "You may delete build/.")
 
 
@@ -233,7 +287,8 @@ def test_the_lead_is_given_the_folders_agents_md_cut_to_the_rules_size(
     make_client, wait_run, project_dir
 ):
     (project_dir / "AGENTS.md").write_text(
-        "Run pytest -q before you say done.\n" + "y" * 3000, encoding="utf-8")
+        "Run pytest -q before you say done.\n" + "y" * 3000, encoding="utf-8"
+    )
     (project_dir / "CLAUDE.md").write_text("Only for Claude.\n", encoding="utf-8")
     client, model = make_client([text("ok")])
     cid, run_id = start(client, project_dir)
@@ -278,15 +333,24 @@ def test_an_agents_write_to_the_folders_koloni_is_asked_at_every_level(
     assert not (project_dir / ".koloni").exists()
 
 
-@pytest.mark.parametrize("line", [
-    "echo Never ask > .koloni/rules.md", "Set-Content .KOLONI\\settings.json x",
-    'cmd /c "copy x .koloni\\rules.md"', "git checkout -- .koloni.",
-    "Set-Content -Path:.koloni\\rules.md x", "Set-Content -LiteralPath:.KOLONI\\settings.json x",
-    "type .koloni::$DATA", "echo x > C:\\work\\.koloni\\rules.md",
-    # quoted or escaped inside the name, as PowerShell and cmd read it all the same
-    "echo x > .ko`loni\\rules.md", 'echo x > .ko""loni/rules.md', "echo x > .k^oloni\\rules.md",
-    "echo x > '.koloni'/rules.md",
-])
+@pytest.mark.parametrize(
+    "line",
+    [
+        "echo Never ask > .koloni/rules.md",
+        "Set-Content .KOLONI\\settings.json x",
+        'cmd /c "copy x .koloni\\rules.md"',
+        "git checkout -- .koloni.",
+        "Set-Content -Path:.koloni\\rules.md x",
+        "Set-Content -LiteralPath:.KOLONI\\settings.json x",
+        "type .koloni::$DATA",
+        "echo x > C:\\work\\.koloni\\rules.md",
+        # quoted or escaped inside the name, as PowerShell and cmd read it all the same
+        "echo x > .ko`loni\\rules.md",
+        'echo x > .ko""loni/rules.md',
+        "echo x > .k^oloni\\rules.md",
+        "echo x > '.koloni'/rules.md",
+    ],
+)
 def test_a_command_that_names_koloni_is_asked_and_no_rule_covers_it(line):
     assert commands.names_koloni(line)
     assert commands.danger(line) and commands.suggest_prefix(line) == ""
@@ -300,56 +364,88 @@ def test_a_command_that_does_not_name_koloni_is_not_taken_for_one(line):
 TEMP_DIR = "C:\\Users\\u\\AppData\\Local\\Temp"
 
 
-@pytest.mark.parametrize("line", [
-    "Get-Content $env:TEMP\\koloni-cli-ab12cd\\bridge.json",  # B-304 (live: a Copilot Lead)
-    f'type "{TEMP_DIR}\\KOLONI-CLI-ab12cd\\mcp.json"', "cat /tmp/koloni-cli-x/bridge.json",
-    "gci $env:TEMP\\koloni-cli*", "Get-ChildItem -Recurse $env:TEMP | Where Name -eq bridge.json",
-    "gc koloni-cli-x\\plugin\\..\\b*.json", "type C:\\runtime\\agy-home\\agy-a\\koloni-door.json",
-    # the live listing, and the temp folder's own spellings
-    "Get-ChildItem $env:TEMP -Filter *koloni* -Recurse", "gci $env:TEMP\\*koloni*",
-    "dir %TEMP%\\koloni-cli", "ls /tmp | grep koloni-cli",
-    # (B-348 leaves these asked: only `KOLONI_*`, KOLONİ's variables, passes)
-    "gci $env:TEMP | ? Name -like 'koloni-cli*'", "type C:\\x\\runtime\\data\\koloni.*",
-])
+@pytest.mark.parametrize(
+    "line",
+    [
+        "Get-Content $env:TEMP\\koloni-cli-ab12cd\\bridge.json",  # B-304 (live: a Copilot Lead)
+        f'type "{TEMP_DIR}\\KOLONI-CLI-ab12cd\\mcp.json"',
+        "cat /tmp/koloni-cli-x/bridge.json",
+        "gci $env:TEMP\\koloni-cli*",
+        "Get-ChildItem -Recurse $env:TEMP | Where Name -eq bridge.json",
+        "gc koloni-cli-x\\plugin\\..\\b*.json",
+        "type C:\\runtime\\agy-home\\agy-a\\koloni-door.json",
+        # the live listing, and the temp folder's own spellings
+        "Get-ChildItem $env:TEMP -Filter *koloni* -Recurse",
+        "gci $env:TEMP\\*koloni*",
+        "dir %TEMP%\\koloni-cli",
+        "ls /tmp | grep koloni-cli",
+        # (B-348 leaves these asked: only `KOLONI_*`, KOLONİ's variables, passes)
+        "gci $env:TEMP | ? Name -like 'koloni-cli*'",
+        "type C:\\x\\runtime\\data\\koloni.*",
+    ],
+)
 def test_a_command_that_names_a_runs_key_is_asked_and_no_rule_covers_it(line):
     assert commands.names_koloni_key(line) and commands.names_secret(line)
     assert commands.danger(line) and commands.suggest_prefix(line) == ""
 
 
-@pytest.mark.parametrize("line", [
-    # a skill's script in Claude Code's plugin of a run; a search for the word; a project's own
-    f"python {TEMP_DIR}\\koloni-cli-ab12cd\\plugin\\skills\\tidy\\run.py", "rg koloni-cli app/",
-    "git log -S koloni-cli", "cat docs/bridge.json", "cat koloni-client/x.py",
-    "cat src/koloni.py", "cat bridge.py",
-])
+@pytest.mark.parametrize(
+    "line",
+    [
+        # a skill's script in Claude Code's plugin of a run; a search for the word; a project's own
+        f"python {TEMP_DIR}\\koloni-cli-ab12cd\\plugin\\skills\\tidy\\run.py",
+        "rg koloni-cli app/",
+        "git log -S koloni-cli",
+        "cat docs/bridge.json",
+        "cat koloni-client/x.py",
+        "cat src/koloni.py",
+        "cat bridge.py",
+    ],
+)
 def test_a_command_that_does_not_name_a_runs_key_is_not_taken_for_one(line):
     assert not commands.names_koloni_key(line) and not commands.names_secret(line)
 
 
-@pytest.mark.parametrize("line", [
-    # B-348 (live, T40-01): PowerShell's variables listed, KOLONİ's filtered by a wildcard
-    "Get-ChildItem env: | Where-Object Name -like 'KOLONI_*' | "
-    "ForEach-Object { \"$($_.Name)=$($_.Value)\" }",
-    "gci env:KOLONI_*", "Get-ChildItem env:", "dir env:", "gci env:PATH", "ls Env:\\",
-    "echo $env:PATH", "$env:X = 1",
-])
+@pytest.mark.parametrize(
+    "line",
+    [
+        # B-348 (live, T40-01): PowerShell's variables listed, KOLONİ's filtered by a wildcard
+        "Get-ChildItem env: | Where-Object Name -like 'KOLONI_*' | "
+        'ForEach-Object { "$($_.Name)=$($_.Value)" }',
+        "gci env:KOLONI_*",
+        "Get-ChildItem env:",
+        "dir env:",
+        "gci env:PATH",
+        "ls Env:\\",
+        "echo $env:PATH",
+        "$env:X = 1",
+    ],
+)
 def test_the_env_drive_and_its_variables_are_no_secret_file(line):
     assert commands.harms(line) == ""
 
 
 # R140 (live, Codex counting a picture's colours): `$_.Key` read as a `*.key` file
-R140 = ("Add-Type -AssemblyName System.Drawing; $b = [System.Drawing.Bitmap]::new('rea-shapes.png'); "
-        "$n = @{}; foreach ($x in 0..($b.Width - 1)) { $n[$b.GetPixel($x, 0).Name]++ }; "
-        "$n.GetEnumerator() | ForEach-Object { $_.Key + ' ' + $_.Value }")
+R140 = (
+    "Add-Type -AssemblyName System.Drawing; $b = [System.Drawing.Bitmap]::new('rea-shapes.png'); "
+    "$n = @{}; foreach ($x in 0..($b.Width - 1)) { $n[$b.GetPixel($x, 0).Name]++ }; "
+    "$n.GetEnumerator() | ForEach-Object { $_.Key + ' ' + $_.Value }"
+)
 
 
-@pytest.mark.parametrize("platform, line, secret", [
-    ("win32", R140, False), ("win32", "echo $cfg.Env", False),
-    # in sh `$n.env` is the file `<n>.env`: on a POSIX host, under a POSIX shell, or spelt so
-    ("linux", R140, True), ("linux", "echo $cfg.Env", True),
-    ("win32", "bash -c 'cat $n.Env'", True), ("win32", "cat $n.env", True),
-    ("win32", "cat $f.key", True),
-])
+@pytest.mark.parametrize(
+    "platform, line, secret",
+    [
+        ("win32", R140, False),
+        ("win32", "echo $cfg.Env", False),
+        # in sh `$n.env` is the file `<n>.env`: on a POSIX host, under a POSIX shell, or spelt so
+        ("linux", R140, True),
+        ("linux", "echo $cfg.Env", True),
+        ("win32", "bash -c 'cat $n.Env'", True),
+        ("win32", "cat $n.env", True),
+        ("win32", "cat $f.key", True),
+    ],
+)
 def test_a_variables_member_is_no_file_only_where_powershell_reads_it_so(
     monkeypatch, platform, line, secret
 ):
@@ -357,20 +453,32 @@ def test_a_variables_member_is_no_file_only_where_powershell_reads_it_so(
     assert commands.names_secret(line) is secret
 
 
-@pytest.mark.parametrize("line", ["cat .env", "cat ./.env", "type config\\.env",
-                                  "Get-Content .env.local", "gc env:X,.env", "gc server.key",
-                                  "cat $HOME/.ssh/id_rsa", "type $root\\certs\\a.pem"])
+@pytest.mark.parametrize(
+    "line",
+    [
+        "cat .env",
+        "cat ./.env",
+        "type config\\.env",
+        "Get-Content .env.local",
+        "gc env:X,.env",
+        "gc server.key",
+        "cat $HOME/.ssh/id_rsa",
+        "type $root\\certs\\a.pem",
+    ],
+)
 def test_a_real_env_file_is_still_a_secret(line):
     assert commands.harms(line) == commands.SECRET_FILE
 
 
 def test_a_search_for_koloni_cli_and_a_projects_bridge_json_run_unasked(
-        make_client, project_dir, wait_run):
+    make_client, project_dir, wait_run
+):
     (project_dir / "docs").mkdir()
     (project_dir / "docs" / "bridge.json").write_text("{}", encoding="utf-8")
     executor = ScriptedExecutor([Script(["ok"]), Script(["{}"])])
-    client, _ = make_client([cmd("rg koloni-cli app/"), cmd("cat docs/bridge.json"),
-                             text("done")], executor=executor)
+    client, _ = make_client(
+        [cmd("rg koloni-cli app/"), cmd("cat docs/bridge.json"), text("done")], executor=executor
+    )
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
     assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
     assert [line for line, _ in executor.started] == ["rg koloni-cli app/", "cat docs/bridge.json"]
@@ -408,18 +516,30 @@ def test_200_files_an_agent_writes_in_the_scratch_run_unasked_and_no_reader_of_c
 
     repository(project_dir)
     before, view = git.state(project_dir), ProjectView(project_dir)
-    many = ("python -c \"import os; os.makedirs('.koloni/tmp/p', exist_ok=True); "
-            "[open(f'.koloni/tmp/p/{n}.txt', 'w').write('x') for n in range(200)]\"")
+    many = (
+        "python -c \"import os; os.makedirs('.koloni/tmp/p', exist_ok=True); "
+        "[open(f'.koloni/tmp/p/{n}.txt', 'w').write('x') for n in range(200)]\""
+    )
     client, _ = make_client([cmd(many), text("done")])
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
     snap = wait_run(client, cid, run_id, timeout=20)
     assert snap["commands"][0]["status"] == "exited", snap["commands"]
     assert len(list((project_dir / ".koloni" / "tmp" / "p").iterdir())) == 200
     # Ignored by git through KOLONİ's own `.koloni/.gitignore`, which no look took back.
-    assert (project_dir / ".koloni" / ".gitignore").read_text(encoding="utf-8") == "tmp/\n.gitignore\n"
+    assert (project_dir / ".koloni" / ".gitignore").read_text(
+        encoding="utf-8"
+    ) == "tmp/\n.gitignore\n"
     assert snap["questions"] == [] and snap["file_changes"] == []
-    assert subprocess.run(["git", "status", "--porcelain"], cwd=project_dir, capture_output=True,
-                          text=True, check=True).stdout == ""
+    assert (
+        subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        == ""
+    )
     # The trigger's "nothing changed", the Changes tab, the looks for changes and standing files.
     assert git.state(project_dir) == before and git.changes(project_dir) == []
     # (`.koloni/.gitignore` alone: KOLONİ's own write, which no CLI's look puts on its record -
@@ -443,10 +563,20 @@ def test_a_scratch_an_agents_command_makes_empty_is_ignored_by_git(
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
     snap = wait_run(client, cid, run_id, timeout=20)
     assert snap["commands"][0]["status"] == "exited", snap["commands"]
-    assert (project_dir / ".koloni" / ".gitignore").read_text(encoding="utf-8") == "tmp/\n.gitignore\n"
+    assert (project_dir / ".koloni" / ".gitignore").read_text(
+        encoding="utf-8"
+    ) == "tmp/\n.gitignore\n"
     (project_dir / ".koloni" / "tmp" / "dump.txt").write_text("x", encoding="utf-8")
-    assert subprocess.run(["git", "status", "--porcelain"], cwd=project_dir, capture_output=True,
-                          text=True, check=True).stdout == ""
+    assert (
+        subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        == ""
+    )
 
 
 def test_the_scratchs_ignore_lines_are_added_once_and_the_files_other_lines_kept(project_dir):
@@ -458,7 +588,8 @@ def test_the_scratchs_ignore_lines_are_added_once_and_the_files_other_lines_kept
     koloni.scratch(str(project_dir))
     assert (project_dir / ".koloni" / "tmp").is_dir()
     assert (project_dir / ".koloni" / ".gitignore").read_text(encoding="utf-8") == (
-        "*.log\ntmp/\n.gitignore\n")
+        "*.log\ntmp/\n.gitignore\n"
+    )
 
 
 def test_a_command_run_in_the_scratch_that_climbs_out_of_it_waits_at_full_auto(
@@ -467,11 +598,14 @@ def test_a_command_run_in_the_scratch_that_climbs_out_of_it_waits_at_full_auto(
     # (review of K-koloni-klasor: run_command's cwd is judged with the line, `with_cwd`)
     (project_dir / ".koloni" / "tmp").mkdir(parents=True)
     executor = ScriptedExecutor([Script(["ok"])])
-    client, _ = make_client([cmd("echo x > ../settings.json", cwd=".koloni/tmp"), text("done")],
-                            executor=executor)
+    client, _ = make_client(
+        [cmd("echo x > ../settings.json", cwd=".koloni/tmp"), text("done")], executor=executor
+    )
     cid, _run_id = start_in_mode(client, project_dir, "full_auto")
     snap = wait_status(client, cid, "waiting_approval")
-    assert snap["commands"][0]["status"] == "proposed" and ".koloni" in snap["commands"][0]["danger"]
+    assert (
+        snap["commands"][0]["status"] == "proposed" and ".koloni" in snap["commands"][0]["danger"]
+    )
     assert executor.started == []
 
 
@@ -481,9 +615,15 @@ def test_at_full_auto_work_in_the_scratch_and_a_folder_of_it_deleted_run_unasked
     # (live: run_command's cwd in the scratch was a "Climbs out" card, `rm -rf` of its folder one)
     (project_dir / ".koloni" / "tmp" / "work").mkdir(parents=True)
     executor = ScriptedExecutor([Script(["ok"]), Script(["ok"]), Script([""])])
-    client, _ = make_client([cmd("pytest -q", cwd=".koloni/tmp/work"),
-                             cmd("cd .koloni/tmp/work; python x.py", "k2"),
-                             cmd("rm -rf .koloni/tmp/work", "k3"), text("done")], executor=executor)
+    client, _ = make_client(
+        [
+            cmd("pytest -q", cwd=".koloni/tmp/work"),
+            cmd("cd .koloni/tmp/work; python x.py", "k2"),
+            cmd("rm -rf .koloni/tmp/work", "k3"),
+            text("done"),
+        ],
+        executor=executor,
+    )
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
     snap = wait_run(client, cid, run_id)
     assert [one["status"] for one in snap["commands"]] == ["exited"] * 3, snap["commands"]
@@ -491,7 +631,9 @@ def test_at_full_auto_work_in_the_scratch_and_a_folder_of_it_deleted_run_unasked
 
 
 def test_claude_codes_cd_into_the_scratch_is_free_as_each_of_its_commands_starts_in_the_project(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     # (measured, 14 Nov 2026, Claude Code 2.1.325: a `cd` is not kept for the next Bash call,
     # and KOLONİ starts it with the variable that asks for that - so its next line, `echo x >
@@ -500,27 +642,43 @@ def test_claude_codes_cd_into_the_scratch_is_free_as_each_of_its_commands_starts
     from tests.test_claude_native import start as start_claude
 
     (project_dir / ".koloni" / "tmp").mkdir(parents=True)
-    client, provider, _ = claude_app([
-        {**BASH, "input": {"command": "cd .koloni/tmp; ls"}},
-        {**BASH, "input": {"command": "echo x > ../rules.md"}}, {"say": "ok"}])
+    client, provider, _ = claude_app(
+        [
+            {**BASH, "input": {"command": "cd .koloni/tmp; ls"}},
+            {**BASH, "input": {"command": "echo x > ../rules.md"}},
+            {"say": "ok"},
+        ]
+    )
     cid, run_id = start_claude(client, project_dir, provider, "full_auto")
     snap = wait_run(client, cid, run_id)
     assert [(c["status"], c["danger"]) for c in snap["commands"]] == [("exited", "")] * 2
     from app.model_native import ClaudeNativeClient, QoderNativeClient
 
-    assert ClaudeNativeClient(launcher=["x"])._native_env(project_dir)[
-        "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR"] == "1"
+    assert (
+        ClaudeNativeClient(launcher=["x"])._native_env(project_dir)[
+            "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR"
+        ]
+        == "1"
+    )
     from app.model_agy import AgyClient
     from app.model_native import CodexNativeClient, CopilotNativeClient
 
     # (whose word each CLI's cwd is; one that does not say is judged as not known)
-    assert [one.cwd_from for one in (CodexNativeClient, CopilotNativeClient, AgyClient,
-                                     ClaudeNativeClient, QoderNativeClient)] == [
-        "cli", "cli", "model", "root", "none"]
+    assert [
+        one.cwd_from
+        for one in (
+            CodexNativeClient,
+            CopilotNativeClient,
+            AgyClient,
+            ClaudeNativeClient,
+            QoderNativeClient,
+        )
+    ] == ["cli", "cli", "model", "root", "none"]
 
 
 def test_a_cwd_the_model_writes_in_claude_codes_input_is_not_where_the_command_runs(
-    claude_app, project_dir  # noqa: F811
+    claude_app,
+    project_dir,  # noqa: F811
 ):
     # (review: its Bash input is the model's own - `"cwd": ".koloni/tmp"` beside a search of
     # the whole folder would have scoped it to the scratch, and shown the project's `.env`)
@@ -529,15 +687,17 @@ def test_a_cwd_the_model_writes_in_claude_codes_input_is_not_where_the_command_r
 
     (project_dir / ".koloni" / "tmp").mkdir(parents=True)
     (project_dir / ".env").write_text("KEY=1", encoding="utf-8")
-    client, provider, _ = claude_app([
-        {**BASH, "input": {"command": "grep -r KEY .", "cwd": ".koloni/tmp"}}, {"say": "ok"}])
+    client, provider, _ = claude_app(
+        [{**BASH, "input": {"command": "grep -r KEY .", "cwd": ".koloni/tmp"}}, {"say": "ok"}]
+    )
     cid, _run_id = start_claude(client, project_dir, provider, "full_auto")
     asked = wait_status(client, cid, "waiting_approval")["commands"][0]
     assert asked["status"] == "proposed" and asked["cwd"] == "."
 
 
 def test_a_command_of_claude_codes_that_names_a_folder_to_run_in_is_asked_at_every_level(
-    claude_app, project_dir  # noqa: F811
+    claude_app,
+    project_dir,  # noqa: F811
 ):
     # (review: the `cwd` goes back to the CLI as it came - if its tool runs the command there,
     # this line writes .claude/settings.json; KOLONİ cannot check, so it asks)
@@ -545,10 +705,15 @@ def test_a_command_of_claude_codes_that_names_a_folder_to_run_in_is_asked_at_eve
     from tests.test_claude_native import BASH
     from tests.test_claude_native import start as start_claude
 
-    client, provider, _ = claude_app([
-        {**BASH, "input": {"command": "echo x > settings.json", "cwd": ".claude",
-                           "reason": "safe"}},  # (the model's word is not the card's)
-        {"say": "ok"}])
+    client, provider, _ = claude_app(
+        [
+            {
+                **BASH,
+                "input": {"command": "echo x > settings.json", "cwd": ".claude", "reason": "safe"},
+            },  # (the model's word is not the card's)
+            {"say": "ok"},
+        ]
+    )
     cid, _run_id = start_claude(client, project_dir, provider, "full_auto")
     asked = wait_status(client, cid, "waiting_approval")["commands"][0]
     assert asked["status"] == "proposed"
@@ -556,14 +721,18 @@ def test_a_command_of_claude_codes_that_names_a_folder_to_run_in_is_asked_at_eve
 
 
 def test_a_command_with_a_cwd_in_its_input_is_refused_where_nobody_is_there_to_ask(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     from tests.test_claude_native import BASH, NOBODY, unattended
 
-    client, provider, _ = claude_app([
-        {**BASH, "input": {"command": "pytest -q", "cwd": "sub"}}, {"say": "ok"}])
+    client, provider, _ = claude_app(
+        [{**BASH, "input": {"command": "pytest -q", "cwd": "sub"}}, {"say": "ok"}]
+    )
     snap, run, _statuses = unattended(
-        client, project_dir, provider, "full_auto", wait_run, commands=["pytest -q"])
+        client, project_dir, provider, "full_auto", wait_run, commands=["pytest -q"]
+    )
     assert run["status"] == "completed", run
     (verdict,) = claude_app.record()["asked"]
     assert verdict["behavior"] == "deny" and NOBODY in verdict["message"]
@@ -571,7 +740,8 @@ def test_a_command_with_a_cwd_in_its_input_is_refused_where_nobody_is_there_to_a
 
 
 def test_a_bash_call_of_claude_codes_own_sub_agent_runs_where_it_is_not_known(
-    claude_app, project_dir  # noqa: F811
+    claude_app,
+    project_dir,  # noqa: F811
 ):
     # (review: the reset was measured for the main agent; its Agent tool's sub-agent may start
     # elsewhere - its `cd` into the scratch is the card it was)
@@ -579,10 +749,15 @@ def test_a_bash_call_of_claude_codes_own_sub_agent_runs_where_it_is_not_known(
     from tests.test_claude_native import start as start_claude
 
     (project_dir / ".koloni" / "tmp").mkdir(parents=True)
-    client, provider, _ = claude_app([
-        AGENT, {"system": {"subtype": "task_started", "tool_use_id": "toolu_sub"}},
-        {**BASH, "input": {"command": "cd .koloni/tmp; ls"}, **SUB}, {"say": "ok", **SUB},
-        {"say": "ok"}])
+    client, provider, _ = claude_app(
+        [
+            AGENT,
+            {"system": {"subtype": "task_started", "tool_use_id": "toolu_sub"}},
+            {**BASH, "input": {"command": "cd .koloni/tmp; ls"}, **SUB},
+            {"say": "ok", **SUB},
+            {"say": "ok"},
+        ]
+    )
     cid, _run_id = start_claude(client, project_dir, provider, "full_auto")
     asked = wait_status(client, cid, "waiting_approval")["commands"][0]
     assert (asked["status"], asked["cwd"]) == ("proposed", None)
@@ -591,7 +766,9 @@ def test_a_bash_call_of_claude_codes_own_sub_agent_runs_where_it_is_not_known(
 
 @pytest.mark.parametrize("tool", ["PowerShell", "Monitor"])
 def test_only_claude_codes_bash_tool_is_known_to_start_in_the_project(
-    tool, claude_app, project_dir  # noqa: F811
+    tool,
+    claude_app,
+    project_dir,  # noqa: F811
 ):
     # (review: the reset was measured for Bash alone; its PowerShell tool is said by the CLI to
     # keep its folder - a `cd` into the scratch there is the card it was. k-copilot-cd: nor is
@@ -601,8 +778,9 @@ def test_only_claude_codes_bash_tool_is_known_to_start_in_the_project(
 
     (project_dir / ".koloni" / "tmp").mkdir(parents=True)
     line = "cd .koloni/tmp; ls"
-    client, provider, _ = claude_app([
-        {**BASH, "tool": tool, "input": {"command": line, "new_shell": True}}, {"say": "ok"}])
+    client, provider, _ = claude_app(
+        [{**BASH, "tool": tool, "input": {"command": line, "new_shell": True}}, {"say": "ok"}]
+    )
     cid, _run_id = start_claude(client, project_dir, provider, "full_auto")
     asked = wait_status(client, cid, "waiting_approval")["commands"][0]
     assert (asked["status"], asked["cwd"]) == ("proposed", None)
@@ -615,9 +793,14 @@ def test_at_full_auto_a_delete_in_the_scratch_runs_unasked_one_that_may_leave_it
     # B-336, and its review: the card is left out where it is decided, never by `danger`.
     (project_dir / ".koloni" / "tmp").mkdir(parents=True)
     executor = ScriptedExecutor([Script([""]), Script([""])])
-    client, _ = make_client([cmd("Remove-Item .koloni/tmp/not.txt"),
-                             cmd("Remove-Item .koloni/tmp/c,C:\\elsewhere\\out.txt", "k2"),
-                             text("asked")], executor=executor)
+    client, _ = make_client(
+        [
+            cmd("Remove-Item .koloni/tmp/not.txt"),
+            cmd("Remove-Item .koloni/tmp/c,C:\\elsewhere\\out.txt", "k2"),
+            text("asked"),
+        ],
+        executor=executor,
+    )
     cid, _run_id = start_in_mode(client, project_dir, "full_auto")
     snap = wait_status(client, cid, "waiting_approval")
     first, second = snap["commands"]
@@ -627,24 +810,33 @@ def test_at_full_auto_a_delete_in_the_scratch_runs_unasked_one_that_may_leave_it
 
 
 def test_a_clis_write_in_the_scratch_is_on_no_record_nor_is_the_ignore_koloni_writes_for_it(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     from tests.test_claude_native import BASH
     from tests.test_claude_native import start as start_claude
 
-    profile = {**BASH, "input": {"command": "chrome --user-data-dir=.koloni/tmp/p"},
-               "write": [".koloni/tmp/p/Cookies", "x"]}
+    profile = {
+        **BASH,
+        "input": {"command": "chrome --user-data-dir=.koloni/tmp/p"},
+        "write": [".koloni/tmp/p/Cookies", "x"],
+    }
     client, provider, _ = claude_app([profile, {"say": "ok"}])
     cid, run_id = start_claude(client, project_dir, provider, "full_auto")
     snap = wait_run(client, cid, run_id)
     assert [c["status"] for c in snap["commands"]] == ["exited"] and snap["questions"] == []
     assert (project_dir / ".koloni" / "tmp" / "p" / "Cookies").exists()
-    assert (project_dir / ".koloni" / ".gitignore").read_text(encoding="utf-8") == "tmp/\n.gitignore\n"
+    assert (project_dir / ".koloni" / ".gitignore").read_text(
+        encoding="utf-8"
+    ) == "tmp/\n.gitignore\n"
     assert snap["file_changes"] == []
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
-def test_an_agents_own_write_in_the_scratch_leaves_git_status_clean(make_client, wait_run, project_dir):
+def test_an_agents_own_write_in_the_scratch_leaves_git_status_clean(
+    make_client, wait_run, project_dir
+):
     from tests.test_take_in_scenarios import repository
 
     repository(project_dir)
@@ -652,13 +844,25 @@ def test_an_agents_own_write_in_the_scratch_leaves_git_status_clean(make_client,
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
     snap = wait_run(client, cid, run_id)
     assert (project_dir / ".koloni" / "tmp" / "x.txt").exists() and snap["questions"] == []
-    assert (project_dir / ".koloni" / ".gitignore").read_text(encoding="utf-8") == "tmp/\n.gitignore\n"
-    assert subprocess.run(["git", "status", "--porcelain"], cwd=project_dir, capture_output=True,
-                          text=True, check=True).stdout == ""
+    assert (project_dir / ".koloni" / ".gitignore").read_text(
+        encoding="utf-8"
+    ) == "tmp/\n.gitignore\n"
+    assert (
+        subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        == ""
+    )
 
 
 def test_claude_codes_own_recursive_delete_in_the_scratch_runs_unasked_at_full_auto(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     # (live, 14 Nov 2026: `rm -rf .koloni/tmp/w2` of its Bash was a "Deletes files or disks."
     # card - the exemption was KOLONİ's own commands' alone)
@@ -666,24 +870,34 @@ def test_claude_codes_own_recursive_delete_in_the_scratch_runs_unasked_at_full_a
     from tests.test_claude_native import start as start_claude
 
     (project_dir / ".koloni" / "tmp" / "w2").mkdir(parents=True)
-    client, provider, _ = claude_app([
-        {**BASH, "input": {"command": "rm -rf .koloni/tmp/w2"}}, {"say": "ok"}])
+    client, provider, _ = claude_app(
+        [{**BASH, "input": {"command": "rm -rf .koloni/tmp/w2"}}, {"say": "ok"}]
+    )
     cid, run_id = start_claude(client, project_dir, provider, "full_auto")
     snap = wait_run(client, cid, run_id)
     assert [c["status"] for c in snap["commands"]] == ["exited"], snap["commands"]
 
 
-@pytest.mark.parametrize("line, tool, level, under", [
-    ("rm -rf .koloni/tmp", "Bash", "full_auto", False),
-    ("rm -rf .koloni/tmp/browser", "Bash", "full_auto", False),
-    ("rm -rf .koloni/tmp/linked", "Bash", "full_auto", False),
-    ("rm -rf .koloni/tmp/w2/..", "Bash", "full_auto", False),
-    ("rm -rf .koloni/tmp/w2", "Bash", "auto_edit", False),
-    # (where it runs is not known: its PowerShell tool, a sub-agent of its own)
-    ("Remove-Item -Recurse -Force .koloni/tmp/w2", "PowerShell", "full_auto", False),
-    ("rm -rf .koloni/tmp/w2", "Bash", "full_auto", True)])
+@pytest.mark.parametrize(
+    "line, tool, level, under",
+    [
+        ("rm -rf .koloni/tmp", "Bash", "full_auto", False),
+        ("rm -rf .koloni/tmp/browser", "Bash", "full_auto", False),
+        ("rm -rf .koloni/tmp/linked", "Bash", "full_auto", False),
+        ("rm -rf .koloni/tmp/w2/..", "Bash", "full_auto", False),
+        ("rm -rf .koloni/tmp/w2", "Bash", "auto_edit", False),
+        # (where it runs is not known: its PowerShell tool, a sub-agent of its own)
+        ("Remove-Item -Recurse -Force .koloni/tmp/w2", "PowerShell", "full_auto", False),
+        ("rm -rf .koloni/tmp/w2", "Bash", "full_auto", True),
+    ],
+)
 def test_claude_codes_delete_that_may_leave_the_scratch_or_runs_elsewhere_is_still_asked(
-    line, tool, level, under, claude_app, project_dir  # noqa: F811
+    line,
+    tool,
+    level,
+    under,
+    claude_app,
+    project_dir,  # noqa: F811
 ):
     from tests.test_claude_native import AGENT, BASH, SUB
     from tests.test_claude_native import start as start_claude
@@ -706,7 +920,8 @@ def test_claude_codes_delete_that_may_leave_the_scratch_or_runs_elsewhere_is_sti
     asked = wait_status(client, cid, "waiting_approval")["commands"][0]
     assert (asked["command"], asked["status"]) == (line, "proposed")
     os.rmdir(scratch / "linked" / "deep" / "j") if os.name == "nt" else os.unlink(
-        scratch / "linked" / "deep" / "j")
+        scratch / "linked" / "deep" / "j"
+    )
 
 
 @pytest.mark.parametrize("level, status", [("full_auto", "exited"), ("auto_edit", "proposed")])

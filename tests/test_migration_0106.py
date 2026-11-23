@@ -30,13 +30,17 @@ def _role(conn, name, does, builtin, kind):
         "INSERT INTO roles (id, name, description, instructions, tools, builtin, "
         "created_by_agent, kind, enabled, mcp, skills, created_at, updated_at) "
         "VALUES (?, ?, '', ?, '[]', ?, 0, ?, 1, '[]', '[]', '2026-10-28', '2026-10-28')",
-        (name, name, does, builtin, kind))
+        (name, name, does, builtin, kind),
+    )
 
 
 def _said(db):
     with sqlite3.connect(db) as conn:
-        return dict(conn.execute("SELECT name, instructions FROM roles WHERE name = 'Lead' "
-                                 "OR kind = 'lead'"))
+        return dict(
+            conn.execute(
+                "SELECT name, instructions FROM roles WHERE name = 'Lead' OR kind = 'lead'"
+            )
+        )
 
 
 def test_unchanged_leads_are_told_to_split_an_edited_one_is_not_and_back(tmp_path):

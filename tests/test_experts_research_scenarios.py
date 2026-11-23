@@ -71,8 +71,12 @@ def learn(root, kept, search, may=lambda url: None):
 
 PAGES = {
     f"{A}/robots.txt": OPEN,
-    f"{A}/docs/hooks": (200, HTML, "<p>constructEvent checks a webhook</p>"
-                                   "<a href='/docs/hooks/retry'>retry</a><a href='/blog'>b</a>"),
+    f"{A}/docs/hooks": (
+        200,
+        HTML,
+        "<p>constructEvent checks a webhook</p>"
+        "<a href='/docs/hooks/retry'>retry</a><a href='/blog'>b</a>",
+    ),
     f"{A}/docs/hooks/retry": (200, MD, "Webhooks are retried for 3 days."),
     f"{A}/blog": (200, MD, "beside the path"),
     f"{A}/docs/llms.txt": (200, "text/plain", "- [x](/docs/x)\n"),
@@ -115,10 +119,15 @@ def test_a_page_taken_off_the_list_is_not_read_again(monkeypatch, project_dir):
     assert f"{A}/docs/hooks/retry" not in site.asked
     # A found page itself taken off: not read, and none of its links either.
     (project_dir / "notes.md").write_text("pay()", encoding="utf-8")
-    record, _asked = learn(project_dir, known(RESEARCH, "notes.md",
-                                              removed=[f"{A}/docs/hooks"]), search)
-    assert record["pages"][0] == {"source": f"{A}/docs/hooks", "read": False,
-                                  "why": knowledge.REMOVED, "found": True}
+    record, _asked = learn(
+        project_dir, known(RESEARCH, "notes.md", removed=[f"{A}/docs/hooks"]), search
+    )
+    assert record["pages"][0] == {
+        "source": f"{A}/docs/hooks",
+        "read": False,
+        "why": knowledge.REMOVED,
+        "found": True,
+    }
     assert read(record) == ["notes.md"]
 
 
@@ -151,25 +160,45 @@ RESEARCHER = {**EXPERT, "knowledge": {"topic": "Pay", "sources": [RESEARCH]}}
 def test_only_an_opener_that_searches_gets_a_researcher_that_learns(
     make_client, wait_run, project_dir
 ):
-    client, model = make_client({"Lead": [spawn("Pay expert", "learn", "e"), text("done")],
-                                 "Pay expert": [text("I have not learned yet.")]})
+    client, model = make_client(
+        {
+            "Lead": [spawn("Pay expert", "learn", "e"), text("done")],
+            "Pay expert": [text("I have not learned yet.")],
+        }
+    )
     lead = next(r for r in client.get("/api/roles").json() if r["name"] == "Lead")
-    assert client.patch(f"/api/roles/{lead['id']}", headers=OWN, json={
-        "tools": [one for one in lead["tools"] if one != "web_search"]}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/roles/{lead['id']}",
+            headers=OWN,
+            json={"tools": [one for one in lead["tools"] if one != "web_search"]},
+        ).status_code
+        == 200
+    )
     expert(client, project_dir, RESEARCHER)
-    cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never",
-                        content="ask the Pay expert")
+    cid, run_id = begin(
+        client, project_dir, mode="full_auto", spawn_approval="never", content="ask the Pay expert"
+    )
     wait_run(client, cid, run_id)
     assert "learn" not in offered_to(model, "Pay expert")
 
 
 def test_an_agent_that_does_not_search_makes_no_researcher(make_client, wait_run, project_dir):
-    made = call("create_role", {"name": "Hooks expert", "tools": ["read_file"],
-                                "sources": ["research: stripe webhooks"]}, "r1")
+    made = call(
+        "create_role",
+        {"name": "Hooks expert", "tools": ["read_file"], "sources": ["research: stripe webhooks"]},
+        "r1",
+    )
     client, _model = make_client({"Lead": [step(made), text("could not")]})
     lead = next(r for r in client.get("/api/roles").json() if r["name"] == "Lead")
-    assert client.patch(f"/api/roles/{lead['id']}", headers=OWN, json={
-        "tools": [one for one in lead["tools"] if one != "web_search"]}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/roles/{lead['id']}",
+            headers=OWN,
+            json={"tools": [one for one in lead["tools"] if one != "web_search"]},
+        ).status_code
+        == 200
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto", content="make it")
     result = wait_run(client, cid, run_id)["tool_calls"][0]
     assert result["status"] == "failed" and "(web_search)" in result["result"]
@@ -195,17 +224,26 @@ def test_learn_on_the_tab_searches_with_the_projects_search_and_never_the_paid_o
     client, _model = make_client({"Lead": [text("## What it offers\nWebhooks.")]})
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     role = expert(client, project_dir, RESEARCHER)
-    assert client.post(f"/api/roles/{role['id']}/learn", json={"project_id": pid},
-                       headers=OWN).status_code == 202
+    assert (
+        client.post(
+            f"/api/roles/{role['id']}/learn", json={"project_id": pid}, headers=OWN
+        ).status_code
+        == 202
+    )
     state = wait_learned(client, role["id"], pid)
     assert state["failed"] is None, state["failed"]
     assert searched == [{"query": "pay webhooks", "paid": False}]
     assert [one["source"] for one in state["learned"]["pages"] if one["read"]] == [
-        f"{A}/docs/hooks", f"{A}/docs/hooks/retry"]
+        f"{A}/docs/hooks",
+        f"{A}/docs/hooks/retry",
+    ]
     # The user takes a found page off its list: kept with its sources.
-    removed = client.put(f"/api/knowledge/{role['knowledge_id']}", params={"project_id": pid},
-                         headers=OWN, json={**role["knowledge"],
-                                            "removed": [f"{A}/docs/hooks/retry#x"]})
+    removed = client.put(
+        f"/api/knowledge/{role['knowledge_id']}",
+        params={"project_id": pid},
+        headers=OWN,
+        json={**role["knowledge"], "removed": [f"{A}/docs/hooks/retry#x"]},
+    )
     assert removed.status_code == 200, removed.text
     assert removed.json()["knowledge"]["removed"] == [f"{A}/docs/hooks/retry"]
 
@@ -214,8 +252,12 @@ def test_a_project_with_no_network_researches_nothing(make_client, project_dir, 
     searched = fake_search(monkeypatch, f"{A}/docs/hooks")
     client, _model = make_client({"Lead": [text("never")]})
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    assert client.patch(f"/api/projects/{pid}", json={
-        "docker_image": "python:3.12", "exec_location": "docker"}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/projects/{pid}", json={"docker_image": "python:3.12", "exec_location": "docker"}
+        ).status_code
+        == 200
+    )
     role = expert(client, project_dir, RESEARCHER)
     clicked = client.post(f"/api/roles/{role['id']}/learn", json={"project_id": pid}, headers=OWN)
     assert clicked.status_code == 409 and "network access is off" in clicked.text
@@ -227,12 +269,25 @@ def test_unwatched_it_researches_only_where_the_trigger_lets_it_search_and_names
 ):
     site = Site(monkeypatch, PAGES)
     searched = fake_search(monkeypatch, f"{B}/forum/t/2", f"{A}/docs/hooks")
-    client, _model, pid, cid = setup(make_client, project_dir, {
-        "Lead": [spawn("Pay expert", "learn", "e"), text("done"),
-                 spawn("Pay expert", "learn", "f"), text("## Hooks\nRetried."), text("done")],
-        "Pay expert": [step(call("learn", {}, "l1")), text("could not"),
-                       step(call("learn", {}, "l2")), text("learned")],
-    })
+    client, _model, pid, cid = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [
+                spawn("Pay expert", "learn", "e"),
+                text("done"),
+                spawn("Pay expert", "learn", "f"),
+                text("## Hooks\nRetried."),
+                text("done"),
+            ],
+            "Pay expert": [
+                step(call("learn", {}, "l1")),
+                text("could not"),
+                step(call("learn", {}, "l2")),
+                text("learned"),
+            ],
+        },
+    )
     expert(client, project_dir, RESEARCHER)
     leave = {"write": True, "commands": [], "agents": 1}
     made = trigger(client, pid, cid, permissions=leave)
@@ -282,19 +337,27 @@ def test_a_researched_guide_is_old_after_a_week_only_where_it_is_learned_weekly(
     assert knowledge.stale(root, files) is None
 
 
-def test_an_expert_at_work_learns_its_weekly_guide_first(make_client, wait_run, project_dir,
-                                                       monkeypatch):
+def test_an_expert_at_work_learns_its_weekly_guide_first(
+    make_client, wait_run, project_dir, monkeypatch
+):
     Site(monkeypatch, PAGES)
     search, _queries = searcher(f"{A}/docs/hooks")
     learn(project_dir, known(RESEARCH, weekly=True), search)
     aged(project_dir, 8)
-    client, model = make_client({"Lead": [spawn("Pay expert", "what retries?", "e"),
-                                          text("done")],
-                                 "Pay expert": [text("3 days.")]})
-    expert(client, project_dir, {**RESEARCHER, "knowledge": {
-        **RESEARCHER["knowledge"], "weekly": True}})
-    cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never",
-                        content="ask the Pay expert")
+    client, model = make_client(
+        {
+            "Lead": [spawn("Pay expert", "what retries?", "e"), text("done")],
+            "Pay expert": [text("3 days.")],
+        }
+    )
+    expert(
+        client,
+        project_dir,
+        {**RESEARCHER, "knowledge": {**RESEARCHER["knowledge"], "weekly": True}},
+    )
+    cid, run_id = begin(
+        client, project_dir, mode="full_auto", spawn_approval="never", content="ask the Pay expert"
+    )
     wait_run(client, cid, run_id)
     assert "learn" in offered_to(model, "Pay expert")
     assert "learn first (learn), then answer" in model.calls_of["Pay expert"][0][0]["content"]
@@ -329,15 +392,22 @@ def test_a_research_reads_pages_about_its_topic_in_no_other_language(monkeypatch
     # B-131 (live, research: tomli): under docs.python.org/pl/3.13/library/ it read configparser, netrc
     # and the index, and the Polish and Korean pages - "536 more not read".
     lib = f"{A}/3/library"
-    Site(monkeypatch, {
-        f"{A}/robots.txt": OPEN,
-        f"{lib}/tomllib.html": (200, HTML, "<p>tomllib parses TOML</p><a href='netrc.html'>n</a>"
-                                           f"<a href='{A}/pl/3/library/tomllib.html'>pl</a><a href='toml-howto.html'>t</a>"),
-        f"{lib}/netrc.html": (200, HTML, "<p>netrc files</p><a href='configparser.html'>c</a>"),
-        f"{lib}/toml-howto.html": (200, MD, "Read a TOML file with tomllib.load"),
-        f"{lib}/configparser.html": (200, MD, "INI files"),
-        f"{A}/pl/3/library/tomllib.html": (200, MD, "po polsku"),
-    })
+    Site(
+        monkeypatch,
+        {
+            f"{A}/robots.txt": OPEN,
+            f"{lib}/tomllib.html": (
+                200,
+                HTML,
+                "<p>tomllib parses TOML</p><a href='netrc.html'>n</a>"
+                f"<a href='{A}/pl/3/library/tomllib.html'>pl</a><a href='toml-howto.html'>t</a>",
+            ),
+            f"{lib}/netrc.html": (200, HTML, "<p>netrc files</p><a href='configparser.html'>c</a>"),
+            f"{lib}/toml-howto.html": (200, MD, "Read a TOML file with tomllib.load"),
+            f"{lib}/configparser.html": (200, MD, "INI files"),
+            f"{A}/pl/3/library/tomllib.html": (200, MD, "po polsku"),
+        },
+    )
     search, _queries = searcher(f"{lib}/tomllib.html", f"{A}/ko/3/library/tomllib.html")
     record, _asked = learn(project_dir, known("research: toml parsing"), search)
     # The page its address names comes first; the one about none of it is read, its links not followed.
@@ -349,6 +419,15 @@ def test_a_research_reads_pages_about_its_topic_in_no_other_language(monkeypatch
 def test_a_researchs_words_are_its_topics_in_turkish_too_without_the_little_ones():
     # (The review of B-131: Turkish letters split the words; "how", "the", "ile" told no page from another.)
     assert knowledge._words("how to parse TOML with tomllib", "https://docs.python.org/3/") == {
-        "parse", "toml", "tomllib"}
-    assert knowledge._words("şifre sıfırlama ile e-posta", "https://a.test/") == {"şifre", "sıfırlama", "posta"}
-    assert not knowledge._other_language("https://a.test/ar/arrays")  # (no Arabic in the list: /ar/ is often a word)
+        "parse",
+        "toml",
+        "tomllib",
+    }
+    assert knowledge._words("şifre sıfırlama ile e-posta", "https://a.test/") == {
+        "şifre",
+        "sıfırlama",
+        "posta",
+    }
+    assert not knowledge._other_language(
+        "https://a.test/ar/arrays"
+    )  # (no Arabic in the list: /ar/ is often a word)

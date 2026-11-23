@@ -27,8 +27,9 @@ LOOK_AGAIN = 1.0
 class SlotsMixin:
     # --- who is at work ------------------------------------------------------
 
-    async def _take(self: "AgentRunner", ctx: Ctx, queued: bool = False,
-                    shown: bool = True) -> None:
+    async def _take(
+        self: "AgentRunner", ctx: Ctx, queued: bool = False, shown: bool = True
+    ) -> None:
         """Take one of the turn's places for agents at work, waiting for a free one -
         and then for room in its project and on its provider, where the user has said
         how many agents may be at work there at once: until there is, it is `queued`,
@@ -48,8 +49,9 @@ class SlotsMixin:
             self._clock(ctx.run_id)
             if not came.done():
                 if shown:
-                    self._set_agent(ctx.cid, ctx.agent_id, status="queued",
-                                    queued_on=self._queued_on(ctx))
+                    self._set_agent(
+                        ctx.cid, ctx.agent_id, status="queued", queued_on=self._queued_on(ctx)
+                    )
                 await came
                 if shown:
                     self._set_agent(ctx.cid, ctx.agent_id, status="running", queued_on=None)
@@ -103,14 +105,21 @@ class SlotsMixin:
         that place again - only one free now, never waiting for one (no await before taking:
         `acquire` on a free semaphore does not wait)."""
         slots = self._slots.get(ctx.run_id)
-        if (ctx.agent_id in self._slot_lent and slots is not None and not slots.locked()
-                and not any(one[0] == ctx.agent_id and not one[3].done()
-                            for one in self._later_work.get(ctx.run_id, ()))):
+        if (
+            ctx.agent_id in self._slot_lent
+            and slots is not None
+            and not slots.locked()
+            and not any(
+                one[0] == ctx.agent_id and not one[3].done()
+                for one in self._later_work.get(ctx.run_id, ())
+            )
+        ):
             self._slot_lent.discard(ctx.agent_id)
             await slots.acquire()
 
-    def _limits(self: "AgentRunner",
-                ctxs: list[Ctx]) -> tuple[dict[str, int | None], dict[str, int]]:
+    def _limits(
+        self: "AgentRunner", ctxs: list[Ctx]
+    ) -> tuple[dict[str, int | None], dict[str, int]]:
         """How many agents the user lets work at once - in the project of each of these
         agents' conversations (by conversation), and on each of their providers. None:
         as many as come. A provider's is never None: unset, its kind's (`most_at_once`).
@@ -122,9 +131,16 @@ class SlotsMixin:
                 .join(Project, Conversation.project_id == Project.id)
                 .where(Conversation.id.in_({ctx.cid for ctx in ctxs}))
             ).all()
-            each = {provider.id: most_at_once(provider) for provider in
-                    session.scalars(select(Provider).where(Provider.id.in_(providers)))
-                    } if providers else {}
+            each = (
+                {
+                    provider.id: most_at_once(provider)
+                    for provider in session.scalars(
+                        select(Provider).where(Provider.id.in_(providers))
+                    )
+                }
+                if providers
+                else {}
+            )
         return {cid: limit for cid, limit in most}, each
 
     def _queued_on(self: "AgentRunner", ctx: Ctx) -> dict | None:
@@ -138,8 +154,11 @@ class SlotsMixin:
             most = self._limits([ctx])[1].get(ctx.provider_id or "")
         except Exception:
             return None
-        at_work = sum(self._ctxs[agent].provider_id == ctx.provider_id
-                      for agent in self._placed if agent in self._ctxs)
+        at_work = sum(
+            self._ctxs[agent].provider_id == ctx.provider_id
+            for agent in self._placed
+            if agent in self._ctxs
+        )
         if not most or not ctx.provider or at_work < most:
             return None
         return {"provider": ctx.provider, "at_work": at_work, "most": most}
@@ -213,7 +232,8 @@ class SlotsMixin:
         except Exception:
             if self._look_again is None:
                 self._look_again = asyncio.get_running_loop().call_later(
-                    LOOK_AGAIN, self._let_in_again)
+                    LOOK_AGAIN, self._let_in_again
+                )
             return
         fits = self._fit([ctx for ctx, _came in waiting], most, each)
         for one, room in zip(waiting, fits, strict=True):
@@ -230,9 +250,7 @@ class SlotsMixin:
 
     def at_work(self: "AgentRunner", root: str) -> int:
         """How many agents of a project hold a place among the agents at work now."""
-        return sum(
-            self._ctxs[agent].root == root for agent in self._placed if agent in self._ctxs
-        )
+        return sum(self._ctxs[agent].root == root for agent in self._placed if agent in self._ctxs)
 
     def asking(self: "AgentRunner", agent_id: str) -> bool:
         """Whether this agent waits for the user's word on something now - also on a card asked
@@ -268,7 +286,10 @@ class SlotsMixin:
             self._give(ctx)
 
     async def _settle(
-        self: "AgentRunner", ctx: Ctx, queued: bool = True, first: Callable[[], None] | None = None,
+        self: "AgentRunner",
+        ctx: Ctx,
+        queued: bool = True,
+        first: Callable[[], None] | None = None,
     ) -> bool:
         """A wait of an agent's has ended (it is no longer counted): the agent takes a
         place again, if it left one and waits for nothing else. Whether it has one now.
@@ -292,7 +313,8 @@ class SlotsMixin:
 
         def short() -> bool:
             return agent_id not in self._placed and (
-                self._slots[ctx.run_id].locked() or self._full(ctx))
+                self._slots[ctx.run_id].locked() or self._full(ctx)
+            )
 
         # (Where none of these is so, nothing below gives way to anything else: a free
         # lock and a free place are taken without a wait.)
@@ -308,9 +330,17 @@ class SlotsMixin:
             await self._take(ctx, queued)
             if self._waits(agent_id):
                 self._give(ctx)
-                self._set_agent(ctx.cid, agent_id, status=(
-                    "blocked" if self._held_up.get(agent_id)
-                    else "waiting" if self._out.get(agent_id) else "running"))
+                self._set_agent(
+                    ctx.cid,
+                    agent_id,
+                    status=(
+                        "blocked"
+                        if self._held_up.get(agent_id)
+                        else "waiting"
+                        if self._out.get(agent_id)
+                        else "running"
+                    ),
+                )
                 return False
             self._away.discard(agent_id)
             if waits:
@@ -318,8 +348,12 @@ class SlotsMixin:
             return True
 
     async def _users_word(
-        self: "AgentRunner", ctx: Ctx, asked: asyncio.Future[str],
-        heard: Callable[[str, bool], None] | None = None, back: bool = True, tell: bool = True,
+        self: "AgentRunner",
+        ctx: Ctx,
+        asked: asyncio.Future[str],
+        heard: Callable[[str, bool], None] | None = None,
+        back: bool = True,
+        tell: bool = True,
     ) -> str:
         """Wait for the user's word on what an agent asked for - a decision, an answer.
         Meanwhile the agent holds no place among the agents at work, as one that waits

@@ -28,6 +28,8 @@ def test_a_new_conversation_has_no_room_token_limit_and_one_from_before_keeps_it
     command.downgrade(cfg, "0145")
     with sqlite3.connect(db) as conn:
         conn.execute(ADD, ("back", AT, AT))
-        assert conn.execute(
-            "SELECT id, room_tokens FROM conversations ORDER BY id"
-        ).fetchall() == [("back", 400_000), ("new", None), ("old", 400_000)]
+        assert conn.execute("SELECT id, room_tokens FROM conversations ORDER BY id").fetchall() == [
+            ("back", 400_000),
+            ("new", None),
+            ("old", 400_000),
+        ]

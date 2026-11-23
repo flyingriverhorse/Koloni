@@ -4,6 +4,7 @@ left (the project's setting), and what each agent was given so
 Revision ID: 0117
 Revises: 0116
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -15,11 +16,11 @@ depends_on = None
 
 def upgrade() -> None:
     with op.batch_alter_table("projects") as batch:
-        batch.add_column(sa.Column(
-            "continue_steps", sa.Integer(), nullable=False, server_default="25"))
+        batch.add_column(
+            sa.Column("continue_steps", sa.Integer(), nullable=False, server_default="25")
+        )
     with op.batch_alter_table("agents") as batch:
-        batch.add_column(sa.Column(
-            "steps_given", sa.Integer(), nullable=False, server_default="0"))
+        batch.add_column(sa.Column("steps_given", sa.Integer(), nullable=False, server_default="0"))
 
 
 def downgrade() -> None:

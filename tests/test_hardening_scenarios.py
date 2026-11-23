@@ -41,8 +41,11 @@ def link(outside, inside):
 
 
 @pytest.mark.parametrize("mode", ["ask", "auto_edit", "full_auto"])
-@pytest.mark.parametrize("change", [
-    write("inside.txt", "changed\n"), edit("inside.txt", "outside", "changed")], ids=["write", "edit"])
+@pytest.mark.parametrize(
+    "change",
+    [write("inside.txt", "changed\n"), edit("inside.txt", "outside", "changed")],
+    ids=["write", "edit"],
+)
 def test_a_file_that_has_another_name_outside_the_project_is_not_written_through(
     make_client, wait_run, project_dir, tmp_path, mode, change
 ):
@@ -76,7 +79,7 @@ def test_a_change_that_waited_is_not_applied_through_a_link_made_meanwhile(
     make_client, project_dir, tmp_path
 ):
     client, _model = make_client([edit("hello.py", "hi", "hello"), text("done")])
-    cid, _run_id = start(client, project_dir)                    # Ask: the change waits
+    cid, _run_id = start(client, project_dir)  # Ask: the change waits
     change = wait_status(client, cid, "waiting_approval")["file_changes"][0]
     outside, held = relinked(project_dir, tmp_path)
     answer = client.post(f"/api/file-changes/{change['id']}/approve")
@@ -100,13 +103,22 @@ def test_a_change_is_not_taken_back_through_a_link_made_meanwhile(
 # --- "Always run" and the words that run what they are given ----------------------------------
 
 
-@pytest.mark.parametrize("command", [
-    "iex 'Get-Location'", "IEX 'Get-Location'", "Invoke-Expression 'Get-Location'",
-    "icm 'Get-Location'", "Invoke-Command 'Get-Location'",
-    "saps notepad", "Start-Process notepad",
-    "sajb 'Get-Location'", "Start-Job 'Get-Location'",
-    "ihy 3", "Invoke-History 3",
-])
+@pytest.mark.parametrize(
+    "command",
+    [
+        "iex 'Get-Location'",
+        "IEX 'Get-Location'",
+        "Invoke-Expression 'Get-Location'",
+        "icm 'Get-Location'",
+        "Invoke-Command 'Get-Location'",
+        "saps notepad",
+        "Start-Process notepad",
+        "sajb 'Get-Location'",
+        "Start-Job 'Get-Location'",
+        "ihy 3",
+        "Invoke-History 3",
+    ],
+)
 def test_no_rule_is_offered_or_honoured_for_a_word_that_runs_what_it_is_given(command):
     word = command.split()[0]
     assert suggest_prefix(command) == ""
@@ -118,7 +130,8 @@ def test_a_rule_for_such_a_word_runs_nothing_unasked(make_client, project_dir):
     executor = ScriptedExecutor([Script(["ran\n"])])
     client, _model = make_client(
         [cmd("iex 'Set-Content -LiteralPath only.txt marker'", id="k1"), text("done")],
-        executor=executor)
+        executor=executor,
+    )
     client.headers["Origin"] = ORIGIN
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
@@ -139,9 +152,12 @@ def test_a_pattern_that_does_not_end_is_given_up_on_and_the_app_answers_meanwhil
 ):
     settings_env["KOLONI_SEARCH_SECONDS"] = "4"
     (project_dir / "long.txt").write_text("a" * 29 + "!\n", encoding="utf-8")
-    client, _model = make_client([
-        step(call("search", {"pattern": "(a+)+$", "path": "."}, "s")),
-        text("The pattern took too long.")])
+    client, _model = make_client(
+        [
+            step(call("search", {"pattern": "(a+)+$", "path": "."}, "s")),
+            text("The pattern took too long."),
+        ]
+    )
     began = time.monotonic()
     cid, run_id = begin(client, project_dir, mode="full_auto")
     # While the search is at work the app is not held by it: another request is answered.
@@ -183,9 +199,10 @@ def test_no_answer_may_be_put_in_another_pages_frame(make_client):
 def test_reading_a_line_of_a_large_file_does_not_take_the_file_into_memory(
     make_client, wait_run, project_dir
 ):
-    (project_dir / "big.txt").write_bytes(b"0123456789abcdef\n" * 700_000)       # 11.9 MB
-    client, model = make_client([
-        step(call("read_file", {"path": "big.txt", "limit": 1}, "r")), text("done")])
+    (project_dir / "big.txt").write_bytes(b"0123456789abcdef\n" * 700_000)  # 11.9 MB
+    client, model = make_client(
+        [step(call("read_file", {"path": "big.txt", "limit": 1}, "r")), text("done")]
+    )
     tracemalloc.start()
     try:
         cid, run_id = begin(client, project_dir, mode="full_auto")
@@ -195,5 +212,5 @@ def test_reading_a_line_of_a_large_file_does_not_take_the_file_into_memory(
         tracemalloc.stop()
     (tool,) = snap["tool_calls"]
     assert tool["status"] == "succeeded" and "0123456789abcdef" in tool["result"]
-    assert len(tool["result"]) < 500                  # one line, and what it says of the rest
+    assert len(tool["result"]) < 500  # one line, and what it says of the rest
     assert peak < 8_000_000, f"{peak:,} bytes at the most"

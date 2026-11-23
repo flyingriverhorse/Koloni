@@ -14,8 +14,9 @@ from tests.test_copy_later_scenarios import again, interrupted
 
 def _copy_folder(settings_env):
     runtime = load_settings(settings_env).runtime_root
-    return [path for held in app.copies.folders(runtime) if held.is_dir()
-            for path in held.iterdir()]
+    return [
+        path for held in app.copies.folders(runtime) if held.is_dir() for path in held.iterdir()
+    ]
 
 
 @pytest.mark.skipif(os.name != "nt", reason="a junction is Windows'")
@@ -27,7 +28,7 @@ def test_a_decided_copy_left_on_disk_goes_at_the_next_start_its_junction_as_a_li
     cid = interrupted(settings_env, project_dir)
     with again(settings_env) as client:
         (card,) = client.get(f"/api/conversations/{cid}").json()["merges"]
-        assert card["status"] == "kept"                 # waiting: kept at the start
+        assert card["status"] == "kept"  # waiting: kept at the start
         (copy,) = _copy_folder(settings_env)
         # The folder cannot be deleted right now (a file held open): the card is decided all the same.
         with monkeypatch.context() as patched:
@@ -68,26 +69,57 @@ def test_vectors_of_what_is_gone_are_deleted_at_the_start_the_rest_kept(tmp_path
         other = Memory(project_id=project.id, tier="note", text="other", origin="user")
         session.add_all([kept, other])
         session.flush()
-        row = session.execute(text(
-            "INSERT INTO said_in_turns (words, said, project_id, conversation_id, run_id, agent, "
-            "at) VALUES ('w', 'said', :p, 'c', 'r', 'Lead', '2026-01-01')"), {"p": project.id}
+        row = session.execute(
+            text(
+                "INSERT INTO said_in_turns (words, said, project_id, conversation_id, run_id, agent, "
+                "at) VALUES ('w', 'said', :p, 'c', 'r', 'Lead', '2026-01-01')"
+            ),
+            {"p": project.id},
         ).lastrowid
         vector = [1.0, 0.0]
-        session.add_all([
-            Embedding(kind="memory", record_id=kept.id, project_id=project.id, model="m1",
-                      vector=vector),
-            Embedding(kind="turn", record_id=str(row), project_id=project.id, model="m1",
-                      vector=vector),
-            # gone: its record, its turn's row, its project, its model
-            Embedding(kind="memory", record_id="nothere", project_id=project.id, model="m1",
-                      vector=vector),
-            Embedding(kind="turn", record_id=str(row + 99), project_id=project.id, model="m1",
-                      vector=vector),
-            Embedding(kind="memory", record_id=other.id, project_id="gone", model="m1",
-                      vector=vector),
-            Embedding(kind="memory", record_id=kept.id, project_id=project.id, model="old",
-                      vector=vector),
-        ])
+        session.add_all(
+            [
+                Embedding(
+                    kind="memory",
+                    record_id=kept.id,
+                    project_id=project.id,
+                    model="m1",
+                    vector=vector,
+                ),
+                Embedding(
+                    kind="turn",
+                    record_id=str(row),
+                    project_id=project.id,
+                    model="m1",
+                    vector=vector,
+                ),
+                # gone: its record, its turn's row, its project, its model
+                Embedding(
+                    kind="memory",
+                    record_id="nothere",
+                    project_id=project.id,
+                    model="m1",
+                    vector=vector,
+                ),
+                Embedding(
+                    kind="turn",
+                    record_id=str(row + 99),
+                    project_id=project.id,
+                    model="m1",
+                    vector=vector,
+                ),
+                Embedding(
+                    kind="memory", record_id=other.id, project_id="gone", model="m1", vector=vector
+                ),
+                Embedding(
+                    kind="memory",
+                    record_id=kept.id,
+                    project_id=project.id,
+                    model="old",
+                    vector=vector,
+                ),
+            ]
+        )
         session.commit()
         expected = {("memory", kept.id, "m1"), ("turn", str(row), "m1")}
     engine.dispose()
@@ -101,8 +133,9 @@ def _with_free_pages(path, megabytes):
     """A database that had `megabytes` of rows, deleted: its pages are free, the file as big."""
     with sqlite3.connect(path) as conn:
         conn.execute("CREATE TABLE filler (blob BLOB)")
-        conn.executemany("INSERT INTO filler VALUES (?)",
-                         [(b"x" * 1024 * 1024,) for _ in range(megabytes)])
+        conn.executemany(
+            "INSERT INTO filler VALUES (?)", [(b"x" * 1024 * 1024,) for _ in range(megabytes)]
+        )
         conn.commit()
         conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         conn.execute("DELETE FROM filler")
@@ -116,7 +149,7 @@ def test_the_database_is_compacted_only_when_much_of_it_is_free(tmp_path, monkey
 
     monkeypatch.setattr(db, "VACUUM_FREE_BYTES", 4 * 1024 * 1024)
     small = _db(tmp_path / "small")
-    before = _with_free_pages(small, 3)                    # under the bytes: left as it is
+    before = _with_free_pages(small, 3)  # under the bytes: left as it is
     db.tidy_db(small)
     assert small.stat().st_size == before
     big = _db(tmp_path / "big")
@@ -127,8 +160,9 @@ def test_the_database_is_compacted_only_when_much_of_it_is_free(tmp_path, monkey
         assert conn.execute("PRAGMA freelist_count").fetchone() == (0,)
 
 
-def test_a_database_that_cannot_be_tidied_does_not_keep_kolonis_start(tmp_path, monkeypatch,
-                                                                     caplog):
+def test_a_database_that_cannot_be_tidied_does_not_keep_kolonis_start(
+    tmp_path, monkeypatch, caplog
+):
     from app.db import session as db
 
     path = _db(tmp_path)
@@ -157,13 +191,17 @@ def test_the_log_rotates_by_size_holds_what_the_start_said_and_hides_keys(
         # lifespan's shutdown; the time limit is for a connection that does not end.)
         assert kwargs["timeout_graceful_shutdown"] == 5
         logging.getLogger("uvicorn.access").info(
-            '%s - "%s %s HTTP/%s" %d', "127.0.0.1:1", "GET", "/api/x?key=SECRET", "1.1", 200)
+            '%s - "%s %s HTTP/%s" %d', "127.0.0.1:1", "GET", "/api/x?key=SECRET", "1.1", 200
+        )
         logging.getLogger("httpx").info("HTTP Request: GET https://x/?key=SECRET")
 
     monkeypatch.setattr(main, "serve", serve)
     names = ("", "uvicorn", "uvicorn.access", "uvicorn.error", "app")
-    saved = {name: (lg.handlers[:], lg.level, lg.propagate, lg.disabled, lg.filters[:])
-             for name in names for lg in [logging.getLogger(name)]}
+    saved = {
+        name: (lg.handlers[:], lg.level, lg.propagate, lg.disabled, lg.filters[:])
+        for name in names
+        for lg in [logging.getLogger(name)]
+    }
     try:
         main.run()
     finally:
@@ -182,8 +220,9 @@ def test_the_log_rotates_by_size_holds_what_the_start_said_and_hides_keys(
     assert "key=[key]" in written and "SECRET" not in written
 
 
-def test_what_kolonis_data_takes_is_counted_following_no_link(client, settings, tmp_path,
-                                                              monkeypatch):
+def test_what_kolonis_data_takes_is_counted_following_no_link(
+    client, settings, tmp_path, monkeypatch
+):
     import app.api.health as health
 
     (settings.runtime_root / "logs").mkdir(parents=True, exist_ok=True)
@@ -208,9 +247,13 @@ def test_what_kolonis_data_takes_is_counted_following_no_link(client, settings, 
     (settings.db_path.parent / "backups" / "koloni-1.db").write_bytes(b"x" * 2 * 2**20)
     said = client.get("/api/storage").json()
     assert said["backups_mb"] == 2.0 and said["db_mb"] < 2
-    monkeypatch.setattr(health, "COUNT_SECONDS", -1)        # a count that takes too long
+    monkeypatch.setattr(health, "COUNT_SECONDS", -1)  # a count that takes too long
     assert client.get("/api/storage").json() == {
-        "db_mb": None, "backups_mb": None, "copies_mb": None, "logs_mb": None}
+        "db_mb": None,
+        "backups_mb": None,
+        "copies_mb": None,
+        "logs_mb": None,
+    }
 
 
 def test_old_events_are_deleted_at_the_start_but_warnings_and_the_newest(tmp_path):
@@ -223,9 +266,14 @@ def test_old_events_are_deleted_at_the_start_but_warnings_and_the_newest(tmp_pat
     with sqlite3.connect(path) as conn:
         conn.executemany(
             "INSERT INTO events (id, conversation_id, run_id, type, payload, created_at) "
-            "VALUES (?, 'c', 'r', ?, '{}', ?)", [
-                (1, "tool_call.created", old), (2, "injection.warned", old),
-                (3, "tool_call.updated", new), (4, "message.created", old)])
+            "VALUES (?, 'c', 'r', ?, '{}', ?)",
+            [
+                (1, "tool_call.created", old),
+                (2, "injection.warned", old),
+                (3, "tool_call.updated", new),
+                (4, "message.created", old),
+            ],
+        )
     tidy_db(path)
     with sqlite3.connect(path) as conn:
         left = [row[0] for row in conn.execute("SELECT id FROM events ORDER BY id")]

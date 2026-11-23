@@ -33,8 +33,11 @@ def _to_decide(session: Session, merge_id: str, decision: str) -> Merge:
         raise HTTPException(404, "merge not found")
     compare_id = session.get_one(Run, merge.run_id).compare_id
     compare = session.get_one(Compare, compare_id) if compare_id else None
-    if compare is not None and compare.chosen_run_id != merge.run_id and (
-            compare.status == "open" or decision != "reject"):
+    if (
+        compare is not None
+        and compare.chosen_run_id != merge.run_id
+        and (compare.status == "open" or decision != "reject")
+    ):
         # A side of a comparison is taken in, or thrown away, by the user's choice of one:
         # afterwards the chosen side's card is decided here (what clashed), and any other
         # only thrown away - where that broke off at the choice, its copy is not stuck.
@@ -43,7 +46,11 @@ def _to_decide(session: Session, merge_id: str, decision: str) -> Merge:
 
 
 async def _decide_kept(
-    merge: Merge, decision: str, choices: dict[str, str], request: Request, session: Session,
+    merge: Merge,
+    decision: str,
+    choices: dict[str, str],
+    request: Request,
+    session: Session,
 ) -> None:
     if decision == "check":
         raise HTTPException(409, CHECK_NOT_KEPT)
@@ -66,7 +73,10 @@ async def _acted(session: Session, merge: Merge, decided) -> None:
 
 
 async def _decide(
-    merge_id: str, decision: str, request: Request, session: Session,
+    merge_id: str,
+    decision: str,
+    request: Request,
+    session: Session,
     body: MergeChoices | None = None,
 ) -> dict:
     merge = _to_decide(session, merge_id, decision)
@@ -86,22 +96,33 @@ async def _decide(
         # (A file not as it was seen: nothing of the card is taken, and it is shown again.)
         if decision != "approve" or merge.status not in ("pending", "interrupted"):
             return
-        moved = not_as_seen(merge.files, before, keep, how=True) if after else (
-            not_as_seen(merge.files, seen, keep))
+        moved = (
+            not_as_seen(merge.files, before, keep, how=True)
+            if after
+            else (not_as_seen(merge.files, seen, keep))
+        )
         if not moved:
             return
         files, taken = ", ".join(moved[:20]), sorted(_taken(merge.files) - taken_before)
-        raise HTTPException(409, PARTLY_AS_SEEN.format(
-            taken=", ".join(taken[:20]), files=files, was="was" if len(moved) == 1 else "were",
-        ) if taken else NOT_AS_SEEN.format(files=files))
+        raise HTTPException(
+            409,
+            PARTLY_AS_SEEN.format(
+                taken=", ".join(taken[:20]),
+                files=files,
+                was="was" if len(moved) == 1 else "were",
+            )
+            if taken
+            else NOT_AS_SEEN.format(files=files),
+        )
 
     as_seen()
     left = unchosen(merge.files, choices) if decision != "reject" else []
     if left:
         # Nothing is chosen for the user, and nothing is taken (or checked) without it.
         raise HTTPException(409, f"say whose side is taken of: {', '.join(left[:20])}")
-    if decision == "resolve" and not (merge.status == "pending" and (merge.branch or {}).get(
-            "resolve")):
+    if decision == "resolve" and not (
+        merge.status == "pending" and (merge.branch or {}).get("resolve")
+    ):
         raise HTTPException(409, "no agent can resolve conflicts on these changes")
     decided = merge.decided_at
     if merge.status == "interrupted":
@@ -127,7 +148,9 @@ def _taken(files: list[dict]) -> set[str]:
 
 @router.post("/{merge_id}/approve", response_model=MergeOut)
 async def approve(
-    merge_id: str, request: Request, body: MergeChoices | None = None,
+    merge_id: str,
+    request: Request,
+    body: MergeChoices | None = None,
     session: Session = Depends(get_session),
 ):
     return await _decide(merge_id, "approve", request, session, body)
@@ -151,7 +174,9 @@ async def go_on(merge_id: str, request: Request, session: Session = Depends(get_
 
 @router.post("/{merge_id}/check", response_model=MergeOut)
 async def check(
-    merge_id: str, request: Request, body: MergeChoices | None = None,
+    merge_id: str,
+    request: Request,
+    body: MergeChoices | None = None,
     session: Session = Depends(get_session),
 ):
     """Run the project's check command on what the card would take. The click is the
@@ -168,7 +193,9 @@ async def resolve(merge_id: str, request: Request, session: Session = Depends(ge
 
 @router.post("/{merge_id}/commit", response_model=MergeOut)
 async def commit(
-    merge_id: str, body: MergeCommitIn, request: Request,
+    merge_id: str,
+    body: MergeCommitIn,
+    request: Request,
     session: Session = Depends(get_session),
 ):
     """Commit the files that were taken, they alone, with this message: once."""

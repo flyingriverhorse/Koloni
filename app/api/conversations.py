@@ -112,25 +112,43 @@ def _listed(session: Session, *where) -> list[dict]:
         select(Conversation).where(*where).order_by(Conversation.updated_at.desc())
     ).all()
     # The ones with a working copy that was kept and is still to be applied or discarded.
-    kept = set(session.scalars(
-        select(Run.conversation_id).join(Merge, Merge.run_id == Run.id)
-        .where(Merge.status == "interrupted", Merge.kept_in.is_not(None))
-        .where(Run.conversation_id.in_([one.id for one in found]))
-    ))
+    kept = set(
+        session.scalars(
+            select(Run.conversation_id)
+            .join(Merge, Merge.run_id == Run.id)
+            .where(Merge.status == "interrupted", Merge.kept_in.is_not(None))
+            .where(Run.conversation_id.in_([one.id for one in found]))
+        )
+    )
     # The ones the user wrote in: the first steps are done once one is (0.1.0-ilk-calistirma).
-    wrote = set(session.scalars(
-        select(Run.conversation_id).where(Run.unattended.is_(False))
-        .where(Run.conversation_id.in_([one.id for one in found]))
-    ))
+    wrote = set(
+        session.scalars(
+            select(Run.conversation_id)
+            .where(Run.unattended.is_(False))
+            .where(Run.conversation_id.in_([one.id for one in found]))
+        )
+    )
     # shortcut: a task started again names its new chat only - the old one loses its mark;
     # keep each chat's task on the conversation if the old chats should keep theirs.
-    tasks = list(session.scalars(select(BacklogTask).where(
-        BacklogTask.conversation_id.in_([one.id for one in found]))))
+    tasks = list(
+        session.scalars(
+            select(BacklogTask).where(BacklogTask.conversation_id.in_([one.id for one in found]))
+        )
+    )
     waits = backlog.waiting(session, tasks) | backlog.not_in(session, tasks)
-    of = {task.conversation_id: {"id": task.id, "status": task.status,
-                                 "waiting": task.id in waits} for task in tasks}
-    return [{**conversation_out(one), "kept": one.id in kept, "wrote": one.id in wrote,
-             "backlog_task": of.get(one.id)} for one in found]
+    of = {
+        task.conversation_id: {"id": task.id, "status": task.status, "waiting": task.id in waits}
+        for task in tasks
+    }
+    return [
+        {
+            **conversation_out(one),
+            "kept": one.id in kept,
+            "wrote": one.id in wrote,
+            "backlog_task": of.get(one.id),
+        }
+        for one in found
+    ]
 
 
 @router.get("/conversations", response_model=list[ConversationListed])
@@ -154,7 +172,9 @@ def _made(session: Session, project_id: str | None) -> dict:
 
 
 @router.post(
-    "/conversations", response_model=ConversationOut, status_code=201,
+    "/conversations",
+    response_model=ConversationOut,
+    status_code=201,
     dependencies=[Depends(require_origin)],
 )
 async def create_chat(body: ConversationIn | None = None, session: Session = Depends(get_session)):
@@ -214,8 +234,9 @@ async def snapshot(conversation_id: str, request: Request, session: Session = De
         .order_by(Command.created_at, literal_column("commands.rowid"))
     ).all()
     rules = session.scalars(
-        rules_here(conversation)
-        .order_by(AllowedCommand.created_at, literal_column("allowed_commands.rowid"))
+        rules_here(conversation).order_by(
+            AllowedCommand.created_at, literal_column("allowed_commands.rowid")
+        )
     ).all()
     asked = session.scalars(
         select(WebRequest)
@@ -223,8 +244,9 @@ async def snapshot(conversation_id: str, request: Request, session: Session = De
         .order_by(WebRequest.created_at, literal_column("web_requests.rowid"))
     ).all()
     web_rules = session.scalars(
-        web_rules_here(conversation)
-        .order_by(AllowedWeb.created_at, literal_column("allowed_web.rowid"))
+        web_rules_here(conversation).order_by(
+            AllowedWeb.created_at, literal_column("allowed_web.rowid")
+        )
     ).all()
     agents = session.scalars(
         select(Agent)
@@ -258,11 +280,13 @@ async def snapshot(conversation_id: str, request: Request, session: Session = De
     ).all()
     room_ids = [room.id for room in rooms]
     items = session.scalars(
-        select(RoomItem).where(RoomItem.room_id.in_(room_ids))
+        select(RoomItem)
+        .where(RoomItem.room_id.in_(room_ids))
         .order_by(RoomItem.created_at, RoomItem.number)
     ).all()
     said = session.scalars(
-        select(RoomPost).where(RoomPost.room_id.in_(room_ids))
+        select(RoomPost)
+        .where(RoomPost.room_id.in_(room_ids))
         .order_by(RoomPost.created_at, RoomPost.number)
     ).all()
     notes = session.scalars(
@@ -286,16 +310,27 @@ async def snapshot(conversation_id: str, request: Request, session: Session = De
     # shortcut: by the project folder, also for a working copy's command; the copy's own
     # if a copy is ever seen to hold a secret the project does not.
     folder = Path(project.root_path).resolve() if project is not None else None
-    held = await asyncio.to_thread(lambda: {
-        c.id for c in commands
-        if folder is not None and c.status == "proposed"
-        and search_reason(c.command, folder, c.cwd or ".")})
+    held = await asyncio.to_thread(
+        lambda: {
+            c.id
+            for c in commands
+            if folder is not None
+            and c.status == "proposed"
+            and search_reason(c.command, folder, c.cwd or ".")
+        }
+    )
     # A change in the project whose file is not there now: deleted by hand since (B-55).
     root = Path(project.root_path) if project else None
-    gone = await asyncio.to_thread(lambda: {
-        c.id for c in changes if root and c.status in ("applied", "merged")
-        and c.kind != "delete" and not os.path.lexists(root / c.path)
-    })
+    gone = await asyncio.to_thread(
+        lambda: {
+            c.id
+            for c in changes
+            if root
+            and c.status in ("applied", "merged")
+            and c.kind != "delete"
+            and not os.path.lexists(root / c.path)
+        }
+    )
     claims = request.app.state.runner.claims_of(project.root_path) if project else []
     live = request.app.state.runner.live_messages(conversation_id)
     outputs = request.app.state.runner.commands.live_outputs(conversation_id)
@@ -312,9 +347,12 @@ async def snapshot(conversation_id: str, request: Request, session: Session = De
         "topics": [topic_out(topic) for topic in topic_rows],
         "tool_calls": [tool_call_out(call) for call in calls],
         "file_changes": [
-            {**file_change_out(change), "gone": change.id in gone} for change in changes],
-        "commands": [command_out(command, outputs.get(command.id), command.id in held)
-                     for command in commands],
+            {**file_change_out(change), "gone": change.id in gone} for change in changes
+        ],
+        "commands": [
+            command_out(command, outputs.get(command.id), command.id in held)
+            for command in commands
+        ],
         "allowed_commands": [allowed_command_out(rule) for rule in rules],
         "web_requests": [web_request_out(one) for one in asked],
         "allowed_web": [allowed_web_out(rule) for rule in web_rules],
@@ -331,12 +369,22 @@ async def snapshot(conversation_id: str, request: Request, session: Session = De
         "board_posts": [board_post_out(note, read_by.get(note.id, ())) for note in notes],
         "claims": claims,
         "merges": [merge_out(merge) for merge in merges],
-        "attachments": [attachment_out(one) for one in session.scalars(
-            select(Attachment).where(Attachment.conversation_id == conversation_id)
-            .order_by(Attachment.created_at, literal_column("attachments.rowid")))],
-        "away": [away.report(session, card) for card in session.scalars(
-            select(AwayRun).where(AwayRun.conversation_id == conversation_id)
-            .order_by(AwayRun.created_at))],
+        "attachments": [
+            attachment_out(one)
+            for one in session.scalars(
+                select(Attachment)
+                .where(Attachment.conversation_id == conversation_id)
+                .order_by(Attachment.created_at, literal_column("attachments.rowid"))
+            )
+        ],
+        "away": [
+            away.report(session, card)
+            for card in session.scalars(
+                select(AwayRun)
+                .where(AwayRun.conversation_id == conversation_id)
+                .order_by(AwayRun.created_at)
+            )
+        ],
         "trigger_proposals": triggers.proposals_of(session, conversation_id),
         "notes_offers": project_notes.offers_of(session, conversation_id),
         "warnings": injection.listed(session, conversation_id),
@@ -349,14 +397,20 @@ def _left_in(session: Session, cid: str) -> str | None:
     in"), or None: a change of a file that was made or still may be, a working copy kept
     or waiting, a trigger, a backlog task."""
     runs = select(Run.id).where(Run.conversation_id == cid)
-    if session.scalar(select(FileChange.id).where(
+    if session.scalar(
+        select(FileChange.id)
+        .where(
             FileChange.run_id.in_(runs),
-            FileChange.status.not_in(("rejected", "discarded", "failed"))).limit(1)):
+            FileChange.status.not_in(("rejected", "discarded", "failed")),
+        )
+        .limit(1)
+    ):
         return "changed files in"
     if _copy_waits(session, runs):
         return "has a working copy of"
-    if session.scalar(select(Compare.id).where(
-            Compare.conversation_id == cid, Compare.status == "open").limit(1)):
+    if session.scalar(
+        select(Compare.id).where(Compare.conversation_id == cid, Compare.status == "open").limit(1)
+    ):
         return "has a comparison waiting in"
     if session.scalar(select(Trigger.id).where(Trigger.conversation_id == cid).limit(1)):
         return "has a trigger in"
@@ -376,23 +430,33 @@ def _move(session: Session, request: Request, conversation: Conversation, to: st
         raise HTTPException(404, "project not found")
     cid = conversation.id
     busy = session.scalar(
-        select(Run.id).where(Run.conversation_id == cid, Run.status.not_in(TERMINAL)).limit(1))
+        select(Run.id).where(Run.conversation_id == cid, Run.status.not_in(TERMINAL)).limit(1)
+    )
     if busy or request.app.state.runner.commands.live_outputs(cid):
         raise HTTPException(
-            409, "this chat is at work: change its folder once its turn and commands are over")
+            409, "this chat is at work: change its folder once its turn and commands are over"
+        )
     if left := _left_in(session, cid):
         old = project_of(session, conversation)
-        raise HTTPException(409, f"this chat {left} {old.name if old else 'no folder'}; open "
-                                 f"a new chat for {new.name if new else 'no folder'}")
+        raise HTTPException(
+            409,
+            f"this chat {left} {old.name if old else 'no folder'}; open "
+            f"a new chat for {new.name if new else 'no folder'}",
+        )
     conversation.project_id = to
     if to is not None:
         # A site the chat kept with no folder becomes the folder's, one rule a site: Ask first
         # where either says so - never unasked for being moved (K-tarayici-disari A3).
-        for own in session.scalars(select(AllowedWeb).where(
-                AllowedWeb.conversation_id == cid, AllowedWeb.kind == "page")).all():
-            held = session.scalar(select(AllowedWeb).where(
-                AllowedWeb.project_id == to, AllowedWeb.kind == "page",
-                AllowedWeb.host == own.host))
+        for own in session.scalars(
+            select(AllowedWeb).where(AllowedWeb.conversation_id == cid, AllowedWeb.kind == "page")
+        ).all():
+            held = session.scalar(
+                select(AllowedWeb).where(
+                    AllowedWeb.project_id == to,
+                    AllowedWeb.kind == "page",
+                    AllowedWeb.host == own.host,
+                )
+            )
             if held is None:
                 own.conversation_id, own.project_id = None, to
             else:
@@ -404,7 +468,8 @@ def _move(session: Session, request: Request, conversation: Conversation, to: st
 
 
 @router.post(
-    "/conversations/delete", response_model=ConversationsDeletedOut,
+    "/conversations/delete",
+    response_model=ConversationsDeletedOut,
     dependencies=[Depends(require_own_origin)],  # what is gone for good is the user's word
 )
 def delete_conversations(
@@ -420,8 +485,11 @@ def delete_conversations(
     ids = list(dict.fromkeys(body.ids))
     # A write first, that changes nothing: no other writer commits until this does, so what
     # is checked below (archived, no turn at work) stays so until they are gone.
-    session.execute(update(Conversation).where(Conversation.id.in_(ids)).values(
-        archived_at=Conversation.archived_at))
+    session.execute(
+        update(Conversation)
+        .where(Conversation.id.in_(ids))
+        .values(archived_at=Conversation.archived_at)
+    )
     for cid in ids:
         conversation = session.get(Conversation, cid)
         why = "not found" if conversation is None else _kept_from_deleting(session, conversation)
@@ -439,8 +507,13 @@ def delete_conversations(
 
 def _cli_sessions(session: Session, ids: list[str]) -> list:
     """27: the Claude Code sessions their agents kept, to go with them (`_forget_files`)."""
-    return list(session.scalars(select(Agent.cli_session).join(Run, Run.id == Agent.run_id).where(
-        Run.conversation_id.in_(ids), Agent.cli_session.is_not(None))))
+    return list(
+        session.scalars(
+            select(Agent.cli_session)
+            .join(Run, Run.id == Agent.run_id)
+            .where(Run.conversation_id.in_(ids), Agent.cli_session.is_not(None))
+        )
+    )
 
 
 def _forget_files(request: Request, session: Session, ids: list[str], kept: list) -> None:
@@ -462,24 +535,39 @@ def _kept_from_deleting(session: Session, conversation: Conversation) -> str | N
     runs = select(Run.id).where(Run.conversation_id == conversation.id)
     if session.scalar(runs.where(Run.status.not_in(TERMINAL)).limit(1)):
         return "a turn of it is at work or waits to start"
-    named = session.scalars(select(Trigger.name).where(
-        Trigger.conversation_id == conversation.id)).all()
+    named = session.scalars(
+        select(Trigger.name).where(Trigger.conversation_id == conversation.id)
+    ).all()
     if named:
-        return (f"it has the trigger{'s' * (len(named) > 1)} {', '.join(named)}: "
-                f"delete {'them' if len(named) > 1 else 'it'} first")
+        return (
+            f"it has the trigger{'s' * (len(named) > 1)} {', '.join(named)}: "
+            f"delete {'them' if len(named) > 1 else 'it'} first"
+        )
     if _copy_waits(session, runs):
         return "it has changes that are still yours to take in or discard"
-    if session.scalar(select(AwayRun.id).where(
-            AwayRun.conversation_id == conversation.id, AwayRun.status == "running").limit(1)):
+    if session.scalar(
+        select(AwayRun.id)
+        .where(AwayRun.conversation_id == conversation.id, AwayRun.status == "running")
+        .limit(1)
+    ):
         return "its jobs are being worked on while you're away: stop it first"
     return None
 
 
 def _copy_waits(session: Session, runs) -> bool:
     """A working copy of these turns waits for the user, or was kept for them to decide."""
-    return session.scalar(select(Merge.id).where(
-        Merge.run_id.in_(runs), (Merge.status == "pending") | (
-            (Merge.status == "interrupted") & Merge.kept_in.is_not(None))).limit(1)) is not None
+    return (
+        session.scalar(
+            select(Merge.id)
+            .where(
+                Merge.run_id.in_(runs),
+                (Merge.status == "pending")
+                | ((Merge.status == "interrupted") & Merge.kept_in.is_not(None)),
+            )
+            .limit(1)
+        )
+        is not None
+    )
 
 
 def _delete_for_good(session: Session, ids: list[str]) -> None:
@@ -493,12 +581,20 @@ def _delete_for_good(session: Session, ids: list[str]) -> None:
             if column is not None and column.nullable and not column.foreign_keys:
                 session.execute(update(table).where(column.in_(gone)).values({name: None}))
     # (Their vectors first, 22c: the index gives a row's number again once the row is gone.)
-    session.execute(text(
-        "DELETE FROM embeddings WHERE kind = 'turn' AND record_id IN (SELECT CAST(rowid AS TEXT) "
-        "FROM said_in_turns WHERE conversation_id IN :ids)").bindparams(
-        bindparam("ids", expanding=True)), {"ids": ids})
-    session.execute(text("DELETE FROM said_in_turns WHERE conversation_id IN :ids").bindparams(
-        bindparam("ids", expanding=True)), {"ids": ids})
+    session.execute(
+        text(
+            "DELETE FROM embeddings WHERE kind = 'turn' AND record_id IN (SELECT CAST(rowid AS "
+            "TEXT) "
+            "FROM said_in_turns WHERE conversation_id IN :ids)"
+        ).bindparams(bindparam("ids", expanding=True)),
+        {"ids": ids},
+    )
+    session.execute(
+        text("DELETE FROM said_in_turns WHERE conversation_id IN :ids").bindparams(
+            bindparam("ids", expanding=True)
+        ),
+        {"ids": ids},
+    )
     _remove(session, Conversation.__table__, Conversation.id.in_(ids))
 
 
@@ -528,8 +624,7 @@ def _change_spawn(request: Request, conversation: Conversation, body: Conversati
         conversation.spawn_max_parallel = body.spawn_max_parallel
 
 
-def _change_switches(request: Request, conversation: Conversation,
-                     body: ConversationPatch) -> None:
+def _change_switches(request: Request, conversation: Conversation, body: ConversationPatch) -> None:
     if body.lead_auto is not None:
         conversation.lead_auto = body.lead_auto
     if body.plan_first is not None:
@@ -549,8 +644,9 @@ def _change_switches(request: Request, conversation: Conversation,
             # own page, not a framed page's or an agent's command against its address.
             require_own_origin(request)
         conversation.page_scripts = body.page_scripts
-    work = body.lead_work or (None if body.lead_hands_code is None else
-                              "delegates" if body.lead_hands_code else "itself")
+    work = body.lead_work or (
+        None if body.lead_hands_code is None else "delegates" if body.lead_hands_code else "itself"
+    )
     if work is not None:
         if work != "delegates":
             # Not delegating, the Lead writes files itself: the user's to allow from the app's
@@ -559,8 +655,9 @@ def _change_switches(request: Request, conversation: Conversation,
         conversation.lead_work = work
 
 
-def _change_away_and_teams(session: Session, request: Request, conversation: Conversation,
-                           body: ConversationPatch) -> None:
+def _change_away_and_teams(
+    session: Session, request: Request, conversation: Conversation, body: ConversationPatch
+) -> None:
     if body.when_away is not None or body.away_minutes is not None:
         # Who answers for the user while they are away: theirs to say from the app's own page,
         # not a command's that an agent runs against the app's address (K-vekil-karar).
@@ -577,12 +674,15 @@ def _change_away_and_teams(session: Session, request: Request, conversation: Con
             conversation.teams = []  # (going to Manual, the Lead's picks stay, to be changed)
         conversation.teams_mode = mode
         if rows is not None:
-            conversation.teams = [ConversationTeam(**row, picked_by="user", position=at)
-                                  for at, row in enumerate(rows)]
+            conversation.teams = [
+                ConversationTeam(**row, picked_by="user", position=at)
+                for at, row in enumerate(rows)
+            ]
 
 
-def _change_effort_and_limits(request: Request, conversation: Conversation,
-                              body: ConversationPatch) -> None:
+def _change_effort_and_limits(
+    request: Request, conversation: Conversation, body: ConversationPatch
+) -> None:
     if "lead_effort" in body.model_fields_set:  # null: the Lead role's level
         # A higher level costs more: the user's to set from the app's own page.
         require_own_origin(request)
@@ -593,8 +693,12 @@ def _change_effort_and_limits(request: Request, conversation: Conversation,
         # against the app's address.
         require_own_origin(request)
         conversation.discussion_budget = body.discussion_budget
-    limits = {"room_posts", "room_tokens", "room_minutes",
-              "room_min_tokens"} & body.model_fields_set
+    limits = {
+        "room_posts",
+        "room_tokens",
+        "room_minutes",
+        "room_min_tokens",
+    } & body.model_fields_set
     if limits:
         # What a room may spend is leave to spend, as opening one and giving it more are:
         # the user's to give from the app's own page.
@@ -603,8 +707,9 @@ def _change_effort_and_limits(request: Request, conversation: Conversation,
         setattr(conversation, limit, getattr(body, limit))  # (null: no limit)
 
 
-def _change_folders(session: Session, request: Request, conversation: Conversation,
-                    body: ConversationPatch) -> None:
+def _change_folders(
+    session: Session, request: Request, conversation: Conversation, body: ConversationPatch
+) -> None:
     lists = [name for name in ("also_in", "read_in") if getattr(body, name) is not None]
     project = project_of(session, conversation) if lists else None
     for name in lists:
@@ -616,15 +721,25 @@ def _change_folders(session: Session, request: Request, conversation: Conversati
             # app's address. So is taking off one to read in: inside one to write in, it
             # would be written in. Taking off one to write in only narrows: anybody's.
             require_own_origin(request)
-        setattr(conversation, name, list(dict.fromkeys(
-            [*(f for f in given if f in had),
-             *checked_folders(added, project.root_path if project else None)])))
+        setattr(
+            conversation,
+            name,
+            list(
+                dict.fromkeys(
+                    [
+                        *(f for f in given if f in had),
+                        *checked_folders(added, project.root_path if project else None),
+                    ]
+                )
+            ),
+        )
     if lists:  # (one in both lists is one to write in)
         conversation.read_in = [f for f in conversation.read_in if f not in conversation.also_in]
 
 
-async def _change_part(session: Session, request: Request, conversation: Conversation,
-                       body: ConversationPatch) -> None:
+async def _change_part(
+    session: Session, request: Request, conversation: Conversation, body: ConversationPatch
+) -> None:
     if "part" in body.model_fields_set:
         # K-buyuk-proje: which AGENTS.md steers its agents: the user's to say from the app's
         # own page. One of the map's parts as it is now (in a thread: a scan may take seconds).
@@ -633,9 +748,15 @@ async def _change_part(session: Session, request: Request, conversation: Convers
         if (body.part or "").strip() not in ("", ".", "./") and project is None:
             raise HTTPException(422, "a chat with no folder has no parts")
         try:
-            conversation.part = await asyncio.to_thread(
-                project_map.part_of, project.root_path, body.part,
-            ) if project and body.part else None
+            conversation.part = (
+                await asyncio.to_thread(
+                    project_map.part_of,
+                    project.root_path,
+                    body.part,
+                )
+                if project and body.part
+                else None
+            )
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from None
 
@@ -656,7 +777,8 @@ async def patch_conversation(
         # tek-ev: every chat of a project follows its project's (`settings_of`); a plain chat
         # keeps its own, here.
         raise HTTPException(
-            422, "set in Settings › This project: every chat of the project follows it")
+            422, "set in Settings › This project: every chat of the project follows it"
+        )
     if body.title is not None:
         title = " ".join(body.title.split())
         if not title:
@@ -702,7 +824,8 @@ async def patch_conversation(
 
 
 @router.post(
-    "/conversations/{conversation_id}/teams/{team_id}/stop", response_model=ConversationOut,
+    "/conversations/{conversation_id}/teams/{team_id}/stop",
+    response_model=ConversationOut,
     dependencies=[Depends(require_own_origin)],
 )
 async def stop_team(
@@ -719,7 +842,8 @@ async def stop_team(
 
 @router.post(
     "/conversations/{conversation_id}/warnings/{warning_id}/false-alarm",
-    response_model=WarningOut, dependencies=[Depends(require_own_origin)],
+    response_model=WarningOut,
+    dependencies=[Depends(require_own_origin)],
 )
 def false_alarm(conversation_id: str, warning_id: int, session: Session = Depends(get_session)):
     """The user's "False alarm" on a warning of text that read like orders (93-A4): counted
@@ -731,7 +855,8 @@ def false_alarm(conversation_id: str, warning_id: int, session: Session = Depend
 
 
 @router.post(
-    "/conversations/{conversation_id}/teams/{team_id}/finish", response_model=ConversationOut,
+    "/conversations/{conversation_id}/teams/{team_id}/finish",
+    response_model=ConversationOut,
     dependencies=[Depends(require_own_origin)],
 )
 async def finish_team(
@@ -746,9 +871,7 @@ async def finish_team(
     return conversation_out(_conversation(session, conversation_id))
 
 
-@router.patch(
-    "/topics/{topic_id}", response_model=TopicOut, dependencies=[Depends(require_origin)]
-)
+@router.patch("/topics/{topic_id}", response_model=TopicOut, dependencies=[Depends(require_origin)])
 async def patch_topic(
     topic_id: str, body: TopicPatch, request: Request, session: Session = Depends(get_session)
 ):
@@ -798,17 +921,19 @@ def _back(request: Request, session: Session, project: Project | None) -> None:
     """☾ Away: a message of the user's own (from the app's own page, not an agent's command)
     ends the project's Away, its summary in the chat they went away from."""
     if project is None or request.headers.get("origin") not in (
-            request.app.state.settings.allowed_origins):
+        request.app.state.settings.allowed_origins
+    ):
         return
     if (said := away.back(session, project.id)) is not None:
-        request.app.state.bus.emit(said.conversation_id, None, "message.created",
-                                   message_out(said))
-        announce(request.app.state.session_factory, request.app.state.bus, project.id,
-                 "backlog.changed")
+        request.app.state.bus.emit(said.conversation_id, None, "message.created", message_out(said))
+        announce(
+            request.app.state.session_factory, request.app.state.bus, project.id, "backlog.changed"
+        )
 
 
-def _users_own_message(request: Request, project: Project | None, conversation: Conversation,
-                       run: Run, content: str) -> None:
+def _users_own_message(
+    request: Request, project: Project | None, conversation: Conversation, run: Run, content: str
+) -> None:
     # (A request that says nothing of where it is from is not taken for the user - see
     # `require_own_origin`.)
     if request.headers.get("origin") in request.app.state.settings.allowed_origins:
@@ -822,11 +947,19 @@ def _users_own_message(request: Request, project: Project | None, conversation: 
         if project is not None:
             # The project itself is never one of its own (B-66): listed, a command from an
             # agent's working copy that names it would be offered the project to write in.
-            opened = [Path(project.root_path).resolve(), *(
-                Path(f) for access in ("write", "read")
-                for f in folders_of(project, conversation, access))]
-            named = [str(folder) for folder in named_folders(content)
-                     if not any(folder == f or folder.is_relative_to(f) for f in opened)]
+            opened = [
+                Path(project.root_path).resolve(),
+                *(
+                    Path(f)
+                    for access in ("write", "read")
+                    for f in folders_of(project, conversation, access)
+                ),
+            ]
+            named = [
+                str(folder)
+                for folder in named_folders(content)
+                if not any(folder == f or folder.is_relative_to(f) for f in opened)
+            ]
             conversation.read_in = list(dict.fromkeys([*conversation.read_in, *named]))
         # The user writes in it again, from the app's own page: it is back.
         conversation.archived_at = None
@@ -849,12 +982,18 @@ async def post_message(
     conversation = _conversation(session, conversation_id)
     content = body.content.strip()
     # The files added to it: this conversation's, and not on a message already (slice 85b).
-    added = session.scalars(select(Attachment).where(
-        Attachment.id.in_(body.attachments), Attachment.conversation_id == conversation_id,
-        Attachment.message_id.is_(None), Attachment.frame_of.is_(None))).all()
+    added = session.scalars(
+        select(Attachment).where(
+            Attachment.id.in_(body.attachments),
+            Attachment.conversation_id == conversation_id,
+            Attachment.message_id.is_(None),
+            Attachment.frame_of.is_(None),
+        )
+    ).all()
     if len(added) != len(set(body.attachments)):
-        raise HTTPException(422, "a file named is not one added to this conversation's next "
-                                 "message: add it again")
+        raise HTTPException(
+            422, "a file named is not one added to this conversation's next message: add it again"
+        )
     if not content and not added:
         raise HTTPException(422, "message is empty")
     # (A message queued behind a turn is asked here, when it is sent: not again when its own
@@ -863,23 +1002,33 @@ async def post_message(
     project = project_of(session, conversation)
     if over := over_budget(session, project, conversation):
         if not body.over_budget:
-            raise HTTPException(409, f"this {'project' if project else 'chat'} is {over}: say "
-                                     "to go on over it")
+            raise HTTPException(
+                409, f"this {'project' if project else 'chat'} is {over}: say to go on over it"
+            )
         # Spending past the user's own limit is the user's word: not an agent's request.
         require_own_origin(request)
-    first = session.scalar(
-        select(Message.id).where(Message.conversation_id == conversation_id).limit(1)
-    ) is None
+    first = (
+        session.scalar(
+            select(Message.id).where(Message.conversation_id == conversation_id).limit(1)
+        )
+        is None
+    )
     try:
         topic, new = topics.for_message(
-            session, conversation_id, content or ", ".join(one.name for one in added),
-            body.topic_id, body.new_topic,
+            session,
+            conversation_id,
+            content or ", ".join(one.name for one in added),
+            body.topic_id,
+            body.new_topic,
         )
     except topics.Refused as exc:
         raise HTTPException(422, str(exc)) from None
     _back(request, session, project)  # (a message refused above ends nothing)
     run, message = new_turn(
-        session, conversation_id, topic.id, content,
+        session,
+        conversation_id,
+        topic.id,
+        content,
         spoken=body.spoken.model_dump(exclude_none=True) if body.spoken else None,
         # Only here, from the user's own message: a trigger's turn, a room and the work turn
         # of an approved plan never plan first - nor a plain chat, with no project to plan in.
@@ -888,14 +1037,16 @@ async def post_message(
     if added:
         session.flush()  # (the message's id)
         ids = [one.id for one in added]
-        for one in session.scalars(select(Attachment).where(
-                Attachment.id.in_(ids) | Attachment.frame_of.in_(ids))):
+        for one in session.scalars(
+            select(Attachment).where(Attachment.id.in_(ids) | Attachment.frame_of.in_(ids))
+        ):
             one.message_id, one.keep_in_project = message.id, body.save_to_project
     # (Not one named already - by the user, or by a PATCH before its first message, R194.)
     if first and conversation.title == NEW_CONVERSATION:
         # (A message of nothing but what does not print leaves it as it was named.)
-        conversation.title = title_from(content or ", ".join(
-            one.name for one in added)) or conversation.title
+        conversation.title = (
+            title_from(content or ", ".join(one.name for one in added)) or conversation.title
+        )
     _users_own_message(request, project, conversation, run, content)
     conversation.updated_at = now()
     session.commit()
@@ -952,14 +1103,20 @@ async def rerun_failed(
     directly; ask it of its team if a team's work is seen to need its lead."""
     conversation = _conversation(session, conversation_id)
     last = session.scalars(
-        select(Run).where(Run.conversation_id == conversation_id, or_(
-            Run.status != "cancelled", Run.started_at.is_not(None)))
+        select(Run)
+        .where(
+            Run.conversation_id == conversation_id,
+            or_(Run.status != "cancelled", Run.started_at.is_not(None)),
+        )
         # (By when it was sent: a message sent again after a restart is the newest.)
-        .order_by(Run.created_at.desc(), literal_column("runs.rowid").desc()).limit(1)).first()
+        .order_by(Run.created_at.desc(), literal_column("runs.rowid").desc())
+        .limit(1)
+    ).first()
     if last is None or last.status not in TERMINAL:
         raise HTTPException(409, "its last turn is not over")
-    failed = [(agent, how) for agent, how, again in outcomes(session, [last.id]).get(
-        last.id, []) if again]
+    failed = [
+        (agent, how) for agent, how, again in outcomes(session, [last.id]).get(last.id, []) if again
+    ]
     if not failed:
         raise HTTPException(409, "no sub-agent of its last turn failed")
     project = project_of(session, conversation)
@@ -968,9 +1125,11 @@ async def rerun_failed(
     listed = "\n".join(
         f"{at}. {agent.name} (role {agent.role_name}), {CAME_OUT[how]}. Its task: "
         f"{quoted(_cut(agent.task or '', TASK_CHARS))}"
-        for at, (agent, how) in enumerate(failed, 1))
-    run, message = new_turn(session, conversation_id, last.topic_id,
-                            _cut(f"{RERUN}\n\n{listed}", RERUN_CHARS))
+        for at, (agent, how) in enumerate(failed, 1)
+    )
+    run, message = new_turn(
+        session, conversation_id, last.topic_id, _cut(f"{RERUN}\n\n{listed}", RERUN_CHARS)
+    )
     conversation.updated_at = now()
     session.commit()
     bus = request.app.state.bus

@@ -3,6 +3,7 @@
 Revision ID: 0037
 Revises: 0036
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -17,8 +18,9 @@ def upgrade() -> None:
     # the user has said neither. A merge from before this was not checked.
     with op.batch_alter_table("projects") as batch:
         batch.add_column(sa.Column("check_command", sa.String(length=500), nullable=True))
-        batch.add_column(sa.Column(
-            "git_commit", sa.Boolean(), server_default=sa.false(), nullable=False))
+        batch.add_column(
+            sa.Column("git_commit", sa.Boolean(), server_default=sa.false(), nullable=False)
+        )
     with op.batch_alter_table("merges") as batch:
         batch.add_column(sa.Column("check_state", sa.JSON(), nullable=True))
         batch.add_column(sa.Column("commit_state", sa.JSON(), nullable=True))

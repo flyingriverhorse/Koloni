@@ -25,8 +25,9 @@ def run(root, kept, ask, price=None, extend=True):
     async def go():
         knowledge.begin(str(root), kept)
         try:
-            return await knowledge.learn(str(root), kept, ask, price, "Fake · fake-model",
-                                         extend=extend)
+            return await knowledge.learn(
+                str(root), kept, ask, price, "Fake · fake-model", extend=extend
+            )
         finally:
             knowledge.end(str(root), kept)
 
@@ -39,8 +40,9 @@ def counting(said=lambda messages: GUIDE, wait=0.0):
     async def ask(messages):
         asked.append(messages)
         await asyncio.sleep(wait)
-        return said(messages), SimpleNamespace(input_tokens=len(messages[1]["content"]) // 4,
-                                               output_tokens=knowledge.GUIDE_TOKENS)
+        return said(messages), SimpleNamespace(
+            input_tokens=len(messages[1]["content"]) // 4, output_tokens=knowledge.GUIDE_TOKENS
+        )
 
     return ask, asked
 
@@ -168,11 +170,14 @@ def test_one_slice_answered_empty_blocks_none_of_the_others(monkeypatch, project
 def test_an_llms_full_txt_that_did_not_come_whole_gives_way_to_the_sites_pages(
     monkeypatch, project_dir
 ):
-    Site(monkeypatch, {
-        f"{SITE}/robots.txt": OPEN,
-        f"{SITE}/pay/llms.txt": (200, "text/plain", "- [a](/pay/a)\n"),
-        f"{SITE}/pay/a": (200, MD, "pay()"),
-    })
+    Site(
+        monkeypatch,
+        {
+            f"{SITE}/robots.txt": OPEN,
+            f"{SITE}/pay/llms.txt": (200, "text/plain", "- [a](/pay/a)\n"),
+            f"{SITE}/pay/a": (200, MD, "pay()"),
+        },
+    )
     raw = web.raw
 
     async def cut(method, url, headers, body, ip):
@@ -187,13 +192,21 @@ def test_an_llms_full_txt_that_did_not_come_whole_gives_way_to_the_sites_pages(
 
 
 def test_the_maps_request_holds_its_sections_headings_within_a_slice(monkeypatch, project_dir):
-    Site(monkeypatch, {
-        f"{SITE}/robots.txt": OPEN,
-        f"{SITE}/pay/llms.txt": (200, "text/plain", "".join(
-            f"- [p](/pay/{n})\n" for n in range(60))),
-        **{f"{SITE}/pay/{n}": (200, MD, f"page {n} " + "w" * 59_000) for n in range(60)}})
-    ask, asked = counting(lambda messages: "## What it offers\n" + "- y · docs/a.md · official\n"
-                          * 2_000)
+    Site(
+        monkeypatch,
+        {
+            f"{SITE}/robots.txt": OPEN,
+            f"{SITE}/pay/llms.txt": (
+                200,
+                "text/plain",
+                "".join(f"- [p](/pay/{n})\n" for n in range(60)),
+            ),
+            **{f"{SITE}/pay/{n}": (200, MD, f"page {n} " + "w" * 59_000) for n in range(60)},
+        },
+    )
+    ask, asked = counting(
+        lambda messages: "## What it offers\n" + "- y · docs/a.md · official\n" * 2_000
+    )
     run(project_dir, known(), ask)
     framing = len(web.framed("", knowledge.WHAT))
     assert len(asked[-1][1]["content"]) <= knowledge.MAX_GUIDE_INPUT + framing + 200
@@ -206,16 +219,27 @@ def test_each_request_of_a_learning_an_agent_asked_for_is_one_of_the_turns(
     monkeypatch.setattr(web, "Rate", lambda most, seconds=60.0: real(min(most, 3), seconds))
     (project_dir / "docs").mkdir()
     for n in range(3):  # (three slices: three sections and the map, past three requests)
-        (project_dir / "docs" / f"p{n}.md").write_text(f"page {n} " + "w" * 59_000,
-                                                       encoding="utf-8")
-    client, _model = make_client({
-        "Lead": [spawn("Pay expert", "learn", "e"), text(GUIDE), text(GUIDE), text("done")],
-        "Pay expert": [step(call("learn", {}, "l1")), text("not learned")],
-    })
-    expert(client, project_dir, {**EXPERT, "tools": READS, "knowledge": {
-        **EXPERT["knowledge"], "sources": ["docs"]}})
-    cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never",
-                        content="ask the Pay expert to learn")
+        (project_dir / "docs" / f"p{n}.md").write_text(
+            f"page {n} " + "w" * 59_000, encoding="utf-8"
+        )
+    client, _model = make_client(
+        {
+            "Lead": [spawn("Pay expert", "learn", "e"), text(GUIDE), text(GUIDE), text("done")],
+            "Pay expert": [step(call("learn", {}, "l1")), text("not learned")],
+        }
+    )
+    expert(
+        client,
+        project_dir,
+        {**EXPERT, "tools": READS, "knowledge": {**EXPERT["knowledge"], "sources": ["docs"]}},
+    )
+    cid, run_id = begin(
+        client,
+        project_dir,
+        mode="full_auto",
+        spawn_approval="never",
+        content="ask the Pay expert to learn",
+    )
     snap = wait_run(client, cid, run_id)
     learned = next(t for t in snap["tool_calls"] if t["provider_call_id"] == "l1")
     assert learned["status"] == "failed" and "30 requests a minute" in learned["result"]

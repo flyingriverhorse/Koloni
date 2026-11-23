@@ -29,13 +29,24 @@ MAX_LISTING = 10 * 1024 * 1024
 SECONDS = 20.0
 ADDRESS = re.compile(
     r"(?:https://)?(?:www\.)?github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?"
-    r"(?:/tree/([^/@\s]+)(?:/([^@\s]*))?)?/?(?:@([0-9a-f]{40}))?")
+    r"(?:/tree/([^/@\s]+)(?:/([^@\s]*))?)?/?(?:@([0-9a-f]{40}))?"
+)
 NOT_AN_ADDRESS = (
     "not a GitHub address KOLONİ reads: https://github.com/<owner>/<repository>, or "
-    "/tree/<branch>/<folder> after it")
+    "/tree/<branch>/<folder> after it"
+)
 # Names Windows keeps for devices, whatever comes after a dot (as `ntpath.isreserved`).
-RESERVED = frozenset({"con", "prn", "aux", "nul", "conin$", "conout$",
-                      *(f"{device}{n}" for device in ("com", "lpt") for n in "123456789¹²³")})
+RESERVED = frozenset(
+    {
+        "con",
+        "prn",
+        "aux",
+        "nul",
+        "conin$",
+        "conout$",
+        *(f"{device}{n}" for device in ("com", "lpt") for n in "123456789¹²³"),
+    }
+)
 # A part like "LONGRE~1.MD" may be another file's 8.3 short name on NTFS: the same file.
 SHORT_NAME = re.compile(r"~\d")
 LINK, SUBMODULE = "120000", "160000"
@@ -44,8 +55,10 @@ LINK, SUBMODULE = "120000", "160000"
 def refusal(status: int, headers) -> str:
     """What GitHub's refusal means, in plain words."""
     if status == 429 or (status == 403 and headers.get("x-ratelimit-remaining") == "0"):
-        return ("GitHub's limit for a machine without an account is reached (60 an hour): "
-                "try again later")
+        return (
+            "GitHub's limit for a machine without an account is reached (60 an hour): "
+            "try again later"
+        )
     if status == 404:
         return "not found on GitHub: KOLONİ reads public repositories only"
     return f"GitHub answered {status}"
@@ -59,9 +72,15 @@ def fetch(url: str, limit: int) -> bytes:
         raise SkillError(f"only GitHub is asked for a skill, not {parts.hostname}")
     try:
         # (trust_env off: no .netrc of the user's is sent along - no account, as said)
-        with (httpx2.Client(timeout=SECONDS, follow_redirects=False, trust_env=False,
-                            headers={"User-Agent": "KOLONI"}) as client,
-              client.stream("GET", url) as answer):
+        with (
+            httpx2.Client(
+                timeout=SECONDS,
+                follow_redirects=False,
+                trust_env=False,
+                headers={"User-Agent": "KOLONI"},
+            ) as client,
+            client.stream("GET", url) as answer,
+        ):
             if answer.status_code != 200:
                 raise SkillError(refusal(answer.status_code, answer.headers))
             data = bytearray()
@@ -86,11 +105,13 @@ def safe_path(rel: str) -> bool:
     if any(char in '\\:<>"|?*' or ord(char) < 32 for char in rel) or rel.startswith("/"):
         return False
     return all(
-        part not in ("", ".", "..") and part == part.rstrip(" .")
+        part not in ("", ".", "..")
+        and part == part.rstrip(" .")
         and part.partition(".")[0].rstrip(" ").casefold() not in RESERVED
         and not SHORT_NAME.search(part)
         and len(part.encode("utf-16-le", "surrogatepass")) <= 2 * 255  # (NTFS's longest)
-        for part in rel.split("/"))
+        for part in rel.split("/")
+    )
 
 
 def _blob(raw: str, rel: str, listed: tuple[str, int]) -> bytes:
@@ -112,7 +133,7 @@ def _sorted_out(tree: dict, prefix: str) -> tuple[dict[str, tuple[str, int]], li
             roots[path] = (str(entry["sha"]), int(entry["size"]))
         if not path.startswith(prefix):
             continue
-        rel = path[len(prefix):]
+        rel = path[len(prefix) :]
         if not safe_path(rel):
             raise SkillError(f"{rel!r} is a path no file of this machine may have")
         parts = rel.split("/")
@@ -137,8 +158,9 @@ def listing(address: str) -> Found:
         raise SkillError(NOT_AN_ADDRESS)
     owner, repo, ref, sub, pinned = match.groups()
     api = f"https://api.github.com/repos/{owner}/{repo}"
-    sha = pinned or str(_json(
-        f"{api}/commits/{quote(ref or str(_json(api)['default_branch']), safe='')}")["sha"])
+    sha = pinned or str(
+        _json(f"{api}/commits/{quote(ref or str(_json(api)['default_branch']), safe='')}")["sha"]
+    )
     if not re.fullmatch(r"[0-9a-f]{40}", sha):
         raise SkillError("GitHub's answer could not be read")
     # shortcut: a branch with "/" in its name is not told from the folder after it; pin
@@ -150,15 +172,22 @@ def listing(address: str) -> Found:
     listed, skipped, roots = _sorted_out(tree, prefix)
     capped(listed)
     base = f"https://raw.githubusercontent.com/{owner}/{repo}/{sha}/"
-    wanted = [rel for rel in listed
-              if rel in ("SKILL.md", *LICENSES) or PurePosixPath(rel).suffix.lower() in RUNNERS]
+    wanted = [
+        rel
+        for rel in listed
+        if rel in ("SKILL.md", *LICENSES) or PurePosixPath(rel).suffix.lower() in RUNNERS
+    ]
     contents = {rel: _blob(base + prefix, rel, listed[rel]) for rel in wanted}
     licence = None
     if prefix and not any(name in contents for name in LICENSES):
         found = next((name for name in LICENSES if name in roots), None)
         licence = first_line(_blob(base, found, roots[found])) if found else None
-    source = f"https://github.com/{owner}/{repo}" + (f"/tree/{ref}" if ref else "") + (
-        f"/{prefix.rstrip('/')}" if prefix else "") + f"@{sha}"
+    source = (
+        f"https://github.com/{owner}/{repo}"
+        + (f"/tree/{ref}" if ref else "")
+        + (f"/{prefix.rstrip('/')}" if prefix else "")
+        + f"@{sha}"
+    )
     return made(source, listed, contents, skipped, licence, (owner, repo, sha, prefix))
 
 
@@ -168,6 +197,9 @@ def rest(found: Found) -> Found:
     assert found.repo is not None
     owner, repo, sha, prefix = found.repo
     base = f"https://raw.githubusercontent.com/{owner}/{repo}/{sha}/{prefix}"
-    more = {rel: _blob(base, rel, listed) for rel, listed in found.listed.items()
-            if rel not in found.contents}
+    more = {
+        rel: _blob(base, rel, listed)
+        for rel, listed in found.listed.items()
+        if rel not in found.contents
+    }
     return replace(found, contents={**found.contents, **more})

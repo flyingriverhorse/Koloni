@@ -3,6 +3,7 @@
 Revision ID: 0130
 Revises: 0129
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -15,8 +16,9 @@ depends_on = None
 
 def upgrade() -> None:
     with op.batch_alter_table("projects") as batch:
-        batch.add_column(sa.Column("backlog_mode", sa.String(12), nullable=False,
-                                   server_default="ask"))
+        batch.add_column(
+            sa.Column("backlog_mode", sa.String(12), nullable=False, server_default="ask")
+        )
         batch.add_column(sa.Column("backlog_provider_id", sa.String(32), nullable=True))
         batch.add_column(sa.Column("backlog_model_id", sa.String(200), nullable=True))
 

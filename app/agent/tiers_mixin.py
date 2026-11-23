@@ -105,14 +105,17 @@ class TiersMixin:
             conversation = session.get_one(Conversation, ctx.cid)
             # (A plan turn's model is the strongest one, chosen as it opened; a side of a
             # comparison's, the one the user chose for it.)
-            if (not conversation.lead_auto or not self._watched(ctx.run_id)
-                    or session.get_one(Run, ctx.run_id).plan_turn or ctx.run_id in self._sides):
+            if (
+                not conversation.lead_auto
+                or not self._watched(ctx.run_id)
+                or session.get_one(Run, ctx.run_id).plan_turn
+                or ctx.run_id in self._sides
+            ):
                 return ctx
             would = would_run(session, find_role(session, LEAD), conversation, tools=ctx.tools)
             fast = asked_how_hard(session, would, self.providers)
             message = session.scalar(
-                select(Message.content)
-                .where(Message.run_id == ctx.run_id, Message.role == "user")
+                select(Message.content).where(Message.run_id == ctx.run_id, Message.role == "user")
             )
             if fast is None or not message:
                 return ctx
@@ -128,7 +131,8 @@ class TiersMixin:
         try:
             with self._factory() as session:
                 facts = earlier.how_hard_facts(
-                    session, ctx.root, project_id, ctx.run_id, message, parts_map)
+                    session, ctx.root, project_id, ctx.run_id, message, parts_map
+                )
         except Exception as exc:  # (the facts only help: no turn fails for them)
             log.warning("run %s: no facts for how hard: %r", ctx.run_id, exc)
             facts = earlier.NO_FACTS
@@ -136,13 +140,21 @@ class TiersMixin:
         try:
             async with self._working(asking):
                 try:
-                    said, answer = await ask_once(asking.model, fast[1], [
-                        {"role": "system", "content": HOW_HARD},
-                        # Said again where the message is, which stands under it as
-                        # data: a CLI's own rules tell it to do what the user's turn asks.
-                        {"role": "user",
-                         "content": f"{HOW_HARD}\n\nThe message:\n{quoted(message)}\n\n{facts}"},
-                    ])
+                    said, answer = await ask_once(
+                        asking.model,
+                        fast[1],
+                        [
+                            {"role": "system", "content": HOW_HARD},
+                            # Said again where the message is, which stands under it as
+                            # data: a CLI's own rules tell it to do what the user's turn asks.
+                            {
+                                "role": "user",
+                                "content": (
+                                    f"{HOW_HARD}\n\nThe message:\n{quoted(message)}\n\n{facts}"
+                                ),
+                            },
+                        ],
+                    )
                 except BaseException:
                     self._asked(ctx, asking, mode, None)  # sent, and not heard out
                     raise
@@ -159,7 +171,9 @@ class TiersMixin:
             # Looked up afresh: the permission level, a provider or the guide may have
             # changed while the question was out.
             target, moved = would_run(
-                session, find_role(session, LEAD), session.get_one(Conversation, ctx.cid),
+                session,
+                find_role(session, LEAD),
+                session.get_one(Conversation, ctx.cid),
                 tools=ctx.tools,
             ).pick(TIERS[DIFFICULTY.index(read[1].lower())])
             if target is None:
@@ -169,31 +183,43 @@ class TiersMixin:
         self._ctxs[ctx.agent_id] = ctx
         said = kept.one_line(f"{read[1].lower()}: {read[2]}").rstrip(": ")
         self._set_agent(
-            ctx.cid, ctx.agent_id, provider_name=ctx.provider, provider_mode=mode,
+            ctx.cid,
+            ctx.agent_id,
+            provider_name=ctx.provider,
+            provider_mode=mode,
             # (The tier it runs at: one lower where its plan stepped it down, 81c.)
-            model_id=ctx.model_name, model_from=None, tier=dict(target[0].tiers)[target[1]],
+            model_id=ctx.model_name,
+            model_from=None,
+            tier=dict(target[0].tiers)[target[1]],
             # The model's words, cut to what a reason may be: nobody can be asked again.
             chosen_why=_then(said, moved)[:MAX_WHY],
             effort_note=_unpicked(note),  # (Copilot's reason for a model it no longer runs on)
         )
         return ctx
 
-    def _on(self: "AgentRunner", session, ctx: Ctx, entry: Entry,
-            model: str) -> tuple[Ctx, str | None]:
+    def _on(
+        self: "AgentRunner", session, ctx: Ctx, entry: Entry, model: str
+    ) -> tuple[Ctx, str | None]:
         """An agent as it stands on another provider and model of the team guide, and
         how that provider runs (a CLI's mode)."""
         provider = session.get_one(Provider, entry.provider_id)
         return replace(
-            ctx, model=self.providers.client(provider, model), provider=provider.name,
-            provider_id=provider.id, model_name=model,
+            ctx,
+            model=self.providers.client(provider, model),
+            provider=provider.name,
+            provider_id=provider.id,
+            model_name=model,
         ), mode_of(provider)
 
     def _asked(self: "AgentRunner", ctx: Ctx, asking: Ctx, mode: str | None, answer) -> None:
         """The question a lead was opened with goes on record (`_own_request`), and on
         the lead, who was asked."""
         self._own_request(ctx, asking, mode, answer)
-        self._set_agent(ctx.cid, ctx.agent_id, asked_how_hard={
-            "provider_name": asking.provider, "model_id": asking.model_name})
+        self._set_agent(
+            ctx.cid,
+            ctx.agent_id,
+            asked_how_hard={"provider_name": asking.provider, "model_id": asking.model_name},
+        )
 
     def _own_request(self: "AgentRunner", ctx: Ctx, asking: Ctx, mode: str | None, answer) -> None:
         """A request KOLONİ made of a model itself goes on record: on a record of its
@@ -205,8 +231,15 @@ class TiersMixin:
             # Under the provider's name now: one renamed while this run went on keeps its record
             # (the record goes by the name, which a rename takes along).
             now_named = session.get(Provider, asking.provider_id) if asking.provider_id else None
-            own_request(session, now_named.name if now_named else asking.provider, mode,
-                        asking.model_name, answer, run_id=ctx.run_id, agent_id=ctx.agent_id)
+            own_request(
+                session,
+                now_named.name if now_named else asking.provider,
+                mode,
+                asking.model_name,
+                answer,
+                run_id=ctx.run_id,
+                agent_id=ctx.agent_id,
+            )
             session.commit()
 
     async def _tell_budget(self: "AgentRunner", cid: str) -> None:
@@ -216,8 +249,12 @@ class TiersMixin:
             month = datetime.now(UTC).astimezone().strftime("%Y-%m")
             with self._factory() as session:
                 project = self._project(session, cid)
-                if (project is None or not project.notify_desktop
-                        or project.monthly_budget is None or project.budget_told == month):
+                if (
+                    project is None
+                    or not project.notify_desktop
+                    or project.monthly_budget is None
+                    or project.budget_told == month
+                ):
                     return
                 spend = month_spend(session, project)
                 if not spend["warn"]:
@@ -255,13 +292,21 @@ class TiersMixin:
             waiting.append((who, question, asked))
 
     def _show_waits(self: "AgentRunner", cid: str, title: str) -> None:
-        still = [(who, question) for who, question, asked in self._users_awaited.pop(cid, [])
-                 if not asked.done() and asked not in self._lead_taking]
+        still = [
+            (who, question)
+            for who, question, asked in self._users_awaited.pop(cid, [])
+            if not asked.done() and asked not in self._lead_taking
+        ]
         if not still or not self._toasts.take(cid):
             return
         (who, question), *more = still
-        said = (f"{len(still)} cards wait for you" if more else
-                f"{who} asks you a question" if question else f"{who} waits for you")
+        said = (
+            f"{len(still)} cards wait for you"
+            if more
+            else f"{who} asks you a question"
+            if question
+            else f"{who} waits for you"
+        )
 
         async def show() -> None:
             with contextlib.suppress(Exception):
@@ -271,9 +316,15 @@ class TiersMixin:
         task.add_done_callback(self._telling.discard)
 
     def _count_tokens(
-        self: "AgentRunner", ctx: Ctx, sent: int | None, made: int | None, step: bool = True,
-        read: int | None = None, written: int | None = None,
-        nano_aiu: int | None = None, premium: float | None = None,
+        self: "AgentRunner",
+        ctx: Ctx,
+        sent: int | None,
+        made: int | None,
+        step: bool = True,
+        read: int | None = None,
+        written: int | None = None,
+        nano_aiu: int | None = None,
+        premium: float | None = None,
     ) -> None:
         """Add a model's reported usage to the agent, and to the run for its lead. Not a
         `step` of the agent's own (a web search the API made for it): what that sent is
@@ -301,11 +352,16 @@ class TiersMixin:
             # and a turn's token limit count it. B-390: only while it runs - not what the agents
             # spent before it, nor (a coordinator taken up) after it.
             room = self._rooms.get(ctx.run_id)
-            counted = room if room is not None and room.outcome is None and (
-                ctx.agent_id in room.members) else (
-                None if ctx.answering else self._following.get(ctx.agent_id))
-            if counted is not None and counted.outcome is None and (
-                    sent is not None or made is not None):
+            counted = (
+                room
+                if room is not None and room.outcome is None and (ctx.agent_id in room.members)
+                else (None if ctx.answering else self._following.get(ctx.agent_id))
+            )
+            if (
+                counted is not None
+                and counted.outcome is None
+                and (sent is not None or made is not None)
+            ):
                 row = session.get_one(Room, counted.id)
                 row.tokens = (row.tokens or 0) + (sent or 0) + (made or 0)
             for holder in holders:
@@ -323,8 +379,7 @@ class TiersMixin:
             self.bus.emit(ctx.cid, ctx.run_id, "run.updated", run_payload)
         self._hold_room_to(ctx.run_id, "tokens", ctx.agent_id)
 
-    def _ran_on(self: "AgentRunner", ctx: Ctx, model: str | None,
-                why: str | None = None) -> None:
+    def _ran_on(self: "AgentRunner", ctx: Ctx, model: str | None, why: str | None = None) -> None:
         """Put the model a CLI says it used on record: that, not the name it was asked
         for or the one in its settings, is what ran - in a turn taken on a message too.
         One Copilot's auto or fusion picked is marked so (`model_from` "auto" or "fusion", the
@@ -334,7 +389,8 @@ class TiersMixin:
             return
         # (Copilot's level_named: its client was built for auto or fusion, `level_in_name`.)
         copilot = getattr(ctx.model, "level_named", False) and (
-            getattr(ctx.model, "command", "") == "copilot")
+            getattr(ctx.model, "command", "") == "copilot"
+        )
         asked = getattr(ctx.model, "_model", None) if copilot else None
         picked = asked if asked in ("auto", "fusion") and model != asked else None
         with self._factory() as session:
@@ -343,8 +399,11 @@ class TiersMixin:
             note = agent.effort_note
         self._reported.add(ctx.agent_id)
         if picked and why:  # (the CLI's words: one line each, cut, and no closing quote of ours)
-            said = AUTO_PICKED.format(asked=picked, model=kept.one_line(model)[:200],
-                                      why=kept.one_line(str(why)).replace("”", '"')[:MAX_WHY])
+            said = AUTO_PICKED.format(
+                asked=picked,
+                model=kept.one_line(model)[:200],
+                why=kept.one_line(str(why)).replace("”", '"')[:MAX_WHY],
+            )
             others = _unpicked(note) or ""
             if f"{others} {said}".strip() != note:
                 self._set_agent(ctx.cid, ctx.agent_id, effort_note=f"{others} {said}".strip())
@@ -393,8 +452,7 @@ class TiersMixin:
         if self._refused(ctx, exc) or not isinstance(exc, OwnStop):
             with self._factory() as session:
                 provider = session.get(Provider, ctx.provider_id) if ctx.provider_id else None
-                self._failed[ctx.agent_id] = (
-                    str(exc), *self.providers.limits.why(provider, exc))
+                self._failed[ctx.agent_id] = (str(exc), *self.providers.limits.why(provider, exc))
         # A model it may not run with is a setting: whose, so the user knows where to look.
         return f"{ctx.role}: {exc}" if isinstance(exc, NotListed) else str(exc)
 
@@ -408,23 +466,33 @@ class TiersMixin:
         such a refusal. R194: the model is the one the words name, wherever in them (a step's
         failure may say it after its CLI's name) - the agent's own, or its provider's default
         where the agent was given none by name."""
-        said = re.search(r'Error: Model "([^"]+)" from --model flag is not available'
-                         r"|Copilot can't use (\S+) on your account", str(exc))
+        said = re.search(
+            r'Error: Model "([^"]+)" from --model flag is not available'
+            r"|Copilot can't use (\S+) on your account",
+            str(exc),
+        )
         if said is None:
             return False
         model = said.group(1) or said.group(2)
         with self._factory() as session:
             provider = session.get(Provider, ctx.provider_id or "")
-            if provider is None or provider.kind != "copilot_cli" or model != (
-                    ctx.model_name or provider.default_model):
+            if (
+                provider is None
+                or provider.kind != "copilot_cli"
+                or model != (ctx.model_name or provider.default_model)
+            ):
                 return False
             rows = provider.models or []
             if any(m["name"] == model and m.get("enabled", True) for m in rows):
                 why = REFUSED_OFF.format(provider=shown_name(provider.name)) + (
-                    "" if any(m["name"] != model and m.get("enabled", True)
-                              for m in rows) else REFUSED_LAST)
-                provider.models = [{**m, "enabled": False, "off_why": why}
-                                   if m["name"] == model else m for m in rows]
+                    ""
+                    if any(m["name"] != model and m.get("enabled", True) for m in rows)
+                    else REFUSED_LAST
+                )
+                provider.models = [
+                    {**m, "enabled": False, "off_why": why} if m["name"] == model else m
+                    for m in rows
+                ]
                 session.commit()
         return True
 
@@ -446,9 +514,15 @@ class TiersMixin:
                 return ""
             resets = agent.failure_resets_at
             why = f"Why it failed: {agent.failure}" + (
-                f", resets {resets:%Y-%m-%d %H:%M} UTC. " if resets else ". ")
-            return "\n\n" + why + self.providers.limits.room(
-                session, list_providers(session), child.provider_id, agent.failure)
+                f", resets {resets:%Y-%m-%d %H:%M} UTC. " if resets else ". "
+            )
+            return (
+                "\n\n"
+                + why
+                + self.providers.limits.room(
+                    session, list_providers(session), child.provider_id, agent.failure
+                )
+            )
 
     def _one_tier_up(self: "AgentRunner", child: Ctx, after_check: bool = False) -> str:
         """What the opener of a sub-agent that could not finish is told after that: the
@@ -471,14 +545,20 @@ class TiersMixin:
             if up not in tier_range(role):
                 return ""
             found = would_run(
-                session, role, session.get_one(Conversation, child.cid), tools=child.tools,
+                session,
+                role,
+                session.get_one(Conversation, child.cid),
+                tools=child.tools,
                 tier=up,
             )
         if found.source != "tier" or found.model_id is None:
             return ""
         return "\n\n" + ONE_TIER_UP.format(
-            provider=quoted(shown_name(found.provider.name)), model=quoted(found.model_id),
-            tier=up, how=REOPEN_UP.format(role=child.role, tier=up) if after_check
+            provider=quoted(shown_name(found.provider.name)),
+            model=quoted(found.model_id),
+            tier=up,
+            how=REOPEN_UP.format(role=child.role, tier=up)
+            if after_check
             else f"give the job again with tier {up}",
         )
 

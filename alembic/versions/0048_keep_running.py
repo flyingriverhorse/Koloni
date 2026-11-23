@@ -4,6 +4,7 @@ address on this machine it said it serves on (slice 42b)
 Revision ID: 0048
 Revises: 0047
 """
+
 import sqlalchemy as sa
 from alembic import op
 

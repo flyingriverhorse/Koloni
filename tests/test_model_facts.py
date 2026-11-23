@@ -17,58 +17,99 @@ ORIGIN = {"Origin": "http://127.0.0.1:8790"}
 
 
 def service(api="https://api.acme.test", **models):
-    return {"acme": {"id": "acme", "name": "Acme", "api": api, "env": ["ACME_KEY"],
-                     "doc": "https://docs.acme.test", "models": models}}
+    return {
+        "acme": {
+            "id": "acme",
+            "name": "Acme",
+            "api": api,
+            "env": ["ACME_KEY"],
+            "doc": "https://docs.acme.test",
+            "models": models,
+        }
+    }
 
 
 def priced(output, **more):
     return {"cost": {"input": 1, "output": output}, "tool_call": True, **more}
 
 
-@pytest.mark.parametrize(("address", "found"), [
-    ("https://api.acme.test/v1", "acme"),
-    ("https://API.ACME.TEST", "acme"),  # a host is a host whatever its case
-    ("https://eu.api.acme.test/v1", None),  # another host: models.dev names only its own
-    ("https://api.openai.com/v1", "openai"),  # catalog.json's, where models.dev has no address
-    ("https://ws9.eu-central-1.maas.aliyuncs.com/compatible-mode/v1", "alibaba"),
-    ("https://maas.aliyuncs.com.example.net/v1", None),
-    ("http://localhost:8080/v1", None),
-    ("http://[::1/v1", None),
-])
+@pytest.mark.parametrize(
+    ("address", "found"),
+    [
+        ("https://api.acme.test/v1", "acme"),
+        ("https://API.ACME.TEST", "acme"),  # a host is a host whatever its case
+        ("https://eu.api.acme.test/v1", None),  # another host: models.dev names only its own
+        ("https://api.openai.com/v1", "openai"),  # catalog.json's, where models.dev has no address
+        ("https://ws9.eu-central-1.maas.aliyuncs.com/compatible-mode/v1", "alibaba"),
+        ("https://maas.aliyuncs.com.example.net/v1", None),
+        ("http://localhost:8080/v1", None),
+        ("http://[::1/v1", None),
+    ],
+)
 def test_a_service_is_found_by_the_host_of_its_address(address, found):
     copy = service(m=priced(1))
     assert catalog.catalogue_of("openai_compat", address, copy) == found
 
 
 def test_a_tier_by_price_ranks_among_the_services_models_in_use_and_one_price_is_one_tier():
-    copy = service(top=priced(9), also_top=priced(9), mid=priced(5), low=priced(1),
-                   gone=priced(100, status="deprecated"), free=priced(0))
-    tier = {name: catalog.facts("openai_compat", "https://api.acme.test", name, copy)[0]["tier"]
-            for name in ("top", "also_top", "mid", "low", "free")}
+    copy = service(
+        top=priced(9),
+        also_top=priced(9),
+        mid=priced(5),
+        low=priced(1),
+        gone=priced(100, status="deprecated"),
+        free=priced(0),
+    )
+    tier = {
+        name: catalog.facts("openai_compat", "https://api.acme.test", name, copy)[0]["tier"]
+        for name in ("top", "also_top", "mid", "low", "free")
+    }
     # gone is not counted: else "top" would be second of five, not first of four
-    assert tier == {"top": "strongest", "also_top": "strongest", "mid": "balanced",
-                    "low": "fast", "free": None}
+    assert tier == {
+        "top": "strongest",
+        "also_top": "strongest",
+        "mid": "balanced",
+        "low": "fast",
+        "free": None,
+    }
 
 
 def test_a_family_rule_comes_before_the_price():
-    copy = {"anthropic": {**service()["acme"], "id": "anthropic", "api": None, "models": {
-        "claude-haiku-9": priced(90, family="claude-haiku"), "x": priced(1)}}}
+    copy = {
+        "anthropic": {
+            **service()["acme"],
+            "id": "anthropic",
+            "api": None,
+            "models": {"claude-haiku-9": priced(90, family="claude-haiku"), "x": priced(1)},
+        }
+    }
     told, said = catalog.facts("anthropic", None, "claude-haiku-9", copy)
     assert (told["tier"], said["tier"]) == ("fast", "catalog")
 
 
-@pytest.mark.parametrize(("entry", "levels"), [
-    ({"reasoning": True, "reasoning_options": [
-        {"type": "effort", "values": ["none", "minimal", "low", "high", "max"]}]},
-     ["low", "high", "max"]),  # only those KOLONİ sends
-    ({"reasoning": True, "reasoning_options": [{"type": "toggle"}]}, []),
-    ({"reasoning": True, "reasoning_options": []}, []),
-    ({"reasoning": False}, []),
-    ({"reasoning": True}, None),  # not said
-])
+@pytest.mark.parametrize(
+    ("entry", "levels"),
+    [
+        (
+            {
+                "reasoning": True,
+                "reasoning_options": [
+                    {"type": "effort", "values": ["none", "minimal", "low", "high", "max"]}
+                ],
+            },
+            ["low", "high", "max"],
+        ),  # only those KOLONİ sends
+        ({"reasoning": True, "reasoning_options": [{"type": "toggle"}]}, []),
+        ({"reasoning": True, "reasoning_options": []}, []),
+        ({"reasoning": False}, []),
+        ({"reasoning": True}, None),  # not said
+    ],
+)
 def test_the_levels_are_models_devs_effort_values_and_none_where_it_says_none(entry, levels):
     copy = service(m={**priced(1), **entry})
-    assert catalog.facts("openai_compat", "https://api.acme.test", "m", copy)[0]["efforts"] == levels
+    assert (
+        catalog.facts("openai_compat", "https://api.acme.test", "m", copy)[0]["efforts"] == levels
+    )
 
 
 def test_a_cli_has_its_own_levels_and_no_price():
@@ -80,24 +121,42 @@ def test_a_cli_has_its_own_levels_and_no_price():
 
 def test_qoders_listed_models_have_their_tiers():
     # (Its old levels - performance, auto, efficient - are no model names of qodercli 1.1.51.)
-    tiers = {name: catalog.facts("qoder_cli", None, name)[0]["tier"]
-             for name in catalog._CATALOGUE["cli"]["qoder_cli"]["models"]}
-    assert tiers == {"Qwen3.8-Flash": "fast", "DeepSeek-v4-Pro": "strongest", "Qwen-3.8-Max": "strongest",
-                     "DeepSeek-v4-Flash": "fast", "Qwen-3.7-Max": "strongest", "GLM-5.2": "strongest",
-                     "Qwen-3.6-Flash": "fast"}
+    tiers = {
+        name: catalog.facts("qoder_cli", None, name)[0]["tier"]
+        for name in catalog._CATALOGUE["cli"]["qoder_cli"]["models"]
+    }
+    assert tiers == {
+        "Qwen3.8-Flash": "fast",
+        "DeepSeek-v4-Pro": "strongest",
+        "Qwen-3.8-Max": "strongest",
+        "DeepSeek-v4-Flash": "fast",
+        "Qwen-3.7-Max": "strongest",
+        "GLM-5.2": "strongest",
+        "Qwen-3.6-Flash": "fast",
+    }
 
 
 def test_what_is_kept_of_models_dev_is_what_is_read_in_the_shape_it_should_have():
     told = {
-        "acme": {"id": "acme", "name": "Acme", "api": "https://api.acme.test", "npm": "x",
-                 "env": ["ACME_KEY", 7], "doc": "javascript:alert(1)", "models": {
-                     "ok": {"name": "Ok", "cost": {"input": 1, "output": True, "cache_read": -1},
-                            "limit": {"context": 1000, "output": "lots"}, "extra": "dropped",
-                            "reasoning_options": [{"type": "effort", "values": ["low", 3]},
-                                                  "junk"]},
-                     "bad\nname": {"name": "Bad"},
-                     "x" * 201: {"name": "Too long"},
-                 }},
+        "acme": {
+            "id": "acme",
+            "name": "Acme",
+            "api": "https://api.acme.test",
+            "npm": "x",
+            "env": ["ACME_KEY", 7],
+            "doc": "javascript:alert(1)",
+            "models": {
+                "ok": {
+                    "name": "Ok",
+                    "cost": {"input": 1, "output": True, "cache_read": -1},
+                    "limit": {"context": 1000, "output": "lots"},
+                    "extra": "dropped",
+                    "reasoning_options": [{"type": "effort", "values": ["low", 3]}, "junk"],
+                },
+                "bad\nname": {"name": "Bad"},
+                "x" * 201: {"name": "Too long"},
+            },
+        },
         "local": {"api": "http://127.0.0.1:1234/v1", "models": {"m": {}}},
         "templated": {"api": "${GATEWAY}/v1", "models": {"m": {}}},
         "anthropic": {"name": "Anthropic", "models": {"claude": {}}},  # a kind's: no address
@@ -109,8 +168,11 @@ def test_what_is_kept_of_models_dev_is_what_is_read_in_the_shape_it_should_have(
     assert acme["env"] == ["ACME_KEY"] and acme["doc"] is None and "npm" not in acme
     assert list(acme["models"]) == ["ok"]
     assert acme["models"]["ok"] == {
-        "name": "Ok", "cost": {"input": 1}, "limit": {"context": 1000},
-        "reasoning_options": [{"type": "effort", "values": ["low"]}]}
+        "name": "Ok",
+        "cost": {"input": 1},
+        "limit": {"context": 1000},
+        "reasoning_options": [{"type": "effort", "values": ["low"]}],
+    }
     for not_it in ([], {"acme": {"models": {}}}, {}):
         with pytest.raises(ValueError):
             models_dev.clean(not_it)
@@ -133,16 +195,24 @@ async def _step(client: OpenAICompatClient, effort: str | None) -> None:
     async def quiet(_text):
         pass
 
-    await client.stream_step("qwen", [{"role": "user", "content": "x"}], None, quiet,
-                             **({"effort": effort} if effort else {}))
+    await client.stream_step(
+        "qwen",
+        [{"role": "user", "content": "x"}],
+        None,
+        quiet,
+        **({"effort": effort} if effort else {}),
+    )
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize(("effort", "sent"), [
-    ("off", {"chat_template_kwargs": {"enable_thinking": False}}),
-    ("high", {"reasoning_effort": "high"}),
-    (None, {}),
-])
+@pytest.mark.parametrize(
+    ("effort", "sent"),
+    [
+        ("off", {"chat_template_kwargs": {"enable_thinking": False}}),
+        ("high", {"reasoning_effort": "high"}),
+        (None, {}),
+    ],
+)
 async def test_a_level_goes_to_a_llama_server_as_its_template_takes_it(effort, sent):
     bodies = []
 
@@ -150,10 +220,15 @@ async def test_a_level_goes_to_a_llama_server_as_its_template_takes_it(effort, s
         bodies.append(json.loads(request.content))
         return httpx2.Response(200, text="data: [DONE]\n\n")
 
-    await _step(OpenAICompatClient("http://127.0.0.1:8080/v1",
-                                   transport=httpx2.MockTransport(handler)), effort)
-    told = {key: bodies[0][key] for key in ("chat_template_kwargs", "reasoning_effort")
-            if key in bodies[0]}
+    await _step(
+        OpenAICompatClient("http://127.0.0.1:8080/v1", transport=httpx2.MockTransport(handler)),
+        effort,
+    )
+    told = {
+        key: bodies[0][key]
+        for key in ("chat_template_kwargs", "reasoning_effort")
+        if key in bodies[0]
+    }
     assert told == sent
 
 
@@ -161,15 +236,18 @@ LEVEL_KEYS = ("chat_template_kwargs", "reasoning_effort", "enable_thinking", "th
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize(("model", "effort", "sent"), [
-    # measured on Alibaba's service (27 Oct 2026): Qwen ignores reasoning_effort, takes a budget
-    ("qwen3.8-flash", "low", {"enable_thinking": True, "thinking_budget": 1024}),
-    ("qwen3.8-flash", "xhigh", {"enable_thinking": True, "thinking_budget": 32768}),
-    ("qwen3.8-flash", "max", {"enable_thinking": True}),  # its own most
-    ("qwen3.8-flash", "off", {"chat_template_kwargs": {"enable_thinking": False}}),
-    # and DeepSeek on the same service takes reasoning_effort, ignoring a budget
-    ("deepseek-v4-flash-0731", "high", {"reasoning_effort": "high"}),
-])
+@pytest.mark.parametrize(
+    ("model", "effort", "sent"),
+    [
+        # measured on Alibaba's service (27 Oct 2026): Qwen ignores reasoning_effort, takes a budget
+        ("qwen3.8-flash", "low", {"enable_thinking": True, "thinking_budget": 1024}),
+        ("qwen3.8-flash", "xhigh", {"enable_thinking": True, "thinking_budget": 32768}),
+        ("qwen3.8-flash", "max", {"enable_thinking": True}),  # its own most
+        ("qwen3.8-flash", "off", {"chat_template_kwargs": {"enable_thinking": False}}),
+        # and DeepSeek on the same service takes reasoning_effort, ignoring a budget
+        ("deepseek-v4-flash-0731", "high", {"reasoning_effort": "high"}),
+    ],
+)
 async def test_a_hosted_qwen_is_given_a_budget_and_another_model_its_level(model, effort, sent):
     bodies = []
 
@@ -180,10 +258,11 @@ async def test_a_hosted_qwen_is_given_a_budget_and_another_model_its_level(model
     async def quiet(_text):
         pass
 
-    client = OpenAICompatClient("https://token-plan.ap-southeast-1.maas.aliyuncs.com/v1",
-                                transport=httpx2.MockTransport(handler))
-    await client.stream_step(model, [{"role": "user", "content": "x"}], None, quiet,
-                             effort=effort)
+    client = OpenAICompatClient(
+        "https://token-plan.ap-southeast-1.maas.aliyuncs.com/v1",
+        transport=httpx2.MockTransport(handler),
+    )
+    await client.stream_step(model, [{"role": "user", "content": "x"}], None, quiet, effort=effort)
     assert {key: bodies[0][key] for key in LEVEL_KEYS if key in bodies[0]} == sent
 
 
@@ -197,16 +276,21 @@ async def test_a_qwen_service_that_refuses_the_budget_is_asked_again_without_it(
         body = json.loads(request.content)
         bodies.append(body)
         if "thinking_budget" in body:
-            return httpx2.Response(400, json={"error": {
-                "message": f"<400> InternalError.Algo.InvalidParameter: {field}"}})
-        return httpx2.Response(200, text='data: {"choices":[{"delta":{"content":"ok"}}]}\n\n'
-                                         "data: [DONE]\n\n")
+            return httpx2.Response(
+                400,
+                json={"error": {"message": f"<400> InternalError.Algo.InvalidParameter: {field}"}},
+            )
+        return httpx2.Response(
+            200, text='data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'
+        )
 
     async def quiet(_text):
         pass
 
-    client = OpenAICompatClient("https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
-                                transport=httpx2.MockTransport(handler))
+    client = OpenAICompatClient(
+        "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+        transport=httpx2.MockTransport(handler),
+    )
     said = [{"role": "user", "content": "x"}]
     first = await client.stream_step("qwen3.8-max", said, None, quiet, effort="low")
     assert first.content == "ok" and first.effort_refused and client.refused_effort
@@ -216,8 +300,13 @@ async def test_a_qwen_service_that_refuses_the_budget_is_asked_again_without_it(
 @pytest.mark.anyio
 async def test_a_template_without_the_switch_has_no_off():
     def handler(request):
-        return httpx2.Response(200, json={
-            "chat_template_caps": {"supports_reasoning_effort": True}, "chat_template": "{{x}}"})
+        return httpx2.Response(
+            200,
+            json={
+                "chat_template_caps": {"supports_reasoning_effort": True},
+                "chat_template": "{{x}}",
+            },
+        )
 
     client = OpenAICompatClient("http://model/v1", transport=httpx2.MockTransport(handler))
     await client.found_window()
@@ -241,49 +330,86 @@ def test_a_model_without_the_users_price_costs_the_catalogues_and_says_so(
 
     client, _model, pid, cid = began(make_client, project_dir, [text("a", 1, 1)])
     run = turn(client, wait_run, cid)
-    made = client.post("/api/providers", json={
-        "name": "Claude API", "kind": "anthropic", "api_key": "sk-test"}).json()
+    made = client.post(
+        "/api/providers", json={"name": "Claude API", "kind": "anthropic", "api_key": "sk-test"}
+    ).json()
     with client.app.state.session_factory() as session:
         lead = session.scalars(select(Agent)).one()
-        session.add(Agent(run_id=run["id"], role_name="Other", tools=[],
-                          provider_name="Claude API", model_id="claude-sonnet-4-5",
-                          input_tokens_total=1_000_000, output_tokens=1_000_000,
-                          started_at=lead.started_at))
+        session.add(
+            Agent(
+                run_id=run["id"],
+                role_name="Other",
+                tools=[],
+                provider_name="Claude API",
+                model_id="claude-sonnet-4-5",
+                input_tokens_total=1_000_000,
+                output_tokens=1_000_000,
+                started_at=lead.started_at,
+            )
+        )
         session.commit()
-    cost = lambda: next(row["cost"] for row in usage(client, project_id=pid)["by_model"]  # noqa: E731
-                        if row["model_id"] == "claude-sonnet-4-5")
+    cost = lambda: next(  # noqa: E731
+        row["cost"]
+        for row in usage(client, project_id=pid)["by_model"]
+        if row["model_id"] == "claude-sonnet-4-5"
+    )
     # models.dev: $3 in and $15 out a million, with the day its (shipped) copy was read
     from app import models_dev
+
     shipped_on = models_dev.read_on(models_dev.load(None))
-    assert cost() == {"amount": 18.0, "currency": "USD", "price_from": "models.dev",
-                      "price_read_on": shipped_on}
+    assert cost() == {
+        "amount": 18.0,
+        "currency": "USD",
+        "price_from": "models.dev",
+        "price_read_on": shipped_on,
+    }
     # a month's budget counts it, in USD: with only the catalogue's prices it goes over
     assert client.patch(f"/api/projects/{pid}", json={"monthly_budget": 10}).status_code == 200
     budget = lambda: client.get(f"/api/projects/{pid}/budget").json()  # noqa: E731
     assert (budget()["spent"], budget()["currency"], budget()["over"]) == (18.0, "USD", True)
     # the Prices list offers it at the catalogue's price, for the user to write over
     offered = client.get("/api/prices/catalogue").json()
-    assert {"model_id": "claude-sonnet-4-5", "provider_name": "Claude API", "input": 3,
-            "output": 15, "cache_read": 0.3, "cache_write": 3.75, "currency": "USD",
-            "read_on": shipped_on} in offered
+    assert {
+        "model_id": "claude-sonnet-4-5",
+        "provider_name": "Claude API",
+        "input": 3,
+        "output": 15,
+        "cache_read": 0.3,
+        "cache_write": 3.75,
+        "currency": "USD",
+        "read_on": shipped_on,
+    } in offered
     # the user's own price comes first: in the cost, the spend and what is known of the model
-    client.put("/api/prices", json={
-        "model_id": "claude-sonnet-4-5", "input": 1, "output": 2, "currency": "USD"})
+    client.put(
+        "/api/prices",
+        json={"model_id": "claude-sonnet-4-5", "input": 1, "output": 2, "currency": "USD"},
+    )
     assert cost() == {"amount": 3.0, "currency": "USD"}
     assert (budget()["spent"], budget()["over"]) == (3.0, False)
-    client.put("/api/prices", json={
-        "model_id": "claude-sonnet-4-5", "input": 1, "output": 2, "currency": "TL"})
-    told = client.get(f"/api/providers/{made['id']}/model-facts",
-                      params={"model": "claude-sonnet-4-5"}).json()
+    client.put(
+        "/api/prices",
+        json={"model_id": "claude-sonnet-4-5", "input": 1, "output": 2, "currency": "TL"},
+    )
+    told = client.get(
+        f"/api/providers/{made['id']}/model-facts", params={"model": "claude-sonnet-4-5"}
+    ).json()
     assert told["price"]["currency"] == "TL" and told["sources"]["price"] == "you"
     assert "sk-test" not in json.dumps(told)
-    assert client.get(f"/api/providers/{made['id']}/model-facts", params={"model": "x"},
-                      headers={"Origin": "https://elsewhere.example"}).status_code == 403
+    assert (
+        client.get(
+            f"/api/providers/{made['id']}/model-facts",
+            params={"model": "x"},
+            headers={"Origin": "https://elsewhere.example"},
+        ).status_code
+        == 403
+    )
 
 
 def test_of_two_services_on_one_host_the_one_at_the_servers_address_is_found():
-    copy = {**service(api="https://api.z.test/plan/v4", m=priced(1)),
-            "payg": {**service()["acme"], "id": "payg", "api": "https://api.z.test/v4"}}
+    copy = {
+        **service(api="https://api.z.test/plan/v4", m=priced(1)),
+        "payg": {**service()["acme"], "id": "payg", "api": "https://api.z.test/v4"},
+    }
     assert catalog.catalogue_of("openai_compat", "https://api.z.test/v4", copy) == "payg"
     assert catalog.catalogue_of("openai_compat", "https://api.z.test/plan/v4/", copy) == "acme"
     assert catalog.catalogue_of("openai_compat", "https://api.z.test/other", copy) == "acme"
@@ -307,20 +433,36 @@ def test_a_budget_in_another_currency_still_holds_and_the_users_copy_is_what_pri
     run = turn(client, wait_run, cid)
     root = Path(settings_env["KOLONI_RUNTIME_ROOT"])
     (root / models_dev.NAME).write_text(json.dumps(service(m=priced(2))), encoding="utf-8")
-    client.post("/api/providers", json={
-        "name": "Acme", "kind": "openai_compat", "base_url": "https://api.acme.test/v1"})
+    client.post(
+        "/api/providers",
+        json={"name": "Acme", "kind": "openai_compat", "base_url": "https://api.acme.test/v1"},
+    )
     with client.app.state.session_factory() as session:
         lead = session.scalars(select(Agent)).one()
-        session.add(Agent(run_id=run["id"], role_name="Other", tools=[], provider_name="Acme",
-                          model_id="m", input_tokens_total=1_000_000, output_tokens=1_000_000,
-                          started_at=lead.started_at))
+        session.add(
+            Agent(
+                run_id=run["id"],
+                role_name="Other",
+                tools=[],
+                provider_name="Acme",
+                model_id="m",
+                input_tokens_total=1_000_000,
+                output_tokens=1_000_000,
+                started_at=lead.started_at,
+            )
+        )
         session.commit()
     rows = {row["model_id"]: row["cost"] for row in usage(client, project_id=pid)["by_model"]}
     # the user's updated copy, not the shipped one: $1 in, $2 out a million
-    assert rows["m"] == {"amount": 3.0, "currency": "USD", "price_from": "models.dev",
-                         "price_read_on": None}  # (that copy says no date)
-    client.put("/api/prices", json={
-        "model_id": "fake-model", "input": 1, "output": 1, "currency": "TL"})
+    assert rows["m"] == {
+        "amount": 3.0,
+        "currency": "USD",
+        "price_from": "models.dev",
+        "price_read_on": None,
+    }  # (that copy says no date)
+    client.put(
+        "/api/prices", json={"model_id": "fake-model", "input": 1, "output": 1, "currency": "TL"}
+    )
     spend = client.get(f"/api/projects/{pid}/budget").json()
     # a month priced in TL is summed in TL; the model at the catalogue's USD price is unpriced
     assert (spend["currency"], spend["spent"], spend["unpriced_runs"]) == ("TL", 1.0, 1)
@@ -343,12 +485,19 @@ def test_a_server_is_asked_its_props_once_whatever_name_is_typed_and_never_its_c
     monkeypatch.setattr(OpenAICompatClient, "info", never)
     monkeypatch.setattr(OpenAICompatClient, "stream_step", never)
     # A server on the LAN as well as on this machine: its `/props` is a free GET.
-    lan = client.post("/api/providers", headers=ORIGIN, json={
-        "name": "L", "kind": "openai_compat", "base_url": "http://192.168.1.20:8080/v1"}).json()
+    lan = client.post(
+        "/api/providers",
+        headers=ORIGIN,
+        json={"name": "L", "kind": "openai_compat", "base_url": "http://192.168.1.20:8080/v1"},
+    ).json()
     for name in ("q", "qw", "qwen"):
         told = client.get(f"/api/providers/{lan['id']}/model-facts", params={"model": name}).json()
     assert len(set(map(id, asked))) == 1  # one client: the one its runs use
-    assert (told["efforts"], told["context_window"], told["failed"]) == (["off", "low"], 8192, False)
+    assert (told["efforts"], told["context_window"], told["failed"]) == (
+        ["off", "low"],
+        8192,
+        False,
+    )
     assert told["sources"] == {"efforts": "server", "context_window": "server"}
 
 
@@ -360,7 +509,8 @@ async def test_a_server_that_does_not_answer_is_a_failed_lookup_and_one_that_say
     down = OpenAICompatClient("http://model/v1", transport=httpx2.MockTransport(refused))
     await down.found_window()
     unauthorised = OpenAICompatClient(
-        "http://model/v1", transport=httpx2.MockTransport(lambda r: httpx2.Response(401)))
+        "http://model/v1", transport=httpx2.MockTransport(lambda r: httpx2.Response(401))
+    )
     await unauthorised.found_window()
     assert (down.reached, unauthorised.reached) == (False, True)
 
@@ -384,10 +534,15 @@ def test_anthropic_is_asked_through_one_client_and_a_model_it_does_not_know_is_u
         return ModelInfo(model_id, True, efforts=("low",), context_window=1000), None
 
     monkeypatch.setattr(AnthropicClient, "_look_up", look_up)
-    made = client.post("/api/providers", headers=ORIGIN, json={
-        "name": "A", "kind": "anthropic", "api_key": "sk-test"}).json()
-    facts = lambda name: client.get(f"/api/providers/{made['id']}/model-facts",  # noqa: E731
-                                    params={"model": name}).json()
+    made = client.post(
+        "/api/providers",
+        headers=ORIGIN,
+        json={"name": "A", "kind": "anthropic", "api_key": "sk-test"},
+    ).json()
+    facts = lambda name: client.get(  # noqa: E731
+        f"/api/providers/{made['id']}/model-facts",
+        params={"model": name},
+    ).json()
     built = len(client.app.state.providers._cache)
     assert facts("")["efforts"] is None and asked == []  # no name and no default: nobody asked
     gone = facts("claude-gone")
@@ -397,7 +552,9 @@ def test_anthropic_is_asked_through_one_client_and_a_model_it_does_not_know_is_u
     assert len(client.app.state.providers._cache) <= built + 1  # not one client per name
 
 
-def test_a_download_past_its_size_is_cut_off_and_nothing_is_written(client, settings_env, monkeypatch):
+def test_a_download_past_its_size_is_cut_off_and_nothing_is_written(
+    client, settings_env, monkeypatch
+):
     from pathlib import Path
 
     chunks = []
@@ -408,8 +565,11 @@ def test_a_download_past_its_size_is_cut_off_and_nothing_is_written(client, sett
             yield b"x" * 64
 
     monkeypatch.setattr(models_dev, "MAX_BYTES", 100)
-    monkeypatch.setattr(models_dev, "_transport", httpx2.MockTransport(
-        lambda request: httpx2.Response(200, content=body())))
+    monkeypatch.setattr(
+        models_dev,
+        "_transport",
+        httpx2.MockTransport(lambda request: httpx2.Response(200, content=body())),
+    )
     assert client.post("/api/catalog/update").status_code == 403  # not the app's own page
     assert chunks == []
     failed = client.post("/api/catalog/update", headers=ORIGIN)
@@ -426,16 +586,22 @@ async def test_a_service_that_refuses_the_level_is_asked_again_without_it_and_ne
         body = json.loads(request.content)
         bodies.append(body)
         if "reasoning_effort" in body:
-            return httpx2.Response(400, json={"error": {
-                "message": "Unrecognized request argument supplied: reasoning_effort"}})
-        return httpx2.Response(200, text='data: {"choices":[{"delta":{"content":"ok"}}]}\n\n'
-                                         "data: [DONE]\n\n")
+            return httpx2.Response(
+                400,
+                json={
+                    "error": {"message": "Unrecognized request argument supplied: reasoning_effort"}
+                },
+            )
+        return httpx2.Response(
+            200, text='data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'
+        )
 
     async def quiet(_text):
         pass
 
-    client = OpenAICompatClient("https://api.acme.test/v1", efforts=("low", "high"),
-                                transport=httpx2.MockTransport(handler))
+    client = OpenAICompatClient(
+        "https://api.acme.test/v1", efforts=("low", "high"), transport=httpx2.MockTransport(handler)
+    )
     said = [{"role": "user", "content": "x"}]
     first = await client.stream_step("m", said, None, quiet, effort="high")
     assert first.content == "ok" and first.effort_refused
@@ -446,7 +612,10 @@ async def test_a_service_that_refuses_the_level_is_asked_again_without_it_and_ne
 
 
 def test_an_agent_whose_service_refused_its_level_says_so_on_its_record(
-    leveled, wait_run, project_dir, monkeypatch  # noqa: F811
+    leveled,
+    wait_run,
+    project_dir,
+    monkeypatch,  # noqa: F811
 ):
     from dataclasses import replace
 
@@ -461,12 +630,14 @@ def test_an_agent_whose_service_refused_its_level_says_so_on_its_record(
 
     monkeypatch.setattr(type(model), "stream_step", stream_step)
     set_role(client, "Lead", effort="high")
-    lead = client.get(f"/api/conversations/{ran(client, wait_run, project_dir)}").json()[
-        "agents"][0]
+    lead = client.get(f"/api/conversations/{ran(client, wait_run, project_dir)}").json()["agents"][
+        0
+    ]
     assert lead["effort"] is None
     assert lead["effort_note"].endswith(
         "refused reasoning level high: this step was asked again without one, and none is "
-        "sent to it until the provider is changed.")
+        "sent to it until the provider is changed."
+    )
 
 
 def test_catalog_jsons_hosts_come_before_models_devs():
@@ -495,9 +666,12 @@ def test_a_model_its_service_does_not_know_has_the_facts_of_another_that_has_it_
     told, said = catalog.facts("openai_compat", ALIBABA, "deepseek-v4-pro")
     assert told["context_window"] and told["efforts"] and told["price"]
     assert {said[f] for f in ("context_window", "max_output", "price", "efforts")} == {
-        "models.dev (deepseek)"}
-    assert told["price"]["output"] == models_dev.load(None)["deepseek"]["models"][
-        "deepseek-v4-pro"]["cost"]["output"]
+        "models.dev (deepseek)"
+    }
+    assert (
+        told["price"]["output"]
+        == models_dev.load(None)["deepseek"]["models"]["deepseek-v4-pro"]["cost"]["output"]
+    )
     # Another reseller's: shown, but not the window or levels that are run with.
     told, said = catalog.facts("openai_compat", ALIBABA, "glm-5.3")
     assert told["max_output"] and said["price"] == "models.dev (alibaba-cn)"
@@ -507,12 +681,19 @@ def test_a_model_its_service_does_not_know_has_the_facts_of_another_that_has_it_
     # Its own service's word, where it has one; nobody's, where none has it.
     assert catalog.facts("openai_compat", ALIBABA, "qwen3-max")[1]["price"] == "models.dev"
     assert catalog.facts("openai_compat", ALIBABA, "nobody-has-it") == (
-        dict.fromkeys(catalog.FACTS), {})
+        dict.fromkeys(catalog.FACTS),
+        {},
+    )
 
 
 def test_a_users_copy_is_looked_through_the_same_way_and_only_a_server_borrows():
-    other = {**service()["acme"], "models": {
-        "glm-9": priced(4, limit={"context": 9}), "kimi-9": priced(2, limit={"context": 7})}}
+    other = {
+        **service()["acme"],
+        "models": {
+            "glm-9": priced(4, limit={"context": 9}),
+            "kimi-9": priced(2, limit={"context": 7}),
+        },
+    }
     copy = {**service(own=priced(1)), "glm": {**other, "id": "glm"}}
     told, said = catalog.facts("openai_compat", "https://api.acme.test", "glm-9", copy)
     assert (told["context_window"], told["price"]["output"]) == (9, 4)
@@ -529,17 +710,29 @@ def test_a_users_copy_is_looked_through_the_same_way_and_only_a_server_borrows()
 def test_of_two_other_services_that_have_a_model_the_one_at_the_providers_domain_is_taken():
     # Neither is the vendor's own: the one whose address shares the provider's domain is the
     # more like it (Alibaba's plan and Alibaba China's service), not the first by id.
-    copy = {**service(own=priced(1)),
-            "aaa": {**service()["acme"], "id": "aaa", "api": "https://api.aaa.test",
-                    "models": {"glm-9": priced(5)}},
-            "zed": {**service()["acme"], "id": "zed", "api": "https://cn.acme.test/v1",
-                    "models": {"glm-9": priced(3)}}}
+    copy = {
+        **service(own=priced(1)),
+        "aaa": {
+            **service()["acme"],
+            "id": "aaa",
+            "api": "https://api.aaa.test",
+            "models": {"glm-9": priced(5)},
+        },
+        "zed": {
+            **service()["acme"],
+            "id": "zed",
+            "api": "https://cn.acme.test/v1",
+            "models": {"glm-9": priced(3)},
+        },
+    }
     told, said = catalog.facts("openai_compat", "https://api.acme.test/v1", "glm-9", copy)
     assert (told["price"]["output"], said["price"]) == (3, "models.dev (zed)")
     # The vendor's own still comes first.
     copy["glm"] = {**copy["aaa"], "id": "glm", "models": {"glm-9": priced(7)}}
-    assert catalog.facts("openai_compat", "https://api.acme.test/v1", "glm-9", copy)[1][
-        "price"] == "models.dev (glm)"
+    assert (
+        catalog.facts("openai_compat", "https://api.acme.test/v1", "glm-9", copy)[1]["price"]
+        == "models.dev (glm)"
+    )
 
 
 def test_another_services_price_is_shown_and_never_counted(make_client, wait_run, project_dir):
@@ -550,27 +743,42 @@ def test_another_services_price_is_shown_and_never_counted(make_client, wait_run
 
     client, _model, pid, cid = began(make_client, project_dir, [text("a", 1, 1)])
     run = turn(client, wait_run, cid)
-    made = client.post("/api/providers", json={
-        "name": "Token Plan", "kind": "openai_compat", "base_url": ALIBABA}).json()
+    made = client.post(
+        "/api/providers", json={"name": "Token Plan", "kind": "openai_compat", "base_url": ALIBABA}
+    ).json()
     with client.app.state.session_factory() as session:
         lead = session.scalars(select(Agent)).one()
-        session.add(Agent(run_id=run["id"], role_name="Other", tools=[],
-                          provider_name="Token Plan", model_id="deepseek-v4-pro",
-                          input_tokens_total=1_000_000, output_tokens=1_000_000,
-                          started_at=lead.started_at))
+        session.add(
+            Agent(
+                run_id=run["id"],
+                role_name="Other",
+                tools=[],
+                provider_name="Token Plan",
+                model_id="deepseek-v4-pro",
+                input_tokens_total=1_000_000,
+                output_tokens=1_000_000,
+                started_at=lead.started_at,
+            )
+        )
         session.commit()
     # Shown, its service named...
-    told = client.get(f"/api/providers/{made['id']}/model-facts",
-                      params={"model": "deepseek-v4-pro"}).json()
+    told = client.get(
+        f"/api/providers/{made['id']}/model-facts", params={"model": "deepseek-v4-pro"}
+    ).json()
     assert told["price"]["output"] and told["sources"]["price"] == "models.dev (deepseek)"
     # ...but a plan's credits are not DeepSeek's prices: unpriced, and the budget holds.
-    row = next(row for row in usage(client, project_id=pid)["by_model"]
-               if row["model_id"] == "deepseek-v4-pro")
+    row = next(
+        row
+        for row in usage(client, project_id=pid)["by_model"]
+        if row["model_id"] == "deepseek-v4-pro"
+    )
     assert row["cost"] is None
     assert client.patch(f"/api/projects/{pid}", json={"monthly_budget": 1}).status_code == 200
     budget = client.get(f"/api/projects/{pid}/budget").json()
     assert (budget["spent"], budget["over"], budget["unpriced_runs"]) == (0, False, 1)
-    assert "deepseek-v4-pro" not in {p["model_id"] for p in client.get("/api/prices/catalogue").json()}
+    assert "deepseek-v4-pro" not in {
+        p["model_id"] for p in client.get("/api/prices/catalogue").json()
+    }
 
 
 @pytest.mark.anyio
@@ -600,7 +808,8 @@ async def test_a_catalogue_a_week_old_is_downloaded_again_a_fresh_one_is_not(tmp
 
 
 def test_keeping_the_catalogue_fresh_is_the_users_and_looked_at_on_each_start(
-        settings_env, monkeypatch):
+    settings_env, monkeypatch
+):
     from app.config import load_settings
     from app.main import create_app
     from tests.keyed import TestClient
@@ -633,27 +842,50 @@ def test_keeping_the_catalogue_fresh_is_the_users_and_looked_at_on_each_start(
 # K-60d-kalan: the user's own catalogue (catalog.local.json) over models.dev's tier and levels,
 # under the model's own row; the levels it gives are the ones sent.
 def test_the_users_catalogue_says_a_tier_and_levels_over_models_devs(tmp_path, monkeypatch):
-    copy = service(m={**priced(9), "reasoning": True, "reasoning_options": [
-        {"type": "effort", "values": ["low", "medium", "high"]}]}, cheap=priced(1))
+    copy = service(
+        m={
+            **priced(9),
+            "reasoning": True,
+            "reasoning_options": [{"type": "effort", "values": ["low", "medium", "high"]}],
+        },
+        cheap=priced(1),
+    )
     told, said = catalog.facts("openai_compat", "https://api.acme.test", "m", copy, "Acme")
-    assert (told["tier"], said["tier"], said["efforts"]) == ("strongest", "models.dev", "models.dev")
+    assert (told["tier"], said["tier"], said["efforts"]) == (
+        "strongest",
+        "models.dev",
+        "models.dev",
+    )
     local = tmp_path / "catalog.local.json"
     monkeypatch.setattr(catalog, "LOCAL", local)
-    local.write_text(json.dumps({
-        "models": {"acme": [{"name": "m", "tier": "balanced", "efforts": ["max", "low"]}]},
-        "providers": {"Acme": [{"name": "m", "tier": "fast"}], "Mine": [
-            {"name": "q", "tier": "balanced", "efforts": ["high"]}]}}))
+    local.write_text(
+        json.dumps(
+            {
+                "models": {"acme": [{"name": "m", "tier": "balanced", "efforts": ["max", "low"]}]},
+                "providers": {
+                    "Acme": [{"name": "m", "tier": "fast"}],
+                    "Mine": [{"name": "q", "tier": "balanced", "efforts": ["high"]}],
+                },
+            }
+        )
+    )
     told, said = catalog.facts("openai_compat", "https://api.acme.test", "m", copy, "Acme")
     # the provider's name over its catalogue's; levels in the order KOLONİ has them
     assert (told["tier"], told["efforts"]) == ("fast", ["low", "max"])
     assert (said["tier"], said["efforts"]) == ("you", "you")
     # a server on this machine has no catalogue: its rows are found by the provider's name
     told, said = catalog.facts("openai_compat", "http://localhost:8080/v1", "q", copy, "Mine")
-    assert (told["tier"], told["efforts"], said) == ("balanced", ["high"],
-                                                     {"tier": "you", "efforts": "you"})
+    assert (told["tier"], told["efforts"], said) == (
+        "balanced",
+        ["high"],
+        {"tier": "you", "efforts": "you"},
+    )
     # a CLI sends catalog.json's levels, whatever the file says: only its tier is taken
-    local.write_text(json.dumps({"models": {"codex_cli": [
-        {"name": "gpt-6-astra", "tier": "fast", "efforts": ["max"]}]}}))
+    local.write_text(
+        json.dumps(
+            {"models": {"codex_cli": [{"name": "gpt-6-astra", "tier": "fast", "efforts": ["max"]}]}}
+        )
+    )
     told, said = catalog.facts("codex_cli", None, "gpt-6-astra", None, "Codex")
     assert (told["tier"], said["tier"], said["efforts"]) == ("fast", "you", "catalog")
     assert catalog.facts("codex_cli", None, "gpt-6-astra")[1]["tier"] == "catalog"  # unnamed
@@ -665,12 +897,23 @@ def test_the_users_catalogue_says_a_tier_and_levels_over_models_devs(tmp_path, m
 @pytest.mark.anyio
 async def test_the_users_levels_are_sent_over_what_a_llama_server_says_the_catalogues_are_not():
     def handler(request):
-        return httpx2.Response(200, json={
-            "chat_template_caps": {"supports_reasoning_effort": True}, "chat_template": "{{x}}"})
+        return httpx2.Response(
+            200,
+            json={
+                "chat_template_caps": {"supports_reasoning_effort": True},
+                "chat_template": "{{x}}",
+            },
+        )
 
-    mine, catalogued = (OpenAICompatClient("http://model/v1", efforts=("high",), efforts_yours=yours,
-                                           transport=httpx2.MockTransport(handler))
-                        for yours in (True, False))
+    mine, catalogued = (
+        OpenAICompatClient(
+            "http://model/v1",
+            efforts=("high",),
+            efforts_yours=yours,
+            transport=httpx2.MockTransport(handler),
+        )
+        for yours in (True, False)
+    )
     await mine.found_window()
     await catalogued.found_window()
     assert mine.efforts == ("high",) and catalogued.efforts == ("low", "medium", "high")
@@ -699,9 +942,16 @@ def test_the_page_says_the_users_catalogue_and_the_models_own_row_over_it(
     local = tmp_path / "catalog.local.json"
     monkeypatch.setattr(catalog, "LOCAL", local)
     edit({"providers": {"L": [{"name": "q", "tier": "fast", "efforts": ["high"]}]}})
-    made = client.post("/api/providers", headers=ORIGIN, json={
-        "name": "L", "kind": "openai_compat", "base_url": "http://192.168.1.20:8080/v1",
-        "models": [{"name": "row", "tier": "strongest"}]}).json()
+    made = client.post(
+        "/api/providers",
+        headers=ORIGIN,
+        json={
+            "name": "L",
+            "kind": "openai_compat",
+            "base_url": "http://192.168.1.20:8080/v1",
+            "models": [{"name": "row", "tier": "strongest"}],
+        },
+    ).json()
     facts = f"/api/providers/{made['id']}/model-facts"
     told = client.get(facts, params={"model": "q"}).json()
     assert (told["tier"], told["efforts"], told["context_window"]) == ("fast", ["high"], 8192)
@@ -714,14 +964,29 @@ def test_the_page_says_the_users_catalogue_and_the_models_own_row_over_it(
     told = client.get(facts, params={"model": "q"}).json()
     assert (told["efforts"], told["sources"]["efforts"]) == (["off", "low"], "server")
     # a service's catalogue levels give way to what its server says, as its client sends them
-    monkeypatch.setattr(api, "_copy", lambda request: service(m={
-        **priced(1), "reasoning": True, "limit": {"context": 1000},
-        "reasoning_options": [{"type": "effort", "values": ["low", "high"]}]}))
-    hosted = client.post("/api/providers", headers=ORIGIN, json={
-        "name": "H", "kind": "openai_compat", "base_url": "https://api.acme.test/v1"}).json()
+    monkeypatch.setattr(
+        api,
+        "_copy",
+        lambda request: service(
+            m={
+                **priced(1),
+                "reasoning": True,
+                "limit": {"context": 1000},
+                "reasoning_options": [{"type": "effort", "values": ["low", "high"]}],
+            }
+        ),
+    )
+    hosted = client.post(
+        "/api/providers",
+        headers=ORIGIN,
+        json={"name": "H", "kind": "openai_compat", "base_url": "https://api.acme.test/v1"},
+    ).json()
     told = client.get(f"/api/providers/{hosted['id']}/model-facts", params={"model": "m"}).json()
     assert (told["efforts"], told["context_window"]) == (["off", "low"], 1000)
-    assert (told["sources"]["efforts"], told["sources"]["context_window"]) == ("server", "models.dev")
+    assert (told["sources"]["efforts"], told["sources"]["context_window"]) == (
+        "server",
+        "models.dev",
+    )
 
 
 def test_the_example_catalogue_is_read(monkeypatch):
@@ -733,13 +998,16 @@ def test_the_example_catalogue_is_read(monkeypatch):
 OPENAI = "https://api.openai.com/v1"
 
 
-@pytest.mark.parametrize(("model", "first", "off"), [
-    ("gpt-5.5", "off", "none"),  # models.dev's "none" is KOLONİ's off, and goes as that
-    ("gpt-6-astra", "low", "low"),  # no none: off goes as its lowest
-    ("gpt-6.2-nova", "off", "none"),  # not in the catalogue: the docs' table, by its name
-    ("gpt-6.1-sol-mini", "low", "low"),
-    ("someone-elses", None, None),  # neither knows it: off goes as before
-])
+@pytest.mark.parametrize(
+    ("model", "first", "off"),
+    [
+        ("gpt-5.5", "off", "none"),  # models.dev's "none" is KOLONİ's off, and goes as that
+        ("gpt-6-astra", "low", "low"),  # no none: off goes as its lowest
+        ("gpt-6.2-nova", "off", "none"),  # not in the catalogue: the docs' table, by its name
+        ("gpt-6.1-sol-mini", "low", "low"),
+        ("someone-elses", None, None),  # neither knows it: off goes as before
+    ],
+)
 def test_openais_off_is_its_none_only_where_the_model_takes_it(model, first, off):
     levels = catalog.facts("openai_compat", OPENAI, model)[0]["efforts"]
     assert (levels or [None])[0] == first
@@ -756,8 +1024,9 @@ async def test_off_goes_to_openai_as_none():
         bodies.append(json.loads(request.content))
         return httpx2.Response(200, text="data: [DONE]\n\n")
 
-    await _step(OpenAICompatClient(OPENAI, off_as="none", transport=httpx2.MockTransport(
-        handler)), "off")
+    await _step(
+        OpenAICompatClient(OPENAI, off_as="none", transport=httpx2.MockTransport(handler)), "off"
+    )
     assert bodies[0]["reasoning_effort"] == "none" and "chat_template_kwargs" not in bodies[0]
 
 
@@ -769,19 +1038,29 @@ async def test_a_level_the_model_does_not_take_is_asked_again_with_the_highest_i
         body = json.loads(request.content)
         bodies.append(body.get("reasoning_effort"))
         if body.get("reasoning_effort") == "xhigh":  # as OpenAI answers for GPT-5.5's max
-            return httpx2.Response(400, json={"error": {
-                "message": "Unsupported value: 'reasoning_effort' does not support 'xhigh' with "
-                           "this model. Supported values are: 'none', 'low', 'medium', and "
-                           "'high'.", "type": "invalid_request_error",
-                "param": "reasoning_effort", "code": "unsupported_value"}})
-        return httpx2.Response(200, text='data: {"choices":[{"delta":{"content":"ok"}}]}\n\n'
-                                         "data: [DONE]\n\n")
+            return httpx2.Response(
+                400,
+                json={
+                    "error": {
+                        "message": "Unsupported value: 'reasoning_effort' does not support 'xhigh' with "
+                        "this model. Supported values are: 'none', 'low', 'medium', and "
+                        "'high'.",
+                        "type": "invalid_request_error",
+                        "param": "reasoning_effort",
+                        "code": "unsupported_value",
+                    }
+                },
+            )
+        return httpx2.Response(
+            200, text='data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'
+        )
 
     async def quiet(_text):
         pass
 
-    client = OpenAICompatClient(OPENAI, efforts=("low", "high", "xhigh"),
-                                transport=httpx2.MockTransport(handler))
+    client = OpenAICompatClient(
+        OPENAI, efforts=("low", "high", "xhigh"), transport=httpx2.MockTransport(handler)
+    )
     said = [{"role": "user", "content": "x"}]
     first = await client.stream_step("gpt-5.5", said, None, quiet, effort="xhigh")
     assert first.content == "ok" and first.effort_instead == ("xhigh", "high")
@@ -792,7 +1071,10 @@ async def test_a_level_the_model_does_not_take_is_asked_again_with_the_highest_i
 
 
 def test_an_agent_whose_model_took_another_level_says_so_on_its_record(
-    leveled, wait_run, project_dir, monkeypatch  # noqa: F811
+    leveled,
+    wait_run,
+    project_dir,
+    monkeypatch,  # noqa: F811
 ):
     from dataclasses import replace
 
@@ -807,7 +1089,8 @@ def test_an_agent_whose_model_took_another_level_says_so_on_its_record(
 
     monkeypatch.setattr(type(model), "stream_step", stream_step)
     set_role(client, "Lead", effort="high")
-    lead = client.get(f"/api/conversations/{ran(client, wait_run, project_dir)}").json()[
-        "agents"][0]
+    lead = client.get(f"/api/conversations/{ran(client, wait_run, project_dir)}").json()["agents"][
+        0
+    ]
     assert lead["effort"] == "medium"
     assert lead["effort_note"].endswith("does not take high; sent medium")

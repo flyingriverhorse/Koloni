@@ -4,6 +4,7 @@ folders and its agents work in their own copies (slice 86b)
 Revision ID: 0072
 Revises: 0071
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -24,5 +25,6 @@ def downgrade() -> None:
     with op.batch_alter_table("conversations") as batch:
         batch.add_column(sa.Column("lane", sa.Text(), nullable=True))
     with op.batch_alter_table("file_changes") as batch:
-        batch.add_column(sa.Column(
-            "outside_lane", sa.Boolean(), server_default=sa.false(), nullable=False))
+        batch.add_column(
+            sa.Column("outside_lane", sa.Boolean(), server_default=sa.false(), nullable=False)
+        )

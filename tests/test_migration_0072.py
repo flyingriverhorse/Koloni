@@ -19,12 +19,17 @@ def test_the_lane_goes_and_comes_back_empty(tmp_path):
     cfg = _config(db)
     command.upgrade(cfg, "0071")
     with sqlite3.connect(db) as conn:
-        conn.execute("INSERT INTO conversations (id, title, lane, created_at, updated_at) "
-                     "VALUES ('c', 'Talk', 'docs/', ?, ?)", (AT, AT))
+        conn.execute(
+            "INSERT INTO conversations (id, title, lane, created_at, updated_at) "
+            "VALUES ('c', 'Talk', 'docs/', ?, ?)",
+            (AT, AT),
+        )
         conn.execute(
             "INSERT INTO file_changes (id, run_id, agent_id, path, kind, after_content, "
             "after_sha, status, created_at, outside_lane) "
-            "VALUES ('f', 'r', 'a', 'src/x.py', 'create', 'x', 's', 'applied', ?, 1)", (AT,))
+            "VALUES ('f', 'r', 'a', 'src/x.py', 'create', 'x', 's', 'applied', ?, 1)",
+            (AT,),
+        )
 
     command.upgrade(cfg, "head")
 
@@ -37,7 +42,7 @@ def test_the_lane_goes_and_comes_back_empty(tmp_path):
     command.downgrade(cfg, "0071")
 
     with sqlite3.connect(db) as conn:
-        assert conn.execute("SELECT title, lane FROM conversations").fetchall() == [
-            ("Talk", None)]
+        assert conn.execute("SELECT title, lane FROM conversations").fetchall() == [("Talk", None)]
         assert conn.execute("SELECT path, outside_lane FROM file_changes").fetchall() == [
-            ("src/x.py", 0)]
+            ("src/x.py", 0)
+        ]

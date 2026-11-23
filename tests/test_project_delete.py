@@ -31,19 +31,34 @@ def made(client, wait_run, root, factory) -> tuple[str, str, str]:
     pid = client.post("/api/projects", json={"root_path": str(root)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     run_id = turn(client, wait_run, cid)["id"]
-    trigger = client.post(f"/api/projects/{pid}/triggers", json={
-        "name": "Nightly", "kind": "schedule", "conversation_id": cid, "message": "look",
-        "config": {"every_minutes": 60}})
+    trigger = client.post(
+        f"/api/projects/{pid}/triggers",
+        json={
+            "name": "Nightly",
+            "kind": "schedule",
+            "conversation_id": cid,
+            "message": "look",
+            "config": {"every_minutes": 60},
+        },
+    )
     assert trigger.status_code == 201, trigger.text
     with factory() as session:
-        note = Memory(project_id=pid, tier="note", text="kept", origin="agent",
-                      conversation_id=cid, run_id=run_id)
+        note = Memory(
+            project_id=pid,
+            tier="note",
+            text="kept",
+            origin="agent",
+            conversation_id=cid,
+            run_id=run_id,
+        )
         known = ProjectKnowledge(project_id=pid, topic="Pay", sources=[], max_pages=1, max_usd=1)
-        session.add_all([note, known, BacklogTask(project_id=pid, title="do it", position=0,
-                                                  created_by="user")])
+        session.add_all(
+            [note, known, BacklogTask(project_id=pid, title="do it", position=0, created_by="user")]
+        )
         session.flush()
-        session.add(Embedding(kind="memory", record_id=note.id, project_id=pid, model="m",
-                              vector=[1.0]))
+        session.add(
+            Embedding(kind="memory", record_id=note.id, project_id=pid, model="m", vector=[1.0])
+        )
         session.commit()
         return pid, cid, known.id
 
@@ -51,11 +66,18 @@ def made(client, wait_run, root, factory) -> tuple[str, str, str]:
 def rows(factory) -> dict[str, list[str]]:
     """Every row of every table, as it reads. (A role's `updated_at`: the delete moves it.)"""
     with factory() as session:
-        found = {table.name: sorted(repr(tuple(row)) for row in session.execute(select(
-            *(c for c in table.c if (table.name, c.name) != ("roles", "updated_at")))))
-            for table in Base.metadata.sorted_tables}
-        found["said_in_turns"] = sorted(map(repr, session.execute(sql(
-            "SELECT rowid, * FROM said_in_turns"))))
+        found = {
+            table.name: sorted(
+                repr(tuple(row))
+                for row in session.execute(
+                    select(*(c for c in table.c if (table.name, c.name) != ("roles", "updated_at")))
+                )
+            )
+            for table in Base.metadata.sorted_tables
+        }
+        found["said_in_turns"] = sorted(
+            map(repr, session.execute(sql("SELECT rowid, * FROM said_in_turns")))
+        )
         return found
 
 
@@ -102,7 +124,8 @@ def test_the_preview_counts_and_a_delete_leaves_only_what_was_there_without_it(
     with factory() as session:
         assert session.get_one(Project, kept).memory_links == []
         assert [one["knowledge_id"] for one in session.get_one(Role, role_id).knows] == [
-            kept_knowledge]
+            kept_knowledge
+        ]
     # Its chat's attachments go, as a chat's delete takes them; the other's stay...
     assert not attachments.folder(runtime, gone_chat).exists()
     assert (attachments.folder(runtime, kept_chat) / "a.txt").exists()
@@ -124,8 +147,7 @@ def test_not_while_anything_of_it_is_at_work_or_waits(make_client, wait_run, pro
     assert "running" in refused_for(client, pid)
     with factory() as session:
         session.get_one(Run, run_id).status = "completed"
-        session.add(AwayRun(project_id=pid, conversation_id=cid, run_id=run_id,
-                            status="running"))
+        session.add(AwayRun(project_id=pid, conversation_id=cid, run_id=run_id, status="running"))
         session.commit()
     assert "away" in refused_for(client, pid)
     with factory() as session:
@@ -170,8 +192,10 @@ def refused_for(client, pid) -> str:
 def test_only_from_the_apps_own_page(client, project_dir):
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     assert client.delete(f"/api/projects/{pid}").status_code == 403
-    assert client.delete(f"/api/projects/{pid}", headers={
-        "Origin": "http://evil.example"}).status_code == 403
+    assert (
+        client.delete(f"/api/projects/{pid}", headers={"Origin": "http://evil.example"}).status_code
+        == 403
+    )
     assert client.get(f"/api/projects/{pid}").status_code == 200
     assert client.delete(f"/api/projects/{pid}", headers=OWN).status_code == 204
     assert project_dir.is_dir() and (project_dir / "hello.py").exists()

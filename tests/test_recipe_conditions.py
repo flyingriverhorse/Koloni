@@ -40,19 +40,26 @@ WAY = [("start", "test"), ("test", "fix"), ("fix", "code"), ("code", "end")]
 def done(state, role, found=False, findings=None, unchecked=False):
     # (`findings`: some to hand on, as `ended` says - by default, as many as found.)
     entry = recipe_run.opened(state, f"a{len(state['agents'])}", role)
-    entry.update(ok=True, found=found, findings=found if findings is None else findings,
-                 unchecked=unchecked)
+    entry.update(
+        ok=True, found=found, findings=found if findings is None else findings, unchecked=unchecked
+    )
 
 
 def quality(rounds=2):
-    return run_of(graph([TEST, FIX, REVIEW], WAY, loops=[{"from": "fix", "to": "test", "rounds": rounds}]))
+    return run_of(
+        graph([TEST, FIX, REVIEW], WAY, loops=[{"from": "fix", "to": "test", "rounds": rounds}])
+    )
 
 
 def test_tests_that_pass_skip_the_fix_and_the_review_runs():
     state = quality()
     done(state, "Tester")
     said = recipe_run.advance(state)
-    assert state["at"] == "code" and state["unmet"] == {"fix": "no problem found"} and "fix" in state["done"]
+    assert (
+        state["at"] == "code"
+        and state["unmet"] == {"fix": "no problem found"}
+        and "fix" in state["done"]
+    )
     assert said == "Next: Code review - open Reviewer. Skipped, no problem found: Fix it."
     assert recipe_run.open_to(state) == ["Reviewer"]
 
@@ -62,12 +69,18 @@ def test_a_failing_test_runs_the_fix_then_the_tests_again_then_the_review():
     done(state, "Tester", found=True)
     said = recipe_run.advance(state)
     assert state["at"] == "fix" and recipe_run.open_to(state) == ["Debugger"]
-    assert said == ("Next: Fix it, as Run the tests found a problem. Hand its findings to Debugger "
-                    "with findings_from.")
+    assert said == (
+        "Next: Fix it, as Run the tests found a problem. Hand its findings to Debugger "
+        "with findings_from."
+    )
     done(state, "Debugger")
-    assert recipe_run.advance(state) == ("Fixed: back to Run the tests, round 1 of 2, to check it "
-                                         "again - open Tester.")
-    assert state["at"] == "test" and recipe_run.round_at(state, recipe_run.graph_of(state), "test") == 1
+    assert recipe_run.advance(state) == (
+        "Fixed: back to Run the tests, round 1 of 2, to check it again - open Tester."
+    )
+    assert (
+        state["at"] == "test"
+        and recipe_run.round_at(state, recipe_run.graph_of(state), "test") == 1
+    )
     done(state, "Tester")
     assert recipe_run.advance(state) == "Next: Code review - open Reviewer."
     # B-177: the fix ran in a round of this pass - done, not skipped.
@@ -78,17 +91,23 @@ def test_a_failing_test_runs_the_fix_then_the_tests_again_then_the_review():
 @pytest.mark.parametrize(("failing", "status"), [(False, "done"), (True, "ready")])
 def test_a_report_end_asks_to_take_in_a_fix_and_only_a_fix(failing, status):
     """B-178: at a "report" end (Quality check's) the Debugger's fix is the user's Take in."""
-    state = run_of(graph([TEST, FIX], [("start", "test"), ("test", "fix"), ("fix", "end")],
-                         loops=[{"from": "fix", "to": "test", "rounds": 2}],
-                         ends=[{"id": "end", "then": "report"}]))
+    state = run_of(
+        graph(
+            [TEST, FIX],
+            [("start", "test"), ("test", "fix"), ("fix", "end")],
+            loops=[{"from": "fix", "to": "test", "rounds": 2}],
+            ends=[{"id": "end", "then": "report"}],
+        )
+    )
     done(state, "Tester", found=failing)
     recipe_run.advance(state)
     if failing:
         done(state, "Debugger")
         recipe_run.advance(state)
         done(state, "Tester")
-        assert recipe_run.advance(state) == ("The recipe is at its end: the user is asked to "
-                                             "take the work in.")
+        assert recipe_run.advance(state) == (
+            "The recipe is at its end: the user is asked to take the work in."
+        )
     assert state["status"] == status
 
 
@@ -98,19 +117,27 @@ def test_a_problem_with_no_findings_to_hand_on_is_given_in_the_task():
     done(state, "Tester", found=True, findings=False)
     assert recipe_run.advance(state) == (
         "Next: Fix it, as Run the tests found a problem. Its report has no findings to hand on: "
-        "give Debugger what it said in its task.")
+        "give Debugger what it said in its task."
+    )
 
 
 def test_a_check_the_user_skipped_skips_the_fix_saying_nothing_was_checked():
     state = quality()
     done(state, "Tester", unchecked=True)
-    assert recipe_run.advance(state) == "Next: Code review - open Reviewer. Skipped, nothing was checked: Fix it."
+    assert (
+        recipe_run.advance(state)
+        == "Next: Code review - open Reviewer. Skipped, nothing was checked: Fix it."
+    )
     assert state["unmet"] == {"fix": "nothing was checked"}
 
 
 def test_a_conditional_review_that_found_nothing_goes_on_and_does_not_loop_back():
-    recheck = part("fix", "Check again", {"role": "Reviewer"}, done_when="no_findings", when="problem")
-    state = run_of(graph([TEST, recheck, REVIEW], WAY, loops=[{"from": "fix", "to": "test", "rounds": 2}]))
+    recheck = part(
+        "fix", "Check again", {"role": "Reviewer"}, done_when="no_findings", when="problem"
+    )
+    state = run_of(
+        graph([TEST, recheck, REVIEW], WAY, loops=[{"from": "fix", "to": "test", "rounds": 2}])
+    )
     done(state, "Tester", found=True)
     recipe_run.advance(state)
     done(state, "Reviewer")
@@ -135,14 +162,34 @@ def test_tests_that_keep_failing_stop_at_the_loops_round_limit():
 
 def test_a_fix_with_no_loop_runs_once_and_two_conditional_steps_in_a_row_skip_together():
     note = part("note", "Note it", {"role": "Docs writer"}, when="problem")
-    state = run_of(graph([TEST, FIX, note, REVIEW], [("start", "test"), ("test", "fix"), ("fix", "note"),
-                                                     ("note", "code"), ("code", "end")]))
+    state = run_of(
+        graph(
+            [TEST, FIX, note, REVIEW],
+            [
+                ("start", "test"),
+                ("test", "fix"),
+                ("fix", "note"),
+                ("note", "code"),
+                ("code", "end"),
+            ],
+        )
+    )
     done(state, "Tester")
     assert recipe_run.advance(state).endswith("Skipped, no problem found: Fix it, Note it.")
     assert state["unmet"] == {"fix": "no problem found", "note": "no problem found"}
     # Found: the fix runs - the note after it does not: the fix is no review, found nothing.
-    state = run_of(graph([TEST, FIX, note, REVIEW], [("start", "test"), ("test", "fix"), ("fix", "note"),
-                                                     ("note", "code"), ("code", "end")]))
+    state = run_of(
+        graph(
+            [TEST, FIX, note, REVIEW],
+            [
+                ("start", "test"),
+                ("test", "fix"),
+                ("fix", "note"),
+                ("note", "code"),
+                ("code", "end"),
+            ],
+        )
+    )
     done(state, "Tester", found=True)
     recipe_run.advance(state)
     done(state, "Debugger")
@@ -153,16 +200,25 @@ def test_a_fix_with_no_loop_runs_once_and_two_conditional_steps_in_a_row_skip_to
 def test_an_old_step_writes_no_when():
     old = RecipeStep.model_validate(part("a", "Build it", {"role": "Coder"}))
     assert "when" not in old.model_dump(mode="json", by_alias=True)
-    assert RecipeStep.model_validate(FIX).model_dump(mode="json", by_alias=True)["when"] == "problem"
+    assert (
+        RecipeStep.model_validate(FIX).model_dump(mode="json", by_alias=True)["when"] == "problem"
+    )
 
 
 def test_a_conditional_step_saves_and_one_that_could_never_tell_is_refused(make_client):
     client, _model = make_client({})
 
     def saved(name, steps, arrows, **more):
-        return client.post("/api/recipes", headers=OWN, json={"name": name, "graph": graph(steps, arrows, **more)})
+        return client.post(
+            "/api/recipes", headers=OWN, json={"name": name, "graph": graph(steps, arrows, **more)}
+        )
 
-    ok = saved("Fix on failure", [TEST, FIX, REVIEW], WAY, loops=[{"from": "fix", "to": "test", "rounds": 2}])
+    ok = saved(
+        "Fix on failure",
+        [TEST, FIX, REVIEW],
+        WAY,
+        loops=[{"from": "fix", "to": "test", "rounds": 2}],
+    )
     assert ok.status_code == 201, ok.text
     assert ok.json()["graph"]["steps"][1]["when"] == "problem"
 
@@ -171,23 +227,56 @@ def test_a_conditional_step_saves_and_one_that_could_never_tell_is_refused(make_
         return [(one["at"], one["msg"]) for one in response.json()["detail"]]
 
     first = part("fix", "Fix it", {"role": "Debugger"}, when="problem")
-    assert refused(saved("First", [first, REVIEW], [("start", "fix"), ("fix", "code"), ("code", "end")])) == [
-        ("fix", "Fix it runs only if the step before found a problem, but that is no review (Done when: no finding is left)")]
+    assert refused(
+        saved("First", [first, REVIEW], [("start", "fix"), ("fix", "code"), ("code", "end")])
+    ) == [
+        (
+            "fix",
+            "Fix it runs only if the step before found a problem, but that is no review (Done when: no finding is left)",
+        )
+    ]
     build = part("build", "Build it", {"role": "Coder"})
-    assert refused(saved("After a build", [build, FIX], [("start", "build"), ("build", "fix"), ("fix", "end")])) == [
-        ("fix", "Fix it runs only if the step before found a problem, but that is no review (Done when: no finding is left)")]
+    assert refused(
+        saved("After a build", [build, FIX], [("start", "build"), ("build", "fix"), ("fix", "end")])
+    ) == [
+        (
+            "fix",
+            "Fix it runs only if the step before found a problem, but that is no review (Done when: no finding is left)",
+        )
+    ]
     grouped = part("fix", "Fix it", {"role": "Debugger"}, when="problem", group="g")
-    assert refused(saved("Grouped", [TEST, grouped, part("x", "Other", {"role": "Coder"}, group="g")],
-                         [("start", "test"), ("test", "g"), ("g", "end")], groups=[{"id": "g", "name": "At once"}])) == [
-        ("fix", "Fix it: a step that runs only if a problem was found is on its own, not at once with other steps")]
+    assert refused(
+        saved(
+            "Grouped",
+            [TEST, grouped, part("x", "Other", {"role": "Coder"}, group="g")],
+            [("start", "test"), ("test", "g"), ("g", "end")],
+            groups=[{"id": "g", "name": "At once"}],
+        )
+    ) == [
+        (
+            "fix",
+            "Fix it: a step that runs only if a problem was found is on its own, not at once with other steps",
+        )
+    ]
     build_first = [build, TEST, FIX, REVIEW]
-    assert refused(saved("Looped", build_first, [("start", "build"), ("build", "test"), *WAY[1:]],
-                         loops=[{"from": "test", "to": "build", "rounds": 1}])) == [
-        ("fix", "Fix it runs only if the step before found a problem, but Run the tests loops back with what it "
-                "finds; keep the loop or the condition")]
+    assert refused(
+        saved(
+            "Looped",
+            build_first,
+            [("start", "build"), ("build", "test"), *WAY[1:]],
+            loops=[{"from": "test", "to": "build", "rounds": 1}],
+        )
+    ) == [
+        (
+            "fix",
+            "Fix it runs only if the step before found a problem, but Run the tests loops back with what it "
+            "finds; keep the loop or the condition",
+        )
+    ]
     # Still refused as before: a step not reached.
     assert ("code", "Code review is not reached from Your message") in refused(
-        saved("Broken", [TEST, FIX, REVIEW], [("start", "test"), ("test", "fix"), ("fix", "end")]))
+        saved("Broken", [TEST, FIX, REVIEW], [("start", "test"), ("test", "fix"), ("fix", "end")])
+    )
 
 
 # --- the ready Quality check, with the fake model -------------------------------------------------
@@ -197,34 +286,62 @@ def quality_run(client, project_dir, mode="auto_edit"):
     quality = teams_of(client)["Quality"]
     assert quality["default_recipe_id"] == recipe_named(client, "Quality check")["id"]
     own_test(client, project_dir)
-    return begin(client, project_dir, mode=mode, spawn_approval="never", teams_mode="manual",
-                 teams=[{"team_id": quality["id"], "recipe_id": None}])
+    return begin(
+        client,
+        project_dir,
+        mode=mode,
+        spawn_approval="never",
+        teams_mode="manual",
+        teams=[{"team_id": quality["id"], "recipe_id": None}],
+    )
 
 
 REVIEWERS = ("Reviewer", "Security reviewer")
 
 
 def reviews(at):
-    return step(*(call("spawn_agent", {"role": role, "task": "review"}, f"r{at}{i}") for i, role in enumerate(REVIEWERS)))
+    return step(
+        *(
+            call("spawn_agent", {"role": role, "task": "review"}, f"r{at}{i}")
+            for i, role in enumerate(REVIEWERS)
+        )
+    )
 
 
 def opened(snap):
     """The Lead's agents in the order they were opened - the reviewers, opened at once, in
     either order (under load the second one was at times on record first)."""
     roles = [a["role_name"] for a in snap["agents"] if a["depth"] == 1]
-    return roles[:-len(REVIEWERS)] + sorted(roles[-len(REVIEWERS):])
+    return roles[: -len(REVIEWERS)] + sorted(roles[-len(REVIEWERS) :])
 
 
 # (Its tests passing, the Debugger skipped: `test_the_ready_quality_check_recipe_runs_the_tests...`.)
 
 
-def test_quality_check_whose_tester_finds_a_problem_debugs_and_tests_again(make_client, wait_run, project_dir):
-    client, model = make_client({
-        "Lead": [spawn("Tester", "run the tests", "t1"),
-                 step(call("spawn_agent", {"role": "Debugger", "task": "fix it", "findings_from": "Tester"}, "d1")),
-                 spawn("Tester", "run the tests again", "t2"), reviews(1), text("all checked")],
-        "Tester": [text(FOUND)], "Debugger": [step(write("calc.py", "x = 1\n")), text("fixed")],
-        "Tester 2": checked(), **{role: [text(NONE)] for role in REVIEWERS}})
+def test_quality_check_whose_tester_finds_a_problem_debugs_and_tests_again(
+    make_client, wait_run, project_dir
+):
+    client, model = make_client(
+        {
+            "Lead": [
+                spawn("Tester", "run the tests", "t1"),
+                step(
+                    call(
+                        "spawn_agent",
+                        {"role": "Debugger", "task": "fix it", "findings_from": "Tester"},
+                        "d1",
+                    )
+                ),
+                spawn("Tester", "run the tests again", "t2"),
+                reviews(1),
+                text("all checked"),
+            ],
+            "Tester": [text(FOUND)],
+            "Debugger": [step(write("calc.py", "x = 1\n")), text("fixed")],
+            "Tester 2": checked(),
+            **{role: [text(NONE)] for role in REVIEWERS},
+        }
+    )
     cid, run_id = quality_run(client, project_dir)
     # B-178: the fix is the user's Take in, at Ready for you - not a kept copy's card.
     snap = until(client, cid, lambda s: asked(s) and "Ready for you" in asked(s)["question"])
@@ -235,13 +352,24 @@ def test_quality_check_whose_tester_finds_a_problem_debugs_and_tests_again(make_
     assert not [c for c in by_call(snap) if c[0] == "failed"], by_call(snap)
     assert opened(snap) == ["Tester", "Debugger", "Tester", *REVIEWERS]
     # B-177: the fix ran in round 1, then the tests passed: it shows done, not skipped.
-    assert strip(row(snap)) == [("test", "done", 1), ("fix", "done", 1), ("reviews", "done", 0), ("end", "done", 0)]
+    assert strip(row(snap)) == [
+        ("test", "done", 1),
+        ("fix", "done", 1),
+        ("reviews", "done", 0),
+        ("end", "done", 0),
+    ]
     told = [said for _, said in by_call(snap)]
-    assert "Next: Find and fix the cause, as Run the tests found a problem. Hand its findings" in told[0]
+    assert (
+        "Next: Find and fix the cause, as Run the tests found a problem. Hand its findings"
+        in told[0]
+    )
     assert "Fixed: back to Run the tests, round 1 of 2" in told[1]
     assert row(snap)["status"] == "in"
     # Before a fix, the Tester is told a failing test is a finding, failing before or not.
-    assert "Here every test or command that fails is a finding" in model.calls_of["Tester"][0][0]["content"]
+    assert (
+        "Here every test or command that fails is a finding"
+        in model.calls_of["Tester"][0][0]["content"]
+    )
 
 
 # A Tester's report as real ones come: each a problem, so the Debugger runs.
@@ -249,22 +377,44 @@ CHECKED_NOTHING = "All good.\n\nFindings: none"
 NO_SECTION = "Ran the tests: 2 failed."
 FAILING = "Ran pytest.\n\nAlready failing before: test_x\n\nChecked: ran pytest - test_x fails\n\nFindings: none"
 # B-192: a failing test marked a suggestion is blocking all the same.
-FAILS_MARKED = "Checked: ran pytest\n\n## Findings\n- test_x fails | kind: test | role: Debugger | suggestion"
+FAILS_MARKED = (
+    "Checked: ran pytest\n\n## Findings\n- test_x fails | kind: test | role: Debugger | suggestion"
+)
 # ...and suggestions alone are no problem: the Debugger is skipped.
 SUGGESTS = "Checked: ran pytest, 3 passed\n\n## Findings\n- name the test better | kind: test | role: Tester | suggestion"
 # (Suggestions alone with nothing checked are no pass, as nothing found is not: G1.5.)
 SUGGESTS_UNCHECKED = SUGGESTS.split("\n\n", 1)[1]
 
 
-@pytest.mark.parametrize(("report", "hand"), [(CHECKED_NOTHING, True), (NO_SECTION, False), (FAILING, True),
-                                              (FAILS_MARKED, True), (SUGGESTS_UNCHECKED, True)])
-def test_a_tester_report_that_is_no_pass_runs_the_debugger(make_client, wait_run, project_dir, report, hand):
+@pytest.mark.parametrize(
+    ("report", "hand"),
+    [
+        (CHECKED_NOTHING, True),
+        (NO_SECTION, False),
+        (FAILING, True),
+        (FAILS_MARKED, True),
+        (SUGGESTS_UNCHECKED, True),
+    ],
+)
+def test_a_tester_report_that_is_no_pass_runs_the_debugger(
+    make_client, wait_run, project_dir, report, hand
+):
     fix = {"role": "Debugger", "task": "fix it", **({"findings_from": "Tester"} if hand else {})}
-    client, _model = make_client({
-        "Lead": [spawn("Tester", "run the tests", "t1"), step(call("spawn_agent", fix, "d1")),
-                 spawn("Tester", "run the tests again", "t2"), reviews(1), text("all checked")],
-        "Tester": [text(report)], "Debugger": [step(write("fix.txt", "f\n")), text("fixed")],
-        "Tester 2": checked(), **{role: [text(NONE)] for role in REVIEWERS}})
+    client, _model = make_client(
+        {
+            "Lead": [
+                spawn("Tester", "run the tests", "t1"),
+                step(call("spawn_agent", fix, "d1")),
+                spawn("Tester", "run the tests again", "t2"),
+                reviews(1),
+                text("all checked"),
+            ],
+            "Tester": [text(report)],
+            "Debugger": [step(write("fix.txt", "f\n")), text("fixed")],
+            "Tester 2": checked(),
+            **{role: [text(NONE)] for role in REVIEWERS},
+        }
+    )
     cid, run_id = quality_run(client, project_dir)
     answer(client, asked(until(client, cid, asked)), "Take in")  # (B-178: the fix's)
     snap = wait_run(client, cid, run_id)
@@ -278,37 +428,72 @@ def test_a_tester_report_that_is_no_pass_runs_the_debugger(make_client, wait_run
         assert "already failing before: test_x" in debugger["task"]
 
 
-def test_a_failing_test_run_runs_the_debugger_whatever_the_tester_reports(make_client, wait_run, project_dir):
+def test_a_failing_test_run_runs_the_debugger_whatever_the_tester_reports(
+    make_client, wait_run, project_dir
+):
     # (Code review, 14 Nov: pytest exited 1 under "Findings: none" and the fix was skipped.)
     executor = ScriptedExecutor([Script(["2 failed, 3 passed\n"], exit_code=1), Script([])])
-    client, _model = make_client({
-        "Lead": [spawn("Tester", "run the tests", "t1"),
-                 step(call("spawn_agent", {"role": "Debugger", "task": "fix it", "findings_from": "Tester"}, "d1")),
-                 spawn("Tester", "run the tests again", "t2"), reviews(1), text("all checked")],
-        "Tester": [cmd("python -m pytest -q"), text(NONE)],
-        "Debugger": [step(write("fix.txt", "f\n")), text("fixed")],
-        "Tester 2": checked(), **{role: [text(NONE)] for role in REVIEWERS}}, executor=executor)
+    client, _model = make_client(
+        {
+            "Lead": [
+                spawn("Tester", "run the tests", "t1"),
+                step(
+                    call(
+                        "spawn_agent",
+                        {"role": "Debugger", "task": "fix it", "findings_from": "Tester"},
+                        "d1",
+                    )
+                ),
+                spawn("Tester", "run the tests again", "t2"),
+                reviews(1),
+                text("all checked"),
+            ],
+            "Tester": [cmd("python -m pytest -q"), text(NONE)],
+            "Debugger": [step(write("fix.txt", "f\n")), text("fixed")],
+            "Tester 2": checked(),
+            **{role: [text(NONE)] for role in REVIEWERS},
+        },
+        executor=executor,
+    )
     cid, run_id = quality_run(client, project_dir, mode="full_auto")  # (its command not asked)
     snap = wait_run(client, cid, run_id)
     assert not [c for c in by_call(snap) if c[0] == "failed"], by_call(snap)
     assert opened(snap) == ["Tester", "Debugger", "Tester", *REVIEWERS]
     tester = next(a for a in snap["agents"] if a["role_name"] == "Tester")
-    assert [f["blocking"] for f in tester["findings"] if "exit 1" in f["what"]] == [True], tester["findings"]
+    assert [f["blocking"] for f in tester["findings"] if "exit 1" in f["what"]] == [True], tester[
+        "findings"
+    ]
 
 
 def test_a_key_in_a_failing_test_runs_command_is_hidden_in_its_finding(
-        make_client, wait_run, project_dir, monkeypatch):
+    make_client, wait_run, project_dir, monkeypatch
+):
     # (Review, 21 Nov: the finding is handed on to the Debugger and shown on the card.)
     key = "kg-0123456789abcdefghijklmnop"
     monkeypatch.setenv("KG_TEST_TOKEN", key)
     executor = ScriptedExecutor([Script(["1 failed\n"], exit_code=1)])
-    client, _model = make_client({
-        "Lead": [spawn("Tester", "run the tests", "t1"),
-                 step(call("spawn_agent", {"role": "Debugger", "task": "fix it", "findings_from": "Tester"}, "d1")),
-                 spawn("Tester", "run the tests again", "t2"), reviews(1), text("all checked")],
-        "Tester": [cmd(f"pytest --token {key}"), text(NONE)],
-        "Debugger": [step(write("fix.txt", "f\n")), text("fixed")],
-        "Tester 2": [text(NONE)], **{role: [text(NONE)] for role in REVIEWERS}}, executor=executor)
+    client, _model = make_client(
+        {
+            "Lead": [
+                spawn("Tester", "run the tests", "t1"),
+                step(
+                    call(
+                        "spawn_agent",
+                        {"role": "Debugger", "task": "fix it", "findings_from": "Tester"},
+                        "d1",
+                    )
+                ),
+                spawn("Tester", "run the tests again", "t2"),
+                reviews(1),
+                text("all checked"),
+            ],
+            "Tester": [cmd(f"pytest --token {key}"), text(NONE)],
+            "Debugger": [step(write("fix.txt", "f\n")), text("fixed")],
+            "Tester 2": [text(NONE)],
+            **{role: [text(NONE)] for role in REVIEWERS},
+        },
+        executor=executor,
+    )
     cid, run_id = quality_run(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id)
     tester = next(a for a in snap["agents"] if a["role_name"] == "Tester")
@@ -316,14 +501,20 @@ def test_a_key_in_a_failing_test_runs_command_is_hidden_in_its_finding(
     assert key not in said and "pytest --token" in said, said
 
 
-def test_a_command_that_exits_1_and_is_no_test_run_is_no_problem(make_client, wait_run, project_dir):
+def test_a_command_that_exits_1_and_is_no_test_run_is_no_problem(
+    make_client, wait_run, project_dir
+):
     # (A grep with no match exits 1: only a test run's failure is one. The Tester runs the
     # project's own test command too: with one known, a grep alone is no check - R3.)
     executor = ScriptedExecutor([Script([], exit_code=1), Script(["git version 2.47\n"])])
-    client, _model = make_client({
-        "Lead": [spawn("Tester", "run the tests", "t1"), reviews(1), text("all checked")],
-        "Tester": [cmd("grep -rn TODO ."), *checked()],
-        **{role: [text(NONE)] for role in REVIEWERS}}, executor=executor)
+    client, _model = make_client(
+        {
+            "Lead": [spawn("Tester", "run the tests", "t1"), reviews(1), text("all checked")],
+            "Tester": [cmd("grep -rn TODO ."), *checked()],
+            **{role: [text(NONE)] for role in REVIEWERS},
+        },
+        executor=executor,
+    )
     cid, run_id = quality_run(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id)
     assert not [c for c in by_call(snap) if c[0] == "failed"], by_call(snap)
@@ -333,13 +524,18 @@ def test_a_command_that_exits_1_and_is_no_test_run_is_no_problem(make_client, wa
 
 
 def test_a_test_run_whose_exit_code_was_not_reported_and_passed_is_no_problem(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     # (21 Nov: Claude Code reports no exit code of a command that passed; it read as a failure.)
     executor = ScriptedExecutor([Script(["3 passed\n"], exit_code=None)])
-    client, _model = make_client({
-        "Lead": [spawn("Tester", "run the tests", "t1"), reviews(1), text("all checked")],
-        "Tester": [cmd("python -m pytest -q"), text(NONE)],
-        **{role: [text(NONE)] for role in REVIEWERS}}, executor=executor)
+    client, _model = make_client(
+        {
+            "Lead": [spawn("Tester", "run the tests", "t1"), reviews(1), text("all checked")],
+            "Tester": [cmd("python -m pytest -q"), text(NONE)],
+            **{role: [text(NONE)] for role in REVIEWERS},
+        },
+        executor=executor,
+    )
     cid, run_id = quality_run(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id)
     assert [(c["status"], c["exit_code"]) for c in snap["commands"]] == [("exited", None)]
@@ -348,27 +544,56 @@ def test_a_test_run_whose_exit_code_was_not_reported_and_passed_is_no_problem(
     assert strip(row(snap))[1] == ("fix", "skipped", 0)
 
 
-def test_suggestions_alone_send_no_work_back_and_the_card_says_them(make_client, wait_run, project_dir):
+def test_suggestions_alone_send_no_work_back_and_the_card_says_them(
+    make_client, wait_run, project_dir
+):
     # B-192 (live): every small note looped the recipe; a suggestion is the user's, on the card.
-    client, _model = make_client({
-        "Lead": [spawn("Tester", "run the tests", "t1"), reviews(1), text("all checked")],
-        "Tester": checked(SUGGESTS), **{role: [text(NONE)] for role in REVIEWERS}})
+    client, _model = make_client(
+        {
+            "Lead": [spawn("Tester", "run the tests", "t1"), reviews(1), text("all checked")],
+            "Tester": checked(SUGGESTS),
+            **{role: [text(NONE)] for role in REVIEWERS},
+        }
+    )
     cid, run_id = quality_run(client, project_dir)
     snap = wait_run(client, cid, run_id)
     assert not [c for c in by_call(snap) if c[0] == "failed"], by_call(snap)
     assert opened(snap) == ["Tester", *REVIEWERS]
-    assert strip(row(snap)) == [("test", "done", 0), ("fix", "skipped", 0), ("reviews", "done", 0), ("end", "done", 0)]
+    assert strip(row(snap)) == [
+        ("test", "done", 0),
+        ("fix", "skipped", 0),
+        ("reviews", "done", 0),
+        ("end", "done", 0),
+    ]
     assert row(snap)["status"] == "done"
     tester = next(a for a in snap["agents"] if a["role_name"] == "Tester")
-    assert [(f["what"], f["blocking"]) for f in tester["findings"]] == [("name the test better", False)]
+    assert [(f["what"], f["blocking"]) for f in tester["findings"]] == [
+        ("name the test better", False)
+    ]
 
 
 def test_next_names_each_role_of_an_all_at_once_group():
     # B-191 (review): "open Reviewer or Security reviewer" read as one of them.
     build = part("build", "Build it", {"role": "Coder"})
-    reviews = [part("r1", "Code review", {"role": "Reviewer"}, done_when="no_findings", group="g"),
-               part("r2", "Security review", {"role": "Security reviewer"}, done_when="no_findings", group="g")]
-    state = run_of(graph([build, *reviews], [("start", "build"), ("build", "g"), ("g", "end")],
-                         groups=[{"id": "g", "name": "All at once, wait for all"}]))
+    reviews = [
+        part("r1", "Code review", {"role": "Reviewer"}, done_when="no_findings", group="g"),
+        part(
+            "r2",
+            "Security review",
+            {"role": "Security reviewer"},
+            done_when="no_findings",
+            group="g",
+        ),
+    ]
+    state = run_of(
+        graph(
+            [build, *reviews],
+            [("start", "build"), ("build", "g"), ("g", "end")],
+            groups=[{"id": "g", "name": "All at once, wait for all"}],
+        )
+    )
     done(state, "Coder")
-    assert recipe_run.advance(state) == "Next: All at once, wait for all - open Reviewer and Security reviewer."
+    assert (
+        recipe_run.advance(state)
+        == "Next: All at once, wait for all - open Reviewer and Security reviewer."
+    )

@@ -9,6 +9,7 @@ unasked for that (null: nothing). Going back drops both.
 Revision ID: 0159
 Revises: 0158
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -21,8 +22,9 @@ depends_on = None
 
 def upgrade() -> None:
     with op.batch_alter_table("projects") as batch:
-        batch.add_column(sa.Column("disposable_deletes", sa.Boolean(), nullable=False,
-                                   server_default=sa.false()))
+        batch.add_column(
+            sa.Column("disposable_deletes", sa.Boolean(), nullable=False, server_default=sa.false())
+        )
     with op.batch_alter_table("commands") as batch:
         batch.add_column(sa.Column("disposable", sa.JSON(), nullable=True))
 

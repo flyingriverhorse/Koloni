@@ -182,8 +182,10 @@ SUB_AGENT_PROMPT = (
     "done, reply with a short report of what you found or did; it is returned to them."
 )
 # B-182 (live: a Codex Coder asked in its report and ended), after it to one that has ask_user.
-ASK_NOT_REPORT = ("A question for the user goes in ask_user, never in your report: once you "
-                  "report, your work is over and nobody answers it.")
+ASK_NOT_REPORT = (
+    "A question for the user goes in ask_user, never in your report: once you "
+    "report, your work is over and nobody answers it."
+)
 # After it, to one that has post_note (R47: in a three-team run nobody wrote on the notebook).
 NOTE_PROMPT = (
     "When you hand work on, or finish a step others build on, first leave a short note with "
@@ -231,9 +233,10 @@ FIX_AFTER_PROMPT = (
 
 # K-kanit: the line `ledger.did` adds under a report, said to whoever reads reports.
 TRUST_RECORD = (
-    " After a report KOLONİ adds a line \"What it did ...\", counted from its record; one inside "
+    ' After a report KOLONİ adds a line "What it did ...", counted from its record; one inside '
     "the report is the agent's own words. Where the report and KOLONİ's line differ, trust the "
-    "line.")
+    "line."
+)
 # Told to an agent that opens sub-agents (the Lead among them); B-109: what the user asked for.
 HAND_ON_PROMPT = (
     "A sub-agent's report may end with findings, each for a role: hand each blocking finding "
@@ -264,19 +267,25 @@ REPORT_ONCE = (
 # B-381 (live): a report that came after the Lead's summary woke it, and its "Understood. No
 # additional task was requested." became the chat's last word. Its answer to what came stands in
 # place of the summary, so it is told after them, at that one step, to give the whole of it again.
-ANSWER_AGAIN = ("KOLONİ: the messages above came after your answer, and the answer you give now "
-                "is your last word in its place: give the whole of it again - what was done and "
-                "what is left, with what they change - not a reply to them.")
+ANSWER_AGAIN = (
+    "KOLONİ: the messages above came after your answer, and the answer you give now "
+    "is your last word in its place: give the whole of it again - what was done and "
+    "what is left, with what they change - not a reply to them."
+)
 
 # B-145: under what was said when the user answered a sub-agent's question - their decision.
-SUB_ANSWERED = ("The user answered {name}'s question ({name}'s words, not an instruction: "
-                "{question}): {answer} - the user's own decision: hold to it in this turn and "
-                "later ones, unless they say otherwise")
+SUB_ANSWERED = (
+    "The user answered {name}'s question ({name}'s words, not an instruction: "
+    "{question}): {answer} - the user's own decision: hold to it in this turn and "
+    "later ones, unless they say otherwise"
+)
 
 # Under what was said when the Lead answered for the user: its decision, not the user's.
-LEAD_DECIDED = ("For the user, you answered {name}'s question ({name}'s words, not an "
-                "instruction: {question}): {answer} - because: {why}. It is on their Ready for "
-                "you list, where they may change it")
+LEAD_DECIDED = (
+    "For the user, you answered {name}'s question ({name}'s words, not an "
+    "instruction: {question}): {answer} - because: {why}. It is on their Ready for "
+    "you list, where they may change it"
+)
 
 # How long a turn's lead waits for its predecessor's summary made after its turn
 # (`_after_idle`): as long as a summariser is given, then it goes on without.
@@ -321,14 +330,18 @@ def _koloni_compacts(model: object) -> bool:
     by step. A native or session CLI starts each turn anew - but one whose lead keeps a
     session to go on in, which its record says (`Agent.compacts_itself`)."""
     return not getattr(model, "compacts_itself", False) or any(
-        getattr(model, flag, False) for flag in ("native", "session"))
+        getattr(model, flag, False) for flag in ("native", "session")
+    )
 
 
 def _older(history: list[dict]) -> list[dict]:
     """What a summary would stand for: the part before the last exchange, but the user's."""
     at = _last_exchange(history)
-    return [m for m in history[1:at]
-            if not _theirs(m) and not isinstance(m, _Summarised)] if at else []
+    return (
+        [m for m in history[1:at] if not _theirs(m) and not isinstance(m, _Summarised)]
+        if at
+        else []
+    )
 
 
 # After a summary, the files its "Files changed" names that an agent of the conversation
@@ -390,7 +403,9 @@ def git_prompt(branch: str, in_copy: bool, reports: bool) -> str:
     """The git section of a CLI's instructions (slice 70)."""
     return GIT_PROMPT.format(
         branch=f"branch {quoted(branch)}" if branch else "no branch (a detached HEAD)",
-        where=GIT_IN_COPY if in_copy else GIT_IN_PROJECT, report=GIT_REPORT if reports else "")
+        where=GIT_IN_COPY if in_copy else GIT_IN_PROJECT,
+        report=GIT_REPORT if reports else "",
+    )
 
 
 ANSWERING_PROMPT = (
@@ -408,15 +423,20 @@ AWAY_CUES = re.compile(
     r"|bu gece (?:şunları|bunları|şunu|bunu)|bu gece\b[^.\n]{0,40}\bbitir"
     r"|going to (?:bed|sleep)|off to bed|while i(?:['’]?m| am) (?:away|out|gone)|overnight\b"
     r"|tonight,? (?:please )?(?:do|finish|work))",
-    re.IGNORECASE)
-AWAY_NOTE = ("KOLONİ: this message may say the user is going away (to sleep, out) and lists work "
-             "for meanwhile. If it does, start none of that work and open no agent for it: put "
-             "each piece on the To-do list with add_task, then call offer_away - only their Go "
-             "away starts it.")
+    re.IGNORECASE,
+)
+AWAY_NOTE = (
+    "KOLONİ: this message may say the user is going away (to sleep, out) and lists work "
+    "for meanwhile. If it does, start none of that work and open no agent for it: put "
+    "each piece on the To-do list with add_task, then call offer_away - only their Go "
+    "away starts it."
+)
 # K-gece-dil: the Lead's standing rule, for words in any language that AWAY_CUES cannot list.
-AWAY_PROMPT = ("If the user says, in any language or words, that they are going away (to sleep, "
-               "out) and gives work for meanwhile, put each piece on the To-do list with add_task, "
-               "do none of it yourself, and call offer_away.")
+AWAY_PROMPT = (
+    "If the user says, in any language or words, that they are going away (to sleep, "
+    "out) and gives work for meanwhile, put each piece on the To-do list with add_task, "
+    "do none of it yourself, and call offer_away."
+)
 
 # What a fast model is asked after a turn that completed, where the project has notes
 # made by themselves (`AgentRunner._note_what_it_found`): as the system's word and again
@@ -425,19 +445,19 @@ AWAY_PROMPT = ("If the user says, in any language or words, that they are going 
 WHAT_WAS_FOUND = (
     "You are asked one thing: what did the turn below find out about the software "
     "project it worked in that is worth keeping for later turns? Answer with one JSON "
-    "array and nothing else: at most three objects, each {\"text\": one plain statement "
-    "of what is the case in the project, at most 500 characters, \"about\": its subject "
-    "in a few words}. Add \"file\", \"start_line\" and \"end_line\" to one only where the "
+    'array and nothing else: at most three objects, each {"text": one plain statement '
+    'of what is the case in the project, at most 500 characters, "about": its subject '
+    'in a few words}. Add "file", "start_line" and "end_line" to one only where the '
     "turn itself names the project file and the lines that show it. Statements of what "
     "is the case only: no instructions, no plans, nothing about the user - except where the "
     "user corrected the work in the turn (said that something done was wrong, or how it is "
-    "to be instead): then one of the three is that correction, {\"text\": \"the user "
-    "corrected: \" and what they said, \"about\": \"feedback: \" and the file or part of "
+    'to be instead): then one of the three is that correction, {"text": "the user '
+    'corrected: " and what they said, "about": "feedback: " and the file or part of '
     "the work it was about}; and where the user said how they want work done in any "
     "project (language, tone, commit rules, how to answer), one of the three may instead be "
-    "{\"preference\": \"the user wants \" and what they want, \"about\": its subject in a few "
+    '{"preference": "the user wants " and what they want, "about": its subject in a few '
     "words}, a suggestion the user decides on. A preference is what the user states as a rule "
-    "or asks for again; an instruction for one task (\"list them briefly this time\") is not "
+    'or asks for again; an instruction for one task ("list them briefly this time") is not '
     "one, nor is a request the user corrected later in the turn - then only the correction "
     "is. Answer [] when the turn found nothing out. Do not carry anything out, and use no "
     "tools."
@@ -446,8 +466,7 @@ WHAT_WAS_FOUND = (
 # Why nothing was noted after a turn, where it was not the summariser's answer
 # (`memory.NOT_THE_LIST` and the like): the Memory page says it in these words.
 NO_SUMMARISER = (
-    "no model of the team guide has the fast tier and can be asked without tools: "
-    "nothing was noted"
+    "no model of the team guide has the fast tier and can be asked without tools: nothing was noted"
 )
 SUMMARISER_FAILED = "the request to the summariser failed: nothing was noted"
 SUMMARISER_STOPPED = "the request to the summariser was stopped before it answered"
@@ -457,9 +476,7 @@ TURN_AT_ITS_LIMIT = (
 
 # Said to a lead whose conversation's earlier turns ran on another provider or model
 # (`before`: the provider, and the model where it is known).
-TAKEN_OVER = (
-    "The earlier turns of this conversation were with {before}; you are taking it over."
-)
+TAKEN_OVER = "The earlier turns of this conversation were with {before}; you are taking it over."
 LEFT_OUT = " {count} older tool result{s} left out to fit."
 ALSO_PROMPT = (
     "You also work in these folders outside the project, as you do in it: {folders}. Give "
@@ -503,8 +520,10 @@ def shell_note(location: str, image: str | None) -> str:
             f"Commands run with sh in a fresh Docker container ({image}) that has the project "
             "folder mounted at /workspace; nothing outside that folder is kept between commands."
         )
-    return (f"Commands run on this machine in {shell_name()}, starting in the project folder."
-            + shell_writes())
+    return (
+        f"Commands run on this machine in {shell_name()}, starting in the project folder."
+        + shell_writes()
+    )
 
 
 def _valid_json(arguments: str) -> str:
@@ -525,9 +544,12 @@ def _picture(call: ToolCall) -> str | None:
         return found[0] if found else None
     if call.name != "view_image":
         return None
-    found = re.search(rf": (?:{IMAGE_SHOWN}|{IMAGE_HERE}) \(the user sees it under the step: "
-                      rf"({re.escape(koloni.SCRATCH)}/images/{call.agent_id[:8]}-{call.id[:8]}"
-                      rf"/[^/\\]+\.(?:{'|'.join(IMAGE_MIME)}))\)$", call.result or "")
+    found = re.search(
+        rf": (?:{IMAGE_SHOWN}|{IMAGE_HERE}) \(the user sees it under the step: "
+        rf"({re.escape(koloni.SCRATCH)}/images/{call.agent_id[:8]}-{call.id[:8]}"
+        rf"/[^/\\]+\.(?:{'|'.join(IMAGE_MIME)}))\)$",
+        call.result or "",
+    )
     return found[1] if found else None
 
 
@@ -543,9 +565,14 @@ def _led_before(session, ctx: Ctx) -> str | None:
         earlier = before.continues_id
         before = session.get(Agent, earlier) if earlier and earlier not in seen else None
         if before is not None and session.scalar(
-            select(Message.id).outerjoin(ToolCall, ToolCall.message_id == Message.id)
-            .where(Message.agent_id == before.id, Message.role == "assistant",
-                   (Message.content != "") | ToolCall.id.is_not(None)).limit(1)
+            select(Message.id)
+            .outerjoin(ToolCall, ToolCall.message_id == Message.id)
+            .where(
+                Message.agent_id == before.id,
+                Message.role == "assistant",
+                (Message.content != "") | ToolCall.id.is_not(None),
+            )
+            .limit(1)
         ):
             break
     return _taken_from(before, lead)
@@ -581,6 +608,7 @@ def _taken_from(before: Agent | None, lead: Agent | None) -> str | None:
 class _Said:
     """What the parts of `_history` share once its session is over: what its rows are read
     with, and `messages` with what is kept of where things are in it."""
+
     ctx: Ctx
     has: set[str]
     replays: bool
@@ -603,8 +631,9 @@ class _Said:
     takes_images: bool | None = None  # (slice 51: asked once, at the first screenshot)
 
 
-def _is_above(family: dict[str, tuple[str, str | None]], agent_id: str | None,
-              other: str | None) -> bool:
+def _is_above(
+    family: dict[str, tuple[str, str | None]], agent_id: str | None, other: str | None
+) -> bool:
     walk = family.get(other or "", ("", None))[1]
     while walk is not None:
         if walk == agent_id:
@@ -649,7 +678,9 @@ class ContextMixin:
             with contextlib.suppress(Exception):
                 with self._factory() as session:
                     session.get_one(Project, project_id).last_auto = {
-                        "run_id": ctx.run_id, **outcome}
+                        "run_id": ctx.run_id,
+                        **outcome,
+                    }
                     session.commit()
                 announce_memory(self._factory, self.bus, project_id)
 
@@ -678,8 +709,7 @@ class ContextMixin:
                 limit = project.turn_token_limit
                 if limit and self._turn_spent(session, ctx.run_id)[0] > limit:
                     return
-                would = would_run(
-                    session, find_role(session, LEAD), conversation, tools=ctx.tools)
+                would = would_run(session, find_role(session, LEAD), conversation, tools=ctx.tools)
                 fast = asked_how_hard(session, would, self.providers)
                 task = session.get(BacklogTask, task_id)
                 if fast is None or task is None:
@@ -687,11 +717,19 @@ class ContextMixin:
                 asking, mode = self._on(session, ctx, *fast)
                 # (B-123: a job while the user was away, what it kept in its copy too.)
                 seen = ("applied", "in_copy") if task.away_run_id else ("applied",)
-                given = backlog.to_assess(task, self._turn_in_words(session, ctx), [
-                    one for one in session.scalars(select(FileChange).where(
-                        FileChange.run_id == ctx.run_id, FileChange.status.in_(seen))
-                        .order_by(literal_column("file_changes.rowid")))
-                    if not in_scratch(one.path)])
+                given = backlog.to_assess(
+                    task,
+                    self._turn_in_words(session, ctx),
+                    [
+                        one
+                        for one in session.scalars(
+                            select(FileChange)
+                            .where(FileChange.run_id == ctx.run_id, FileChange.status.in_(seen))
+                            .order_by(literal_column("file_changes.rowid"))
+                        )
+                        if not in_scratch(one.path)
+                    ],
+                )
                 project_id = task.project_id
             before = self._ctxs[ctx.agent_id]
             self._ctxs[ctx.agent_id] = asking  # its place is counted where the request goes
@@ -699,17 +737,21 @@ class ContextMixin:
                 async with self._working(asking, shown=False):
                     try:
                         async with asyncio.timeout(earlier.SUMMARISER_SECONDS):
-                            said, answer = await ask_once(asking.model, fast[1], [
-                                {"role": "system", "content": backlog.ASSESS},
-                                {"role": "user", "content": given},
-                            ])
+                            said, answer = await ask_once(
+                                asking.model,
+                                fast[1],
+                                [
+                                    {"role": "system", "content": backlog.ASSESS},
+                                    {"role": "user", "content": given},
+                                ],
+                            )
                     except BaseException:
                         self._own_request(ctx, asking, mode, None)  # sent, not heard out
                         raise
                     self._own_request(ctx, asking, mode, answer)
             finally:
                 self._ctxs[ctx.agent_id] = before
-            said = _answer(said).strip()[:backlog.MAX_ASSESSMENT]
+            said = _answer(said).strip()[: backlog.MAX_ASSESSMENT]
             with self._factory() as session:
                 task = session.get(BacklogTask, task_id)
                 # Not where the task has gone on since: another turn's, or deleted.
@@ -750,13 +792,23 @@ class ContextMixin:
                     # A time of its own: the place it holds may be the one the next turn
                     # waits for. (Not a task of its own: nothing else is waited for here.)
                     async with asyncio.timeout(earlier.SUMMARISER_SECONDS):
-                        said, answer = await ask_once(asking.model, fast[1], [
-                            {"role": "system",
-                             "content": "\n\n".join(filter(None, (WHAT_WAS_FOUND, write_in)))},
-                            # Said again over the turn, which stands under it as data.
-                            {"role": "user",
-                             "content": f"{WHAT_WAS_FOUND}\n\nThe turn:\n{turn}"},
-                        ])
+                        said, answer = await ask_once(
+                            asking.model,
+                            fast[1],
+                            [
+                                {
+                                    "role": "system",
+                                    "content": "\n\n".join(
+                                        filter(None, (WHAT_WAS_FOUND, write_in))
+                                    ),
+                                },
+                                # Said again over the turn, which stands under it as data.
+                                {
+                                    "role": "user",
+                                    "content": f"{WHAT_WAS_FOUND}\n\nThe turn:\n{turn}",
+                                },
+                            ],
+                        )
                 except BaseException:
                     self._own_request(ctx, asking, mode, None)  # sent, and not heard out
                     raise
@@ -767,15 +819,24 @@ class ContextMixin:
             self._ctxs[ctx.agent_id] = before
         with self._factory() as session:
             return kept.note_by_itself(
-                session, session.get_one(Project, project.id), _answer(said),
-                run_id=ctx.run_id, conversation_id=ctx.cid, unattended=unattended,
+                session,
+                session.get_one(Project, project.id),
+                _answer(said),
+                run_id=ctx.run_id,
+                conversation_id=ctx.cid,
+                unattended=unattended,
                 # The model as it was asked for, as on a lead that was asked how hard.
                 noted_by={"provider_name": asking.provider, "model_id": asking.model_name},
             )
 
     async def _compact(
-        self: "AgentRunner", ctx: Ctx, info: ModelInfo, history: list[dict], window: int | None,
-        sent: int | None = None, shown: bool = True,
+        self: "AgentRunner",
+        ctx: Ctx,
+        info: ModelInfo,
+        history: list[dict],
+        window: int | None,
+        sent: int | None = None,
+        shown: bool = True,
     ) -> list[dict]:
         """The history an agent is sent, its older part summarised by its own model: the
         part before the last exchange, but the user's messages (`_theirs`), with the
@@ -815,8 +876,11 @@ class ContextMixin:
         if so_far:
             part = f"The summary so far:\n{so_far}\n\n{part}"
         if shown:
-            self.bus.emit_transient(ctx.cid, "run.thinking", {
-                "run_id": ctx.run_id, "agent_id": ctx.agent_id, "summarising": True})
+            self.bus.emit_transient(
+                ctx.cid,
+                "run.thinking",
+                {"run_id": ctx.run_id, "agent_id": ctx.agent_id, "summarising": True},
+            )
         why = "it said nothing"
         try:
             # (From its answer on, nothing waits until it is kept: no correction comes between.)
@@ -824,11 +888,16 @@ class ContextMixin:
             try:
                 # (Its own model, in the place this step holds; a CLI with its own tools
                 # off: `ask_once`.)
-                said, answer = await ask_once(self._model_of(ctx), info.model_id, [
-                    {"role": "system", "content": SUMMARISE},
-                    # Said again over the older part, which stands under it as data.
-                    {"role": "user", "content": f"{SUMMARISE}\n\nThe earlier part:\n{part}"},
-                ], max_tokens=min(window // 4, SUMMARY_MOST) if window else SUMMARY_MOST)
+                said, answer = await ask_once(
+                    self._model_of(ctx),
+                    info.model_id,
+                    [
+                        {"role": "system", "content": SUMMARISE},
+                        # Said again over the older part, which stands under it as data.
+                        {"role": "user", "content": f"{SUMMARISE}\n\nThe earlier part:\n{part}"},
+                    ],
+                    max_tokens=min(window // 4, SUMMARY_MOST) if window else SUMMARY_MOST,
+                )
             except BaseException:
                 self._cut(ctx)  # sent, and not heard out
                 raise
@@ -850,7 +919,8 @@ class ContextMixin:
         # The last exchange, counted among the history's answers as it is built from the
         # record: those before it are what the summary stands for.
         anchor = (summary.anchor if applied else 0) + sum(
-            1 for m in history[:at] if m["role"] == "assistant")
+            1 for m in history[:at] if m["role"] == "assistant"
+        )
         files = self._files_back(ctx, said, window)
         self._summaries[ctx.agent_id] = _Summary(anchor, said, files=files)
         with self._factory() as session:
@@ -858,8 +928,14 @@ class ContextMixin:
             # again with the one that replaces it.)
             before = session.get_one(Agent, ctx.agent_id).summarised if applied else 0
         # (Why an earlier one could not be made no longer stands.)
-        self._set_agent(ctx.cid, ctx.agent_id, summarised=before + len(older), summary=said,
-                        summary_anchor=anchor, summary_note=None)
+        self._set_agent(
+            ctx.cid,
+            ctx.agent_id,
+            summarised=before + len(older),
+            summary=said,
+            summary_anchor=anchor,
+            summary_note=None,
+        )
         self._propose_lasting(ctx, said)
         return _compacted(history, at, said, files)
 
@@ -874,8 +950,14 @@ class ContextMixin:
             project_id = session.get_one(Conversation, ctx.cid).project_id
             if project_id is None:  # (a plain chat has no project's core to keep them in)
                 return
-            if not kept.propose_lasting(session, project_id, facts, agent_id=ctx.agent_id,
-                                        run_id=ctx.run_id, conversation_id=ctx.cid):
+            if not kept.propose_lasting(
+                session,
+                project_id,
+                facts,
+                agent_id=ctx.agent_id,
+                run_id=ctx.run_id,
+                conversation_id=ctx.cid,
+            ):
                 return
         self.bus.emit(ctx.cid, ctx.run_id, "memory.changed", {"project_id": project_id})
         announce_memory(self._factory, self.bus, project_id, but=ctx.cid)
@@ -885,8 +967,12 @@ class ContextMixin:
         may have corrected it, with the files in it read again now; the count goes with it.
         Not for a sub-agent: its chain is cut down to fit (`topics.fit`), and the answers
         the summary stands for may no longer be there to count."""
-        if (ctx.depth or not ctx.continues_id or ctx.agent_id in self._summaries
-                or not _koloni_compacts(ctx.model)):
+        if (
+            ctx.depth
+            or not ctx.continues_id
+            or ctx.agent_id in self._summaries
+            or not _koloni_compacts(ctx.model)
+        ):
             return
         with self._factory() as session:
             earlier = session.get(Agent, ctx.continues_id)
@@ -894,9 +980,11 @@ class ContextMixin:
                 return
             said, anchor, count = earlier.summary, earlier.summary_anchor, earlier.summarised
         self._summaries[ctx.agent_id] = _Summary(
-            anchor, said, files=self._files_back(ctx, said, window))
-        self._set_agent(ctx.cid, ctx.agent_id, summarised=count, summary=said,
-                        summary_anchor=anchor)
+            anchor, said, files=self._files_back(ctx, said, window)
+        )
+        self._set_agent(
+            ctx.cid, ctx.agent_id, summarised=count, summary=said, summary_anchor=anchor
+        )
 
     def _idle_after(self: "AgentRunner", ctx: Ctx, full: bool = False) -> asyncio.Event | None:
         """After a watched turn that completed, where its lead's last step sent COMPACT_AT
@@ -923,8 +1011,12 @@ class ContextMixin:
             if lead.compacts_itself:
                 return None
             # (A CLI's lead has its role's window only in its ctx: no step put it on record.)
-            sent, window = lead.input_tokens, lead.context_window or ctx.context_window or (
-                self._catalogued_window(session, ctx, lead.model_id) if cli else None)
+            sent, window = (
+                lead.input_tokens,
+                lead.context_window
+                or ctx.context_window
+                or (self._catalogued_window(session, ctx, lead.model_id) if cli else None),
+            )
             # What KOLONİ asks a model for a turn counts in what the turn may spend.
             project = self._project(session, ctx.cid)
             limit = project.turn_token_limit if project else None
@@ -936,8 +1028,11 @@ class ContextMixin:
         kept = self._summaries.get(ctx.agent_id)
         if full:
             # (Nor after one started again from a summary already: `_summarised_again`.)
-            if not _older(history or []) or (kept and (kept.failed or kept.stuck)) or (
-                    ctx.agent_id in self._started_again):
+            if (
+                not _older(history or [])
+                or (kept and (kept.failed or kept.stuck))
+                or (ctx.agent_id in self._started_again)
+            ):
                 return None
             sent = None  # (the refusal says it is full: `_compact` asks nothing of its size)
         elif history is not None:
@@ -945,12 +1040,16 @@ class ContextMixin:
         if not full and (not window or not sent or sent < window * threshold):
             return None
         ready = asyncio.Event()
-        self._idle[ctx.agent_id] = asyncio.ensure_future(self._compact_idle(
-            ctx, ready, history or self._history(ctx, None, quiet=True), window, sent, kept))
+        self._idle[ctx.agent_id] = asyncio.ensure_future(
+            self._compact_idle(
+                ctx, ready, history or self._history(ctx, None, quiet=True), window, sent, kept
+            )
+        )
         return ready
 
-    def _catalogued_window(self: "AgentRunner", session: Session, ctx: Ctx,
-                           model_id: str | None) -> int | None:
+    def _catalogued_window(
+        self: "AgentRunner", session: Session, ctx: Ctx, model_id: str | None
+    ) -> int | None:
         """The catalogue's window for the model a CLI's lead ran on, where its role sets none:
         Claude Code's, Codex's and Copilot's are in models.dev under their vendors'. None: not
         known - nothing is made up, and it is compacted as before (`_idle_after`).
@@ -971,8 +1070,9 @@ class ContextMixin:
         provider = session.get(Provider, ctx.provider_id) if ctx.provider_id else None
         if provider is None or not model_id:
             return None
-        return catalog.facts(provider.kind, provider.base_url, model_id,
-                             models_dev.load(self.settings.runtime_root))[0]["context_window"]
+        return catalog.facts(
+            provider.kind, provider.base_url, model_id, models_dev.load(self.settings.runtime_root)
+        )[0]["context_window"]
 
     def _alone(self: "AgentRunner", ctx: Ctx) -> bool:
         """Whether a turn's lead worked alone: no other agent of the turn on record (a
@@ -982,11 +1082,16 @@ class ContextMixin:
         shortcut: the narrow first version - a lead whose sub-agents are all back, say, is
         not started again either; widen it state by state once each is seen to be safe."""
         with self._factory() as session:
-            others = session.scalar(select(Agent.id).where(
-                Agent.run_id == ctx.run_id, Agent.id != ctx.agent_id).limit(1))
+            others = session.scalar(
+                select(Agent.id)
+                .where(Agent.run_id == ctx.run_id, Agent.id != ctx.agent_id)
+                .limit(1)
+            )
         return others is None and not (
-            ctx.run_id in self._rooms or ctx.run_id in self._recipe_copy
-            or ctx.agent_id in self._following)
+            ctx.run_id in self._rooms
+            or ctx.run_id in self._recipe_copy
+            or ctx.agent_id in self._following
+        )
 
     async def _summarised_again(self: "AgentRunner", ctx: Ctx, info: ModelInfo) -> bool:
         """A lead refused for its size, about to be started again (`_loop_again`): its older
@@ -998,8 +1103,12 @@ class ContextMixin:
             return False
         self._hold_to_limit(ctx)
         before = self._summaries.get(ctx.agent_id)
-        await self._compact(ctx, info, self._history(ctx, None, quiet=True),
-                            ctx.context_window or info.context_window)
+        await self._compact(
+            ctx,
+            info,
+            self._history(ctx, None, quiet=True),
+            ctx.context_window or info.context_window,
+        )
         made = self._summaries.get(ctx.agent_id)
         if made is None or made is before or made.failed:
             return False
@@ -1007,9 +1116,13 @@ class ContextMixin:
         return True
 
     async def _compact_idle(
-        self: "AgentRunner", ctx: Ctx, ready: asyncio.Event, history: list[dict],
+        self: "AgentRunner",
+        ctx: Ctx,
+        ready: asyncio.Event,
+        history: list[dict],
         window: int | None,
-        sent: int | None, summary: "_Summary | None",
+        sent: int | None,
+        summary: "_Summary | None",
     ) -> Exception | None:
         """A lead's older part summarised after its turn (`_idle_after`, `compact_now`), in a
         place of its own on its provider: the lead is counted at work while it holds it.
@@ -1027,8 +1140,11 @@ class ContextMixin:
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            log.warning("agent %s: its earlier work was not summarised after its turn: %r",
-                        ctx.agent_id, exc)
+            log.warning(
+                "agent %s: its earlier work was not summarised after its turn: %r",
+                ctx.agent_id,
+                exc,
+            )
             return exc
         finally:
             self._idle.pop(ctx.agent_id, None)
@@ -1057,8 +1173,11 @@ class ContextMixin:
                 # after a turn waits for too (`_idle_after`).
                 raise OwnStop("its turn is still being closed: try again in a moment")
             ctx = self._ctx_after(session, agent, run)
-            summary = (_Summary(agent.summary_anchor, agent.summary)
-                       if agent.summary and agent.summary_anchor is not None else None)
+            summary = (
+                _Summary(agent.summary_anchor, agent.summary)
+                if agent.summary and agent.summary_anchor is not None
+                else None
+            )
         # Its history as the next turn's lead would be sent it: with its summary applied.
         if summary is not None:
             self._summaries[agent_id] = summary
@@ -1068,31 +1187,42 @@ class ContextMixin:
             self._summaries.pop(agent_id, None)
         ready = asyncio.Event()
         ready.set()
-        work = self._idle[agent_id] = asyncio.ensure_future(self._compact_idle(
-            ctx, ready, history, ctx.context_window, None, summary))
+        work = self._idle[agent_id] = asyncio.ensure_future(
+            self._compact_idle(ctx, ready, history, ctx.context_window, None, summary)
+        )
         await asyncio.wait({work})  # (cancelled by a next turn that waited too long: no error)
         failed = None if work.cancelled() else work.result()
         if work.cancelled() or failed is not None:
-            raise ModelUnavailable("a next turn did not wait for it" if failed is None
-                                   else str(failed) or repr(failed))
+            raise ModelUnavailable(
+                "a next turn did not wait for it" if failed is None else str(failed) or repr(failed)
+            )
 
     def _ctx_after(self: "AgentRunner", session, agent: Agent, run: Run) -> Ctx:
         """A lead whose turn is over, as it ran, for what is done of it after (`compact_now`,
         `note_chosen`); OwnStop where the provider it ran on is no longer set up."""
         project = self._project(session, run.conversation_id)
         provider = session.scalar(
-            select(Provider).where(Provider.name == agent.provider_name).limit(1))
+            select(Provider).where(Provider.name == agent.provider_name).limit(1)
+        )
         if provider is None:
             raise OwnStop("the provider it ran on is no longer set up")
         # (Asked for auto, it asks for auto again: not the model Copilot's auto picked, `_ran_on`.)
         model_name = agent.model_from if agent.model_from in ("auto", "fusion") else agent.model_id
         return Ctx(
-            run.id, run.conversation_id, project.root_path if project else None, agent.id,
+            run.id,
+            run.conversation_id,
+            project.root_path if project else None,
+            agent.id,
             agent.role_name,
-            tuple(agent.tools), agent.depth, model=self.providers.client(
-                provider, model_name), provider=provider.name, name=agent.name,
-            provider_id=provider.id, model_name=model_name,
-            continues_id=agent.continues_id, mcp=tuple(agent.mcp),
+            tuple(agent.tools),
+            agent.depth,
+            model=self.providers.client(provider, model_name),
+            provider=provider.name,
+            name=agent.name,
+            provider_id=provider.id,
+            model_name=model_name,
+            continues_id=agent.continues_id,
+            mcp=tuple(agent.mcp),
             context_window=agent.context_window,
         )
 
@@ -1103,13 +1233,15 @@ class ContextMixin:
         being made (`compact_now`), are over - their places are their own.
         shortcut: a side whose files clash is noted before the user takes them in, so its
         notes name none of them; note it again at that card's Apply if that is missed."""
+
         async def note() -> None:
             try:
                 await self.wait(run_id)
                 with self._factory() as session:
                     run = session.get_one(Run, run_id)
-                    lead = session.scalar(select(Agent).where(
-                        Agent.run_id == run_id, Agent.depth == 0).limit(1))
+                    lead = session.scalar(
+                        select(Agent).where(Agent.run_id == run_id, Agent.depth == 0).limit(1)
+                    )
                     if run.status != "completed" or lead is None:
                         return
                     ctx = self._ctx_after(session, lead, run)
@@ -1153,16 +1285,19 @@ class ContextMixin:
         window whole; "" for none."""
         named = {
             note.split()[0].strip("`'\"").replace("\\", "/")
-            for note in _sections(state).get("Files changed", ()) if note.split()
+            for note in _sections(state).get("Files changed", ())
+            if note.split()
         }
         if not named or ctx.root is None:  # (a plain chat changed no file)
             return ""
         with self._factory() as session:
             changed = session.scalars(
-                select(FileChange.path).join(Run, FileChange.run_id == Run.id)
+                select(FileChange.path)
+                .join(Run, FileChange.run_id == Run.id)
                 # (In effect where the agent works: not one proposed, rejected or undone.)
-                .where(Run.conversation_id == ctx.cid,
-                       FileChange.status.in_(("applied", "in_copy")))
+                .where(
+                    Run.conversation_id == ctx.cid, FileChange.status.in_(("applied", "in_copy"))
+                )
                 .order_by(FileChange.created_at.desc())
             ).all()
         paths = [path for path in dict.fromkeys(changed) if path in named][:FILES_BACK]
@@ -1183,8 +1318,13 @@ class ContextMixin:
             said += f"\n\n{path}:\n```\n{content}\n```"
         return FILES_NOW + said if said else ""
 
-    def _history(self: "AgentRunner", ctx: Ctx, offered: list[dict] | None, quiet: bool = False,
-                 skills: bool = True) -> list[dict]:
+    def _history(
+        self: "AgentRunner",
+        ctx: Ctx,
+        offered: list[dict] | None,
+        quiet: bool = False,
+        skills: bool = True,
+    ) -> list[dict]:
         """What this agent has seen, as chat-completions messages trimmed to the budget.
 
         The lead agent sees the whole conversation between the user and lead agents; a
@@ -1225,27 +1365,29 @@ class ContextMixin:
             # An agent that goes on from an earlier one starts with what that one did
             # and said, and the ones before it: the chain, oldest first.
             links = (
-                topics.chain(session, ctx.agent_id)
-                if ctx.depth > 0 and ctx.continues_id else []
+                topics.chain(session, ctx.agent_id) if ctx.depth > 0 and ctx.continues_id else []
             )
             if len(links) < 2:
                 links = []
             mine = (
                 ((Message.agent_id.is_(None)) | (Agent.parent_agent_id.is_(None))) & in_topic
                 if ctx.depth == 0
-                else Message.agent_id.in_([link.id for link, _turn in links]) if links
+                else Message.agent_id.in_([link.id for link, _turn in links])
+                if links
                 else (Message.agent_id == ctx.agent_id)
             )
             others = (
                 topics.titles_line(topics.earlier_titles(session, turn), quoted)
-                if ctx.depth == 0 and turn else ""
+                if ctx.depth == 0 and turn
+                else ""
             )
             system, write_in = self._history_system(session, ctx, has, turn)
             # Who sent what to whom, for the messages agents sent each other.
             family = {
                 agent.id: (agent.name, agent.parent_agent_id)
                 for agent in session.scalars(
-                    select(Agent).join(Run, Run.id == Agent.run_id)
+                    select(Agent)
+                    .join(Run, Run.id == Agent.run_id)
                     .where(Run.conversation_id == cid)
                 )
             }
@@ -1258,16 +1400,26 @@ class ContextMixin:
                 messages = self._history_sub(session, ctx, has, system, off, links)
             self._history_told(ctx, has, messages, briefing, write_in, skills)
             # The triggers that started turns of this conversation, by the turn.
-            started_by = dict(session.execute(
-                select(Run.id, Run.trigger_name)
-                .where(Run.conversation_id == cid, Run.unattended)
-            ).all())
+            started_by = dict(
+                session.execute(
+                    select(Run.id, Run.trigger_name).where(
+                        Run.conversation_id == cid, Run.unattended
+                    )
+                ).all()
+            )
             # For the lead: what it was given of each room of the conversation that is
             # over, by the turn - it stands after that turn's message, which was its goal.
-            told_of_rooms = dict(session.execute(
-                select(Room.run_id, Room.told).join(Run, Run.id == Room.run_id)
-                .where(Run.conversation_id == cid, Room.told.is_not(None))
-            ).all()) if ctx.depth == 0 else {}
+            told_of_rooms = (
+                dict(
+                    session.execute(
+                        select(Room.run_id, Room.told)
+                        .join(Run, Run.id == Room.run_id)
+                        .where(Run.conversation_id == cid, Room.told.is_not(None))
+                    ).all()
+                )
+                if ctx.depth == 0
+                else {}
+            )
             rows = session.scalars(
                 select(Message)
                 .join(Run, Run.id == Message.run_id)
@@ -1294,16 +1446,32 @@ class ContextMixin:
             # agents below it are the Lead's to hear, as the user's own, where they were given.
             # K-vekil-karar: what it answered for the user while they were away, as its own - also
             # KOLONİ's cards (its own question's answer is in its tool's result).
-            answered = session.execute(
-                select(Question.question, Question.answer, Question.answered_at, Question.run_id,
-                       Agent.name, Question.lead_why, Question.leave).join(
-                    Agent, Agent.id == Question.agent_id).where(
-                    Question.run_id.in_({row.run_id for row in rows}),
-                    Question.status == "answered", or_(
-                        and_(Question.lead_why.is_(None), Agent.depth > 0, ~Question.leave),
-                        and_(Question.lead_why.is_not(None),
-                             or_(Agent.depth > 0, Question.leave))))).all() if (
-                ctx.depth == 0) else []
+            answered = (
+                session.execute(
+                    select(
+                        Question.question,
+                        Question.answer,
+                        Question.answered_at,
+                        Question.run_id,
+                        Agent.name,
+                        Question.lead_why,
+                        Question.leave,
+                    )
+                    .join(Agent, Agent.id == Question.agent_id)
+                    .where(
+                        Question.run_id.in_({row.run_id for row in rows}),
+                        Question.status == "answered",
+                        or_(
+                            and_(Question.lead_why.is_(None), Agent.depth > 0, ~Question.leave),
+                            and_(
+                                Question.lead_why.is_not(None), or_(Agent.depth > 0, Question.leave)
+                            ),
+                        ),
+                    )
+                ).all()
+                if (ctx.depth == 0)
+                else []
+            )
             read_how, told_files, seen = self._history_files(session, ctx, off, rows, messages)
             carried = self._history_carried(session, ctx, family)
             calls = self._history_calls(session, cid)
@@ -1311,24 +1479,44 @@ class ContextMixin:
             # the project (what KOLONİ said of a file both work on).
             far = {
                 row.from_agent_id: session.scalar(
-                    select(Agent.name).where(Agent.id == row.from_agent_id))
+                    select(Agent.name).where(Agent.id == row.from_agent_id)
+                )
                 for row in rows
-                if row.role == "agent" and row.from_agent_id
-                and row.from_agent_id not in family
+                if row.role == "agent" and row.from_agent_id and row.from_agent_id not in family
             }
-            notes_of = {post.id: post for post in session.scalars(select(BoardPost).where(
-                BoardPost.id.in_([row.board_post_id for row in rows if row.board_post_id])))}
+            notes_of = {
+                post.id: post
+                for post in session.scalars(
+                    select(BoardPost).where(
+                        BoardPost.id.in_([row.board_post_id for row in rows if row.board_post_id])
+                    )
+                )
+            }
             records = self._history_records(session, ctx, rows, links)
-        h = _Said(ctx, has, replays, links, family, messages, off, read_how, told_files,
-                  told_of_rooms, far, notes_of)
+        h = _Said(
+            ctx,
+            has,
+            replays,
+            links,
+            family,
+            messages,
+            off,
+            read_how,
+            told_files,
+            told_of_rooms,
+            far,
+            notes_of,
+        )
         nudged = self._history_nudged(ctx, answered, rows)
-        turn_before = self._history_walk(h, rows, calls, records, nudged, started_by, speech,
-                                         carried)
+        turn_before = self._history_walk(
+            h, rows, calls, records, nudged, started_by, speech, carried
+        )
         self._history_walk_end(h, records, nudged, turn_before)
         self._history_now(h, quiet)
         if first:
             self._handed[ctx.agent_id] = (
-                "\n\n" + TAKEN_OVER.format(before=taken_from) if taken_from else "")
+                "\n\n" + TAKEN_OVER.format(before=taken_from) if taken_from else ""
+            )
         messages[0]["content"] += self._handed.get(ctx.agent_id, "")
         if ctx.agent_id in self._summaries:
             # What it was summarised to stands for the older part, before the budget is.
@@ -1350,8 +1538,9 @@ class ContextMixin:
             self._showing[ctx.agent_id] = seen  # (on the cards once the request is made)
         return messages
 
-    def _history_calls(self: "AgentRunner", session: Session,
-                       cid: str) -> dict[str, list[ToolCall]]:
+    def _history_calls(
+        self: "AgentRunner", session: Session, cid: str
+    ) -> dict[str, list[ToolCall]]:
         """`_history`'s tool calls of the conversation, by the message they were made in."""
         calls: dict[str, list[ToolCall]] = {}
         for call in session.scalars(
@@ -1366,8 +1555,9 @@ class ContextMixin:
                 calls.setdefault(call.message_id, []).append(call)
         return calls
 
-    def _history_system(self: "AgentRunner", session: Session, ctx: Ctx, has: set[str],
-                        turn: Run | None) -> tuple[str, str]:
+    def _history_system(
+        self: "AgentRunner", session: Session, ctx: Ctx, has: set[str], turn: Run | None
+    ) -> tuple[str, str]:
         """`_history`'s instructions as every agent has them, and its "Answer in" line."""
         cid, root = ctx.cid, ctx.root
         project = session.scalar(
@@ -1382,8 +1572,11 @@ class ContextMixin:
         # (That breaks the prompt cache's prefix once per sub-agent, at that step: taken.)
         copy = self._copy_of(ctx)
         here = copy.root if copy is not None else root
-        system = (PLAIN_PROMPT.format(reads=reads) if root is None
-                  else SYSTEM_PROMPT.format(root=here, where=where))
+        system = (
+            PLAIN_PROMPT.format(reads=reads)
+            if root is None
+            else SYSTEM_PROMPT.format(root=here, where=where)
+        )
         system = self._history_folders(session, ctx, project, system)
         # K-cevap-dili: "Answer in", the same for every agent (added after its briefing).
         write_in = kept.write_in(session, KEPT_ENGLISH)
@@ -1394,7 +1587,8 @@ class ContextMixin:
             if turn is not None and turn.spoken and not ctx.in_turn:
                 # (K-cevap-dili: in "Answer in" where set - one language for all it writes.)
                 system += "\n\n" + SAY_PROMPT.format(
-                    language=kept.answer_in(session) or turn.spoken["language"])
+                    language=kept.answer_in(session) or turn.spoken["language"]
+                )
                 if turn.spoken.get("style"):
                     system += " " + SAY_STYLE.format(style=quoted(turn.spoken["style"]))
         if "ask_user" in ctx.tools and self._watched(ctx.run_id):
@@ -1408,21 +1602,24 @@ class ContextMixin:
         if any("__" in name for name in has):  # (none of KOLONİ's own tools is named so)
             system += "\n\n" + MCP_PROMPT.format(root=here)
         if (seen := self._git_of(ctx)) is not None:
-            system += "\n\n" + git_prompt(
-                seen["branch"], copy is not None, self._reports_git(ctx))
+            system += "\n\n" + git_prompt(seen["branch"], copy is not None, self._reports_git(ctx))
             # A CLI told of git: one of the turn's, named for what git shows at its end.
             self._git_clis.setdefault(ctx.run_id, {})[ctx.agent_id] = ctx.provider or "A CLI"
         return system, write_in
 
-    def _history_folders(self: "AgentRunner", session: Session, ctx: Ctx,
-                         project: Project | None, system: str) -> str:
+    def _history_folders(
+        self: "AgentRunner", session: Session, ctx: Ctx, project: Project | None, system: str
+    ) -> str:
         """`system` with the conversation's other folders said."""
         conversation = session.get_one(Conversation, ctx.cid)
         also = folders_of(project, conversation, "write")
         read = [f for f in folders_of(project, conversation, "read") if f not in also]
         # A CLI with tools of its own is given no folder that holds a place never opened.
-        held = [f for f in [*also, *read] if never(Path(f))] if getattr(
-            ctx.model, "native", False) else []
+        held = (
+            [f for f in [*also, *read] if never(Path(f))]
+            if getattr(ctx.model, "native", False)
+            else []
+        )
         also, read = [f for f in also if f not in held], [f for f in read if f not in held]
         if also:
             system += "\n\n" + ALSO_PROMPT.format(folders=", ".join(also))
@@ -1434,8 +1631,9 @@ class ContextMixin:
             system += "\n\n" + said.format(folders=", ".join(read))
         return system
 
-    def _history_team(self: "AgentRunner", session: Session, ctx: Ctx, turn: Run | None,
-                      system: str) -> str:
+    def _history_team(
+        self: "AgentRunner", session: Session, ctx: Ctx, turn: Run | None, system: str
+    ) -> str:
         """`system` with how an agent that opens others does it."""
         system += "\n\n".join(("", PROVIDERS_PROMPT, HAND_ON_PROMPT, BRIEF_PROMPT))
         if ctx.depth == 0:
@@ -1446,19 +1644,21 @@ class ContextMixin:
             # As it stood when the turn began, made once: the same at every step.
             measured = self._measured.get(ctx.run_id)
             if measured is None:
-                measured = self._measured[ctx.run_id] = record.as_it_began(
-                    session, turn.started_at)
+                measured = self._measured[ctx.run_id] = record.as_it_began(session, turn.started_at)
             if measured:
                 system += "\n\n" + measured
         return system
 
-    def _history_lead(self: "AgentRunner", session: Session, ctx: Ctx, has: set[str],
-                      system: str, others: str) -> str:
+    def _history_lead(
+        self: "AgentRunner", session: Session, ctx: Ctx, has: set[str], system: str, others: str
+    ) -> str:
         """`system` with what only a lead is told."""
         cid = ctx.cid
         if ctx.instructions:
-            system += (f"\n\nYou are the {self._titled(session, cid, ctx.role, 'agent')}. "
-                       f"{ctx.instructions}")
+            system += (
+                f"\n\nYou are the {self._titled(session, cid, ctx.role, 'agent')}. "
+                f"{ctx.instructions}"
+            )
         if kept_work := self._kept_recipes(session, ctx):
             system += "\n\n" + kept_work
         work = self._lead_work(ctx)
@@ -1470,13 +1670,19 @@ class ContextMixin:
             system += "\n\n" + others
         # A knowledge its role uses as a map - the project's notes, unless the user took them
         # away (`project_notes.accept`): where its guide is, as a sub-agent's role is told.
-        if mapped := knows.map_of(session, find_role(session, ctx.role), session.get_one(
-                Conversation, cid).project_id, ctx.root, LOOKUP in has):
+        if mapped := knows.map_of(
+            session,
+            find_role(session, ctx.role),
+            session.get_one(Conversation, cid).project_id,
+            ctx.root,
+            LOOKUP in has,
+        ):
             system += "\n\n" + mapped
         if told := self._map_told(ctx):
             system += "\n\n" + told
         if not (ctx.answering or ctx.discussion or ctx.run_id in self._sides) and (
-                self._checks_told(session, ctx)):
+            self._checks_told(session, ctx)
+        ):
             system += "\n\n" + PROOF_LEAD  # (S2: what the end gate checks - its agent only)
         return system
 
@@ -1487,13 +1693,23 @@ class ContextMixin:
         said = self._checks_said.get(ctx.run_id)
         if said is None:
             conversation = session.get_one(Conversation, ctx.cid)
-            said = self._checks_said[ctx.run_id] = bool(ctx.root) and (
-                conversation.project_id is not None) and "tests" in proof.checks_of(
-                session, conversation, session.get(Run, ctx.run_id)).on
+            said = self._checks_said[ctx.run_id] = (
+                bool(ctx.root)
+                and (conversation.project_id is not None)
+                and "tests"
+                in proof.checks_of(session, conversation, session.get(Run, ctx.run_id)).on
+            )
         return said
 
-    def _history_sub(self: "AgentRunner", session: Session, ctx: Ctx, has: set[str], system: str,
-                     off: frozenset[str], links: list[tuple[Agent, int]]) -> list[dict]:
+    def _history_sub(
+        self: "AgentRunner",
+        session: Session,
+        ctx: Ctx,
+        has: set[str],
+        system: str,
+        off: frozenset[str],
+        links: list[tuple[Agent, int]],
+    ) -> list[dict]:
         """A sub-agent's first messages: `system` with what only it is told, and its task."""
         cid = ctx.cid
         # A sub-agent starts clean: its role, where its task comes from, the task.
@@ -1502,62 +1718,91 @@ class ContextMixin:
             f"{ctx.instructions}".rstrip()
             + "\n"
             + SUB_AGENT_PROMPT.format(
-                name=ctx.name, parent=self._title(session, cid, ctx.parent_role or ""))
+                name=ctx.name, parent=self._title(session, cid, ctx.parent_role or "")
+            )
             # K-devir-1: at its task only, whose report is read for what it left.
-            + (" " + handoff.REPORT_PROMPT
-               if not ctx.in_turn and not ctx.discussion else "")
+            + (" " + handoff.REPORT_PROMPT if not ctx.in_turn and not ctx.discussion else "")
             + (" " + NOTE_PROMPT if "post_note" in ctx.tools else "")
-            + (" " + ASK_NOT_REPORT if "ask_user" in ctx.tools
-               and self._watched(ctx.run_id) else "")
+            + (
+                " " + ASK_NOT_REPORT
+                if "ask_user" in ctx.tools and self._watched(ctx.run_id)
+                else ""
+            )
         )
         # Only at its task, whose report is read: not in a turn on a message or a speech.
         kind_of = find_role(session, ctx.role)
         here = session.get_one(Conversation, ctx.cid).project_id
         if (known := knows.known_here(session, kind_of, here)) is not None:
             # K-uzman: its guide as it is now - learned again a step ago, it is this one.
-            known = known if "web_search" not in off else {
-                **known, "search_answering": False}
-            system += "\n\n" + knowledge.brief(
-                ctx.root, known, LEARN in ctx.tools, ctx.tools)
+            known = known if "web_search" not in off else {**known, "search_answering": False}
+            system += "\n\n" + knowledge.brief(ctx.root, known, LEARN in ctx.tools, ctx.tools)
         if mapped := knows.map_of(session, kind_of, here, ctx.root, LOOKUP in has):
             system += "\n\n" + mapped
         if about := self._about.get(ctx.agent_id):
             system += "\n\n" + about
         # S2: one that writes and runs code runs the tests near its change - not a recipe's
         # check, held to run its check (R3, `RUN_TO_PASS`).
-        if "run_command" in ctx.tools and WRITE_TOOLS & set(ctx.tools) and (
-                ctx.agent_id not in self._reviews) and self._checks_told(session, ctx):
+        if (
+            "run_command" in ctx.tools
+            and WRITE_TOOLS & set(ctx.tools)
+            and (ctx.agent_id not in self._reviews)
+            and self._checks_told(session, ctx)
+        ):
             system += "\n\n" + NEAR_TESTS
         if self._tells_findings(session, ctx):
             schema = _hands_back(ctx)  # (89p: in REPORT_SCHEMA, not in words)
-            system += " " + (SCHEMA_FINDINGS_PROMPT if schema else FINDINGS_PROMPT).format(
-                roles=", ".join(self._open_roles(session, ctx))) + (
-                " " + (SCHEMA_CHECKED_PROMPT if schema else CHECKED_PROMPT)
-                if ctx.agent_id in self._reviews else "") + (
-                " " + FIX_AFTER_PROMPT if ctx.agent_id in self._before_fix else "")
+            system += (
+                " "
+                + (SCHEMA_FINDINGS_PROMPT if schema else FINDINGS_PROMPT).format(
+                    roles=", ".join(self._open_roles(session, ctx))
+                )
+                + (
+                    " " + (SCHEMA_CHECKED_PROMPT if schema else CHECKED_PROMPT)
+                    if ctx.agent_id in self._reviews
+                    else ""
+                )
+                + (" " + FIX_AFTER_PROMPT if ctx.agent_id in self._before_fix else "")
+            )
         room = self._rooms.get(ctx.run_id)
         if room is not None and ctx.agent_id in room.members and not ctx.answering:
             # A member of a room is told how a room works, once: where its own
             # stands is said before each of its steps (below).
-            system += "\n\n" + rooms.PROMPT.format(others=", ".join(
-                other.ctx.name for other in room.members.values()
-                if other.ctx.agent_id != ctx.agent_id)) + (
-                " " + rooms.BETWEEN.format(teams=", ".join(room.between))
-                if room.between else "") + (
-                " " + rooms.FOLLOWS.format(opener=room.lead.name)
-                if room.reads else "")
+            system += (
+                "\n\n"
+                + rooms.PROMPT.format(
+                    others=", ".join(
+                        other.ctx.name
+                        for other in room.members.values()
+                        if other.ctx.agent_id != ctx.agent_id
+                    )
+                )
+                + (
+                    " " + rooms.BETWEEN.format(teams=", ".join(room.between))
+                    if room.between
+                    else ""
+                )
+                + (" " + rooms.FOLLOWS.format(opener=room.lead.name) if room.reads else "")
+            )
         if links:
             # Unless it goes on from an earlier agent: then its history begins
             # with that one's task, put there link by link further down.
             system += "\n\n" + topics.CONTINUES.format(
-                turns=topics.turns_in_words([number for _link, number in links[:-1]]))
+                turns=topics.turns_in_words([number for _link, number in links[:-1]])
+            )
         messages = [{"role": "system", "content": system}]
         if not links:
             messages.append({"role": "user", "content": ctx.task or ""})
         return messages
 
-    def _history_told(self: "AgentRunner", ctx: Ctx, has: set[str], messages: list[dict],
-                      briefing: str, write_in: str, skills: bool) -> None:
+    def _history_told(
+        self: "AgentRunner",
+        ctx: Ctx,
+        has: set[str],
+        messages: list[dict],
+        briefing: str,
+        write_in: str,
+        skills: bool,
+    ) -> None:
         """What every agent's instructions end with."""
         if briefing:
             # The user's rules and the core of the project's memory, as they stood
@@ -1571,11 +1816,17 @@ class ContextMixin:
             # Every agent of an unattended turn is told how it runs, and what the
             # trigger allows as things stand at this step.
             messages[0]["content"] += "\n\n" + UNATTENDED_PROMPT.format(
-                leave=self._leave_in_words(ctx.run_id))
+                leave=self._leave_in_words(ctx.run_id)
+            )
 
-    def _history_files(self: "AgentRunner", session: Session, ctx: Ctx, off: frozenset[str],
-                       rows: Sequence[Message], messages: list[dict],
-                       ) -> tuple[str, dict[str | None, tuple[str, list[dict]]], dict[str, str]]:
+    def _history_files(
+        self: "AgentRunner",
+        session: Session,
+        ctx: Ctx,
+        off: frozenset[str],
+        rows: Sequence[Message],
+        messages: list[dict],
+    ) -> tuple[str, dict[str | None, tuple[str, list[dict]]], dict[str, str]]:
         """How to read an attached file; what the lead is told of files, by the message they
         came with; and those shown - a sub-agent's said in `messages` now."""
         # The files the user attached (slice 85b): the Lead is told of each with the
@@ -1589,42 +1840,67 @@ class ContextMixin:
             for sent_with in dict.fromkeys(one.message_id for one in files):
                 if sent_with in turn_of:
                     told, parts, of = self._told_files(
-                        session, ctx, [one for one in files if one.message_id == sent_with],
-                        now=turn_of[sent_with] == ctx.run_id, off=off)
+                        session,
+                        ctx,
+                        [one for one in files if one.message_id == sent_with],
+                        now=turn_of[sent_with] == ctx.run_id,
+                        off=off,
+                    )
                     told_files[sent_with], seen = (told, parts), seen | of
         elif files:
             told, parts, seen = self._told_files(session, ctx, files, now=True, off=off)
-            messages.append({
-                "role": "user", "content": attachments.LISTED.format(
-                    to=" and that were handed to you", read=read_how) + "\n" + told,
-                **({"files": parts} if parts else {})})
+            messages.append(
+                {
+                    "role": "user",
+                    "content": attachments.LISTED.format(
+                        to=" and that were handed to you", read=read_how
+                    )
+                    + "\n"
+                    + told,
+                    **({"files": parts} if parts else {}),
+                }
+            )
         return read_how, told_files, seen
 
-    def _history_carried(self: "AgentRunner", session: Session, ctx: Ctx,
-                         family: dict[str, tuple[str, str | None]]) -> str | None:
+    def _history_carried(
+        self: "AgentRunner", session: Session, ctx: Ctx, family: dict[str, tuple[str, str | None]]
+    ) -> str | None:
         """For the lead: of the notebook of the turn before this one, one short block (G7)."""
         cid = ctx.cid
         carried = None
         if ctx.depth == 0:
             try:
                 before = self._notes_before(session, ctx)
-                carried = board.pushed(before, {
-                    agent_id: name for agent_id, (name, _parent) in family.items()
-                }, self._still_waiting(
-                    session, cid, before[0].run_id if before else None, but=ctx.run_id))
+                carried = board.pushed(
+                    before,
+                    {agent_id: name for agent_id, (name, _parent) in family.items()},
+                    self._still_waiting(
+                        session, cid, before[0].run_id if before else None, but=ctx.run_id
+                    ),
+                )
             except Exception as exc:  # (it fails no turn: the Lead goes without it)
                 log.warning("agent %s: no block of the turn before: %r", ctx.agent_id, exc)
         return carried
 
-    def _history_records(self: "AgentRunner", session: Session, ctx: Ctx, rows: Sequence[Message],
-                         links: list[tuple[Agent, int]]) -> dict[str, str | None]:
+    def _history_records(
+        self: "AgentRunner",
+        session: Session,
+        ctx: Ctx,
+        rows: Sequence[Message],
+        links: list[tuple[Agent, int]],
+    ) -> dict[str, str | None]:
         """K-gecmis-zengin: what each earlier turn of its history did, said after it - for a
         lead the whole turn's, for any other agent its own (its chain's) work there."""
-        whose = None if ctx.depth == 0 else frozenset(
-            [link.id for link, _turn in links] if links else [ctx.agent_id])
-        over = session.scalars(select(Run.id).where(
-            Run.id.in_({row.run_id for row in rows} - {ctx.run_id}),
-            Run.ended_at.is_not(None))).all()
+        whose = (
+            None
+            if ctx.depth == 0
+            else frozenset([link.id for link, _turn in links] if links else [ctx.agent_id])
+        )
+        over = session.scalars(
+            select(Run.id).where(
+                Run.id.in_({row.run_id for row in rows} - {ctx.run_id}), Run.ended_at.is_not(None)
+            )
+        ).all()
         records = {}
         for run_id in over:
             if (run_id, whose) not in self._ledgers:
@@ -1651,30 +1927,55 @@ class ContextMixin:
             messages.append({"role": "user", "content": asked})
             if link.id != ctx.agent_id and link.facts_given:
                 # What the memory gave it then is not what the memory holds now.
-                messages.append({
-                    "role": "user", "content": topics.given_then(len(link.facts_given)),
-                })
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": topics.given_then(len(link.facts_given)),
+                    }
+                )
 
-    def _history_nudged(self: "AgentRunner", ctx: Ctx, answered: Sequence[Row],
-                        rows: Sequence[Message]) -> dict[str | None, list[str]]:
+    def _history_nudged(
+        self: "AgentRunner", ctx: Ctx, answered: Sequence[Row], rows: Sequence[Message]
+    ) -> dict[str | None, list[str]]:
         """What is said after each message (its id; None: at the end)."""
         # What KOLONİ told it after an answer that was no end (B-83, B-90), where it was told.
         nudged: dict[str | None, list[str]] = {}
         for at, words in self._nudges.get(ctx.agent_id, ()):
             nudged.setdefault(at, []).append(words)
         for question, answer, when, run_id, name, why, leave in answered:
-            at = next((row.id for row in reversed(rows) if row.run_id == run_id and (
-                when is None or row.created_at <= when)), None)
-            nudged.setdefault(at, []).append(LEAD_DECIDED.format(
-                name="KOLONİ" if leave else name, question=quoted(question[:300]),
-                answer=quoted(answer[:300]), why=quoted(why)) if why else SUB_ANSWERED.format(
-                name=name, question=quoted(question[:300]), answer=answer[:300]))
+            at = next(
+                (
+                    row.id
+                    for row in reversed(rows)
+                    if row.run_id == run_id and (when is None or row.created_at <= when)
+                ),
+                None,
+            )
+            nudged.setdefault(at, []).append(
+                LEAD_DECIDED.format(
+                    name="KOLONİ" if leave else name,
+                    question=quoted(question[:300]),
+                    answer=quoted(answer[:300]),
+                    why=quoted(why),
+                )
+                if why
+                else SUB_ANSWERED.format(
+                    name=name, question=quoted(question[:300]), answer=answer[:300]
+                )
+            )
         return nudged
 
-    def _history_walk(self: "AgentRunner", h: _Said, rows: Sequence[Message],
-                      calls: dict[str, list[ToolCall]], records: dict[str, str | None],
-                      nudged: dict[str | None, list[str]], started_by: dict[str, str | None],
-                      speech: set[str], carried: str | None) -> str | None:
+    def _history_walk(
+        self: "AgentRunner",
+        h: _Said,
+        rows: Sequence[Message],
+        calls: dict[str, list[ToolCall]],
+        records: dict[str, str | None],
+        nudged: dict[str | None, list[str]],
+        started_by: dict[str, str | None],
+        speech: set[str],
+        carried: str | None,
+    ) -> str | None:
         """`_history`'s messages, row by row. The turn of the last row."""
         ctx, messages = h.ctx, h.messages
         before = ""  # (no message's id)
@@ -1735,28 +2036,40 @@ class ContextMixin:
             # from the user - never a task, whoever opened whom.
             writer = row.from_agent_id
             post = h.notes_of[row.board_post_id]
-            messages.append({"role": "user", "content": board.handed(
-                board.labelled(family.get(writer, ("another agent", None))[0], post)
-                if writer else None, self._note_from(ctx, writer, post), row.content,
-                post.koloni,
-            )})
+            messages.append(
+                {
+                    "role": "user",
+                    "content": board.handed(
+                        board.labelled(family.get(writer, ("another agent", None))[0], post)
+                        if writer
+                        else None,
+                        self._note_from(ctx, writer, post),
+                        row.content,
+                        post.koloni,
+                    ),
+                }
+            )
             return
         if row.from_agent_id is None:
             messages.append({"role": "user", "content": row.content})  # (KOLONİ's word)
             return
         sender = row.from_agent_id
         relation = (
-            "below" if _is_above(family, row.agent_id, sender)
-            else "above" if _is_above(family, sender, row.agent_id)
+            "below"
+            if _is_above(family, row.agent_id, sender)
+            else "above"
+            if _is_above(family, sender, row.agent_id)
             else "other"
         )
         name = family.get(sender or "", ("another agent", None))[0]
         if sender in h.far:
             relation, name = "elsewhere", h.far[sender] or name
-        messages.append({
-            "role": "user",
-            "content": self._from(ctx, row.id, sender, name, relation, row.content),
-        })
+        messages.append(
+            {
+                "role": "user",
+                "content": self._from(ctx, row.id, sender, name, relation, row.content),
+            }
+        )
 
     def _history_user_row(self: "AgentRunner", h: _Said, row: Message) -> None:
         """The user's message, or an agent's that made no call."""
@@ -1764,82 +2077,139 @@ class ContextMixin:
         if row.role == "user" and row.id in h.told_files:
             told, parts = h.told_files[row.id]
             now = row.run_id == ctx.run_id
-            said = "\n".join(filter(None, [
-                attachments.LISTED.format(to=" to this message", read=h.read_how), told,
-                attachments.LINKS if "http_request" not in h.off and re.search(
-                    r"https?://", row.content) else "",
-                attachments.ONE_LINE if now else ""]))
-            messages.append({"role": "user", "content": (
-                f"{row.content}\n\n{said}" if row.content else said),
-                **({"files": parts} if parts else {})})
+            said = "\n".join(
+                filter(
+                    None,
+                    [
+                        attachments.LISTED.format(to=" to this message", read=h.read_how),
+                        told,
+                        attachments.LINKS
+                        if "http_request" not in h.off and re.search(r"https?://", row.content)
+                        else "",
+                        attachments.ONE_LINE if now else "",
+                    ],
+                )
+            )
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (f"{row.content}\n\n{said}" if row.content else said),
+                    **({"files": parts} if parts else {}),
+                }
+            )
         elif row.content:
-            messages.append({"role": row.role, "content": row.content, **(
-                {"blocks": row.blocks} if h.replays and row.blocks else {})})
-        if (row.role == "user" and row.run_id == ctx.run_id and "offer_away" in h.has
-                and AWAY_CUES.search(row.content)):
+            messages.append(
+                {
+                    "role": row.role,
+                    "content": row.content,
+                    **({"blocks": row.blocks} if h.replays and row.blocks else {}),
+                }
+            )
+        if (
+            row.role == "user"
+            and row.run_id == ctx.run_id
+            and "offer_away" in h.has
+            and AWAY_CUES.search(row.content)
+        ):
             # (Under its words, as what KOLONİ says of its files is: it stays the last.)
-            messages[-1] = {**messages[-1],
-                            "content": f"{messages[-1]['content']}\n\n{AWAY_NOTE}"}
+            messages[-1] = {**messages[-1], "content": f"{messages[-1]['content']}\n\n{AWAY_NOTE}"}
         if row.role == "user" and row.run_id in h.told_of_rooms:
             messages.append({"role": "user", "content": h.told_of_rooms[row.run_id]})
 
-    def _history_calls_row(self: "AgentRunner", h: _Said, row: Message,
-                           made: list[ToolCall]) -> None:
+    def _history_calls_row(
+        self: "AgentRunner", h: _Said, row: Message, made: list[ToolCall]
+    ) -> None:
         """An agent's message with its calls, and their results."""
         ctx, messages, has, root = h.ctx, h.messages, h.has, h.ctx.root
-        messages.append({
-            "role": "assistant",
-            "content": row.content,
-            "tool_calls": [
-                {
-                    "id": call.provider_call_id,
-                    "type": "function",
-                    "function": {"name": call.name, "arguments": _valid_json(call.arguments)},
-                }
-                for call in made
-            ],
-            **({"blocks": row.blocks} if h.replays and row.blocks else {}),
-        })
+        messages.append(
+            {
+                "role": "assistant",
+                "content": row.content,
+                "tool_calls": [
+                    {
+                        "id": call.provider_call_id,
+                        "type": "function",
+                        "function": {"name": call.name, "arguments": _valid_json(call.arguments)},
+                    }
+                    for call in made
+                ],
+                **({"blocks": row.blocks} if h.replays and row.blocks else {}),
+            }
+        )
         for call in made:
-            messages.append({
-                "role": "tool",
-                "tool_call_id": call.provider_call_id,
-                # An agent answering a message still has a call out: its own
-                # sub-agent, or the message it is waiting on a reply to.
-                "content": (
-                    # What the memory held in an earlier turn is not what it holds now.
-                    kept.looked_up_earlier(call.result, "recall" in has)
-                    if call.name == "recall" and call.status == "succeeded"
-                    and call.result and call.run_id != ctx.run_id
-                    else call.result
-                )
-                or (STILL_RUNNING if call.status in ("pending", "running") else UNFINISHED),
-            })
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": call.provider_call_id,
+                    # An agent answering a message still has a call out: its own
+                    # sub-agent, or the message it is waiting on a reply to.
+                    "content": (
+                        # What the memory held in an earlier turn is not what it holds now.
+                        kept.looked_up_earlier(call.result, "recall" in has)
+                        if call.name == "recall"
+                        and call.status == "succeeded"
+                        and call.result
+                        and call.run_id != ctx.run_id
+                        else call.result
+                    )
+                    or (STILL_RUNNING if call.status in ("pending", "running") else UNFINISHED),
+                }
+            )
             # (Its id said only where recall_output would give it back.)
-            h.results.append((messages[-1], call, "recall_output" in has and recallable(
-                call.name, call.outside_folder, call.why_asked,
-                ledger.argument(call.arguments, "command")
-                if call.name == "run_command" else None)))
+            h.results.append(
+                (
+                    messages[-1],
+                    call,
+                    "recall_output" in has
+                    and recallable(
+                        call.name,
+                        call.outside_folder,
+                        call.why_asked,
+                        ledger.argument(call.arguments, "command")
+                        if call.name == "run_command"
+                        else None,
+                    ),
+                )
+            )
             # Slice 51: a screenshot of this turn goes to a model that takes images as a
             # picture after its call's result (`_shot`), the way an attached file does - and
             # so does the copy of an image view_image looked at (28e, `_view_image`).
-            if (call.status == "succeeded" and call.run_id == ctx.run_id and root
-                    and (found := _picture(call))):
+            if (
+                call.status == "succeeded"
+                and call.run_id == ctx.run_id
+                and root
+                and (found := _picture(call))
+            ):
                 if h.takes_images is None:
                     with self._factory() as session:
                         h.takes_images = "image" in self._takes(session, ctx)[0]
                 if h.takes_images:
                     shot = call.name == "browser_screenshot"
                     h.shots.append((len(messages), shot))
-                    messages.append({
-                        "role": "user", "content": "The screenshot:" if shot else "The image:",
-                        "files": [{
-                            "id": call.id, "name": PurePosixPath(found).name, "kind": "image",
-                            "mime": IMAGE_MIME[found.rsplit(".", 1)[1]],
-                            "path": str(Path(root) / found), "frames": []}]})
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": "The screenshot:" if shot else "The image:",
+                            "files": [
+                                {
+                                    "id": call.id,
+                                    "name": PurePosixPath(found).name,
+                                    "kind": "image",
+                                    "mime": IMAGE_MIME[found.rsplit(".", 1)[1]],
+                                    "path": str(Path(root) / found),
+                                    "frames": [],
+                                }
+                            ],
+                        }
+                    )
 
-    def _history_walk_end(self: "AgentRunner", h: _Said, records: dict[str, str | None],
-                          nudged: dict[str | None, list[str]], turn_before: str | None) -> None:
+    def _history_walk_end(
+        self: "AgentRunner",
+        h: _Said,
+        records: dict[str, str | None],
+        nudged: dict[str | None, list[str]],
+        turn_before: str | None,
+    ) -> None:
         """After `_history_walk`: older pictures put away, what is left said, and a chain
         too long for the budget cut down."""
         ctx, messages, links, begins = h.ctx, h.messages, h.links, h.begins
@@ -1847,14 +2217,19 @@ class ContextMixin:
         # only the last two screenshots and images go as pictures; send more if a model is seen
         # to need an older one.
         for at, shot in h.shots[:-2]:
-            messages[at] = {"role": "user", "content": "(An earlier screenshot, not shown again: "
-                            "take a new one if you need to look.)" if shot else
-                            "(An earlier image, not shown again: view it again if you need to.)"}
+            messages[at] = {
+                "role": "user",
+                "content": "(An earlier screenshot, not shown again: "
+                "take a new one if you need to look.)"
+                if shot
+                else "(An earlier image, not shown again: view it again if you need to.)",
+            }
         if turn_before not in (None, ctx.run_id) and (said := records.get(turn_before)):
             messages.append(_Record(role="user", content=said))
         # (After its last message, or - one it never wrote - at the end.)
-        messages.extend({"role": "user", "content": words}
-                        for told in nudged.values() for words in told)
+        messages.extend(
+            {"role": "user", "content": words} for told in nudged.values() for words in told
+        )
         self._history_take_up(h, None)
         if links:
             # A chain too long for the budget: its oldest links are cut down to their
@@ -1862,12 +2237,14 @@ class ContextMixin:
             budget = self.settings.context_char_budget
             share = topics.share_of(budget, len(links) - 1)
             earlier = [
-                (messages[begins[at]:begins[at + 1]],
-                 topics.reduced(number, link.task, link.report, share) + (
-                     f"\n\n{records[link.run_id]}" if records.get(link.run_id) else ""))
+                (
+                    messages[begins[at] : begins[at + 1]],
+                    topics.reduced(number, link.task, link.report, share)
+                    + (f"\n\n{records[link.run_id]}" if records.get(link.run_id) else ""),
+                )
                 for at, (link, number) in enumerate(links[:-1])
             ]
-            now_on = messages[begins[-1]:]
+            now_on = messages[begins[-1] :]
             rest = _size(messages[0]) + sum(_size(message) for message in now_on)
             messages[1:] = topics.fit(earlier, rest, budget, _size) + now_on
 
@@ -1883,8 +2260,11 @@ class ContextMixin:
         stands = "" if ctx.answering or ctx.discussion else self._room_now(ctx)
         if stands:
             messages.append(Transient(role="user", content=stands))
-        near = "" if ctx.answering or ctx.discussion or quiet else "\n\n".join(
-            filter(None, (self._near_a_limit(ctx), self._near_budget(ctx))))
+        near = (
+            ""
+            if ctx.answering or ctx.discussion or quiet
+            else "\n\n".join(filter(None, (self._near_a_limit(ctx), self._near_budget(ctx))))
+        )
         if near:
             messages.append(Transient(role="user", content=near))
         if not (ctx.answering or ctx.discussion or quiet) and ctx.agent_id in self._answer_again:

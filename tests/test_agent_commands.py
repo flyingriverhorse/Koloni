@@ -54,9 +54,15 @@ def test_ask_level_waits_then_runs_once(make_client, wait_run, project_dir):
 
 def test_always_run_adds_the_rule_and_skips_the_next_ask(make_client, wait_run, project_dir):
     executor = ScriptedExecutor([Script(["a"]), Script(["b"]), Script(["c"])])
-    client, _ = make_client([
-        cmd("pytest -q", "k1"), cmd("pytest -q tests", "k2"), cmd("pytest; rm x", "k3"),
-        text("done")], executor=executor)
+    client, _ = make_client(
+        [
+            cmd("pytest -q", "k1"),
+            cmd("pytest -q tests", "k2"),
+            cmd("pytest; rm x", "k3"),
+            text("done"),
+        ],
+        executor=executor,
+    )
     cid, run_id = start(client, project_dir)
     first = wait_status(client, cid, "waiting_approval")["commands"][0]
     approve(client, first["id"], remember=True)
@@ -86,10 +92,13 @@ def test_reject_tells_the_model_it_was_the_users_decision(make_client, wait_run,
     assert executor.started == []
 
 
-@pytest.mark.parametrize("patch", ["git apply --whitespace=fix fix.diff",
-                                   "$patch = @'\n*** Begin Patch\n'@\napply_patch $patch"])
+@pytest.mark.parametrize(
+    "patch",
+    ["git apply --whitespace=fix fix.diff", "$patch = @'\n*** Begin Patch\n'@\napply_patch $patch"],
+)
 def test_a_patch_command_refused_says_to_change_the_file_with_the_file_tools(
-        make_client, wait_run, project_dir, patch):
+    make_client, wait_run, project_dir, patch
+):
     # B-389 (R187, live): refused, the agent gave its change up instead of using edit_file.
     client, model = make_client([cmd(patch), text("Understood.")], executor=ScriptedExecutor([]))
     cid, run_id = start(client, project_dir)
@@ -102,30 +111,50 @@ def test_a_patch_command_refused_says_to_change_the_file_with_the_file_tools(
     assert "refuse" not in said
 
 
-@pytest.mark.parametrize(("command", "patch"), [
-    ("cat x.diff | apply_patch", True), ("  apply_patch <<'EOF'", True),
-    ("echo hi; apply_patch $p", True), ("git am 0001.patch", True),
-    ("grep -rn apply_patch app", False), ("git apply --check x.diff", False),
-    ("pytest -q", False)])
+@pytest.mark.parametrize(
+    ("command", "patch"),
+    [
+        ("cat x.diff | apply_patch", True),
+        ("  apply_patch <<'EOF'", True),
+        ("echo hi; apply_patch $p", True),
+        ("git am 0001.patch", True),
+        ("grep -rn apply_patch app", False),
+        ("git apply --check x.diff", False),
+        ("pytest -q", False),
+    ],
+)
 def test_only_a_command_that_applies_a_patch_is_told_of_the_file_tools(command, patch):
     from app.command_runner import REJECTED, rejected
+
     assert rejected(command) == (PATCH_REJECTED if patch else REJECTED)
 
 
-@pytest.mark.parametrize(("command", "writes"), [
-    ("[System.IO.File]::WriteAllText('a.py', $text)", True),
-    ("$t = [IO.File]::ReadAllText('a.py'); [IO.File]::AppendAllLines('a.py', $l)", True),
-    ("Set-Content -Path a.py -Value $t", True), ("$t | Out-File a.py", True),
-    ("add-content a.py 'x'", True), ("New-Item b.py -ItemType File -Value 'x = 1'", True),
-    ("echo hi > out.txt", True), ("echo hi >>log.txt", True),
-    ("[IO.File]::ReadAllText('a.py')", False), ("pytest -q 2>&1", False),
-    ("git status >$null", False), ("dir > NUL", False), ("New-Item -ItemType Directory b", False),
-    ("$x | Out-Null", False), ("Get-Content a.py | % { $_ -replace 'a', 'b' }", False),
-    ("rm -rf build > log.txt", False)])  # (refused for its delete: not told it was the write)
+@pytest.mark.parametrize(
+    ("command", "writes"),
+    [
+        ("[System.IO.File]::WriteAllText('a.py', $text)", True),
+        ("$t = [IO.File]::ReadAllText('a.py'); [IO.File]::AppendAllLines('a.py', $l)", True),
+        ("Set-Content -Path a.py -Value $t", True),
+        ("$t | Out-File a.py", True),
+        ("add-content a.py 'x'", True),
+        ("New-Item b.py -ItemType File -Value 'x = 1'", True),
+        ("echo hi > out.txt", True),
+        ("echo hi >>log.txt", True),
+        ("[IO.File]::ReadAllText('a.py')", False),
+        ("pytest -q 2>&1", False),
+        ("git status >$null", False),
+        ("dir > NUL", False),
+        ("New-Item -ItemType Directory b", False),
+        ("$x | Out-Null", False),
+        ("Get-Content a.py | % { $_ -replace 'a', 'b' }", False),
+        ("rm -rf build > log.txt", False),
+    ],
+)  # (refused for its delete: not told it was the write)
 def test_a_refused_command_that_writes_a_file_is_told_of_the_file_tools(command, writes):
     # B-393 (R188, live): refused a patch, Copilot's Coder wrote the file with PowerShell, refused
     # again - and again; only the wording changes, not whether it is asked.
     from app.command_runner import REJECTED, WRITE_REJECTED, rejected
+
     assert rejected(command) == (WRITE_REJECTED if writes else REJECTED)
     assert ("make it with edit_file / write_file" in rejected(command)) is writes
 
@@ -135,21 +164,37 @@ def test_a_long_line_of_new_item_without_a_value_is_judged_at_once():
     import time
 
     from app.command_runner import REJECTED, rejected
+
     began = time.perf_counter()
-    assert rejected("new-item " * 22_000) == REJECTED   # ~200 KB, no -Value
+    assert rejected("new-item " * 22_000) == REJECTED  # ~200 KB, no -Value
     # (1.5 s on CI: a shared runner measuring coverage took 0.66 s; the bug took seconds)
     assert time.perf_counter() - began < (1.5 if os.environ.get("CI") else 0.5)
 
 
-@pytest.mark.parametrize("refusal", [
-    agent.REJECTED, agent.OUTSIDE_REJECTED, agent.WEB_REJECTED, agent.NO_COMMANDS,
-    agent.NO_CHANGES, agent.ONLY_READS, agent.CHANGE_REJECTED, agent.LEAVE_REJECTED,
-    agent.READ_ONLY_WRITE, PATCH_REJECTED, WRITE_REJECTED])
+@pytest.mark.parametrize(
+    "refusal",
+    [
+        agent.REJECTED,
+        agent.OUTSIDE_REJECTED,
+        agent.WEB_REJECTED,
+        agent.NO_COMMANDS,
+        agent.NO_CHANGES,
+        agent.ONLY_READS,
+        agent.CHANGE_REJECTED,
+        agent.LEAVE_REJECTED,
+        agent.READ_ONLY_WRITE,
+        PATCH_REJECTED,
+        WRITE_REJECTED,
+    ],
+)
 def test_a_refusal_forbids_that_action_only_and_says_to_carry_on(refusal):
     # B-321: each says not to do it some other way, and (but the one that names the tools to
     # write with instead) to carry on with the rest of the task
-    assert re.search(r"another way|any other way|anything that does the same|any tool|"
-                     r"anything else", refusal), refusal
+    assert re.search(
+        r"another way|any other way|anything that does the same|any tool|"
+        r"anything else",
+        refusal,
+    ), refusal
     assert (agent.CARRY_ON in refusal) is (refusal is not agent.READ_ONLY_WRITE), refusal
     assert "stop" not in refusal.lower(), refusal
 
@@ -183,8 +228,7 @@ def test_nonzero_exit_is_a_result_not_a_failure(make_client, wait_run, project_d
 
 def test_timeout_kills_and_reports(make_client, wait_run, project_dir, gate):
     executor = ScriptedExecutor([Script(["started\n"], hold=gate)])
-    client, model = make_client(
-        [cmd(timeout_seconds=1), text("It hung.")], executor=executor)
+    client, model = make_client([cmd(timeout_seconds=1), text("It hung.")], executor=executor)
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
     snap = wait_run(client, cid, run_id, timeout=10)
     command = snap["commands"][0]
@@ -245,7 +289,8 @@ def test_bad_arguments_are_tool_errors(make_client, wait_run, project_dir):
         ToolCallRequest("f", "run_command", json.dumps({})),
     ]
     client, _ = make_client(
-        [StepResult("", calls, 1, 1), text("ok")], executor=ScriptedExecutor([]))
+        [StepResult("", calls, 1, 1), text("ok")], executor=ScriptedExecutor([])
+    )
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
     snap = wait_run(client, cid, run_id)
     results = [t["result"] for t in snap["tool_calls"]]
@@ -269,15 +314,22 @@ def test_a_command_runs_in_the_requested_subfolder(make_client, wait_run, projec
 
 
 def test_pending_command_keeps_its_recorded_location_and_still_needs_the_decision(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     executor = ScriptedExecutor([Script(["ok"])])
     client, _ = make_client([cmd(), text("done")], executor=executor)
     cid, run_id = start(client, project_dir)
     command = wait_status(client, cid, "waiting_approval")["commands"][0]
     pid = client.get("/api/projects").json()[0]["id"]
     client.patch(f"/api/projects/{pid}", json={"exec_location": "docker", "docker_image": "alpine"})
-    assert client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto"},
-                        headers={"Origin": "http://127.0.0.1:8790"}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/conversations/{cid}",
+            json={"permission_mode": "full_auto"},
+            headers={"Origin": "http://127.0.0.1:8790"},
+        ).status_code
+        == 200
+    )
     time.sleep(0.2)
     still = client.get(f"/api/conversations/{cid}").json()
     assert still["commands"][0]["status"] == "proposed" and executor.started == []
@@ -321,7 +373,9 @@ def test_snapshot_and_sync_carry_live_output(make_client, project_dir, gate):
         frames = [f for f in r.read().decode().split("\n\n") if f.startswith("event: command.sync")]
     assert len(frames) == 1
     assert json.loads(frames[0].split("data: ", 1)[1]) == {
-        "command_id": command["id"], "output": "first line\n"}
+        "command_id": command["id"],
+        "output": "first line\n",
+    }
 
 
 def test_approving_twice_or_after_the_run_ended_is_409(make_client, wait_run, project_dir):
@@ -346,7 +400,8 @@ def test_cancel_while_a_command_waits_rejects_it(make_client, wait_run, project_
 
 
 def test_the_model_is_told_where_and_in_which_shell_commands_run(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     client, model = make_client([text("hi")], executor=ScriptedExecutor([]))
     cid, run_id = start(client, project_dir)
     wait_run(client, cid, run_id)
@@ -371,16 +426,41 @@ def test_recovery_settles_commands(tmp_path):
         s.add(Message(id="m", conversation_id="c", run_id="r", role="assistant"))
         s.flush()
         for cid, status in (("k1", "proposed"), ("k2", "running"), ("k3", "exited")):
-            s.add(ToolCall(id=f"t{cid}", run_id="r", agent_id="a", message_id="m", seq=1, provider_call_id=cid,
-                           name="run_command", arguments="{}", status="running"))
+            s.add(
+                ToolCall(
+                    id=f"t{cid}",
+                    run_id="r",
+                    agent_id="a",
+                    message_id="m",
+                    seq=1,
+                    provider_call_id=cid,
+                    name="run_command",
+                    arguments="{}",
+                    status="running",
+                )
+            )
             s.flush()
-            s.add(Command(id=cid, run_id="r", agent_id="a", tool_call_id=f"t{cid}", command="x", cwd=".",
-                          location="host", status=status, timeout_seconds=120))
+            s.add(
+                Command(
+                    id=cid,
+                    run_id="r",
+                    agent_id="a",
+                    tool_call_id=f"t{cid}",
+                    command="x",
+                    cwd=".",
+                    location="host",
+                    status=status,
+                    timeout_seconds=120,
+                )
+            )
         s.commit()
     recover_interrupted(factory)
     with factory() as s:
         assert {c.id: c.status for c in s.query(Command)} == {
-            "k1": "rejected", "k2": "interrupted", "k3": "exited"}
+            "k1": "rejected",
+            "k2": "interrupted",
+            "k3": "exited",
+        }
         assert s.get(Command, "k2").ended_at is not None
 
 
@@ -402,9 +482,19 @@ def test_a_clis_command_is_judged_in_the_folder_it_says_it_runs_in(tmp_path):
         s.add(Message(id="m", conversation_id="c", run_id="r", role="assistant"))
         s.flush()
         for n in (1, 2):
-            s.add(ToolCall(id=f"t{n}", run_id="r", agent_id="a", message_id="m", seq=n,
-                           provider_call_id=f"k{n}", name="run_command", arguments="{}",
-                           status="running"))
+            s.add(
+                ToolCall(
+                    id=f"t{n}",
+                    run_id="r",
+                    agent_id="a",
+                    message_id="m",
+                    seq=n,
+                    provider_call_id=f"k{n}",
+                    name="run_command",
+                    arguments="{}",
+                    status="running",
+                )
+            )
         s.commit()
     runner = CommandRunner(factory, SimpleNamespace(emit=lambda *_: None), None, lambda **_: None)
     asked = []
@@ -451,11 +541,33 @@ def test_startup_stops_containers_of_commands_left_running(tmp_path, monkeypatch
         s.add(Message(id="m", conversation_id="c", run_id="r", role="assistant"))
         s.flush()
         for cid, location in (("kd", "docker"), ("kh", "host")):
-            s.add(ToolCall(id=f"t{cid}", run_id="r", agent_id="a", message_id="m", seq=1, provider_call_id=cid,
-                           name="run_command", arguments="{}", status="running"))
+            s.add(
+                ToolCall(
+                    id=f"t{cid}",
+                    run_id="r",
+                    agent_id="a",
+                    message_id="m",
+                    seq=1,
+                    provider_call_id=cid,
+                    name="run_command",
+                    arguments="{}",
+                    status="running",
+                )
+            )
             s.flush()
-            s.add(Command(id=cid, run_id="r", agent_id="a", tool_call_id=f"t{cid}", command="x", cwd=".",
-                          location=location, status="running", timeout_seconds=120))
+            s.add(
+                Command(
+                    id=cid,
+                    run_id="r",
+                    agent_id="a",
+                    tool_call_id=f"t{cid}",
+                    command="x",
+                    cwd=".",
+                    location=location,
+                    status="running",
+                    timeout_seconds=120,
+                )
+            )
         s.commit()
 
     killed = []
@@ -464,7 +576,9 @@ def test_startup_stops_containers_of_commands_left_running(tmp_path, monkeypatch
         killed.extend(ids)
 
     monkeypatch.setattr("app.main.kill_containers", fake_kill)
-    with TestClient(create_app(settings, model=ScriptedModel([])), base_url="http://127.0.0.1:8790"):
+    with TestClient(
+        create_app(settings, model=ScriptedModel([])), base_url="http://127.0.0.1:8790"
+    ):
         pass
     assert killed == ["kd"]
 
@@ -477,9 +591,16 @@ def test_a_models_call_id_named_as_kolonis_own_is_never_kolonis(make_client, wai
     from tests.test_chat_flow import text
     from tests.test_usage_scenarios import began
 
-    client, model, _pid, cid = began(make_client, project_dir, [
-        step("list_dir", {"path": "."}, "koloni_proof_x"), step("list_dir", {"path": "."}, "Cli_y"),
-        step("list_dir", {"path": "."}, "c3"), text("done")])
+    client, model, _pid, cid = began(
+        make_client,
+        project_dir,
+        [
+            step("list_dir", {"path": "."}, "koloni_proof_x"),
+            step("list_dir", {"path": "."}, "Cli_y"),
+            step("list_dir", {"path": "."}, "c3"),
+            text("done"),
+        ],
+    )
     snap = wait_run(client, cid, send(client, cid, "look"))
     ids = [call["provider_call_id"] for call in snap["tool_calls"]]
     assert len(ids) == 3 and ids[2] == "c3", ids

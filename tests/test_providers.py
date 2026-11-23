@@ -37,8 +37,10 @@ def two_models(settings_env):
         client = TestClient(app, base_url="http://127.0.0.1:8790")
         client.__enter__()
         opened.append(client)
-        created = client.post("/api/providers", json={
-            "name": "Fast", "kind": "openai_compat", "base_url": "http://127.0.0.1:9/v1"})
+        created = client.post(
+            "/api/providers",
+            json={"name": "Fast", "kind": "openai_compat", "base_url": "http://127.0.0.1:9/v1"},
+        )
         assert created.status_code == 201, created.text
         return client, default, fast, created.json()
 
@@ -63,7 +65,10 @@ def start(client, project_dir, **conversation):
 def test_the_first_start_adds_the_local_provider_from_the_environment(client):
     (local,) = client.get("/api/providers").json()
     assert (local["name"], local["kind"], local["base_url"]) == (
-        "Local", "openai_compat", "http://127.0.0.1:9/v1")
+        "Local",
+        "openai_compat",
+        "http://127.0.0.1:9/v1",
+    )
     assert local["has_key"] is False and "api_key" not in local
 
 
@@ -74,7 +79,9 @@ def test_installed_clis_are_offered_on_the_first_start_only(settings_env, tmp_pa
     with TestClient(app, base_url="http://127.0.0.1:8790") as client:
         providers = client.get("/api/providers").json()
         assert [(p["name"], p["kind"]) for p in providers] == [
-            ("Local", "openai_compat"), ("Claude Code", "claude_cli")]
+            ("Local", "openai_compat"),
+            ("Claude Code", "claude_cli"),
+        ]
         client.delete(f"/api/providers/{providers[1]['id']}")
     # The user removed it: a later start does not bring it back.
     app = create_app(load_settings(settings_env), model=ScriptedModel([]), which=found.get)
@@ -83,9 +90,15 @@ def test_installed_clis_are_offered_on_the_first_start_only(settings_env, tmp_pa
 
 
 def test_a_key_is_stored_but_never_shown(client):
-    created = client.post("/api/providers", json={
-        "name": " Claude  API ", "kind": "anthropic", "api_key": SECRET,
-        "default_model": "claude-sonnet-5-5"})
+    created = client.post(
+        "/api/providers",
+        json={
+            "name": " Claude  API ",
+            "kind": "anthropic",
+            "api_key": SECRET,
+            "default_model": "claude-sonnet-5-5",
+        },
+    )
     assert created.status_code == 201, created.text
     provider = created.json()
     assert (provider["name"], provider["has_key"]) == ("Claude API", True)
@@ -93,16 +106,26 @@ def test_a_key_is_stored_but_never_shown(client):
     everything = [
         created.text,
         client.get("/api/providers").text,
-        client.patch(f"/api/providers/{provider['id']}", headers=OWN, json={"default_model": "x"}).text,
+        client.patch(
+            f"/api/providers/{provider['id']}", headers=OWN, json={"default_model": "x"}
+        ).text,
         client.post(f"/api/providers/{provider['id']}/test").text,
         json.dumps(client.app.openapi()),  # (not served: slice 94)
     ]
     assert all(SECRET not in body for body in everything)
     # an empty key clears it; leaving the key out keeps it
-    assert client.patch(f"/api/providers/{provider['id']}", headers=OWN, json={"name": "Renamed"}).json()[
-        "has_key"] is True
-    assert client.patch(f"/api/providers/{provider['id']}", headers=OWN, json={"api_key": ""}).json()[
-        "has_key"] is False
+    assert (
+        client.patch(
+            f"/api/providers/{provider['id']}", headers=OWN, json={"name": "Renamed"}
+        ).json()["has_key"]
+        is True
+    )
+    assert (
+        client.patch(f"/api/providers/{provider['id']}", headers=OWN, json={"api_key": ""}).json()[
+            "has_key"
+        ]
+        is False
+    )
 
 
 def test_provider_rules(client):
@@ -147,8 +170,14 @@ def test_test_reports_what_the_provider_answers(make_client):
     client, _ = make_client([])
     local = client.get("/api/providers").json()[0]
     tested = client.post(f"/api/providers/{local['id']}/test").json()
-    assert tested == {"ok": True, "model_id": "fake-model", "tools_supported": True, "error": None,
-                               "reply": None, "model_from": None}
+    assert tested == {
+        "ok": True,
+        "model_id": "fake-model",
+        "tools_supported": True,
+        "error": None,
+        "reply": None,
+        "model_from": None,
+    }
 
     class Down(ScriptedModel):
         async def info(self):
@@ -163,7 +192,10 @@ def test_health_reports_the_default_provider(make_client):
     client, _ = make_client([])
     health = client.get("/api/health").json()
     assert (health["provider_name"], health["model_reachable"], health["model_id"]) == (
-        "Local", True, "fake-model")
+        "Local",
+        True,
+        "fake-model",
+    )
     assert health["provider_id"] == client.get("/api/providers").json()[0]["id"]
 
 
@@ -172,7 +204,10 @@ def test_health_asks_the_provider_it_is_given_or_else_the_default(two_models):
     client, _default, _fast, provider = two_models([], [])
     fast = client.get("/api/health", params={"provider_id": provider["id"]}).json()
     assert (fast["provider_id"], fast["provider_name"], fast["model_id"]) == (
-        provider["id"], "Fast", "fast-model")
+        provider["id"],
+        "Fast",
+        "fast-model",
+    )
     gone = client.get("/api/health", params={"provider_id": "nope"}).json()
     assert (gone["provider_name"], gone["model_id"]) == ("Local", "big-model")
 
@@ -195,10 +230,15 @@ def test_health_of_a_closed_server_asks_it_once_and_sees_it_come_up(make_client,
         return httpx2.Response(200, json={"choices": [{"message": {"tool_calls": [{"id": "x"}]}}]})
 
     client.app.state.providers.override = OpenAICompatClient(
-        "http://127.0.0.1:8080/v1", transport=httpx2.MockTransport(served))
+        "http://127.0.0.1:8080/v1", transport=httpx2.MockTransport(served)
+    )
     down = client.get("/api/health").json()
     assert asked == ["/props"]
-    assert (down["model_reachable"], down["model_id"], down["tools_supported"]) == (False, None, None)
+    assert (down["model_reachable"], down["model_id"], down["tools_supported"]) == (
+        False,
+        None,
+        None,
+    )
     assert down["error"] == f"{UNREACHABLE}: All connection attempts failed"
     # Nothing of the reading is remembered: the next one after the server starts says so.
     up = True
@@ -216,8 +256,9 @@ def test_health_asks_the_server_of_a_named_model_whose_tools_are_known(make_clie
         client.app.state.providers.override = model
         health = client.get("/api/health").json()
     assert (health["model_reachable"], health["model_id"]) == (False, None), health
-    assert health["error"].startswith(f"{UNREACHABLE}: ") and health["error"] != f"{UNREACHABLE}: ", (
-        health)
+    assert (
+        health["error"].startswith(f"{UNREACHABLE}: ") and health["error"] != f"{UNREACHABLE}: "
+    ), health
 
 
 # --- which model an agent gets ---------------------------------------------------
@@ -246,9 +287,12 @@ def test_without_a_choice_the_first_provider_is_used(two_models, wait_run, proje
 
 def test_a_role_overrides_the_conversation_for_its_own_agents(two_models, wait_run, project_dir):
     client, default, fast, provider = two_models(
-        [spawn("Reviewer"), text("lead done")], [text("reviewed quickly")])
-    patched = client.patch(f"/api/roles/{role_id(client, 'Reviewer')}",
-                           json={"provider_id": provider["id"], "model_id": "tiny"})
+        [spawn("Reviewer"), text("lead done")], [text("reviewed quickly")]
+    )
+    patched = client.patch(
+        f"/api/roles/{role_id(client, 'Reviewer')}",
+        json={"provider_id": provider["id"], "model_id": "tiny"},
+    )
     assert (patched.json()["provider_id"], patched.json()["model_id"]) == (provider["id"], "tiny")
     cid, run_id = start(client, project_dir)
     snap = wait_run(client, cid, run_id)
@@ -279,7 +323,12 @@ def test_a_sub_agent_whose_provider_is_down_fails_alone(two_models, wait_run, pr
 def test_changing_the_choice_mid_turn_does_not_move_a_running_agent(
     two_models, wait_run, project_dir, gate
 ):
-    client, default, fast, provider = two_models([gate.step(text("one")), ], [text("two")])
+    client, default, fast, provider = two_models(
+        [
+            gate.step(text("one")),
+        ],
+        [text("two")],
+    )
     cid, run_id = start(client, project_dir)
     gate.wait_partial()
     client.patch(f"/api/conversations/{cid}", json={"provider_id": provider["id"]})
@@ -296,10 +345,14 @@ def test_a_deleted_provider_falls_back_to_the_next_level(two_models, wait_run, p
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     client.patch(f"/api/conversations/{cid}", json={"provider_id": provider["id"]})
-    assert client.put(
-        f"/api/projects/{pid}/backlog/choice", headers={"Origin": "http://127.0.0.1:8790"},
-        json={"permission_mode": "ask", "provider_id": provider["id"], "model_id": "m"},
-    ).json()["model_id"] == "m"
+    assert (
+        client.put(
+            f"/api/projects/{pid}/backlog/choice",
+            headers={"Origin": "http://127.0.0.1:8790"},
+            json={"permission_mode": "ask", "provider_id": provider["id"], "model_id": "m"},
+        ).json()["model_id"]
+        == "m"
+    )
     assert client.delete(f"/api/providers/{provider['id']}").status_code == 204
     assert client.get(f"/api/conversations/{cid}").json()["conversation"]["provider_id"] is None
     choice = client.get(f"/api/projects/{pid}/backlog/auto").json()  # (the backlog's too)
@@ -314,9 +367,12 @@ def test_choices_are_validated(two_models, project_dir):
     client, _, _, provider = two_models([], [])
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    assert client.patch(f"/api/conversations/{cid}", json={"provider_id": "nope"}).status_code == 422
-    chosen = client.patch(f"/api/conversations/{cid}",
-                          json={"provider_id": provider["id"], "model_id": " m1 "}).json()
+    assert (
+        client.patch(f"/api/conversations/{cid}", json={"provider_id": "nope"}).status_code == 422
+    )
+    chosen = client.patch(
+        f"/api/conversations/{cid}", json={"provider_id": provider["id"], "model_id": " m1 "}
+    ).json()
     assert (chosen["provider_id"], chosen["model_id"]) == (provider["id"], "m1")
     # a title change leaves the choice alone; null clears it
     kept = client.patch(f"/api/conversations/{cid}", json={"title": "t"}).json()
@@ -338,15 +394,23 @@ def test_migration_0005_and_back(tmp_path):
     command.upgrade(cfg, "0004")
     at = "2026-10-05 10:00:00"
     with sqlite3.connect(db) as conn:
-        conn.execute(f"INSERT INTO projects (id, name, root_path, created_at, exec_location, "
-                     f"docker_network) VALUES ('p', 'p', 'C:/p', '{at}', 'host', 0)")
-        conn.execute(f"INSERT INTO conversations (id, project_id, title, permission_mode, "
-                     f"spawn_approval, spawn_max_depth, spawn_max_agents, created_at, updated_at) "
-                     f"VALUES ('c', 'p', 't', 'ask', 'auto', 2, 6, '{at}', '{at}')")
-        conn.execute(f"INSERT INTO runs (id, conversation_id, status, model_id, created_at, "
-                     f"started_at) VALUES ('r', 'c', 'completed', 'qwen', '{at}', '{at}')")
-        conn.execute(f"INSERT INTO agents (id, run_id, role_name, tools, depth, status, created_at) "
-                     f"VALUES ('a', 'r', 'Lead', '{json.dumps(['read_file'])}', 0, 'completed', '{at}')")
+        conn.execute(
+            f"INSERT INTO projects (id, name, root_path, created_at, exec_location, "
+            f"docker_network) VALUES ('p', 'p', 'C:/p', '{at}', 'host', 0)"
+        )
+        conn.execute(
+            f"INSERT INTO conversations (id, project_id, title, permission_mode, "
+            f"spawn_approval, spawn_max_depth, spawn_max_agents, created_at, updated_at) "
+            f"VALUES ('c', 'p', 't', 'ask', 'auto', 2, 6, '{at}', '{at}')"
+        )
+        conn.execute(
+            f"INSERT INTO runs (id, conversation_id, status, model_id, created_at, "
+            f"started_at) VALUES ('r', 'c', 'completed', 'qwen', '{at}', '{at}')"
+        )
+        conn.execute(
+            f"INSERT INTO agents (id, run_id, role_name, tools, depth, status, created_at) "
+            f"VALUES ('a', 'r', 'Lead', '{json.dumps(['read_file'])}', 0, 'completed', '{at}')"
+        )
     command.upgrade(cfg, "head")
     with sqlite3.connect(db) as conn:
         agent = conn.execute("SELECT provider_name, model_id FROM agents").fetchone()
@@ -373,8 +437,12 @@ def test_each_kind_of_provider_gets_its_own_client(settings):
 
     providers = Providers(settings)
     # a CLI row that names no mode runs in its kind's default one
-    kinds = {"openai_compat": OpenAICompatClient, "anthropic": AnthropicClient,
-             "claude_cli": ClaudeSessionClient, "codex_cli": CodexSessionClient}
+    kinds = {
+        "openai_compat": OpenAICompatClient,
+        "anthropic": AnthropicClient,
+        "claude_cli": ClaudeSessionClient,
+        "codex_cli": CodexSessionClient,
+    }
     for kind, expected in kinds.items():
         row = Provider(id=kind, name=kind, kind=kind, base_url="http://x/v1", api_key=SECRET)
         client = providers.client(row, "m")
@@ -389,22 +457,30 @@ def test_each_kind_of_provider_gets_its_own_client(settings):
 def test_a_refused_request_never_repeats_the_key_back(client):
     refused = [
         client.post("/api/providers", json={"kind": "anthropic", "api_key": SECRET}),  # no name
-        client.post("/api/providers", json={"name": "X", "kind": "anthropic",
-                                            "api_key": SECRET + "x" * 600}),
-        client.post("/api/providers", json={"name": "X", "kind": "anthropic",
-                                            "api_key": SECRET + "\u200b"}),
-        client.post("/api/providers", json={"name": "X", "kind": "anthropic",
-                                            "api_key": "sk-test\n-DO-NOT-LEAK"}),
-        client.post("/api/providers", json={"name": "X", "kind": "anthropic",
-                                            "api_key": "has space"}),
+        client.post(
+            "/api/providers", json={"name": "X", "kind": "anthropic", "api_key": SECRET + "x" * 600}
+        ),
+        client.post(
+            "/api/providers", json={"name": "X", "kind": "anthropic", "api_key": SECRET + "\u200b"}
+        ),
+        client.post(
+            "/api/providers",
+            json={"name": "X", "kind": "anthropic", "api_key": "sk-test\n-DO-NOT-LEAK"},
+        ),
+        client.post(
+            "/api/providers", json={"name": "X", "kind": "anthropic", "api_key": "has space"}
+        ),
     ]
     assert [r.status_code for r in refused] == [422] * 5
     assert all("DO-NOT-LEAK" not in r.text for r in refused)
     assert "key" in refused[2].json()["detail"]
     assert len(client.get("/api/providers").json()) == 1
-    created = client.post("/api/providers", json={"name": "X", "kind": "anthropic",
-                                                  "api_key": f"  {SECRET}  "}).json()
-    patched = client.patch(f"/api/providers/{created['id']}", headers=OWN, json={"api_key": "bad\tkey"})
+    created = client.post(
+        "/api/providers", json={"name": "X", "kind": "anthropic", "api_key": f"  {SECRET}  "}
+    ).json()
+    patched = client.patch(
+        f"/api/providers/{created['id']}", headers=OWN, json={"api_key": "bad\tkey"}
+    )
     assert patched.status_code == 422 and "bad" not in patched.text
 
 
@@ -412,20 +488,33 @@ def test_model_names_cannot_carry_control_characters(client):
     local = client.get("/api/providers").json()[0]
     bad = client.patch(f"/api/providers/{local['id']}", headers=OWN, json={"default_model": "m\nx"})
     assert bad.status_code == 422
-    fine = client.patch(f"/api/providers/{local['id']}", headers=OWN,
-                        json={"default_model": "DeepSeek-v4-Pro (Model Studio - Singapore)"})
+    fine = client.patch(
+        f"/api/providers/{local['id']}",
+        headers=OWN,
+        json={"default_model": "DeepSeek-v4-Pro (Model Studio - Singapore)"},
+    )
     assert fine.status_code == 200
 
 
 def test_a_new_role_keeps_the_model_it_was_given(two_models):
     client, _, _, provider = two_models([], [])
-    created = client.post("/api/roles", json={
-        "name": "Fast reviewer", "tools": ["read_file"], "provider_id": provider["id"],
-        "model_id": "tiny"})
+    created = client.post(
+        "/api/roles",
+        json={
+            "name": "Fast reviewer",
+            "tools": ["read_file"],
+            "provider_id": provider["id"],
+            "model_id": "tiny",
+        },
+    )
     assert created.status_code == 201, created.text
     assert (created.json()["provider_id"], created.json()["model_id"]) == (provider["id"], "tiny")
-    assert client.post("/api/roles", json={
-        "name": "Other", "tools": ["read_file"], "provider_id": "nope"}).status_code == 422
+    assert (
+        client.post(
+            "/api/roles", json={"name": "Other", "tools": ["read_file"], "provider_id": "nope"}
+        ).status_code
+        == 422
+    )
 
 
 def test_any_provider_can_be_made_the_default(two_models, wait_run, project_dir):
@@ -444,8 +533,11 @@ def test_health_does_not_call_a_provider_out_of_reach_when_only_its_default_is_o
 ):
     client, _ = make_client([])
     local = client.get("/api/providers").json()[0]
-    held = client.patch(f"/api/providers/{local['id']}", headers=OWN, json={
-        "models": [{"name": "another-model"}], "only_listed": True})
+    held = client.patch(
+        f"/api/providers/{local['id']}",
+        headers=OWN,
+        json={"models": [{"name": "another-model"}], "only_listed": True},
+    )
     assert held.status_code == 200, held.text
     health = client.get("/api/health").json()
     assert (health["model_reachable"], health["not_listed"]) == (False, True)
@@ -461,22 +553,44 @@ def test_an_anthropic_workspace_is_checked_like_any_setting():
     from app.providers import check_options
 
     assert check_options("anthropic", {"workspace_id": WORKSPACE}, True) == {
-        "workspace_id": WORKSPACE}
+        "workspace_id": WORKSPACE
+    }
     assert check_options("anthropic", {"workspace_id": f"  {WORKSPACE}\n"}, True) == {
-        "workspace_id": WORKSPACE}
+        "workspace_id": WORKSPACE
+    }
     assert check_options("anthropic", {"workspace_id": "x" * 100}, True) == {
-        "workspace_id": "x" * 100}
+        "workspace_id": "x" * 100
+    }
     # none, or an empty one, is no setting at all
-    for nothing in (None, {}, {"workspace_id": None}, {"workspace_id": ""},
-                    {"workspace_id": "   "}):
+    for nothing in (
+        None,
+        {},
+        {"workspace_id": None},
+        {"workspace_id": ""},
+        {"workspace_id": "   "},
+    ):
         assert check_options("anthropic", nothing, True) is None
-    for bad in ("has space", "x" * 101, "line\nbreak", "tab\there", "bell\x07", "café",
-                "zero​width", 5, True, ["wrkspc"], {"id": "wrkspc"}):
+    for bad in (
+        "has space",
+        "x" * 101,
+        "line\nbreak",
+        "tab\there",
+        "bell\x07",
+        "café",
+        "zero​width",
+        5,
+        True,
+        ["wrkspc"],
+        {"id": "wrkspc"},
+    ):
         with pytest.raises(ValueError, match="workspace"):
             check_options("anthropic", {"workspace_id": bad}, True)
     # this kind has no other setting
-    for other in ({"offline": True}, {"provider_type": "openai"},
-                  {"workspace_id": WORKSPACE, "max_prompt_tokens": 5}):
+    for other in (
+        {"offline": True},
+        {"provider_type": "openai"},
+        {"workspace_id": WORKSPACE, "max_prompt_tokens": 5},
+    ):
         with pytest.raises(ValueError, match="unknown setting"):
             check_options("anthropic", other, True)
     # and no other kind has this one
@@ -491,16 +605,27 @@ def test_an_anthropic_provider_keeps_its_workspace_and_hands_it_to_its_client(cl
     from app.db.models import Provider
     from app.providers import Providers
 
-    made = client.post("/api/providers", json={
-        "name": "Claude API", "kind": "anthropic", "api_key": SECRET,
-        "default_model": "claude-sonnet-5-5", "options": {"workspace_id": f" {WORKSPACE} "}})
+    made = client.post(
+        "/api/providers",
+        json={
+            "name": "Claude API",
+            "kind": "anthropic",
+            "api_key": SECRET,
+            "default_model": "claude-sonnet-5-5",
+            "options": {"workspace_id": f" {WORKSPACE} "},
+        },
+    )
     assert made.status_code == 201, made.text
     provider = made.json()
     assert provider["options"] == {"workspace_id": WORKSPACE}
     url = f"/api/providers/{provider['id']}"
     # changing something else leaves it where it is
-    for other in ({"base_url": "https://proxy.example.com"}, {"default_model": "claude-opus-5"},
-                  {"api_key": SECRET + "2"}, {"name": "Claude"}):
+    for other in (
+        {"base_url": "https://proxy.example.com"},
+        {"default_model": "claude-opus-5"},
+        {"api_key": SECRET + "2"},
+        {"name": "Claude"},
+    ):
         changed = client.patch(url, headers=OWN, json=other)
         assert changed.status_code == 200, changed.text
         assert changed.json()["options"] == {"workspace_id": WORKSPACE}, other
@@ -516,9 +641,13 @@ def test_an_anthropic_provider_keeps_its_workspace_and_hands_it_to_its_client(cl
         built = Providers(settings)._build(row, "claude-sonnet-5-5")
     assert built._workspace == WORKSPACE
     # it can be changed, and taken away again: empty, or no settings at all
-    assert client.patch(url, headers=OWN, json={"options": {"workspace_id": "wrkspc_other"}}).json()[
-        "options"] == {"workspace_id": "wrkspc_other"}
-    assert client.patch(url, headers=OWN, json={"options": {"workspace_id": ""}}).json()["options"] is None
+    assert client.patch(
+        url, headers=OWN, json={"options": {"workspace_id": "wrkspc_other"}}
+    ).json()["options"] == {"workspace_id": "wrkspc_other"}
+    assert (
+        client.patch(url, headers=OWN, json={"options": {"workspace_id": ""}}).json()["options"]
+        is None
+    )
     client.patch(url, headers=OWN, json={"options": {"workspace_id": WORKSPACE}})
     assert client.patch(url, headers=OWN, json={"options": None}).json()["options"] is None
     with client.app.state.session_factory() as session:
@@ -526,21 +655,44 @@ def test_an_anthropic_provider_keeps_its_workspace_and_hands_it_to_its_client(cl
         assert Providers(settings)._build(row, "m")._workspace is None
     # another kind is still refused it
     local = client.get("/api/providers").json()[0]
-    assert client.patch(f"/api/providers/{local['id']}", headers=OWN, json={
-        "options": {"workspace_id": WORKSPACE}}).status_code == 422
-    assert client.post("/api/providers", json={
-        "name": "Other", "kind": "openai_compat", "base_url": "http://127.0.0.1:9/v1",
-        "options": {"workspace_id": WORKSPACE}}).status_code == 422
+    assert (
+        client.patch(
+            f"/api/providers/{local['id']}",
+            headers=OWN,
+            json={"options": {"workspace_id": WORKSPACE}},
+        ).status_code
+        == 422
+    )
+    assert (
+        client.post(
+            "/api/providers",
+            json={
+                "name": "Other",
+                "kind": "openai_compat",
+                "base_url": "http://127.0.0.1:9/v1",
+                "options": {"workspace_id": WORKSPACE},
+            },
+        ).status_code
+        == 422
+    )
 
 
 def test_agents_are_never_shown_a_providers_workspace(client):
     from app.providers import list_providers
     from app.team import describe, guide
 
-    client.post("/api/providers", json={
-        "name": "Claude API", "kind": "anthropic", "api_key": SECRET, "for_agents": True,
-        "note": "good at reviews", "models": [{"name": "claude-sonnet-5-5", "note": "quick"}],
-        "options": {"workspace_id": WORKSPACE}})
+    client.post(
+        "/api/providers",
+        json={
+            "name": "Claude API",
+            "kind": "anthropic",
+            "api_key": SECRET,
+            "for_agents": True,
+            "note": "good at reviews",
+            "models": [{"name": "claude-sonnet-5-5", "note": "quick"}],
+            "options": {"workspace_id": WORKSPACE},
+        },
+    )
     with client.app.state.session_factory() as session:
         entries = guide(list_providers(session))
     told = describe(entries)
@@ -568,15 +720,19 @@ def anthropic_app(settings_env):
             asked.append(request)
             return handler(request)
 
-        stand_in = AnthropicClient("https://api.test", SECRET, None,
-                                   transport=httpx2.MockTransport(counted))
-        app = create_app(load_settings(settings_env), model=ScriptedModel([]),
-                         clients={"Claude API": stand_in})
+        stand_in = AnthropicClient(
+            "https://api.test", SECRET, None, transport=httpx2.MockTransport(counted)
+        )
+        app = create_app(
+            load_settings(settings_env), model=ScriptedModel([]), clients={"Claude API": stand_in}
+        )
         client = TestClient(app, base_url="http://127.0.0.1:8790")
         client.__enter__()
         opened.append(client)
-        made = client.post("/api/providers", json={
-            "name": "Claude API", "kind": "anthropic", "api_key": SECRET, **provider})
+        made = client.post(
+            "/api/providers",
+            json={"name": "Claude API", "kind": "anthropic", "api_key": SECRET, **provider},
+        )
         assert made.status_code == 201, made.text
         return client, made.json(), asked
 
@@ -592,38 +748,53 @@ KNOWN = [row["name"] for row in models_for("anthropic")]
 def _listing(*ids):
     import httpx2
 
-    return lambda request: httpx2.Response(200, content=json.dumps({
-        "data": [{"type": "model", "id": name} for name in ids], "has_more": False}))
+    return lambda request: httpx2.Response(
+        200,
+        content=json.dumps(
+            {"data": [{"type": "model", "id": name} for name in ids], "has_more": False}
+        ),
+    )
 
 
 def test_an_anthropic_provider_lists_the_models_its_key_can_use(anthropic_app):
     client, provider, asked = anthropic_app(
-        _listing("claude-opus-5", "claude-sonnet-5-5", "claude-haiku-4-5"))
+        _listing("claude-opus-5", "claude-sonnet-5-5", "claude-haiku-4-5")
+    )
     url = f"/api/providers/{provider['id']}/models"
     # the catalogue's names come before what the key lists (slice 59c)
-    assert client.get(url).json() == {"models": list(dict.fromkeys(
-        [*KNOWN, "claude-opus-5", "claude-sonnet-5-5", "claude-haiku-4-5"])), "note": None}
+    assert client.get(url).json() == {
+        "models": list(
+            dict.fromkeys([*KNOWN, "claude-opus-5", "claude-sonnet-5-5", "claude-haiku-4-5"])
+        ),
+        "note": None,
+    }
     assert [(request.method, request.url.path) for request in asked] == [("GET", "/v1/models")]
     # the user's own list comes first, and a name in both is there once
-    client.patch(f"/api/providers/{provider['id']}", headers=OWN, json={
-        "models": [{"name": "mine"}, {"name": "claude-sonnet-5-5", "note": "quick"}]})
-    offered = list(dict.fromkeys(
-        ["mine", "claude-sonnet-5-5", *KNOWN, "claude-opus-5", "claude-haiku-4-5"]))
+    client.patch(
+        f"/api/providers/{provider['id']}",
+        headers=OWN,
+        json={"models": [{"name": "mine"}, {"name": "claude-sonnet-5-5", "note": "quick"}]},
+    )
+    offered = list(
+        dict.fromkeys(["mine", "claude-sonnet-5-5", *KNOWN, "claude-opus-5", "claude-haiku-4-5"])
+    )
     assert client.get(url).json() == {"models": offered, "note": None}
     # "Only these models" stops no list: listing runs no model
     client.patch(f"/api/providers/{provider['id']}", headers=OWN, json={"only_listed": True})
     assert len(client.get(url).json()["models"]) == len(offered)
 
 
-def test_an_anthropic_list_that_cannot_be_had_is_empty_and_says_why_without_the_key(
-    anthropic_app
-):
+def test_an_anthropic_list_that_cannot_be_had_is_empty_and_says_why_without_the_key(anthropic_app):
     import httpx2
 
     def refused(request):
         # a server that repeats what it was sent
-        return httpx2.Response(401, content=json.dumps({"error": {
-            "message": f"invalid x-api-key: {request.headers['x-api-key']}"}}))
+        return httpx2.Response(
+            401,
+            content=json.dumps(
+                {"error": {"message": f"invalid x-api-key: {request.headers['x-api-key']}"}}
+            ),
+        )
 
     client, provider, asked = anthropic_app(refused)
     url = f"/api/providers/{provider['id']}/models"
@@ -632,7 +803,9 @@ def test_an_anthropic_list_that_cannot_be_had_is_empty_and_says_why_without_the_
     assert "401" in answer.json()["note"] and "[key]" in answer.json()["note"]
     assert SECRET not in answer.text
     # the user's own list is still offered, next to the reason
-    client.patch(f"/api/providers/{provider['id']}", headers=OWN, json={"models": [{"name": "mine"}]})
+    client.patch(
+        f"/api/providers/{provider['id']}", headers=OWN, json={"models": [{"name": "mine"}]}
+    )
     answer = client.get(url)
     assert answer.json()["models"] == ["mine", *KNOWN] and "401" in answer.json()["note"]
     assert SECRET not in answer.text
@@ -646,7 +819,9 @@ def test_without_a_key_an_anthropic_provider_asks_nobody_for_a_list(anthropic_ap
     assert answer["models"] == KNOWN and "key" in answer["note"]  # the catalogue's only
     assert asked == []
     # with a list of the user's own there is nothing left to say
-    client.patch(f"/api/providers/{provider['id']}", headers=OWN, json={"models": [{"name": "mine"}]})
+    client.patch(
+        f"/api/providers/{provider['id']}", headers=OWN, json={"models": [{"name": "mine"}]}
+    )
     assert client.get(url).json() == {"models": ["mine", *KNOWN], "note": None}
     assert asked == []
 
@@ -656,13 +831,25 @@ def test_the_client_asked_for_the_list_is_built_from_the_provider_as_it_is_kept(
     from app.model_anthropic import AnthropicClient
     from app.providers import Providers
 
-    row = Provider(id="p", name="Claude API", kind="anthropic", api_key=SECRET,
-                   base_url="https://proxy.example.com", only_listed=True,
-                   models=[{"name": "mine", "note": None}],
-                   options={"workspace_id": WORKSPACE})
+    row = Provider(
+        id="p",
+        name="Claude API",
+        kind="anthropic",
+        api_key=SECRET,
+        base_url="https://proxy.example.com",
+        only_listed=True,
+        models=[{"name": "mine", "note": None}],
+        options={"workspace_id": WORKSPACE},
+    )
     lister = Providers(settings).lister(row)
     assert type(lister) is AnthropicClient
     assert (lister._base, lister._key, lister._workspace) == (
-        "https://proxy.example.com", SECRET, WORKSPACE)
-    assert lister._headers() == {"x-api-key": SECRET, "anthropic-version": "2023-06-01",
-                                 "anthropic-workspace-id": WORKSPACE}
+        "https://proxy.example.com",
+        SECRET,
+        WORKSPACE,
+    )
+    assert lister._headers() == {
+        "x-api-key": SECRET,
+        "anthropic-version": "2023-06-01",
+        "anthropic-workspace-id": WORKSPACE,
+    }

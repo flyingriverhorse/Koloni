@@ -3,6 +3,7 @@
 Revision ID: 0009
 Revises: 0008
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -14,8 +15,9 @@ depends_on = None
 
 def upgrade() -> None:
     with op.batch_alter_table("conversations") as batch:
-        batch.add_column(sa.Column(
-            "spawn_max_parallel", sa.Integer(), nullable=False, server_default="2"))
+        batch.add_column(
+            sa.Column("spawn_max_parallel", sa.Integer(), nullable=False, server_default="2")
+        )
     with op.batch_alter_table("messages") as batch:
         batch.add_column(sa.Column("delivered_at", sa.DateTime(), nullable=True))
     # What agents sent each other so far was read by its receiver as it was sent.

@@ -28,8 +28,13 @@ RANK = {"": 0, "soft": 1, "always": 2}
 def spellings(path: str) -> dict[str, str]:
     """A path as the probes spelt it: as it is, its `\\` doubled, with `/`, in upper and lower
     case, and Git Bash's `/c/...`."""
-    forms = {"": path, "|dbl": path.replace("\\", "\\\\"), "|fwd": path.replace("\\", "/"),
-             "|up": path.upper(), "|low": path.lower()}
+    forms = {
+        "": path,
+        "|dbl": path.replace("\\", "\\\\"),
+        "|fwd": path.replace("\\", "/"),
+        "|up": path.upper(),
+        "|low": path.lower(),
+    }
     if re.match(r"[A-Za-z]:", path):
         forms["|bash"] = f"/{path[0].lower()}{path[2:]}".replace("\\", "/")
     return forms
@@ -39,23 +44,38 @@ def tokens(tmp_path: Path) -> dict[str, str]:
     """The gate's `<x>` paths, made in this test's folder as the probes laid them out."""
     runtime = tmp_path / "runtime"
     held, users = copies.folders(runtime)[0], copies._both(runtime)[1]
-    bases = {"uown": users / "a" / "tree", "users": users, "own": held / "a" / "tree",
-             "held": held, "worktree": tmp_path / "wt" / "x", "project": tmp_path / "proj",
-             "runtime": runtime, "tmp": tmp_path}
-    found = {f"<{name}{suffix}>": form for name, path in bases.items()
-             for suffix, form in spellings(str(path)).items()}
+    bases = {
+        "uown": users / "a" / "tree",
+        "users": users,
+        "own": held / "a" / "tree",
+        "held": held,
+        "worktree": tmp_path / "wt" / "x",
+        "project": tmp_path / "proj",
+        "runtime": runtime,
+        "tmp": tmp_path,
+    }
+    found = {
+        f"<{name}{suffix}>": form
+        for name, path in bases.items()
+        for suffix, form in spellings(str(path)).items()
+    }
     local = os.environ["LOCALAPPDATA"]
-    rel = str(users)[len(local):]
+    rel = str(users)[len(local) :]
     return {**found, "<la_rel>": rel, "<la_rel|fwd>": rel.replace("\\", "/"), "<la>": local}
 
 
 def verdict(line: str, tmp_path: Path) -> tuple[int, bool, bool, bool]:
     project, runtime = tmp_path / "proj", tmp_path / "runtime"
     own = copies.folders(runtime)[0] / "a" / "tree"
-    card = commands.copy_reason(line, True, str(project), runtime, own, ".",
-                                [str(project), str(tmp_path / "wt" / "x")])
-    return (RANK[commands.harm_class(line)], bool(card), bool(commands.installs(line)),
-            bool(commands.web_off_reason(line, ["http_request"])))
+    card = commands.copy_reason(
+        line, True, str(project), runtime, own, ".", [str(project), str(tmp_path / "wt" / "x")]
+    )
+    return (
+        RANK[commands.harm_class(line)],
+        bool(card),
+        bool(commands.installs(line)),
+        bool(commands.web_off_reason(line, ["http_request"])),
+    )
 
 
 def test_no_command_is_asked_less_than_650e22a_asked_it(tmp_path, monkeypatch):
@@ -73,11 +93,16 @@ def test_no_command_is_asked_less_than_650e22a_asked_it(tmp_path, monkeypatch):
             below.append(template)
     xfail = set(GATE["xfail"])
     regressed = [line for line in below if line not in xfail]
-    fixed = [line for line in GATE["xfail"] if line not in below and (
-        sys.platform == "win32" or not next(row[4] for row in GATE["lines"] if row[0] == line))]
+    fixed = [
+        line
+        for line in GATE["xfail"]
+        if line not in below
+        and (sys.platform == "win32" or not next(row[4] for row in GATE["lines"] if row[0] == line))
+    ]
     assert not regressed, "asked less than at 650e22a:\n" + "\n".join(regressed)
     assert not fixed, "asked again - take them out of command_gate.json's xfail:\n" + "\n".join(
-        fixed)
+        fixed
+    )
 
 
 def test_the_gate_holds_its_lines_once_and_every_allowed_line_has_a_reason():
@@ -108,8 +133,13 @@ def test_no_rule_covers_an_unruled_line():
 def test_a_ruled_line_is_still_covered_and_runs_no_other_program():
     # (k-okuyucu-3 round 4: a runner's program's own words are no program - `uv run ruff format .`
     # is ruff's, covered by `uv run ruff` and no harm; nor does it run another program)
-    asked = [line for line, rule in GATE["ruled"].items() if not commands.matches(line, rule)
-             or commands.harm_class(line) or commands.runs_another(line)]
+    asked = [
+        line
+        for line, rule in GATE["ruled"].items()
+        if not commands.matches(line, rule)
+        or commands.harm_class(line)
+        or commands.runs_another(line)
+    ]
     assert not asked, "\n".join(asked)
 
 
@@ -126,10 +156,14 @@ def _link_out(link: Path, target: Path) -> None:
     import subprocess
 
     import pytest
+
     try:
         if sys.platform == "win32":
-            subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)], check=True,
-                           capture_output=True)
+            subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+                check=True,
+                capture_output=True,
+            )
         else:
             os.symlink(target, link, target_is_directory=True)
     except (OSError, subprocess.CalledProcessError):
@@ -193,9 +227,15 @@ def test_quotes_inside_a_word_and_option_values_are_followed_too(tmp_path):
     (project / "README.md").write_text("hi\n", encoding="utf-8")
     (project / ".env").write_text("KEY=1\n", encoding="utf-8")
     _link_out(project / "out", outside)
-    asked = ["Get-Content -Path:'out/secret.txt'", "Get-Content -LiteralPath:'out/secret.txt'",
-             "cat out/'secret.txt'", "grep --file=out/secret.txt README.md", "cat .e'nv'",
-             'cat ".e"nv', "grep -fout/secret.txt README.md"]
+    asked = [
+        "Get-Content -Path:'out/secret.txt'",
+        "Get-Content -LiteralPath:'out/secret.txt'",
+        "cat out/'secret.txt'",
+        "grep --file=out/secret.txt README.md",
+        "cat .e'nv'",
+        'cat ".e"nv',
+        "grep -fout/secret.txt README.md",
+    ]
     if sys.platform == "win32":
         asked += [r'Get-Content -Path:"out\secret.txt"', r"type .\.e'nv'"]
     for line in asked:
@@ -204,8 +244,13 @@ def test_quotes_inside_a_word_and_option_values_are_followed_too(tmp_path):
     for line in ["cat .e'nv'", 'cat ".e"nv', r"type .\.e'nv'"]:
         assert commands.names_secret(line), line
     # (the plain forms that held still hold)
-    for line in ["cat README.md", "cat 'README.md'", "Get-Content -Path:'README.md'",
-                 "grep --file=README.md README.md", "head -n 5 README.md"]:
+    for line in [
+        "cat README.md",
+        "cat 'README.md'",
+        "Get-Content -Path:'README.md'",
+        "grep --file=README.md README.md",
+        "head -n 5 README.md",
+    ]:
         assert commands.reads_here(line, project, True), line
 
 

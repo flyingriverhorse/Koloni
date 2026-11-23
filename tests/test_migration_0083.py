@@ -11,9 +11,13 @@ from tests.test_migration_0002 import _config
 
 def rules(db):
     with sqlite3.connect(db) as conn:
-        return {team: (tier, low) for team, tier, low in conn.execute(
-            "SELECT teams.name, roles.tier, roles.tier_min FROM teams "
-            "JOIN roles ON roles.id = teams.lead_role_id")}
+        return {
+            team: (tier, low)
+            for team, tier, low in conn.execute(
+                "SELECT teams.name, roles.tier, roles.tier_min FROM teams "
+                "JOIN roles ON roles.id = teams.lead_role_id"
+            )
+        }
 
 
 def test_every_untouched_lead_runs_on_the_chats_model_and_gets_its_rule_back_going_back(tmp_path):
@@ -22,17 +26,25 @@ def test_every_untouched_lead_runs_on_the_chats_model_and_gets_its_rule_back_goi
     command.upgrade(cfg, "0082")
     assert rules(db)["Web app"] == (None, "balanced")
     with sqlite3.connect(db) as conn:
-        conn.execute("UPDATE roles SET tier = 'strongest' WHERE id = (SELECT lead_role_id FROM teams "
-                     "WHERE name = 'Docs')")
-        conn.execute("UPDATE roles SET tier_min = 'fast' WHERE id = (SELECT lead_role_id FROM teams "
-                     "WHERE name = 'Data')")
+        conn.execute(
+            "UPDATE roles SET tier = 'strongest' WHERE id = (SELECT lead_role_id FROM teams "
+            "WHERE name = 'Docs')"
+        )
+        conn.execute(
+            "UPDATE roles SET tier_min = 'fast' WHERE id = (SELECT lead_role_id FROM teams "
+            "WHERE name = 'Data')"
+        )
     before = rules(db)
 
     command.upgrade(cfg, "head")
 
     after = rules(db)
     assert (after["Docs"], after["Data"]) == (("strongest", "balanced"), (None, "fast"))
-    assert all(rule == ("conversation", None) for name, rule in after.items() if name not in ("Docs", "Data"))
+    assert all(
+        rule == ("conversation", None)
+        for name, rule in after.items()
+        if name not in ("Docs", "Data")
+    )
 
     command.downgrade(cfg, "0082")
 

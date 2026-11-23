@@ -77,8 +77,11 @@ import sys
 import time
 from pathlib import Path
 
-told = json.loads(Path(os.environ["FAKE_CLI_PLAN"]).read_text(encoding="utf-8")) \
-    if os.environ.get("FAKE_CLI_PLAN") else {}
+told = (
+    json.loads(Path(os.environ["FAKE_CLI_PLAN"]).read_text(encoding="utf-8"))
+    if os.environ.get("FAKE_CLI_PLAN")
+    else {}
+)
 if told.get("starts"):  # every way it was started, one line each
     with open(told["starts"], "a", encoding="utf-8") as log:
         log.write(json.dumps(sys.argv[1:]) + "\n")
@@ -94,7 +97,12 @@ argv = sys.argv[1:]
 cwd = Path.cwd()
 home = os.environ.get("COPILOT_HOME")
 record = {
-    "argv": argv, "cwd": str(cwd), "results": [], "answers": [], "replies": [], "hooks": [],
+    "argv": argv,
+    "cwd": str(cwd),
+    "results": [],
+    "answers": [],
+    "replies": [],
+    "hooks": [],
     "ran": [],
     "env": {k: v for k, v in os.environ.items() if k.startswith("COPILOT_")},
     "home_was_empty": bool(home) and Path(home).is_dir() and not any(Path(home).iterdir()),
@@ -126,9 +134,15 @@ def heard() -> dict:
             if plan.get("status_error"):
                 send({"id": told["id"], "error": {"code": -32601, "message": "Unhandled method"}})
             elif not plan.get("status_hang"):
-                send({"id": told["id"], "result": {
-                    "version": plan.get("version", "1.0.91-fake"),
-                    "protocolVersion": plan.get("protocol", 3)}})
+                send(
+                    {
+                        "id": told["id"],
+                        "result": {
+                            "version": plan.get("version", "1.0.91-fake"),
+                            "protocolVersion": plan.get("protocol", 3),
+                        },
+                    }
+                )
             continue
         # What is left of its plan, no turn (1.0.91, 24 Oct 2026), whenever it is asked -
         # alone or after a session's turn (89l): the plan's "quota" (none: refused), its
@@ -138,8 +152,12 @@ def heard() -> dict:
         if plan.get("quota_hang"):
             continue
         if "quota_error" in plan or "quota" not in plan:
-            send({"id": told["id"], "error": {"code": -32603, "message": plan.get(
-                "quota_error", "no quota")}})
+            send(
+                {
+                    "id": told["id"],
+                    "error": {"code": -32603, "message": plan.get("quota_error", "no quota")},
+                }
+            )
         else:
             send({"id": told["id"], "result": plan["quota"]})
     return told
@@ -168,9 +186,20 @@ def expect(method: str) -> dict:
 
 
 def event(kind: str, data: dict) -> None:
-    send({"method": "session.event", "params": {"sessionId": "s1", "event": {
-        "id": f"e{next(numbers)}", "timestamp": "2026-10-24T00:00:00Z", "type": kind,
-        "data": data}}})
+    send(
+        {
+            "method": "session.event",
+            "params": {
+                "sessionId": "s1",
+                "event": {
+                    "id": f"e{next(numbers)}",
+                    "timestamp": "2026-10-24T00:00:00Z",
+                    "type": kind,
+                    "data": data,
+                },
+            },
+        }
+    )
 
 
 save()
@@ -185,9 +214,16 @@ if handshake == "silent":
 if handshake == "ping":
     send({"id": started["id"], "error": {"code": -32603, "message": "not ready"}})
     expect("never")
-send({"id": started["id"], "result": {"message": "pong", "timestamp": "2026-10-24T00:00:00Z",
-                                      "protocolVersion": 2 if handshake == "version"
-                                      else plan.get("protocol", 3)}})
+send(
+    {
+        "id": started["id"],
+        "result": {
+            "message": "pong",
+            "timestamp": "2026-10-24T00:00:00Z",
+            "protocolVersion": 2 if handshake == "version" else plan.get("protocol", 3),
+        },
+    }
+)
 told = heard()  # (an account.getQuota alone is answered there; then it is ended)
 if told.get("method") == "auth.getStatus":
     # Whether it is signed in, no turn (1.0.103, 24 Oct 2026): the plan's "signed_in"
@@ -195,20 +231,39 @@ if told.get("method") == "auth.getStatus":
     record["status_asked"] = told.get("params")
     save()
     signed_in = plan.get("signed_in", True)
-    send({"id": told["id"], "result": {
-        "isAuthenticated": signed_in, "authType": "gh-cli" if signed_in else None,
-        "statusMessage": f"Logged in as {ACCOUNT['login']}" if signed_in else "Not logged in",
-        **({"login": ACCOUNT["login"]} if signed_in else {})}})
+    send(
+        {
+            "id": told["id"],
+            "result": {
+                "isAuthenticated": signed_in,
+                "authType": "gh-cli" if signed_in else None,
+                "statusMessage": f"Logged in as {ACCOUNT['login']}"
+                if signed_in
+                else "Not logged in",
+                **({"login": ACCOUNT["login"]} if signed_in else {}),
+            },
+        }
+    )
     expect("never")
 if told.get("method") == "sandbox.getHostSupport":
     # What this machine can sandbox (1.0.103, 24 Oct 2026, by REA): the plan's "sandbox",
     # else a sandbox that denies paths; "unknown": a Copilot that has no such method.
     record["sandbox_asked"] = True
     save()
-    support = plan.get("sandbox", {"supported": True, "capabilities": [
-        {"name": "denied_paths", "supported": True}]})
-    send({"id": told["id"], **({"error": {"code": -32601, "message": "Unhandled method"}}
-                               if support == "unknown" else {"result": support})})
+    support = plan.get(
+        "sandbox",
+        {"supported": True, "capabilities": [{"name": "denied_paths", "supported": True}]},
+    )
+    send(
+        {
+            "id": told["id"],
+            **(
+                {"error": {"code": -32601, "message": "Unhandled method"}}
+                if support == "unknown"
+                else {"result": support}
+            ),
+        }
+    )
     told = heard()
 create = told if told.get("method") == "session.create" else expect("session.create")
 record["create"] = create["params"]
@@ -216,21 +271,48 @@ save()
 if handshake == "create":
     send({"id": create["id"], "error": {"code": -32602, "message": "unknown field mcpServers"}})
     expect("never")
-if handshake == "model":  # the message seen live for a model not on the account (B-176, B-179); code a guess
+if (
+    handshake == "model"
+):  # the message seen live for a model not on the account (B-176, B-179); code a guess
     model = create["params"].get("model")
-    send({"id": create["id"], "error": {"code": -32603, "message": (
-        f'Request session.create failed with message: Model "{model}" is not available.')}})
+    send(
+        {
+            "id": create["id"],
+            "error": {
+                "code": -32603,
+                "message": (
+                    f'Request session.create failed with message: Model "{model}" is not available.'
+                ),
+            },
+        }
+    )
     expect("never")
 if handshake == "tier":  # the message seen live for Fusion High on a plan without it (21 Nov 2026)
-    send({"id": create["id"], "error": {"code": -32603, "message": (
-        "Request session.create failed with message: session construction failed: model "
-        'resolution leaf failed: Auto preference "hydrafusion" is disabled: This tier is not '
-        "available for the user's Copilot plan.; choose an enabled Auto preference or another "
-        "model")}})
+    send(
+        {
+            "id": create["id"],
+            "error": {
+                "code": -32603,
+                "message": (
+                    "Request session.create failed with message: session construction failed: model "
+                    'resolution leaf failed: Auto preference "hydrafusion" is disabled: This tier is not '
+                    "available for the user's Copilot plan.; choose an enabled Auto preference or another "
+                    "model"
+                ),
+            },
+        }
+    )
     expect("never")
-send({"id": create["id"], "result": {
-    "sessionId": "s1", "workspacePath": str(Path(home or cwd) / "session-state" / "s1"),
-    "authInfo": ACCOUNT}})
+send(
+    {
+        "id": create["id"],
+        "result": {
+            "sessionId": "s1",
+            "workspacePath": str(Path(home or cwd) / "session-state" / "s1"),
+            "authInfo": ACCOUNT,
+        },
+    }
+)
 asked = expect("session.send")
 record["prompt"] = asked["params"].get("prompt")
 save()
@@ -238,20 +320,26 @@ send({"id": asked["id"], "result": {"messageId": "m1"}})
 event("session.start", {"sessionId": "s1", "context": {"cwd": str(cwd)}})
 made = create["params"]
 hooks_on = made.get("hooks") is True or (
-    isinstance(made.get("hooks"), dict) and made["hooks"].get("hasHandlers") is True)
+    isinstance(made.get("hooks"), dict) and made["hooks"].get("hasHandlers") is True
+)
 
 
 def invoke(hook_type: str, more: dict) -> dict:
     """Ask the client's hook, as Copilot does (a request of its own); its answer, kept."""
     number, session_id = next(numbers), plan.get("hook_session", "s1")
-    given = {"cwd": str(cwd), "sessionId": session_id, "timestamp": int(time.time() * 1000),
-             **more}
-    send({"id": number, "method": "hooks.invoke",
-          "params": {"sessionId": session_id, "hookType": hook_type, "input": given}})
+    given = {"cwd": str(cwd), "sessionId": session_id, "timestamp": int(time.time() * 1000), **more}
+    send(
+        {
+            "id": number,
+            "method": "hooks.invoke",
+            "params": {"sessionId": session_id, "hookType": hook_type, "input": given},
+        }
+    )
     while (told := heard()).get("id") != number or "method" in told:
         pass
-    record["hooks"].append({"hookType": hook_type, "input": given, "answer": told,
-                            "answered_at": time.time()})
+    record["hooks"].append(
+        {"hookType": hook_type, "input": given, "answer": told, "answered_at": time.time()}
+    )
     save()
     return told
 
@@ -260,18 +348,29 @@ if hooks_on:
     invoke("sessionStart", {"source": "new", "initialPrompt": record["prompt"]})
 if plan.get("picked") and create["params"].get("model") in ("auto", "fusion"):
     plan["model"] = plan["picked"]
-    event("session.auto_mode_resolved", {"chosenModel": plan["picked"],
-                                         "selectionReason": plan.get("picked_why")})
+    event(
+        "session.auto_mode_resolved",
+        {"chosenModel": plan["picked"], "selectionReason": plan.get("picked_why")},
+    )
 spec = (made.get("mcpServers") or made.get("mcp", {}).get("servers") or {}).get("koloni")
-bridge = subprocess.Popen([spec["command"], *spec["args"]], stdin=subprocess.PIPE,
-                          stdout=subprocess.PIPE) if spec else None
+bridge = (
+    subprocess.Popen(
+        [spec["command"], *spec["args"]], stdin=subprocess.PIPE, stdout=subprocess.PIPE
+    )
+    if spec
+    else None
+)
 
 
 def koloni(method: str, params: dict) -> dict:
     """Talk to KOLONİ's tool server the way Copilot would: through the bridge it was given."""
     assert bridge is not None and bridge.stdin is not None and bridge.stdout is not None
-    bridge.stdin.write((json.dumps({"jsonrpc": "2.0", "id": next(numbers), "method": method,
-                                    "params": params}) + "\n").encode())
+    bridge.stdin.write(
+        (
+            json.dumps({"jsonrpc": "2.0", "id": next(numbers), "method": method, "params": params})
+            + "\n"
+        ).encode()
+    )
     bridge.stdin.flush()
     line = bridge.stdout.readline()
     if not line:
@@ -293,9 +392,14 @@ def permitted(call: str, request: dict, action: dict) -> bool:
     approved = False
     for _ in range(2 if action.get("twice") else 1):
         request_id = f"r{next(numbers)}"
-        event("permission.requested", {"requestId": request_id, "permissionRequest": {
-            "toolCallId": call, **request}, **({"resolvedByHook": True}
-                                               if action.get("hooked") else {})})
+        event(
+            "permission.requested",
+            {
+                "requestId": request_id,
+                "permissionRequest": {"toolCallId": call, **request},
+                **({"resolvedByHook": True} if action.get("hooked") else {}),
+            },
+        )
         if action.get("hooked"):  # a hook of its own said yes: nobody else is asked
             return True
         answer = expect("session.permissions.handlePendingPermissionRequest")
@@ -307,8 +411,10 @@ def permitted(call: str, request: dict, action: dict) -> bool:
         send({"id": answer["id"], "result": {"success": not action.get("unapplied")}})
         if action.get("unapplied"):
             expect("never")
-        event("permission.completed", {"requestId": request_id, "toolCallId": call,
-                                       "result": {"kind": "approved"}})
+        event(
+            "permission.completed",
+            {"requestId": request_id, "toolCallId": call, "result": {"kind": "approved"}},
+        )
         approved = params["result"].get("kind") == "approve-once"
     return approved
 
@@ -328,8 +434,11 @@ def pre_tool(call: str, name: str, arguments: object) -> tuple[str | None, objec
     if not isinstance(output, dict):
         return "errored", arguments, ""
     decision = output.get("permissionDecision")
-    return (decision if decision in ("allow", "deny", "ask") else None,
-            output.get("modifiedArgs", arguments), str(output.get("permissionDecisionReason") or ""))
+    return (
+        decision if decision in ("allow", "deny", "ask") else None,
+        output.get("modifiedArgs", arguments),
+        str(output.get("permissionDecisionReason") or ""),
+    )
 
 
 def patched(text: str) -> list[list]:
@@ -341,46 +450,78 @@ def patched(text: str) -> list[list]:
         if header:
             files.append([header[2], None if header[1] == "Delete" else "", None])
         elif files and line.startswith("*** Move to: "):
-            files[-1][2] = line[len("*** Move to: "):]
+            files[-1][2] = line[len("*** Move to: ") :]
         elif files and files[-1][1] is not None and line[:1] in ("+", " "):
             files[-1][1] += line[1:] + "\n"
     return files
 
 
-def tool(call: str, name: str, arguments: dict | str, request: dict | None, action: dict,
-         work=None, result: str = "done", shell: int | None = None, **start) -> None:
+def tool(
+    call: str,
+    name: str,
+    arguments: dict | str,
+    request: dict | None,
+    action: dict,
+    work=None,
+    result: str = "done",
+    shell: int | None = None,
+    **start,
+) -> None:
     began = {"toolCallId": call, "toolName": name, "arguments": arguments, **start}
     if action.get("start") not in ("after", "none"):
         event("tool.execution_start", began)
     if request is not None and "bypass" in action:  # (its reason, as the SDK types it)
-        request = {**request, "requestSandboxBypass": True,
-                   "requestSandboxBypassReason": action["bypass"]}
+        request = {
+            **request,
+            "requestSandboxBypass": True,
+            "requestSandboxBypassReason": action["bypass"],
+        }
     decision, ran, why = pre_tool(call, name, arguments)
     refused = "The user rejected this tool call."
     if decision == "ask":
-        approved = permitted(call, {
-            "kind": "hook", "toolName": name,
-            "toolArgs": arguments if action.get("hook_shows") == "original" else ran,
-            "hookMessage": why or f"Allow {name}?", "workingDirectory": str(cwd)}, action)
+        approved = permitted(
+            call,
+            {
+                "kind": "hook",
+                "toolName": name,
+                "toolArgs": arguments if action.get("hook_shows") == "original" else ran,
+                "hookMessage": why or f"Allow {name}?",
+                "workingDirectory": str(cwd),
+            },
+            action,
+        )
         if approved and action.get("then_native") and request is not None:
             if request["kind"] == "shell":
-                request = {**request, "fullCommandText": action.get(
-                    "native_command", ran.get("command") if isinstance(ran, dict) else None)}
+                request = {
+                    **request,
+                    "fullCommandText": action.get(
+                        "native_command", ran.get("command") if isinstance(ran, dict) else None
+                    ),
+                }
             approved = permitted(call, request, {})
         refused = "Denied by user via preToolUse hook prompt: rejected"
     elif decision in ("deny", "errored"):
         approved = False
-        refused = ("Denied by preToolUse hook (hook errored)" if decision == "errored"
-                   else f"Denied by preToolUse hook: {why}")
+        refused = (
+            "Denied by preToolUse hook (hook errored)"
+            if decision == "errored"
+            else f"Denied by preToolUse hook: {why}"
+        )
     else:
-        approved = decision == "allow" or request is None or bool(action.get("quiet")) or (
-            permitted(call, request, action))
+        approved = (
+            decision == "allow"
+            or request is None
+            or bool(action.get("quiet"))
+            or (permitted(call, request, action))
+        )
     if action.get("start") == "after":
         event("tool.execution_start", began)
     if not approved:
         if not action.get("no_complete"):  # (with it: never a word that it is done)
-            event("tool.execution_complete", {"toolCallId": call, "success": False, "error": {
-                "message": refused}})
+            event(
+                "tool.execution_complete",
+                {"toolCallId": call, "success": False, "error": {"message": refused}},
+            )
         return
     if isinstance(ran, dict) and "command" in ran:
         record["ran"].append(ran["command"])
@@ -388,51 +529,80 @@ def tool(call: str, name: str, arguments: dict | str, request: dict | None, acti
     if work:
         work()
     # ("sandboxed": it ran in its sandbox, as REA saw 1.0.103 say it)
-    event("tool.execution_complete", {"toolCallId": call, "success": True,
-                                      "result": {"content": result}, **(
-                                          {"toolTelemetry": {"sandboxApplied": True}}
-                                          if action.get("sandboxed") else {}), **(
-                                          {"shellExecution": {"exitCode": shell}}
-                                          if shell is not None else {})})
+    event(
+        "tool.execution_complete",
+        {
+            "toolCallId": call,
+            "success": True,
+            "result": {"content": result},
+            **({"toolTelemetry": {"sandboxApplied": True}} if action.get("sandboxed") else {}),
+            **({"shellExecution": {"exitCode": shell}} if shell is not None else {}),
+        },
+    )
 
 
 for number, action in enumerate(plan.get("script", [])):
     call = f"call_{number}"
     event("model.call_start", {"turnId": str(number), "model": plan.get("model", "auto")})
     if "say" in action:
-        event("assistant.message", {"messageId": f"m{number}", "content": action["say"],
-                                    "toolRequests": []})
+        event(
+            "assistant.message",
+            {"messageId": f"m{number}", "content": action["say"], "toolRequests": []},
+        )
     elif "shell" in action:
+
         def run(action=action) -> None:
             for touched, content in action.get("touches", {}).items():
                 (cwd / touched).parent.mkdir(parents=True, exist_ok=True)
                 (cwd / touched).write_bytes(content.encode("utf-8"))
+
         # ("no_code": its trailer left out, as B-377's command that could not start Python.)
         output = action.get("output", "").replace("{cwd}", str(cwd)) + (
-            "" if action.get("no_code") or action.get("trailer") is False else
-            f"\n<shellId: 0 completed with exit code {action.get('exit', 0)}>")
+            ""
+            if action.get("no_code") or action.get("trailer") is False
+            else f"\n<shellId: 0 completed with exit code {action.get('exit', 0)}>"
+        )
         # (The keys 1.0.91 sends, measured 24 Oct 2026; a later one may send where it runs.)
-        tool(call, action.get("tool", "powershell"),
-             {"command": action["shell"], **action.get("args", {})}, {
-            "kind": "shell", "fullCommandText": action["shell"], "intention": "Run it",
-            "commands": [{"identifier": action["shell"].split()[0],
-                          "readOnly": action["readonly"]}] if "readonly" in action else [],
-            "commandSegments": [],
-            **({"shellType": action.get("shell_type", "powershell")}
-               if action.get("shell_type", "") is not None else {}),
-            "possiblePaths": action.get("paths", []),
-            "possibleUrls": [{"url": url} for url in action.get("urls", [])],
-            "hasWriteFileRedirection": bool(action.get("redirect")),
-            "canOfferSessionApproval": True,
-            **({"resolvedWorkingDirectory": action["cwd"]} if "cwd" in action else {})},
-            action, run, output, None if action.get("no_code") else action.get("exit", 0),
-            **({"parentToolCallId": action["parent"]} if "parent" in action else {}))
+        tool(
+            call,
+            action.get("tool", "powershell"),
+            {"command": action["shell"], **action.get("args", {})},
+            {
+                "kind": "shell",
+                "fullCommandText": action["shell"],
+                "intention": "Run it",
+                "commands": [
+                    {"identifier": action["shell"].split()[0], "readOnly": action["readonly"]}
+                ]
+                if "readonly" in action
+                else [],
+                "commandSegments": [],
+                **(
+                    {"shellType": action.get("shell_type", "powershell")}
+                    if action.get("shell_type", "") is not None
+                    else {}
+                ),
+                "possiblePaths": action.get("paths", []),
+                "possibleUrls": [{"url": url} for url in action.get("urls", [])],
+                "hasWriteFileRedirection": bool(action.get("redirect")),
+                "canOfferSessionApproval": True,
+                **({"resolvedWorkingDirectory": action["cwd"]} if "cwd" in action else {}),
+            },
+            action,
+            run,
+            output,
+            None if action.get("no_code") else action.get("exit", 0),
+            **({"parentToolCallId": action["parent"]} if "parent" in action else {}),
+        )
     elif "write" in action or "delete" in action:
         target = cwd / (action.get("write") or action["delete"])
         content = action.get("content", "")
         there = target.exists()
-        before = {"path": str(target), "content": target.read_text(encoding="utf-8")} if (
-            there) else None
+        before = (
+            {"path": str(target), "content": target.read_text(encoding="utf-8")}
+            if (there)
+            else None
+        )
         after = None if "delete" in action else {"path": str(target), "content": content}
 
         def write(target=target, content=content, gone="delete" in action) -> None:
@@ -441,16 +611,19 @@ for number, action in enumerate(plan.get("script", [])):
                 return
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(content.encode("utf-8"))
+
         # (The keys 1.0.91 sends, measured 24 Oct 2026: no fileEdits.)
-        request = {"kind": "write", "fileName": str(target),
-                   "intention": "Edit file" if there else "Create file",
-                   "diff": action.get("diff", f"@@ -1 +1 @@\n+{content}"),
-                   "canOfferSessionApproval": True,
-                   # (What it says the file will hold: not always what it writes.)
-                   "newFileContents": action.get("contents", content)}
+        request = {
+            "kind": "write",
+            "fileName": str(target),
+            "intention": "Edit file" if there else "Create file",
+            "diff": action.get("diff", f"@@ -1 +1 @@\n+{content}"),
+            "canOfferSessionApproval": True,
+            # (What it says the file will hold: not always what it writes.)
+            "newFileContents": action.get("contents", content),
+        }
         if action.get("edits") is True:  # as a later version may say it
-            request["fileEdits"] = [
-                {k: v for k, v in (("before", before), ("after", after)) if v}]
+            request["fileEdits"] = [{k: v for k, v in (("before", before), ("after", after)) if v}]
         elif "edits" in action:
             request["fileEdits"] = action["edits"]
         if "resolved" in action:
@@ -458,11 +631,25 @@ for number, action in enumerate(plan.get("script", [])):
         tool(call, "edit" if there else "create", {"path": str(target)}, request, action, write)
     elif "patch" in action:
         files = patched(action["patch"])
-        edits = [{k: v for k, v in (
-            ("before", {"path": str(cwd / path), "content": (cwd / path).read_text("utf-8")}
-             if (cwd / path).exists() else None),
-            ("after", None if content is None else {"path": str(cwd / path), "content": content}))
-            if v} for path, content, _to in files]
+        edits = [
+            {
+                k: v
+                for k, v in (
+                    (
+                        "before",
+                        {"path": str(cwd / path), "content": (cwd / path).read_text("utf-8")}
+                        if (cwd / path).exists()
+                        else None,
+                    ),
+                    (
+                        "after",
+                        None if content is None else {"path": str(cwd / path), "content": content},
+                    ),
+                )
+                if v
+            }
+            for path, content, _to in files
+        ]
 
         def apply(files=files) -> None:
             for path, content, to in files:
@@ -471,20 +658,46 @@ for number, action in enumerate(plan.get("script", [])):
                 if content is not None:
                     (cwd / (to or path)).parent.mkdir(parents=True, exist_ok=True)
                     (cwd / (to or path)).write_bytes(content.encode("utf-8"))
-        tool(f"custom_{call}", "apply_patch", action["patch"], {
-            "kind": "write", "fileName": str(cwd / files[0][0]), "intention": "Apply patch",
-            "diff": action["patch"], "canOfferSessionApproval": True, "fileEdits": edits},
-            action, apply, f"Modified {len(files)} file(s)")
+
+        tool(
+            f"custom_{call}",
+            "apply_patch",
+            action["patch"],
+            {
+                "kind": "write",
+                "fileName": str(cwd / files[0][0]),
+                "intention": "Apply patch",
+                "diff": action["patch"],
+                "canOfferSessionApproval": True,
+                "fileEdits": edits,
+            },
+            action,
+            apply,
+            f"Modified {len(files)} file(s)",
+        )
     elif "read" in action:
         target = cwd / action["read"]
-        tool(call, "view", {"path": str(target)}, {
-            "kind": "read", "path": str(target), "intention": f"Read file: {target}"},
-            action, None, action.get("result", "contents"))
+        tool(
+            call,
+            "view",
+            {"path": str(target)},
+            {"kind": "read", "path": str(target), "intention": f"Read file: {target}"},
+            action,
+            None,
+            action.get("result", "contents"),
+        )
     elif "ask" in action:
         tool(call, action.get("tool", "other"), action.get("args", {}), action["ask"], action)
     elif "tool_call" in action:
-        tool(call, action["tool_call"], action.get("args", {}), action.get("native"), action,
-             None, action.get("result", "done"))
+        tool(
+            call,
+            action["tool_call"],
+            action.get("args", {}),
+            action.get("native"),
+            action,
+            None,
+            action.get("result", "done"),
+        )
     elif "koloni" in action:
         name, arguments = action["koloni"], action.get("args", {})
 
@@ -492,14 +705,33 @@ for number, action in enumerate(plan.get("script", [])):
             answer = koloni("tools/call", {"name": name, "arguments": arguments})
             record["results"].append(answer.get("result", answer))
             save()
-        tool(call, f"koloni-{name}", arguments, {
-            "kind": "mcp", "serverName": "koloni", "toolName": name, "toolTitle": name,
-            "readOnly": False, "args": arguments}, action, call_koloni,
-            mcpServerName="koloni", mcpToolName=name)
+
+        tool(
+            call,
+            f"koloni-{name}",
+            arguments,
+            {
+                "kind": "mcp",
+                "serverName": "koloni",
+                "toolName": name,
+                "toolTitle": name,
+                "readOnly": False,
+                "args": arguments,
+            },
+            action,
+            call_koloni,
+            mcpServerName="koloni",
+            mcpToolName=name,
+        )
     elif "request" in action:
         number_asked = next(numbers)
-        send({"id": number_asked, "method": action["request"],
-              "params": {"sessionId": "s1", **action.get("params", {})}})
+        send(
+            {
+                "id": number_asked,
+                "method": action["request"],
+                "params": {"sessionId": "s1", **action.get("params", {})},
+            }
+        )
         while (told := heard()).get("id") != number_asked or "method" in told:
             pass
         record["replies"].append({"method": action["request"], "answer": told})
@@ -507,8 +739,10 @@ for number, action in enumerate(plan.get("script", [])):
     elif "pause" in action:
         time.sleep(action["pause"])
     elif "error" in action:
-        event("session.error", {"errorType": action.get("error_type", "model"),
-                                "message": action["error"]})
+        event(
+            "session.error",
+            {"errorType": action.get("error_type", "model"), "message": action["error"]},
+        )
         event("session.idle", {})
         expect("never")
     elif "exit" in action:

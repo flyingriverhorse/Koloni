@@ -3,6 +3,7 @@
 Revision ID: 0008
 Revises: 0007
 """
+
 import json
 
 import sqlalchemy as sa
@@ -33,16 +34,15 @@ def _retool(change) -> None:
 
 def upgrade() -> None:
     with op.batch_alter_table("agents") as batch:
-        batch.add_column(sa.Column(
-            "name", sa.String(length=80), nullable=False, server_default=""))
+        batch.add_column(sa.Column("name", sa.String(length=80), nullable=False, server_default=""))
     with op.batch_alter_table("messages") as batch:
         batch.add_column(sa.Column("from_agent_id", sa.String(length=32), nullable=True))
     # An agent is named after its role; the second of a role in one turn is "Role 2".
     conn = op.get_bind()
     seen: dict[tuple[str, str], int] = {}
-    for agent_id, run_id, role in conn.execute(sa.text(
-        "SELECT id, run_id, role_name FROM agents ORDER BY created_at, rowid"
-    )).fetchall():
+    for agent_id, run_id, role in conn.execute(
+        sa.text("SELECT id, run_id, role_name FROM agents ORDER BY created_at, rowid")
+    ).fetchall():
         count = seen[run_id, role] = seen.get((run_id, role), 0) + 1
         conn.execute(
             sa.text("UPDATE agents SET name = :name WHERE id = :id"),

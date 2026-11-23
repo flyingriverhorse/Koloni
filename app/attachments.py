@@ -33,15 +33,46 @@ MAX_PAGES = 500  # a PDF's read
 MAX_DOCUMENT = 50 * 2**20  # a .docx's word/document.xml, unpacked: a zip bomb is refused
 KINDS = ("text", "image", "pdf", "docx", "video", "executable", "file")
 # Named as a program or script runs: kept as one whatever its bytes are.
-RUNS = frozenset({
-    ".exe", ".dll", ".msi", ".com", ".scr", ".bat", ".cmd", ".ps1", ".psm1", ".vbs", ".vbe",
-    ".wsf", ".sh", ".bash", ".zsh", ".command", ".app", ".apk", ".jar", ".lnk",
-})
+RUNS = frozenset(
+    {
+        ".exe",
+        ".dll",
+        ".msi",
+        ".com",
+        ".scr",
+        ".bat",
+        ".cmd",
+        ".ps1",
+        ".psm1",
+        ".vbs",
+        ".vbe",
+        ".wsf",
+        ".sh",
+        ".bash",
+        ".zsh",
+        ".command",
+        ".app",
+        ".apk",
+        ".jar",
+        ".lnk",
+    }
+)
 # A program's first bytes: Windows, Linux, macOS (and Java), a script with its interpreter.
-PROGRAMS = (b"MZ", b"\x7fELF", b"\xfe\xed\xfa", b"\xce\xfa\xed\xfe", b"\xcf\xfa\xed\xfe",
-            b"\xca\xfe\xba\xbe", b"#!")
-IMAGES = ((b"\x89PNG\r\n\x1a\n", "image/png"), (b"\xff\xd8\xff", "image/jpeg"),
-          (b"GIF87a", "image/gif"), (b"GIF89a", "image/gif"))
+PROGRAMS = (
+    b"MZ",
+    b"\x7fELF",
+    b"\xfe\xed\xfa",
+    b"\xce\xfa\xed\xfe",
+    b"\xcf\xfa\xed\xfe",
+    b"\xca\xfe\xba\xbe",
+    b"#!",
+)
+IMAGES = (
+    (b"\x89PNG\r\n\x1a\n", "image/png"),
+    (b"\xff\xd8\xff", "image/jpeg"),
+    (b"GIF87a", "image/gif"),
+    (b"GIF89a", "image/gif"),
+)
 SHOWN = ("image", "video", "pdf")  # served as what they are; the rest only as a download
 # HEIC and AVIF photos: an `ftyp` box as a video has, but no model or page here shows them.
 PHOTOS = (b"heic", b"heix", b"heim", b"heis", b"hevc", b"mif1", b"msf1", b"avif", b"avis")
@@ -65,7 +96,8 @@ def secret_name(name: str) -> bool:
     """Whether an attached file is a secret by its name (`secret_in_project`) - also as a
     chat's second one is named: ".env (2)", "credentials (2).json" (`api.attachments`)."""
     return secret_in_project(name) or secret_in_project(
-        re.sub(r"( \(\d+\))+(?=\.[^.]*$|$)", "", name))
+        re.sub(r"( \(\d+\))+(?=\.[^.]*$|$)", "", name)
+    )
 
 
 def _is_text(data: bytes) -> bool:
@@ -113,14 +145,18 @@ def image_size(data: bytes) -> tuple[int, int] | None:
     if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
         chunk, body = data[12:16], data[20:]
         if chunk == b"VP8X":
-            return (int.from_bytes(body[4:7], "little") + 1,
-                    int.from_bytes(body[7:10], "little") + 1)
+            return (
+                int.from_bytes(body[4:7], "little") + 1,
+                int.from_bytes(body[7:10], "little") + 1,
+            )
         if chunk == b"VP8L" and len(body) >= 5:
             bits = int.from_bytes(body[1:5], "little")
             return (bits & 0x3FFF) + 1, (bits >> 14 & 0x3FFF) + 1
         if chunk == b"VP8 " and len(body) >= 10:
-            return (int.from_bytes(body[6:8], "little") & 0x3FFF,
-                    int.from_bytes(body[8:10], "little") & 0x3FFF)
+            return (
+                int.from_bytes(body[6:8], "little") & 0x3FFF,
+                int.from_bytes(body[8:10], "little") & 0x3FFF,
+            )
         return None
     at = 2  # a JPEG: its segments, to the frame's (SOF0-SOF15, not DHT, JPG or DAC)
     while data.startswith(b"\xff\xd8") and at + 9 <= len(data) and data[at] == 0xFF:
@@ -129,9 +165,11 @@ def image_size(data: bytes) -> tuple[int, int] | None:
             at += 1 if marker == 0xFF else 2  # (a fill byte, or a marker with no length)
             continue
         if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
-            return (int.from_bytes(data[at + 7:at + 9], "big"),
-                    int.from_bytes(data[at + 5:at + 7], "big"))
-        at += 2 + int.from_bytes(data[at + 2:at + 4], "big")
+            return (
+                int.from_bytes(data[at + 7 : at + 9], "big"),
+                int.from_bytes(data[at + 5 : at + 7], "big"),
+            )
+        at += 2 + int.from_bytes(data[at + 2 : at + 4], "big")
     return None
 
 
@@ -205,8 +243,11 @@ def _pdf_text(data: bytes, limits: dict | None = None) -> tuple[str, str]:
     try:
         ran = subprocess.run(
             [sys.executable, "-I", "-c", PDF_SCRIPT, json.dumps(limits or PDF_LIMITS)],
-            input=data, capture_output=True, timeout=PDF_SECONDS,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            input=data,
+            capture_output=True,
+            timeout=PDF_SECONDS,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
     except subprocess.TimeoutExpired:
         raise Refused("it took too long") from None
     if ran.returncode != 0:
@@ -216,8 +257,9 @@ def _pdf_text(data: bytes, limits: dict | None = None) -> tuple[str, str]:
         return "", "locked with a password: no text taken out"
     count, pages = told["count"], told["pages"]
     empty = [at for at, said in enumerate(pages, 1) if not said]
-    text = "\n\n".join(f"--- page {at} ---\n{said or f'no text on page {at}'}"
-                       for at, said in enumerate(pages, 1))
+    text = "\n\n".join(
+        f"--- page {at} ---\n{said or f'no text on page {at}'}" for at, said in enumerate(pages, 1)
+    )
     summary = f"{count} page{'s' * (count != 1)}, text taken out"
     if empty:
         shown = ", ".join(map(str, empty[:10])) + (" …" if len(empty) > 10 else "")
@@ -272,26 +314,43 @@ LISTED = (
 )
 # (Not said while read_attachment is switched off on the Tools page, slice 61.)
 READ_HOW = "read one with read_attachment by its name; "
-NOT_SEEN = ("your model is not known to see {what}: say so to the user, and hand it to a role "
-            "whose model sees {what} (the guide of models says which)")
-NOT_GIVEN = ("{cli} has no way KOLONİ can give it {what}, so your model was not shown it: say so "
-             "to the user, and hand it to a role on Claude Code, Codex or an API whose model "
-             "sees {what} (the guide of models says which)")
-REFUSED = ("KOLONİ sent your model the {what} as it is and the model refused it; it was sent "
-           "again {instead}. Say so to the user")
-TOO_LARGE = ("KOLONİ sent your model the {what} as it is and the request was refused as too "
-             "large; it was sent again as its name and summary. Say so to the user")
+NOT_SEEN = (
+    "your model is not known to see {what}: say so to the user, and hand it to a role "
+    "whose model sees {what} (the guide of models says which)"
+)
+NOT_GIVEN = (
+    "{cli} has no way KOLONİ can give it {what}, so your model was not shown it: say so "
+    "to the user, and hand it to a role on Claude Code, Codex or an API whose model "
+    "sees {what} (the guide of models says which)"
+)
+REFUSED = (
+    "KOLONİ sent your model the {what} as it is and the model refused it; it was sent "
+    "again {instead}. Say so to the user"
+)
+TOO_LARGE = (
+    "KOLONİ sent your model the {what} as it is and the request was refused as too "
+    "large; it was sent again as its name and summary. Say so to the user"
+)
 # The most of a picture (or video) sent to a model as it is: Anthropic's limit, the lowest.
 MAX_SENT = 5 * 2**20
-ONE_LINE = ("End your reply with one line for each file: its name, what you saw in it, and "
-            "whom you handed it to - or that you kept it as context, or could not look at it.")
-LINKS = ("Links in the message are not read by KOLONİ: an agent that needs one reads it with "
-         "http_request, which asks the user as it always does.")
+ONE_LINE = (
+    "End your reply with one line for each file: its name, what you saw in it, and "
+    "whom you handed it to - or that you kept it as context, or could not look at it."
+)
+LINKS = (
+    "Links in the message are not read by KOLONİ: an agent that needs one reads it with "
+    "http_request, which asks the user as it always does."
+)
 
 
 def size_text(size: int) -> str:
-    return (f"{size} B" if size < 1024 else f"{size / 1024:.0f} KB" if size < 2**20
-            else f"{size / 2**20:.1f} MB")
+    return (
+        f"{size} B"
+        if size < 1024
+        else f"{size / 1024:.0f} KB"
+        if size < 2**20
+        else f"{size / 2**20:.1f} MB"
+    )
 
 
 def line_of(name: str, kind: str, size: int, summary: str, shown: str) -> str:
@@ -307,15 +366,18 @@ def page(text: str, start: int = 1) -> str:
     lines = text.splitlines()
     begin = max(1, start) - 1
     taken, size = [], 0
-    for line in lines[begin:begin + READ_LINES]:
+    for line in lines[begin : begin + READ_LINES]:
         size += len(line) + 1
         if size > READ_CHARS and taken:
             break
         taken.append(line)
     end = begin + len(taken)
     head = f"(lines {begin + 1}-{end} of {len(lines)})"
-    rest = (f"\n(…{len(lines) - end} more lines: read again with start {end + 1})"
-            if end < len(lines) else "")
+    rest = (
+        f"\n(…{len(lines) - end} more lines: read again with start {end + 1})"
+        if end < len(lines)
+        else ""
+    )
     if start <= 1 and rest:
         rest += "\n(its last lines:)\n" + "\n".join(lines[-20:])
     return f"{head}\n" + "\n".join(taken) + rest

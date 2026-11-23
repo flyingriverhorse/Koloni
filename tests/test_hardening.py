@@ -60,8 +60,9 @@ def test_a_sub_agents_work_is_not_taken_in_through_a_link_made_meanwhile(
     make_client, project_dir, tmp_path
 ):
     held = Gate()
-    client, _pid, cid, _run_id = start(make_client, project_dir, [
-        step(edit("two", "TWO-agent")), held.step(text("A done"))])
+    client, _pid, cid, _run_id = start(
+        make_client, project_dir, [step(edit("two", "TWO-agent")), held.step(text("A done"))]
+    )
     held.wait_partial()
     # the project's file becomes another name of a file outside that holds the same text
     outside = tmp_path / "outside-lines.txt"
@@ -71,9 +72,16 @@ def test_a_sub_agents_work_is_not_taken_in_through_a_link_made_meanwhile(
     held.release()
     # Full auto takes the work in by itself: this file is not written, and the card says why
     # and stays for the user, as for any file that could not be written.
-    snap = until(client, cid, lambda s: any(
-        "hard link" in (one.get("note") or "") for merge in s["merges"] for one in merge["files"]),
-        timeout=LONG)
+    snap = until(
+        client,
+        cid,
+        lambda s: any(
+            "hard link" in (one.get("note") or "")
+            for merge in s["merges"]
+            for one in merge["files"]
+        ),
+        timeout=LONG,
+    )
     assert [one["state"] for one in snap["merges"][0]["files"]] != ["applied"]
     assert outside.read_bytes() == LINES.encode()
     assert lines(project_dir) == LINES.split("\n")[:-1]
@@ -131,7 +139,8 @@ def test_a_file_read_line_by_line_reads_as_the_whole_text_did(tmp_path, monkeypa
         out = run_read_tool(ws, "read_file", {"path": "f.txt", "offset": offset, "limit": limit})
         # (The file's form, KOLONİ's last line since B-162, is not in the old text.)
         assert re.sub(r"\n\[the file: [^\]]*\]$", "", out) == as_before(
-            TEXTS[name], offset, limit), (offset, limit)
+            TEXTS[name], offset, limit
+        ), (offset, limit)
 
 
 def test_a_file_that_is_not_text_is_said_to_be_not_text(tmp_path):
@@ -174,13 +183,19 @@ def test_a_search_skips_what_is_not_text_and_says_what_it_says_today(tmp_path):
     ws = Workspace(tmp_path)
     assert ws.search("needle") == (
         [("a.txt", 1, "needle here"), ("a.txt", 3, "needle again"), ("c.txt", 1, "şu needle")],
-        False, 0, ["d.txt"])
+        False,
+        0,
+        ["d.txt"],
+    )
     assert "[1 file(s) over 256 KB not searched: d.txt — read_file" in _search(
-        ws, {"pattern": "needle"}, 30, None)
+        ws, {"pattern": "needle"}, 30, None
+    )
     for n in range(6):  # (named, five at most)
         (tmp_path / f"f{n}.txt").write_bytes(b"x\n" * 140_000)
-    assert ("[7 file(s) over 256 KB not searched: d.txt, f0.txt, f1.txt, f2.txt, f3.txt and 2 "
-            "more — read_file") in _search(ws, {"pattern": "needle"}, 30, None)
+    assert (
+        "[7 file(s) over 256 KB not searched: d.txt, f0.txt, f1.txt, f2.txt, f3.txt and 2 "
+        "more — read_file"
+    ) in _search(ws, {"pattern": "needle"}, 30, None)
     with pytest.raises(WorkspaceError, match="invalid regular expression"):
         ws.search("(")
     with pytest.raises(WorkspaceError, match="does not exist"):
@@ -200,7 +215,7 @@ def test_stop_during_a_search_ends_the_search_and_the_turn_at_once(
     stopped = time.monotonic()
     client.post(f"/api/runs/{run_id}/cancel")
     snap = wait_run(client, cid, run_id, timeout=10)
-    assert time.monotonic() - stopped < 10                    # not the search's 120 seconds
+    assert time.monotonic() - stopped < 10  # not the search's 120 seconds
     assert snap["runs"][0]["status"] == "cancelled"
     (tool,) = snap["tool_calls"]
     assert tool["status"] == "failed" and "stopped" in tool["result"]
@@ -235,7 +250,11 @@ def test_the_answer_to_an_error_nobody_caught_may_not_be_framed_either(settings)
 
 @pytest.mark.parametrize("mode", ["ask", "full_auto"])
 def test_claude_code_gets_no_leave_to_write_a_file_with_another_name(
-    claude_app, wait_run, project_dir, tmp_path, mode  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,
+    tmp_path,
+    mode,  # noqa: F811
 ):
     outside = tmp_path / "outside.py"
     outside.write_bytes(b"print('hi')\n")
@@ -245,7 +264,7 @@ def test_claude_code_gets_no_leave_to_write_a_file_with_another_name(
     cid, run_id = claude_start(client, project_dir, provider, mode)
     snap = wait_run(client, cid, run_id, timeout=20)
     assert outside.read_bytes() == b"print('hi')\n"
-    assert snap["file_changes"] == []                       # nothing proposed, nobody asked
+    assert snap["file_changes"] == []  # nothing proposed, nobody asked
     (tool,) = snap["tool_calls"]
     assert tool["status"] == "failed" and "hard link" in tool["result"]
     verdict = claude_app.record()["asked"][0]
@@ -293,17 +312,26 @@ def test_what_a_copy_was_made_from_is_never_written_through_a_link(tmp_path):
     (project / "a.txt").write_bytes(b"a")
     copy = copies.make(project, tmp_path / "runtime", "a1")
     outside.write_bytes(b"theirs")
-    link(outside, copy.root.parent / "base.new")      # made by a command beside the tree
+    link(outside, copy.root.parent / "base.new")  # made by a command beside the tree
     copy.save()
     assert outside.read_bytes() == b"theirs"
     assert not (copy.root.parent / "base.new").exists()
     assert copies.load(project, tmp_path / "runtime", "a1").base == copy.base
 
 
-@pytest.mark.parametrize("given, seconds", [
-    (None, 20.0), ("", 20.0), ("7.5", 7.5), ("0", 20.0), ("-3", 20.0), ("soon", 20.0),
-    ("nan", 20.0), ("inf", 20.0),
-])
+@pytest.mark.parametrize(
+    "given, seconds",
+    [
+        (None, 20.0),
+        ("", 20.0),
+        ("7.5", 7.5),
+        ("0", 20.0),
+        ("-3", 20.0),
+        ("soon", 20.0),
+        ("nan", 20.0),
+        ("inf", 20.0),
+    ],
+)
 def test_the_search_time_limit_is_a_positive_number_or_the_default(given, seconds):
     from app.config import load_settings
 

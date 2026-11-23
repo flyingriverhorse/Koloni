@@ -32,14 +32,19 @@ def project(make_client, project_dir, lead_steps, **settings):
 
 def talk(client, pid, **settings):
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    assert client.patch(f"/api/conversations/{cid}", json={
-        "permission_mode": "full_auto", **settings}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/conversations/{cid}", json={"permission_mode": "full_auto", **settings}
+        ).status_code
+        == 200
+    )
     return cid
 
 
 def go(client, cid):
-    return client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()[
-        "run"]["id"]
+    return client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()["run"][
+        "id"
+    ]
 
 
 def board(client, pid):
@@ -57,13 +62,14 @@ def test_the_projects_limit_holds_a_second_conversations_agent_until_there_is_ro
 ):
     first = Gate()
     client, model, pid = project(
-        make_client, project_dir, [first.step(text("A done")), text("B done")], max_agents=1)
+        make_client, project_dir, [first.step(text("A done")), text("B done")], max_agents=1
+    )
     a, b = talk(client, pid), talk(client, pid)
     run_a = go(client, a)
     first.wait_partial()
     run_b = go(client, b)
     snap = until(client, b, lambda s: s["agents"] and agent(s, "Lead")["status"] == "queued")
-    assert len(model.calls) == 1                     # B's lead has not been asked anything
+    assert len(model.calls) == 1  # B's lead has not been asked anything
     told = board(client, pid)
     assert (told["limit"], told["running"]) == (1, 1)
     assert [x["status"] for x in on_board(told, a)["agents"]] == ["running"]
@@ -78,7 +84,8 @@ def test_the_projects_limit_holds_a_second_conversations_agent_until_there_is_ro
 def test_without_a_limit_two_conversations_work_at_once(make_client, wait_run, project_dir):
     first = Gate()
     client, model, pid = project(
-        make_client, project_dir, [first.step(text("A done")), text("B done")])
+        make_client, project_dir, [first.step(text("A done")), text("B done")]
+    )
     a, b = talk(client, pid), talk(client, pid)
     run_a = go(client, a)
     first.wait_partial()
@@ -93,8 +100,8 @@ def test_the_board_shows_every_conversations_agents_and_what_they_hold(
 ):
     first = Gate()
     client, model, pid = project(
-        make_client, project_dir,
-        [step(write("a.txt", "A")), first.step(text("A done"))])
+        make_client, project_dir, [step(write("a.txt", "A")), first.step(text("A done"))]
+    )
     a = talk(client, pid)
     idle = talk(client, pid)
     run_a = go(client, a)
@@ -106,7 +113,7 @@ def test_the_board_shows_every_conversations_agents_and_what_they_hold(
     assert on_board(told, idle)["agents"] == [] and told["conflicts"] == []
     first.release()
     wait_run(client, a, run_a)
-    assert on_board(board(client, pid), a)["agents"] == []      # only agents at work are on it
+    assert on_board(board(client, pid), a)["agents"] == []  # only agents at work are on it
 
 
 def test_two_conversations_that_want_one_file_are_named_on_the_board(
@@ -114,9 +121,16 @@ def test_two_conversations_that_want_one_file_are_named_on_the_board(
 ):
     first = Gate()
     client, model, pid = project(
-        make_client, project_dir,
-        [step(write("a.txt", "A")), first.step(text("A done")),
-         step(write("a.txt", "B")), text("B done"), text("B done")])
+        make_client,
+        project_dir,
+        [
+            step(write("a.txt", "A")),
+            first.step(text("A done")),
+            step(write("a.txt", "B")),
+            text("B done"),
+            text("B done"),
+        ],
+    )
     a, b = talk(client, pid), talk(client, pid)
     run_a = go(client, a)
     first.wait_partial()
@@ -125,7 +139,10 @@ def test_two_conversations_that_want_one_file_are_named_on_the_board(
     # B-140 (live): the waiting chat said nothing of where the file is held: its holder's chat is named.
     held = agent(snap, "Lead")["waiting_for"]
     assert (held["conversation_id"], held["asks_you"]) == (a, False)
-    assert held["conversation_title"] == client.get(f"/api/conversations/{a}").json()["conversation"]["title"]
+    assert (
+        held["conversation_title"]
+        == client.get(f"/api/conversations/{a}").json()["conversation"]["title"]
+    )
     (conflict,) = board(client, pid)["conflicts"]
     assert conflict["path"] == "a.txt"
     assert (conflict["holder"]["conversation_id"], conflict["holder"]["agent_name"]) == (a, "Lead")
@@ -144,8 +161,8 @@ def test_a_conversation_whose_sub_agents_changes_wait_for_the_user_says_so_on_th
     from tests.test_copy_scenarios import one
 
     client, model, cid, run_id = one(
-        make_client, project_dir, [step(write("a.txt", "A")), text("A done")],
-        permission_mode="ask")
+        make_client, project_dir, [step(write("a.txt", "A")), text("A done")], permission_mode="ask"
+    )
     snap = until(client, cid, lambda s: [m["status"] for m in s["merges"]] == ["pending"])
     pid = snap["conversation"]["project_id"]
     told = on_board(board(client, pid), cid)
@@ -164,16 +181,21 @@ def test_a_copy_kept_at_its_step_limit_waits_on_the_board_until_it_is_discarded(
     # its chat, but the board counted only a pending card - Ready said nothing waits, no toast)
     from tests.test_copy_scenarios import looping, stopped_at_its_roles_steps
 
-    client, _model, cid, run_id = stopped_at_its_roles_steps(make_client, project_dir, [
-        step(write("a.txt", "A")), *looping("a")[:2], text("never said")], mode="auto_edit")
+    client, _model, cid, run_id = stopped_at_its_roles_steps(
+        make_client,
+        project_dir,
+        [step(write("a.txt", "A")), *looping("a")[:2], text("never said")],
+        mode="auto_edit",
+    )
     snap = wait_run(client, cid, run_id)
     (kept,) = snap["merges"]
     assert kept["status"] == "kept" and kept["files"], kept
     pid = snap["conversation"]["project_id"]
     assert on_board(board(client, pid), cid)["merges_pending"] == 1, snap["merges"]
     assert client.post(f"/api/merges/{kept['id']}/reject").status_code == 200  # (Discard)
-    assert on_board(board(client, pid), cid)["merges_pending"] == 0, (
-        client.get(f"/api/conversations/{cid}").json()["merges"])
+    assert on_board(board(client, pid), cid)["merges_pending"] == 0, client.get(
+        f"/api/conversations/{cid}"
+    ).json()["merges"]
 
 
 def test_a_kept_copy_to_take_in_waits_on_the_board_as_in_its_chat(settings_env, project_dir):

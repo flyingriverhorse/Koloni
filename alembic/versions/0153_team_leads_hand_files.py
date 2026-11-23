@@ -10,6 +10,7 @@ new ones are still there as given.
 Revision ID: 0153
 Revises: 0152
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -20,23 +21,30 @@ branch_labels = None
 depends_on = None
 
 # As they were when this was written (app.roles): a migration does not follow later code.
-STAGES = ("Run your team's stages in order with the recipe you were given; hand findings to the "
-          "right role; report to the {who}.")
-WAS_SPLITS = ("When a job is big and splits into independent parts (separate files or modules), "
-              "you may give each part its own agent, within what your step draws, asked for in "
-              "one reply, never the same file to two; a small job stays with you.")
+STAGES = (
+    "Run your team's stages in order with the recipe you were given; hand findings to the "
+    "right role; report to the {who}."
+)
+WAS_SPLITS = (
+    "When a job is big and splits into independent parts (separate files or modules), "
+    "you may give each part its own agent, within what your step draws, asked for in "
+    "one reply, never the same file to two; a small job stays with you."
+)
 WAS = tuple(f"{STAGES.format(who=who)} {WAS_SPLITS}" for who in ("Lead", "Orchestrator"))
-NOW = ("Run your team's stages in order with the recipe you were given. Your roles do the work: "
-       "hand every file job and every finding to the right role - you write no file yourself; "
-       "report to the Orchestrator. When a job is big and splits into independent parts "
-       "(separate files or modules), you may give each part its own agent, within what your step "
-       "draws, asked for in one reply, never the same file to two; a small job goes to one agent.")
+NOW = (
+    "Run your team's stages in order with the recipe you were given. Your roles do the work: "
+    "hand every file job and every finding to the right role - you write no file yourself; "
+    "report to the Orchestrator. When a job is big and splits into independent parts "
+    "(separate files or modules), you may give each part its own agent, within what your step "
+    "draws, asked for in one reply, never the same file to two; a small job goes to one agent."
+)
 
 
 def _set(new: str, old: str) -> None:
-    op.get_bind().execute(sa.text(
-        "UPDATE roles SET instructions = :new WHERE kind = 'lead' AND instructions = :old"),
-        {"new": new, "old": old})
+    op.get_bind().execute(
+        sa.text("UPDATE roles SET instructions = :new WHERE kind = 'lead' AND instructions = :old"),
+        {"new": new, "old": old},
+    )
 
 
 def upgrade() -> None:

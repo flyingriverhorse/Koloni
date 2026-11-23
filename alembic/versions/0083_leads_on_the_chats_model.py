@@ -9,6 +9,7 @@ rule. One the user changed is left as it is.
 Revision ID: 0083
 Revises: 0082
 """
+
 from alembic import op
 
 revision = "0083"
@@ -18,10 +19,14 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("UPDATE roles SET tier = 'conversation', tier_min = NULL WHERE kind = 'lead' "
-               "AND tier IS NULL AND tier_min = 'balanced' AND tier_max IS NULL")
+    op.execute(
+        "UPDATE roles SET tier = 'conversation', tier_min = NULL WHERE kind = 'lead' "
+        "AND tier IS NULL AND tier_min = 'balanced' AND tier_max IS NULL"
+    )
 
 
 def downgrade() -> None:
-    op.execute("UPDATE roles SET tier = NULL, tier_min = 'balanced' WHERE kind = 'lead' "
-               "AND tier = 'conversation' AND tier_min IS NULL AND tier_max IS NULL")
+    op.execute(
+        "UPDATE roles SET tier = NULL, tier_min = 'balanced' WHERE kind = 'lead' "
+        "AND tier = 'conversation' AND tier_min IS NULL AND tier_max IS NULL"
+    )

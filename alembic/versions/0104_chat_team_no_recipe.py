@@ -3,6 +3,7 @@
 Revision ID: 0104
 Revises: 0101
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -14,8 +15,9 @@ depends_on = None
 
 def upgrade() -> None:
     with op.batch_alter_table("conversation_teams") as batch:
-        batch.add_column(sa.Column("no_recipe", sa.Boolean(), nullable=False,
-                                   server_default=sa.false()))
+        batch.add_column(
+            sa.Column("no_recipe", sa.Boolean(), nullable=False, server_default=sa.false())
+        )
 
 
 def downgrade() -> None:

@@ -3,6 +3,7 @@
 Revision ID: 0033
 Revises: 0032
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -19,8 +20,9 @@ def upgrade() -> None:
     with op.batch_alter_table("roles") as batch:
         batch.add_column(sa.Column("tier", sa.String(10), nullable=True))
     with op.batch_alter_table("conversations") as batch:
-        batch.add_column(sa.Column(
-            "lead_auto", sa.Boolean(), server_default=sa.false(), nullable=False))
+        batch.add_column(
+            sa.Column("lead_auto", sa.Boolean(), server_default=sa.false(), nullable=False)
+        )
 
 
 def downgrade() -> None:

@@ -40,12 +40,19 @@ def users_own_shell(monkeypatch):
 
 
 def run_once(settings_env, client_of, project_dir, wait_run):
-    app = create_app(load_settings(settings_env), model=ScriptedModel([]),
-                     clients={"Copilot": client_of})
+    app = create_app(
+        load_settings(settings_env), model=ScriptedModel([]), clients={"Copilot": client_of}
+    )
     with TestClient(app, base_url="http://127.0.0.1:8790") as client:
-        made = client.post("/api/providers", json={
-            "name": "Copilot", "kind": "copilot_cli", "default_model": "gpt-x",
-            "mode": "native" if isinstance(client_of, CopilotNativeClient) else "session"})
+        made = client.post(
+            "/api/providers",
+            json={
+                "name": "Copilot",
+                "kind": "copilot_cli",
+                "default_model": "gpt-x",
+                "mode": "native" if isinstance(client_of, CopilotNativeClient) else "session",
+            },
+        )
         assert made.status_code == 201, made.text
         cid, run_id = start(client, project_dir, made.json())
         return wait_run(client, cid, run_id)["runs"][0]
@@ -91,7 +98,9 @@ async def test_copilot_is_asked_only_whether_it_is_signed_in_and_nothing_of_whom
     assert sorted(seen["env"]) == ["COPILOT_HOME"] and seen["home_was_empty"]
     plan(tmp_path, monkeypatch, signed_in=False)
     assert await copilot_signed_in(None, None, 20, launcher=HEADLESS) == {
-        "isAuthenticated": False, "authType": None}
+        "isAuthenticated": False,
+        "authType": None,
+    }
 
 
 def test_the_providers_check_says_whether_copilot_is_signed_in_and_never_as_whom(
@@ -104,12 +113,16 @@ def test_the_providers_check_says_whether_copilot_is_signed_in_and_never_as_whom
     monkeypatch.setattr(app.limits, "copilot_signed_in", asked)
     plan(tmp_path, monkeypatch)
     cli = CopilotSessionClient(None, None, timeout=30, launcher=FAKE, options={})
-    app_ = create_app(load_settings(settings_env), model=ScriptedModel([]),
-                      clients={"Copilot": cli})
+    app_ = create_app(
+        load_settings(settings_env), model=ScriptedModel([]), clients={"Copilot": cli}
+    )
     with TestClient(app_, base_url="http://127.0.0.1:8790") as client:
         # (Its command found on this machine: any program that is there.)
-        made = client.post("/api/providers", headers=ORIGIN, json={
-            "name": "Copilot", "kind": "copilot_cli", "executable": sys.executable}).json()
+        made = client.post(
+            "/api/providers",
+            headers=ORIGIN,
+            json={"name": "Copilot", "kind": "copilot_cli", "executable": sys.executable},
+        ).json()
         seen = client.get(f"/api/providers/{made['id']}/availability", headers=ORIGIN)
         assert seen.json()["signed_in"] is True
         tested = client.post(f"/api/providers/{made['id']}/test", headers=ORIGIN)
@@ -125,5 +138,6 @@ def test_the_providers_check_says_whether_copilot_is_signed_in_and_never_as_whom
     # Whose account it is: in no answer, no log line, nothing KOLONİ keeps.
     assert not any(LOGIN in text for text in answers) and LOGIN not in caplog.text
     runtime = tmp_path / "runtime"
-    assert not any(LOGIN.encode() in path.read_bytes()
-                   for path in runtime.rglob("*") if path.is_file())
+    assert not any(
+        LOGIN.encode() in path.read_bytes() for path in runtime.rglob("*") if path.is_file()
+    )

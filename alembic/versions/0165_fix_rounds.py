@@ -7,6 +7,7 @@ on 2, the number it was. Going back drops it.
 Revision ID: 0165
 Revises: 0164
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -19,8 +20,7 @@ depends_on = None
 
 def upgrade() -> None:
     with op.batch_alter_table("projects") as batch:
-        batch.add_column(sa.Column("fix_rounds", sa.Integer(), nullable=False,
-                                   server_default="2"))
+        batch.add_column(sa.Column("fix_rounds", sa.Integer(), nullable=False, server_default="2"))
 
 
 def downgrade() -> None:

@@ -3,6 +3,7 @@
 Revision ID: 0050
 Revises: 0049
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -15,8 +16,9 @@ depends_on = None
 def upgrade() -> None:
     # On for the conversations there are, as for new ones.
     with op.batch_alter_table("conversations") as batch:
-        batch.add_column(sa.Column(
-            "lead_hands_code", sa.Boolean(), nullable=False, server_default=sa.true()))
+        batch.add_column(
+            sa.Column("lead_hands_code", sa.Boolean(), nullable=False, server_default=sa.true())
+        )
 
 
 def downgrade() -> None:

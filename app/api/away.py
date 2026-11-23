@@ -26,8 +26,9 @@ def _away(session: Session, away_id: str) -> AwayRun:
 
 
 def _told(request: Request, project_id: str) -> None:
-    announce(request.app.state.session_factory, request.app.state.bus, project_id,
-             "backlog.changed")
+    announce(
+        request.app.state.session_factory, request.app.state.bus, project_id, "backlog.changed"
+    )
 
 
 @router.get("/projects/{project_id}/away", response_model=AwayOut | None)
@@ -36,8 +37,11 @@ async def read_night(project_id: str, session: Session = Depends(get_session)):
     if session.get(Project, project_id) is None:
         raise HTTPException(404, "project not found")
     night = away.running(session, project_id) or session.scalar(
-        select(AwayRun).where(AwayRun.project_id == project_id, AwayRun.status == "ended")
-        .order_by(AwayRun.started_at.desc()).limit(1))
+        select(AwayRun)
+        .where(AwayRun.project_id == project_id, AwayRun.status == "ended")
+        .order_by(AwayRun.started_at.desc())
+        .limit(1)
+    )
     return away.report(session, night) if night else None
 
 
@@ -46,13 +50,18 @@ async def read_cards(cid: str, session: Session = Depends(get_session)):
     """The cards the Lead put in this chat, oldest first - with their nights."""
     if session.get(Conversation, cid) is None:
         raise HTTPException(404, "conversation not found")
-    return [away.report(session, one) for one in session.scalars(
-        select(AwayRun).where(AwayRun.conversation_id == cid).order_by(AwayRun.created_at))]
+    return [
+        away.report(session, one)
+        for one in session.scalars(
+            select(AwayRun).where(AwayRun.conversation_id == cid).order_by(AwayRun.created_at)
+        )
+    ]
 
 
 @router.post("/conversations/{cid}/away", response_model=AwayOut, dependencies=OWN)
-async def go_away(cid: str, body: AwayGoIn, request: Request,
-                  session: Session = Depends(get_session)):
+async def go_away(
+    cid: str, body: AwayGoIn, request: Request, session: Session = Depends(get_session)
+):
     """The user's Go away from this chat: the only way Away begins."""
     conversation = session.get(Conversation, cid)
     if conversation is None:
@@ -74,8 +83,7 @@ async def come_back(away_id: str, request: Request, session: Session = Depends(g
         raise HTTPException(409, "you're not away from this project")
     said = away.back(session, card.project_id)
     if said is not None:
-        request.app.state.bus.emit(card.conversation_id, None, "message.created",
-                                   message_out(said))
+        request.app.state.bus.emit(card.conversation_id, None, "message.created", message_out(said))
     _told(request, card.project_id)
     session.refresh(card)
     return away.report(session, card)
@@ -105,8 +113,9 @@ async def seen(away_id: str, session: Session = Depends(get_session)):
 
 
 @router.post("/away/{away_id}/jobs/{task_id}/again", response_model=AwayOut, dependencies=OWN)
-async def try_again(away_id: str, task_id: str, request: Request,
-                    session: Session = Depends(get_session)):
+async def try_again(
+    away_id: str, task_id: str, request: Request, session: Session = Depends(get_session)
+):
     """Try again: a job that could not be done or was stopped, worked on in its chat again - a
     turn of the user's own, the night over."""
     card = _away(session, away_id)
@@ -117,12 +126,20 @@ async def try_again(away_id: str, task_id: str, request: Request,
         raise HTTPException(404, "no such job of this card")
     if task.away_state not in ("failed", "stopped"):
         raise HTTPException(409, "only a job that could not be done or stopped")
-    if session.scalar(select(Run.id).where(Run.conversation_id == task.conversation_id,
-                                           Run.status.not_in(backlog.ENDED)).limit(1)):
+    if session.scalar(
+        select(Run.id)
+        .where(Run.conversation_id == task.conversation_id, Run.status.not_in(backlog.ENDED))
+        .limit(1)
+    ):
         raise HTTPException(409, "a turn of its chat is at work: try again once it is over")
     runner = request.app.state.runner
     task.status, task.away_state, task.away_why = "doing", None, None
-    backlog.say(session, session.get_one(Conversation, task.conversation_id), away.AGAIN,
-                runner.bus, runner.start)
+    backlog.say(
+        session,
+        session.get_one(Conversation, task.conversation_id),
+        away.AGAIN,
+        runner.bus,
+        runner.start,
+    )
     _told(request, card.project_id)
     return away.report(session, card)

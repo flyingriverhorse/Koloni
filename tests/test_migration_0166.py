@@ -14,8 +14,10 @@ def test_every_project_starts_with_no_green_state_and_back(tmp_path):
     cfg = _config(db)
     command.upgrade(cfg, "0168")
     with sqlite3.connect(db) as conn:
-        conn.execute("INSERT INTO projects (id, name, root_path, created_at) "
-                     "VALUES ('p', 'p', 'C:/p', ?)", (AT,))
+        conn.execute(
+            "INSERT INTO projects (id, name, root_path, created_at) VALUES ('p', 'p', 'C:/p', ?)",
+            (AT,),
+        )
     command.upgrade(cfg, "0166")
     with sqlite3.connect(db) as conn:
         assert conn.execute("SELECT tests_green FROM projects").fetchall() == [("{}",)]

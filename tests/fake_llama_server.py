@@ -22,7 +22,7 @@ def value(*names: str, default: str = "") -> str:
             if arg == name and at + 1 < len(args):
                 found = args[at + 1]
             elif arg.startswith(f"{name}="):
-                found = arg[len(name) + 1:]
+                found = arg[len(name) + 1 :]
     return found
 
 

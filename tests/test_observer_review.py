@@ -17,8 +17,10 @@ from tests.test_trigger_scenarios import finished, run_now, setup, trigger
 
 
 def test_only_what_differs_every_time_is_left_out_of_an_error():
-    alike = ["exit code 1 (0.3s)\n12:00:01 FAILED test_x in 0.31s (pid 4411)\n",
-             "exit code 1 (1.2s)\n12:01:44.5 FAILED test_x in 30 ms (pid 4610)\n"]
+    alike = [
+        "exit code 1 (0.3s)\n12:00:01 FAILED test_x in 0.31s (pid 4411)\n",
+        "exit code 1 (1.2s)\n12:01:44.5 FAILED test_x in 30 ms (pid 4610)\n",
+    ]
     assert len({signs.same_error(error) for error in alike}) == 1
     for one, other in [
         ("test_case_1 assert 3 == 4", "test_case_2 assert 7 == 4"),
@@ -33,8 +35,9 @@ def test_a_long_run_of_digits_in_a_result_is_read_at_once():
     # run of digits held it: 10k digits 1.25 s, a read_file of 128 lines of 2000 digits 6.5 s
     # (2.1 s and 22 s on a loaded machine). Now milliseconds.
     digits = "7" * 10_000
-    read = "\n".join(f"{at:>6}\t{digits[:2000]} [line truncated: 1000000 characters]"
-                     for at in range(1, 129))
+    read = "\n".join(
+        f"{at:>6}\t{digits[:2000]} [line truncated: 1000000 characters]" for at in range(1, 129)
+    )
     began = time.perf_counter()
     said = [signs.same_error(digits), signs.same_error(read)]
     took = time.perf_counter() - began
@@ -46,10 +49,23 @@ def test_a_long_run_of_digits_in_a_result_is_read_at_once():
 def test_a_sub_agent_at_work_in_between_starts_the_count_again_and_the_sign_is_earlier(
     make_client, wait_run, project_dir
 ):
-    model, snap = watched(make_client, wait_run, project_dir, {
-        "Lead": [miss("a"), miss("b"), miss("c"), spawn("s"), miss("d"), miss("e"),
-                 text("done")],
-        "Coder": [text("I looked.")]})
+    model, snap = watched(
+        make_client,
+        wait_run,
+        project_dir,
+        {
+            "Lead": [
+                miss("a"),
+                miss("b"),
+                miss("c"),
+                spawn("s"),
+                miss("d"),
+                miss("e"),
+                text("done"),
+            ],
+            "Coder": [text("I looked.")],
+        },
+    )
     results = told(model)
     assert SAME_FAILURE.format(n=3) in results[2]
     # after the sub-agent: counted from one again, and nothing said at the second
@@ -61,9 +77,14 @@ def test_a_sub_agent_at_work_in_between_starts_the_count_again_and_the_sign_is_e
 def test_a_sub_agent_stopped_at_five_unwatched_is_stopped_by_koloni_and_its_opener_hears_it_once(
     make_client, wait_run, project_dir
 ):
-    client, model, pid, cid = setup(make_client, project_dir, {
-        "Lead": [spawn("s"), text("It got stuck.")],
-        "Coder": [*(miss(str(n)) for n in range(7)), text("never said")]})
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [spawn("s"), text("It got stuck.")],
+            "Coder": [*(miss(str(n)) for n in range(7)), text("never said")],
+        },
+    )
     made = trigger(client, pid, cid, permissions={"write": False, "commands": [], "agents": 1})
     run_id = run_now(client, made["id"])
     snap = finished(client, wait_run, cid, run_id)
@@ -79,8 +100,9 @@ def test_the_record_is_made_once_a_turn(make_client, wait_run, project_dir, monk
     made = []
     real = kept.as_it_began
     monkeypatch.setattr(kept, "as_it_began", lambda *given: made.append(1) or real(*given))
-    _model, snap = watched(make_client, wait_run, project_dir, {
-        "Lead": [miss("a"), miss("b"), text("done")]})
+    _model, snap = watched(
+        make_client, wait_run, project_dir, {"Lead": [miss("a"), miss("b"), text("done")]}
+    )
     assert snap["runs"][0]["status"] == "completed" and made == [1]
 
 
@@ -95,7 +117,9 @@ def test_a_middle_value_stands_only_where_every_agent_has_it(make_client, wait_r
 
 
 def test_a_session_that_only_writes_is_not_quiet_and_its_step_limit_is_koloni_s(
-    session_app, wait_run, project_dir  # noqa: F811
+    session_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, provider, _ = session_app([{"say": "Let me think."}])
     cid, run_id = start(client, project_dir, provider)
@@ -104,8 +128,14 @@ def test_a_session_that_only_writes_is_not_quiet_and_its_step_limit_is_koloni_s(
 
     session_app.rescript([{"call": "list_dir"} for _ in range(30)] + [{"hang": True}])
     # (B-413: the Orchestrator's step limit is only one the user set - its role's)
-    assert client.patch(f"/api/roles/{role_id(client, 'Lead')}", json={"max_steps": 8},
-                        headers={"Origin": "http://127.0.0.1:8790"}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/roles/{role_id(client, 'Lead')}",
+            json={"max_steps": 8},
+            headers={"Origin": "http://127.0.0.1:8790"},
+        ).status_code
+        == 200
+    )
     posted = client.post(f"/api/conversations/{cid}/messages", json={"content": "again"})
     snap = wait_run(client, cid, posted.json()["run"]["id"], timeout=30)
     assert snap["runs"][-1]["error"] == "stopped at its role's limit of 8 steps"

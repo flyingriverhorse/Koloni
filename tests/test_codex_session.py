@@ -39,21 +39,26 @@ def codex_session(settings_env, tmp_path):
     opened = []
     record, plan, home = tmp_path / "record.json", tmp_path / "plan.json", tmp_path / "codex"
     home.mkdir()
-    (home / "config.toml").write_text('[mcp_servers.theirs]\ncommand = "theirs"\n',
-                                      encoding="utf-8")
+    (home / "config.toml").write_text(
+        '[mcp_servers.theirs]\ncommand = "theirs"\n', encoding="utf-8"
+    )
 
     def make(script, **more):
-        plan.write_text(json.dumps({"record": str(record), "script": script, **more}),
-                        encoding="utf-8")
-        cli = CodexSessionClient(launcher=FAKE, timeout=30,
-                                 env={"FAKE_CLI_PLAN": str(plan), "CODEX_HOME": str(home)})
-        app = create_app(load_settings(settings_env), model=ScriptedModel([]),
-                         clients={"Codex": cli})
+        plan.write_text(
+            json.dumps({"record": str(record), "script": script, **more}), encoding="utf-8"
+        )
+        cli = CodexSessionClient(
+            launcher=FAKE, timeout=30, env={"FAKE_CLI_PLAN": str(plan), "CODEX_HOME": str(home)}
+        )
+        app = create_app(
+            load_settings(settings_env), model=ScriptedModel([]), clients={"Codex": cli}
+        )
         client = TestClient(app, base_url="http://127.0.0.1:8790")
         client.__enter__()
         opened.append(client)
-        provider = client.post("/api/providers", json={
-            "name": "Codex", "kind": "codex_cli", "mode": "session"})
+        provider = client.post(
+            "/api/providers", json={"name": "Codex", "kind": "codex_cli", "mode": "session"}
+        )
         assert provider.status_code == 201, provider.text
         assert provider.json()["mode"] == "session"
         return client, provider.json()
@@ -73,21 +78,27 @@ def answers(record):
     return [(a["method"], a["answer"]) for a in record["answers"]]
 
 
-def test_its_patch_is_declined_and_it_writes_with_kolonis_tool(codex_session, wait_run,
-                                                               project_dir):
-    client, provider = codex_session([
-        {"say": "I will change the greeting."},
-        {"write": "hello.py", "content": "print('patched')\n"},
-        {"koloni": "write_file", "args": {"path": "hello.py", "content": "print('hello')\n"}},
-        {"say": "Written."}])
+def test_its_patch_is_declined_and_it_writes_with_kolonis_tool(
+    codex_session, wait_run, project_dir
+):
+    client, provider = codex_session(
+        [
+            {"say": "I will change the greeting."},
+            {"write": "hello.py", "content": "print('patched')\n"},
+            {"koloni": "write_file", "args": {"path": "hello.py", "content": "print('hello')\n"}},
+            {"say": "Written."},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     run = snap["runs"][0]
     assert run["status"] == "completed", run["error"]
     seen = codex_session.record()
     # Its patch is declined, with why steered into its turn; KOLONİ's write goes through.
-    assert answers(seen) == [(PATCH, {"decision": "decline"}),
-                             (ASK_MCP, {"action": "accept", "content": {}})]
+    assert answers(seen) == [
+        (PATCH, {"decision": "decline"}),
+        (ASK_MCP, {"action": "accept", "content": {}}),
+    ]
     assert PATCH_REFUSED in seen["steers"][0]["input"][0]["text"]
     assert (project_dir / "hello.py").read_text(encoding="utf-8") == "print('hello')\n"
     assert not (Path(seen["cwd"]) / "hello.py").exists()  # (nothing of its own patch)
@@ -96,28 +107,47 @@ def test_its_patch_is_declined_and_it_writes_with_kolonis_tool(codex_session, wa
     assert (first["content"], last["content"]) == ("I will change the greeting.", "Written.")
     (call,) = snap["tool_calls"]
     assert (call["name"], call["status"], call["message_id"]) == (
-        "write_file", "succeeded", first["id"])
+        "write_file",
+        "succeeded",
+        first["id"],
+    )
     agent = snap["agents"][0]
     assert (agent["input_tokens"], agent["output_tokens"]) == (4000, 120)
     # KOLONİ's whole tool set, not native's collaboration tools alone.
     assert {"read_file", "write_file", "edit_file", "run_command", "spawn_agent"} <= set(
-        seen["tools"])
+        seen["tools"]
+    )
     # Started in a folder of KOLONİ's, asking before everything, told where its patch goes.
     assert Path(seen["cwd"]) != project_dir and seen["thread"]["cwd"] == seen["cwd"]
-    assert (seen["thread"]["approvalPolicy"], seen["thread"]["approvalsReviewer"],
-            seen["thread"]["sandbox"]) == ("untrusted", "user", "workspace-write")
+    assert (
+        seen["thread"]["approvalPolicy"],
+        seen["thread"]["approvalsReviewer"],
+        seen["thread"]["sandbox"],
+    ) == ("untrusted", "user", "workspace-write")
     assert PATCH_REFUSED in seen["stdin"] and "temporary one of KOLONİ's" in seen["stdin"]
 
 
 def test_its_own_tools_are_off_but_its_code_mode_host_and_the_users_servers_are(
-        codex_session, wait_run, project_dir):
+    codex_session, wait_run, project_dir
+):
     client, provider = codex_session([{"say": "Hi."}])
     cid, run_id = start(client, project_dir, provider)
     assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
     argv = codex_session.record()["argv"]
     settings = [argv[i + 1] for i, one in enumerate(argv) if one == "-c"]
-    for feature in ("shell_tool", "unified_exec", "view_image", "apps", "multi_agent", "js_repl",
-                    "image_generation", "goals", "plugins", "skill_search", "hooks"):
+    for feature in (
+        "shell_tool",
+        "unified_exec",
+        "view_image",
+        "apps",
+        "multi_agent",
+        "js_repl",
+        "image_generation",
+        "goals",
+        "plugins",
+        "skill_search",
+        "hooks",
+    ):
         assert f"features.{feature}=false" in settings
     # Without its code-mode host no MCP tool is reached (measured): it stays on.
     assert not [one for one in argv if "code_mode_host" in one]
@@ -126,10 +156,12 @@ def test_its_own_tools_are_off_but_its_code_mode_host_and_the_users_servers_are(
     assert argv[-1] == "app-server"
 
 
-def test_another_servers_tool_is_declined_and_the_turn_goes_on(codex_session, wait_run,
-                                                               project_dir):
-    client, provider = codex_session([
-        {"mcp": {"server": "theirs", "tool": "fetch", "elicit": True}}, {"say": "Could not."}])
+def test_another_servers_tool_is_declined_and_the_turn_goes_on(
+    codex_session, wait_run, project_dir
+):
+    client, provider = codex_session(
+        [{"mcp": {"server": "theirs", "tool": "fetch", "elicit": True}}, {"say": "Could not."}]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
@@ -137,13 +169,19 @@ def test_another_servers_tool_is_declined_and_the_turn_goes_on(codex_session, wa
     assert snap["messages"][-1]["content"] == "Could not."
 
 
-@pytest.mark.parametrize("script, said", [
-    ([{"run": "type secrets.txt"}, {"say": "Read it."}], "its shell was switched off"),
-    ([{"mcp": {"server": "theirs", "tool": "fetch"}}, {"say": "Fetched."}],
-     "used a tool of its own"),
-])
-def test_a_tool_of_its_own_at_work_ends_the_session(codex_session, wait_run, project_dir,
-                                                    script, said):
+@pytest.mark.parametrize(
+    "script, said",
+    [
+        ([{"run": "type secrets.txt"}, {"say": "Read it."}], "its shell was switched off"),
+        (
+            [{"mcp": {"server": "theirs", "tool": "fetch"}}, {"say": "Fetched."}],
+            "used a tool of its own",
+        ),
+    ],
+)
+def test_a_tool_of_its_own_at_work_ends_the_session(
+    codex_session, wait_run, project_dir, script, said
+):
     client, provider = codex_session(script)
     cid, run_id = start(client, project_dir, provider)
     run = wait_run(client, cid, run_id)["runs"][0]
@@ -151,11 +189,16 @@ def test_a_tool_of_its_own_at_work_ends_the_session(codex_session, wait_run, pro
 
 
 def test_any_other_item_it_begins_ends_the_session_before_it_is_done(
-        codex_session, wait_run, project_dir):
+    codex_session, wait_run, project_dir
+):
     # A tool the user's own config turns on (js_repl, say) comes as an item of its own type.
-    client, provider = codex_session([{"say": "Let me run some JavaScript."},
-                                      {"begin": "dynamicToolCall", "hold": 30},
-                                      {"say": "Done."}])
+    client, provider = codex_session(
+        [
+            {"say": "Let me run some JavaScript."},
+            {"begin": "dynamicToolCall", "hold": 30},
+            {"say": "Done."},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)
     run = wait_run(client, cid, run_id)["runs"][0]
     assert run["status"] == "failed"
@@ -163,10 +206,12 @@ def test_any_other_item_it_begins_ends_the_session_before_it_is_done(
     assert "done" not in codex_session.record()  # ended as it began, not once it was done
 
 
-def test_a_model_that_keeps_asking_for_its_patch_tool_is_stopped(codex_session, wait_run,
-                                                                 project_dir):
+def test_a_model_that_keeps_asking_for_its_patch_tool_is_stopped(
+    codex_session, wait_run, project_dir
+):
     client, provider = codex_session(
-        [{"write": f"a{n}.py", "content": "x"} for n in range(5)] + [{"say": "Gave up."}])
+        [{"write": f"a{n}.py", "content": "x"} for n in range(5)] + [{"say": "Gave up."}]
+    )
     cid, run_id = start(client, project_dir, provider)
     run = wait_run(client, cid, run_id)["runs"][0]
     assert run["status"] == "failed" and "asked 3 times" in run["error"]
@@ -175,34 +220,47 @@ def test_a_model_that_keeps_asking_for_its_patch_tool_is_stopped(codex_session, 
 
 
 def test_its_own_question_is_no_decline_that_stops_it_and_it_is_told_where_to_ask(
-        codex_session, wait_run, project_dir):
+    codex_session, wait_run, project_dir
+):
     """B-204: the model asking the user is no forbidden act - two refused patches and its own
     question go on - and it is told, in its turn, to ask on KOLONİ's card."""
-    client, provider = codex_session([
-        {"write": "a0.py", "content": "x"}, {"write": "a1.py", "content": "x"},
-        {"request": ASKS_USER, "params": {"questions": []}}, {"say": "Asked on the card."}])
+    client, provider = codex_session(
+        [
+            {"write": "a0.py", "content": "x"},
+            {"write": "a1.py", "content": "x"},
+            {"request": ASKS_USER, "params": {"questions": []}},
+            {"say": "Asked on the card."},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)
     run = wait_run(client, cid, run_id)["runs"][0]
     assert run["status"] == "completed", run["error"]
     seen = codex_session.record()
     assert [method for method, _ in answers(seen)] == [PATCH, PATCH, ASKS_USER]
     assert DECLINED_WHY.format(why=ASK_WITH_KOLONI) in [
-        s["input"][0]["text"] for s in seen.get("steers", [])], seen
+        s["input"][0]["text"] for s in seen.get("steers", [])
+    ], seen
 
 
-def test_a_model_that_keeps_asking_with_its_own_tool_is_stopped(codex_session, wait_run,
-                                                                project_dir):
+def test_a_model_that_keeps_asking_with_its_own_tool_is_stopped(
+    codex_session, wait_run, project_dir
+):
     # (no step is counted, and each answer is no silence: nothing else would stop it)
     client, provider = codex_session(
-        [{"request": ASKS_USER, "params": {"questions": []}}] * 5 + [{"say": "Gave up."}])
+        [{"request": ASKS_USER, "params": {"questions": []}}] * 5 + [{"say": "Gave up."}]
+    )
     cid, run_id = start(client, project_dir, provider)
     run = wait_run(client, cid, run_id)["runs"][0]
-    assert run["status"] == "failed" and "its own tool to ask the user 3 times in a row" in run["error"], run
+    assert (
+        run["status"] == "failed"
+        and "its own tool to ask the user 3 times in a row" in run["error"]
+    ), run
     assert [method for method, _ in answers(codex_session.record())] == [ASKS_USER] * 2
 
 
 def test_one_that_goes_to_kolonis_tools_after_each_own_question_is_not_stopped(
-        codex_session, wait_run, project_dir):
+    codex_session, wait_run, project_dir
+):
     # Review: one that does as told each time (its own ask, then KOLONİ's tool - each a counted
     # step) is not stopped at its third question in a turn.
     ask = {"request": ASKS_USER, "params": {"questions": []}}

@@ -49,8 +49,12 @@ SESSION = "/api/limits/claude-session"
 
 def info(used=0.93, kind="seven_day"):
     """A `rate_limit_info` in the measured shape (utilization 0-1)."""
-    return {"status": "allowed", "rateLimitType": kind, "utilization": used,
-            "resetsAt": int(time.time()) + 3 * 86400}
+    return {
+        "status": "allowed",
+        "rateLimitType": kind,
+        "utilization": used,
+        "resetsAt": int(time.time()) + 3 * 86400,
+    }
 
 
 @pytest.fixture
@@ -100,7 +104,9 @@ def test_read_now_is_the_users_from_the_apps_own_page(claude):
     client, answer_with, asked = claude
     answer_with(info())
     cc = provider(client, "claude_cli", "Claude Code")
-    assert client.post(f"/api/providers/{cc}/limits/check", headers={"Origin": ""}).status_code == 403
+    assert (
+        client.post(f"/api/providers/{cc}/limits/check", headers={"Origin": ""}).status_code == 403
+    )
     assert asked == []
 
 
@@ -135,8 +141,10 @@ def test_a_read_now_that_says_nothing_new_is_still_read_now(claude):
 
 def rate_limits(five=53, week=93):
     soon = int(time.time()) + 3600
-    return {"five_hour": {"used_percentage": five, "resets_at": soon},
-            "seven_day": {"used_percentage": week, "resets_at": soon + 3 * 86400}}
+    return {
+        "five_hour": {"used_percentage": five, "resets_at": soon},
+        "seven_day": {"used_percentage": week, "resets_at": soon + 3 * 86400},
+    }
 
 
 def test_the_users_own_session_keeps_the_reading_fresh(claude):
@@ -155,17 +163,22 @@ def test_a_web_page_cannot_send_it(claude):
     client, _answer_with, _asked = claude
     cc = provider(client, "claude_cli", "Claude Code")
     for origin in (ORIGIN, "https://example.com"):
-        assert client.post(SESSION, json=rate_limits(), headers={"Origin": origin}).status_code == 403
+        assert (
+            client.post(SESSION, json=rate_limits(), headers={"Origin": origin}).status_code == 403
+        )
     assert client.get(f"/api/providers/{cc}/limits").json().get("unknown")
 
 
-@pytest.mark.parametrize("body", [
-    {"five_hour": {"used_percentage": 140, "resets_at": 1}},
-    {"five_hour": {"used_percentage": "53", "resets_at": 1}},
-    {"five_hour": {"used_percentage": 53, "resets_at": "soon"}},
-    {"seven_day": {"used_percentage": 1, "resets_at": 1}, "note": "x" * 5000},
-    [],
-])
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"five_hour": {"used_percentage": 140, "resets_at": 1}},
+        {"five_hour": {"used_percentage": "53", "resets_at": 1}},
+        {"five_hour": {"used_percentage": 53, "resets_at": "soon"}},
+        {"seven_day": {"used_percentage": 1, "resets_at": 1}, "note": "x" * 5000},
+        [],
+    ],
+)
 def test_what_is_not_the_status_lines_shape_is_refused_and_nothing_kept(claude, body):
     client, _answer_with, _asked = claude
     cc = provider(client, "claude_cli", "Claude Code")
@@ -176,11 +189,20 @@ def test_what_is_not_the_status_lines_shape_is_refused_and_nothing_kept(claude, 
 def test_only_the_claude_code_of_the_default_command_takes_it(claude):
     client, _answer_with, _asked = claude
     default = provider(client, "claude_cli", "Claude Code")
-    other = client.post("/api/providers", json={"name": "Work Claude", "kind": "claude_cli",
-                                                "executable": "C:/tools/claude-work.cmd"}).json()["id"]
+    other = client.post(
+        "/api/providers",
+        json={
+            "name": "Work Claude",
+            "kind": "claude_cli",
+            "executable": "C:/tools/claude-work.cmd",
+        },
+    ).json()["id"]
     codex = provider(client, "codex_cli", "Codex")
     assert client.post(SESSION, json=rate_limits(), headers={"Origin": ""}).status_code == 204
-    assert client.get(f"/api/providers/{default}/limits").json()["source"] == "your Claude Code session"
+    assert (
+        client.get(f"/api/providers/{default}/limits").json()["source"]
+        == "your Claude Code session"
+    )
     for elsewhere in (other, codex):
         assert client.get(f"/api/providers/{elsewhere}/limits").json().get("unknown")
 

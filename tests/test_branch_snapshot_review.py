@@ -50,7 +50,8 @@ def snapshot_of(repo, runtime, most=MOST):
 def left_of(repo, runtime, most=MOST):
     """The snapshot, why there is none, and what of the user's it left out."""
     _branch, _into, _sha, snapshot, why, left = git.add_worktree(
-        repo, runtime / "wt", "x", runtime / "no-hooks", most)
+        repo, runtime / "wt", "x", runtime / "no-hooks", most
+    )
     return snapshot, why, left
 
 
@@ -86,15 +87,20 @@ def test_a_pull_request_after_your_branch_came_in_never_carries_your_unpushed_co
     client, _model = make_client([text("hi")])
     pushed = asyncio.run(client.app.state.runner._sent(copy, look))
     assert run(repo, "diff", "--name-only", f"{pushed}^", pushed).split() == ["agent.txt"]
-    held = {"source": look["tip"], "snapshot": copy.snapshot_sha,  # (as `_pull_request` holds it)
-            "under": copies.folders(runtime)}
+    held = {
+        "source": look["tip"],
+        "snapshot": copy.snapshot_sha,  # (as `_pull_request` holds it)
+        "under": copies.folders(runtime),
+    }
     with pytest.raises(git.Refused, match="push main first"):
-        git.push_one(repo, pushed, copy.branch, "main", copy.start[1], "m", runtime / "no-hooks",
-                     **held)
+        git.push_one(
+            repo, pushed, copy.branch, "main", copy.start[1], "m", runtime / "no-hooks", **held
+        )
     assert run(bare, "for-each-ref", "refs/heads/koloni/") == ""
     run(repo, "push", "-q", "origin", "main")  # (theirs up by their own hand: then it goes)
-    sha = git.push_one(repo, pushed, copy.branch, "main", copy.start[1], "m", runtime / "no-hooks",
-                       **held)
+    sha = git.push_one(
+        repo, pushed, copy.branch, "main", copy.start[1], "m", runtime / "no-hooks", **held
+    )
     assert run(bare, "diff", "--name-only", f"{sha}^", sha).split() == ["agent.txt"]
     assert "USER-UNCOMMITTED" not in run(bare, "show", f"{sha}:a.txt")
 
@@ -131,9 +137,7 @@ def test_a_junction_back_into_your_folder_is_not_walked(repo, runtime):
 
 @windows_only
 @needs_merge_base
-def test_a_junction_loop_inside_a_new_folder_leaves_the_branch_from_head_saying_why(
-    repo, runtime
-):
+def test_a_junction_loop_inside_a_new_folder_leaves_the_branch_from_head_saying_why(repo, runtime):
     (repo / "a.txt").write_text("changed\n")
     (repo / "newdir").mkdir()
     (repo / "newdir" / "in.txt").write_text("in\n")
@@ -217,9 +221,12 @@ def test_at_full_auto_a_merge_over_what_you_had_not_committed_waits_for_your_wor
     make_client, wait_run, repo
 ):
     held_back = Gate()
-    client, cid, run_id = on_branch(make_client, repo, [
-        step(edit("two", "TWO-agent", path="a.txt")), held_back.step(text("A done"))],
-        wip={"a.txt": "ONE-mine\ntwo\n"})
+    client, cid, run_id = on_branch(
+        make_client,
+        repo,
+        [step(edit("two", "TWO-agent", path="a.txt")), held_back.step(text("A done"))],
+        wip={"a.txt": "ONE-mine\ntwo\n"},
+    )
     held_back.wait_partial()
     run(repo, "commit", "-qam", "mine")  # (committed while the agent works)
     held_back.release()
@@ -315,17 +322,22 @@ def test_a_stop_while_a_branch_is_made_holds_the_way_in_until_its_thread_is_over
         return made
 
     fake = SimpleNamespace(
-        _merging_in={}, _on_branch={"o": "x"}, _ctxs={"o": SimpleNamespace(model=None)},
-        settings=SimpleNamespace(runtime_root=tmp_path / "rt"), _copy_part=lambda owner: None,
+        _merging_in={},
+        _on_branch={"o": "x"},
+        _ctxs={"o": SimpleNamespace(model=None)},
+        settings=SimpleNamespace(runtime_root=tmp_path / "rt"),
+        _copy_part=lambda owner: None,
         _make_copy=lambda *args: make,
-        _drop_branch=lambda copy, force=False: dropped.append((copy, force)))
+        _drop_branch=lambda copy, force=False: dropped.append((copy, force)),
+    )
     fake._way_in = lambda project: AgentRunner._way_in(fake, project)
     fake._unmade = lambda *args: AgentRunner._unmade(fake, *args)
     monkeypatch.setattr(copies, "remove", lambda root, name: removed.append(name))
 
     async def scene():
-        task = asyncio.ensure_future(AgentRunner._made_copy(
-            fake, SimpleNamespace(folder=str(tmp_path)), "o", "o", None))
+        task = asyncio.ensure_future(
+            AgentRunner._made_copy(fake, SimpleNamespace(folder=str(tmp_path)), "o", "o", None)
+        )
         while not started.is_set():
             await asyncio.sleep(0.01)
         way = fake._way_in(tmp_path)
@@ -351,8 +363,13 @@ def test_what_a_snapshot_leaves_out_stays_out_where_you_staged_it_too(repo, runt
     run(repo, "add", "-f", "build/keep.txt")
     run(repo, "commit", "-qm", "a build file kept in git")
     (repo / "build" / "keep.txt").write_text("changed, staged\n")
-    staged = {".env": "API_KEY=STAGED-SECRET\n", "id_rsa": "KEY\n", "node_modules/x/i.js": "x\n",
-              "build/out.txt": "out\n", ".koloni/settings.json": "{}\n"}
+    staged = {
+        ".env": "API_KEY=STAGED-SECRET\n",
+        "id_rsa": "KEY\n",
+        "node_modules/x/i.js": "x\n",
+        "build/out.txt": "out\n",
+        ".koloni/settings.json": "{}\n",
+    }
     for path, words in staged.items():
         (repo / path).parent.mkdir(parents=True, exist_ok=True)
         (repo / path).write_text(words)
@@ -392,13 +409,15 @@ def test_secrets_by_their_names_stay_out_and_code_named_like_one_is_taken(repo, 
 
 @needs_merge_base
 def test_the_card_says_what_of_yours_is_not_in_the_branch(make_client, wait_run, repo):
-    client, cid, run_id = on_branch(make_client, repo, [
-        step(edit("two", "TWO-agent")), text("A done")],
-        wip={"notes.txt": "mine\n", ".env": "KEY=1\n", "token.json": "{}\n"})
+    client, cid, run_id = on_branch(
+        make_client,
+        repo,
+        [step(edit("two", "TWO-agent")), text("A done")],
+        wip={"notes.txt": "mine\n", ".env": "KEY=1\n", "token.json": "{}\n"},
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     (merge,) = snap["merges"]
-    assert merge["branch"]["not_taken"] == NOT_IN_BRANCH.format(
-        count=2, files=".env, token.json")
+    assert merge["branch"]["not_taken"] == NOT_IN_BRANCH.format(count=2, files=".env, token.json")
     assert merge["status"] == "applied" and merge["branch"]["note"] is None
 
 
@@ -456,8 +475,9 @@ def origin_case(repo, runtime, dirty=True, agent=True):
     copy = copies.make_branch(repo, runtime, "agent1", "x")
     if agent:
         (copy.root / "agent.txt").write_text("agent\n")
-        assert git.commit_branch(copy.root, copy.branch, ["agent.txt"], "agent",
-                                 runtime / "no-hooks")
+        assert git.commit_branch(
+            copy.root, copy.branch, ["agent.txt"], "agent", runtime / "no-hooks"
+        )
     return copy, origin
 
 
@@ -475,8 +495,18 @@ def push_pr(repo, runtime, copy):
     if copy.snapshot_sha:
         onto = git.merge_base(repo, "refs/heads/main", tip)
         sent = git.agents_share(repo, copy.snapshot_sha, tip, onto, copy.branch)[0]
-    return git.push_one(repo, sent, copy.branch, "main", copy.start[1], "m", runtime / "no-hooks",
-                        source=tip, snapshot=copy.snapshot_sha, under=copies.folders(runtime))
+    return git.push_one(
+        repo,
+        sent,
+        copy.branch,
+        "main",
+        copy.start[1],
+        "m",
+        runtime / "no-hooks",
+        source=tip,
+        snapshot=copy.snapshot_sha,
+        under=copies.folders(runtime),
+    )
 
 
 def agent_merges(copy, ref="main"):
@@ -485,9 +515,13 @@ def agent_merges(copy, ref="main"):
 
 def rebased(repo):
     """The user's unpushed commit made anew (another time: another commit)."""
-    subprocess.run(["git", "rebase", "-q", "--autostash", "--force-rebase", "origin/main"],
-                   cwd=repo, check=True, capture_output=True,
-                   env={**os.environ, "GIT_COMMITTER_DATE": "2001-01-01T00:00:00"})
+    subprocess.run(
+        ["git", "rebase", "-q", "--autostash", "--force-rebase", "origin/main"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        env={**os.environ, "GIT_COMMITTER_DATE": "2001-01-01T00:00:00"},
+    )
     assert run(repo, "log", "-1", "--format=%cd", "--date=format:%Y") == "2001"
 
 
@@ -542,16 +576,20 @@ def own_commit(copy, name="agent2.txt"):
     """A commit of the agent's own in its worktree, its git as KOLONİ gives it (`copies.git_env`)."""
     (copy.root / name).write_text("the agent's\n")
     for args in (["add", name], ["commit", "-qm", name]):
-        subprocess.run(["git", *args], cwd=copy.root, check=True, capture_output=True,
-                       env={**os.environ, **copies.git_env(copy.root, os.environ)})
+        subprocess.run(
+            ["git", *args],
+            cwd=copy.root,
+            check=True,
+            capture_output=True,
+            env={**os.environ, **copies.git_env(copy.root, os.environ)},
+        )
 
 
 # Ways a commit made elsewhere comes onto a branch without a merge commit of its own.
 WAYS_IN = {
     "fast-forward": lambda copy, made: run(copy.root, "merge", "-q", "--ff-only", "main"),
     "rebase": lambda copy, made: run(copy.root, "-c", "core.hooksPath=", "rebase", "-q", "main"),
-    "cherry-pick": lambda copy, made: run(copy.root, "-c", "core.hooksPath=", "cherry-pick",
-                                          made),
+    "cherry-pick": lambda copy, made: run(copy.root, "-c", "core.hooksPath=", "cherry-pick", made),
 }
 
 
@@ -567,8 +605,11 @@ def test_a_commit_of_yours_that_came_in_by_no_merge_never_goes_up(repo, runtime,
     AFTER[after](repo)  # (amended: main no longer holds it, the branch still does)
     # (Amended: main's reflog holds theirs, named alone - a rebased commit of the agent's beside it
     # is not. A pick is a new commit no ref of theirs holds: not called theirs.)
-    said = ("KOLONİ cannot attribute" if way == "cherry-pick" else
-            {"kept": "push main first", "amended": "commits of yours not on origin"}[after])
+    said = (
+        "KOLONİ cannot attribute"
+        if way == "cherry-pick"
+        else {"kept": "push main first", "amended": "commits of yours not on origin"}[after]
+    )
     with pytest.raises(git.Refused, match=said) as refused:
         push_pr(repo, runtime, copy)
     assert "," not in str(refused.value).partition("(")[2].partition(")")[0]  # (one named)
@@ -588,9 +629,7 @@ def test_the_agents_own_commits_go_up_where_the_repository_keeps_no_reflog(repo,
 @needs_merge_base
 @pytest.mark.parametrize("dirty", [True, False])
 @pytest.mark.parametrize("merged", [False, True])
-def test_a_pull_request_of_the_agents_work_and_what_is_on_origin_goes(
-    repo, runtime, merged, dirty
-):
+def test_a_pull_request_of_the_agents_work_and_what_is_on_origin_goes(repo, runtime, merged, dirty):
     copy, origin = origin_case(repo, runtime, dirty)
     if merged:  # (main moved on origin, and the branch took it in)
         private(repo, "pushed.txt")
@@ -616,9 +655,17 @@ def test_the_dependency_links_kolonis_worktree_holds_never_go_into_the_share(rep
     # as git's entries, so that Windows - where they are junctions, folders to git - tries it too.)
     (repo / "a.txt").write_text("one\ntwo-mine\n")  # (a snapshot)
     copy = copies.make_branch(repo, runtime, "agent1", "x")
-    target = subprocess.run(["git", "hash-object", "-w", "--stdin"], cwd=copy.root, check=True,
-                            capture_output=True, input=str(repo / ".venv").encode()
-                            ).stdout.decode().strip()
+    target = (
+        subprocess.run(
+            ["git", "hash-object", "-w", "--stdin"],
+            cwd=copy.root,
+            check=True,
+            capture_output=True,
+            input=str(repo / ".venv").encode(),
+        )
+        .stdout.decode()
+        .strip()
+    )
     for path in (".venv", "frontend/node_modules"):
         run(copy.root, "update-index", "--add", "--cacheinfo", f"120000,{target},{path}")
     (copy.root / "agent.txt").write_text("agent\n")
@@ -635,8 +682,13 @@ def test_the_dependency_links_kolonis_worktree_holds_never_go_into_the_share(rep
 
 def agent_git(copy, *args):
     """git as the agent runs it in its worktree (`copies.git_env`): what Full auto runs unasked."""
-    done = subprocess.run(["git", *args], cwd=copy.root, capture_output=True, text=True,
-                          env={**os.environ, **copies.git_env(copy.root, os.environ)})
+    done = subprocess.run(
+        ["git", *args],
+        cwd=copy.root,
+        capture_output=True,
+        text=True,
+        env={**os.environ, **copies.git_env(copy.root, os.environ)},
+    )
     assert done.returncode == 0, done.stderr
 
 
@@ -762,8 +814,14 @@ def test_with_commits_of_yours_not_on_github_full_auto_asks_before_a_pull_reques
         private(repo, "mine.txt")
 
     client, cid, run_id = pr_run(make_client, repo, meanwhile)
-    merge = until(client, cid, lambda s: (((s["merges"] or [{}])[0].get("branch") or {}).get(
-        "note") or "").startswith("you have"), timeout=LONG)["merges"][0]
+    merge = until(
+        client,
+        cid,
+        lambda s: (((s["merges"] or [{}])[0].get("branch") or {}).get("note") or "").startswith(
+            "you have"
+        ),
+        timeout=LONG,
+    )["merges"][0]
     assert merge["branch"]["note"] == PR_UNPUSHED.format(commits="1 commit")
     assert merge["status"] == "pending" and run(bare, "for-each-ref", "refs/heads/koloni/") == ""
     assert client.post(f"/api/merges/{merge['id']}/approve", json={"shown": {}}).status_code == 200
@@ -779,15 +837,25 @@ def test_with_commits_of_yours_not_on_github_full_auto_asks_before_a_pull_reques
 def worktree_of(repo):
     """The folder of the branch's worktree (`koloni/fix`), as git lists it."""
     listed = run(repo, "worktree", "list", "--porcelain").split("\n\n")
-    return Path(next(block.split("\n")[0][len("worktree "):] for block in listed
-                     if "refs/heads/koloni/fix" in block))
+    return Path(
+        next(
+            block.split("\n")[0][len("worktree ") :]
+            for block in listed
+            if "refs/heads/koloni/fix" in block
+        )
+    )
 
 
 def copied_in(repo, source, target="private.txt"):
     """The agent's own unasked `git show <source> > <target>`, add and commit, in its worktree."""
     root = worktree_of(repo)
-    done = subprocess.run(["git", "show", source], cwd=root, capture_output=True, check=True,
-                          env={**os.environ, **copies.git_env(root, os.environ)})
+    done = subprocess.run(
+        ["git", "show", source],
+        cwd=root,
+        capture_output=True,
+        check=True,
+        env={**os.environ, **copies.git_env(root, os.environ)},
+    )
     (root / target).parent.mkdir(parents=True, exist_ok=True)
     (root / target).write_bytes(done.stdout)
     own = copy_like(root)
@@ -797,15 +865,29 @@ def copied_in(repo, source, target="private.txt"):
 
 def copy_like(root):
     def own(*args):
-        subprocess.run(["git", *args], cwd=root, capture_output=True, check=True,
-                       env={**os.environ, **copies.git_env(root, os.environ)})
+        subprocess.run(
+            ["git", *args],
+            cwd=root,
+            capture_output=True,
+            check=True,
+            env={**os.environ, **copies.git_env(root, os.environ)},
+        )
+
     return own
 
 
 def pr_card(client, cid):
     """The pull request's card, once it waits with a note."""
-    return until(client, cid, lambda s: s["merges"] and s["merges"][0]["status"] == "pending" and (
-        (s["merges"][0].get("branch") or {}).get("note")), timeout=LONG)["merges"][0]
+    return until(
+        client,
+        cid,
+        lambda s: (
+            s["merges"]
+            and s["merges"][0]["status"] == "pending"
+            and ((s["merges"][0].get("branch") or {}).get("note"))
+        ),
+        timeout=LONG,
+    )["merges"][0]
 
 
 def stashed(repo):
@@ -833,10 +915,15 @@ def other_worktree(repo):  # (a second worktree of the user's own, its HEAD on n
 
 
 @needs_merge_base
-@pytest.mark.parametrize(("how", "yours"), [
-    (stashed, "a stash"), (detached, "1 commit"),
-    (other_worktree, "1 commit (in your worktree {wt})")],  # (k-okuyucu-3: which one)
-    ids=["stash", "detached", "other-worktree"])
+@pytest.mark.parametrize(
+    ("how", "yours"),
+    [
+        (stashed, "a stash"),
+        (detached, "1 commit"),
+        (other_worktree, "1 commit (in your worktree {wt})"),
+    ],  # (k-okuyucu-3: which one)
+    ids=["stash", "detached", "other-worktree"],
+)
 def test_a_stash_or_a_detached_commit_copied_onto_the_branch_is_asked_and_never_sent(
     make_client, wait_run, repo, github, how, yours
 ):
@@ -845,12 +932,19 @@ def test_a_stash_or_a_detached_commit_copied_onto_the_branch_is_asked_and_never_
     merge = pr_card(client, cid)  # (Full auto: asked, the user has work not on GitHub)
     said = PR_UNPUSHED.format(commits=yours).split("{wt}")  # (the folder as git keeps it)
     note = merge["branch"]["note"]
-    assert note.startswith(said[0]) and note.endswith(said[-1]) and (
-        len(said) == 1 or "users-wt" in note), note
+    assert (
+        note.startswith(said[0])
+        and note.endswith(said[-1])
+        and (len(said) == 1 or "users-wt" in note)
+    ), note
     assert merge["status"] == "pending"
     assert client.post(f"/api/merges/{merge['id']}/approve", json={"shown": {}}).status_code == 200
-    merge = until(client, cid, lambda s: "not pushed yet" in (
-        (s["merges"][0].get("branch") or {}).get("note") or ""), timeout=LONG)["merges"][0]
+    merge = until(
+        client,
+        cid,
+        lambda s: "not pushed yet" in ((s["merges"][0].get("branch") or {}).get("note") or ""),
+        timeout=LONG,
+    )["merges"][0]
     assert "private.txt in it is your work not pushed yet" in merge["branch"]["note"]
     assert run(bare, "for-each-ref", "refs/heads/koloni/") == ""
 
@@ -867,8 +961,9 @@ def test_your_uncommitted_work_copied_under_another_name_is_asked_and_an_exact_c
         pushed_main(repo)
         root = worktree_of(repo)
         (root / "docs").mkdir()
-        (root / "docs" / "draft.txt").write_bytes((root / "draft.txt").read_bytes() + (
-            b"and the agent's own line\n" if changed else b""))  # (byte for byte, or not)
+        (root / "docs" / "draft.txt").write_bytes(
+            (root / "draft.txt").read_bytes() + (b"and the agent's own line\n" if changed else b"")
+        )  # (byte for byte, or not)
         own = copy_like(root)
         own("add", "docs/draft.txt")
         own("commit", "-qm", "the agent's")
@@ -881,8 +976,12 @@ def test_your_uncommitted_work_copied_under_another_name_is_asked_and_an_exact_c
         snap = wait_run(client, cid, run_id, timeout=LONG)
         assert snap["merges"][0]["commit"]["state"] == "pull_request"
         return
-    merge = until(client, cid, lambda s: "not pushed yet" in (
-        (s["merges"][0].get("branch") or {}).get("note") or ""), timeout=LONG)["merges"][0]
+    merge = until(
+        client,
+        cid,
+        lambda s: "not pushed yet" in ((s["merges"][0].get("branch") or {}).get("note") or ""),
+        timeout=LONG,
+    )["merges"][0]
     assert "docs/draft.txt in it is your work not pushed yet" in merge["branch"]["note"]
     assert run(bare, "for-each-ref", "refs/heads/koloni/") == ""
 
@@ -898,7 +997,6 @@ def test_at_ask_the_pull_requests_card_says_you_have_commits_not_on_github(
     client, cid, _run_id = pr_run(make_client, repo, meanwhile, permission_mode="ask")
     merge = pr_card(client, cid)
     assert merge["branch"]["note"] == PR_UNPUSHED.format(commits="1 commit")
-
 
 
 # --- k-okuyucu-3: whose a worktree's commits are (the k-pr-wt review's non-blocking items) --------
@@ -1015,15 +1113,22 @@ def test_the_worktree_that_holds_your_unpushed_commit_is_named_and_a_gone_one_to
 SHARED_LINES = {
     "gitdir": 'echo "$(pwd -W)/x" > "$(dirname "$(git rev-parse --git-dir)")/users-wt/gitdir"',
     "sed-i": 'sed -i "s#.*#$(pwd -W)/x#" "$(dirname "$(git rev-parse --git-dir)")/users-wt/gitdir"',
-    "perl-pi": ('perl -pi -e "s#.*#$(pwd -W)/x#" "$(dirname "$(git rev-parse --git-dir)")'
-                '/users-wt/gitdir"'),
-    "ps-iofile-copy": ("[IO.File]::Copy(\"$PWD/g.txt\", (Join-Path (Split-Path (git rev-parse "
-                       "--git-dir)) 'users-wt/gitdir'), $true)"),
-    "clobber-ref": ('git rev-parse HEAD >| "$(dirname "$(dirname "$(git rev-parse --git-dir)")")'
-                    '/refs/remotes/origin/x"'),
+    "perl-pi": (
+        'perl -pi -e "s#.*#$(pwd -W)/x#" "$(dirname "$(git rev-parse --git-dir)")/users-wt/gitdir"'
+    ),
+    "ps-iofile-copy": (
+        '[IO.File]::Copy("$PWD/g.txt", (Join-Path (Split-Path (git rev-parse '
+        "--git-dir)) 'users-wt/gitdir'), $true)"
+    ),
+    "clobber-ref": (
+        'git rev-parse HEAD >| "$(dirname "$(dirname "$(git rev-parse --git-dir)")")'
+        '/refs/remotes/origin/x"'
+    ),
     "cl311-gitdir": 'echo "$(dirname "$PWD")/zz/x" > "$(git rev-parse --git-dir)/../users-wt/gitdir"',
-    "cl311-head": ('git rev-parse HEAD > "$(git rev-parse --git-dir)/../users-wt/HEAD" && : > '
-                   '"$(git rev-parse --git-dir)/../users-wt/logs/HEAD"'),
+    "cl311-head": (
+        'git rev-parse HEAD > "$(git rev-parse --git-dir)/../users-wt/HEAD" && : > '
+        '"$(git rev-parse --git-dir)/../users-wt/logs/HEAD"'
+    ),
 }
 
 
@@ -1045,11 +1150,15 @@ def test_at_full_auto_a_write_into_your_shared_git_by_a_built_path_waits_and_the
     bare, _log = github
     held = Gate()
     client, cid, _run_id = on_branch(
-        make_client, repo, [step(edit("two", "TWO-agent")),
-                            held.step(step(call("run_command", {"command": SHARED_LINES[how]},
-                                                "c"))),
-                            text("A done")],
-        project={"finish_way": "pull_request", "check_command": "python check.py TWO-agent"})
+        make_client,
+        repo,
+        [
+            step(edit("two", "TWO-agent")),
+            held.step(step(call("run_command", {"command": SHARED_LINES[how]}, "c"))),
+            text("A done"),
+        ],
+        project={"finish_way": "pull_request", "check_command": "python check.py TWO-agent"},
+    )
     held.wait_partial()
     pushed_main(repo)
     users_wt(repo, repo.parent)
@@ -1069,7 +1178,9 @@ def test_at_full_auto_a_write_into_your_shared_git_by_a_built_path_waits_and_the
 
 
 @needs_merge_base
-def test_your_worktree_later_on_a_branch_of_kolonis_still_holds_your_commit(repo, runtime, tmp_path):
+def test_your_worktree_later_on_a_branch_of_kolonis_still_holds_your_commit(
+    repo, runtime, tmp_path
+):
     """K-okuyucu-3 review (B2): the user's second worktree made a commit on no branch, then went onto
     an earlier agent's `koloni/` branch to try that work: its reflog still holds the commit - only
     what that branch's own reflog says was made on it is the agents'."""

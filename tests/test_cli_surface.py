@@ -29,14 +29,16 @@ def nothing_kept(monkeypatch):
 
 
 def started(tmp_path) -> list[str]:
-    return [json.loads(line)[-1] for line in
-            (tmp_path / "starts.jsonl").read_text("utf-8").splitlines()]
+    return [
+        json.loads(line)[-1] for line in (tmp_path / "starts.jsonl").read_text("utf-8").splitlines()
+    ]
 
 
 @pytest.mark.anyio
 async def test_a_measured_version_is_asked_nothing_and_agy_only_its_version(tmp_path):
-    codex = CodexNativeClient(launcher=FAKE_CODEX, **plan(
-        tmp_path, starts=str(tmp_path / "starts.jsonl")))  # 0.164.0-fake: its numbers count
+    codex = CodexNativeClient(
+        launcher=FAKE_CODEX, **plan(tmp_path, starts=str(tmp_path / "starts.jsonl"))
+    )  # 0.164.0-fake: its numbers count
     assert await cli_surface.checked(codex) is codex
     assert started(tmp_path) == ["--version"]
     # (agy has no protocol to ask; B-310: one whose version is not known keeps KOLONİ's tools)
@@ -48,8 +50,10 @@ async def test_a_measured_version_is_asked_nothing_and_agy_only_its_version(tmp_
 
 @pytest.mark.anyio
 async def test_codex_not_measured_that_answers_runs_as_it_is_and_is_asked_once(tmp_path):
-    codex = CodexNativeClient(launcher=FAKE_CODEX, **plan(
-        tmp_path, version="0.170.0", starts=str(tmp_path / "starts.jsonl")))
+    codex = CodexNativeClient(
+        launcher=FAKE_CODEX,
+        **plan(tmp_path, version="0.170.0", starts=str(tmp_path / "starts.jsonl")),
+    )
     assert await cli_surface.checked(codex) is codex
     assert await cli_surface.checked(codex) is codex
     # its run's own line, once; then only its version
@@ -59,21 +63,23 @@ async def test_codex_not_measured_that_answers_runs_as_it_is_and_is_asked_once(t
 
 @pytest.mark.anyio
 async def test_codex_not_measured_that_refuses_initialize_runs_as_a_step(tmp_path):
-    codex = CodexNativeClient(launcher=FAKE_CODEX, **plan(
-        tmp_path, version="0.170.0", handshake="initialize"))
+    codex = CodexNativeClient(
+        launcher=FAKE_CODEX, **plan(tmp_path, version="0.170.0", handshake="initialize")
+    )
     older = await cli_surface.checked(codex)
     assert type(older) is CodexCliClient  # its own tools off: KOLONİ's run
     assert type(await cli_surface.checked(codex)) is CodexCliClient  # (kept: asked once)
     assert cli_surface.note("codex_cli", None) == (
-        "Codex 0.170.0 not measured; running the old way")
+        "Codex 0.170.0 not measured; running the old way"
+    )
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("answer, native", [({}, True), ({"initialize": "error"}, False),
-                                            ({"hooks_applied": False}, False)])
-async def test_claude_code_not_measured_is_asked_initialize_with_its_hook(
-    tmp_path, answer, native
-):
+@pytest.mark.parametrize(
+    "answer, native",
+    [({}, True), ({"initialize": "error"}, False), ({"hooks_applied": False}, False)],
+)
+async def test_claude_code_not_measured_is_asked_initialize_with_its_hook(tmp_path, answer, native):
     claude = ClaudeNativeClient(launcher=FAKE_CLAUDE, **plan(tmp_path, version="2.9.0", **answer))
     chosen = await cli_surface.checked(claude)
     assert (chosen is claude) if native else type(chosen) is ClaudeSessionClient
@@ -86,37 +92,54 @@ async def test_claude_code_not_measured_is_asked_initialize_with_its_hook(
 COPILOT = "GitHub Copilot CLI"
 
 
-@pytest.mark.parametrize("version, protocol, said", [
-    ("1.0.105", 3, None),
-    ("1.0.200", 3, f"{COPILOT} 1.0.200 not measured; running the old way"),
-    ("1.0.200", 5, f"{COPILOT} 1.0.200 is newer than KOLONİ knows; running the old way"),
-    ("1.0.200", 2, f"{COPILOT} 1.0.200 speaks a protocol KOLONİ does not know; running the old way"),
-    ("1.0.115", 4, f"{COPILOT} 1.0.115 not measured with KOLONİ")])
+@pytest.mark.parametrize(
+    "version, protocol, said",
+    [
+        ("1.0.105", 3, None),
+        ("1.0.200", 3, f"{COPILOT} 1.0.200 not measured; running the old way"),
+        ("1.0.200", 5, f"{COPILOT} 1.0.200 is newer than KOLONİ knows; running the old way"),
+        (
+            "1.0.200",
+            2,
+            f"{COPILOT} 1.0.200 speaks a protocol KOLONİ does not know; running the old way",
+        ),
+        ("1.0.115", 4, f"{COPILOT} 1.0.115 not measured with KOLONİ"),
+    ],
+)
 def test_copilot_runs_natively_or_the_old_way_by_its_protocol_and_its_card_says(
-    copilot_native, wait_run, project_dir, version, protocol, said  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,
+    version,
+    protocol,
+    said,  # noqa: F811
 ):
     # The version is the one KOLONİ runs, its own `status.get` as KOLONİ starts it - not what a
     # plain `--version` says (20 Nov 2026: 1.0.107, the package Copilot updated itself to in the
     # user's home; KOLONİ's empty COPILOT_HOME runs the program's own, 1.0.105). Its protocol
     # with it: a measured protocol-3 version runs natively, any other the old way.
-    client, provider = copilot_native([{"say": "done"}], version=version, protocol=protocol,
-                                      updated="1.0.103")
+    client, provider = copilot_native(
+        [{"say": "done"}], version=version, protocol=protocol, updated="1.0.103"
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     # natively (protocol 4: through KOLONİ's hook), or its session with KOLONİ's tools
     assert ("--headless" in copilot_native.record()["argv"]) is (
-        said is None or said.endswith("with KOLONİ"))
+        said is None or said.endswith("with KOLONİ")
+    )
     (shown,) = [one for one in client.get("/api/providers").json() if one["id"] == provider["id"]]
     assert shown["version_note"] == said
 
 
 def test_copilots_version_and_protocol_are_read_in_one_start_with_no_auto_update(
-    copilot_native, wait_run, project_dir, tmp_path  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,
+    tmp_path,  # noqa: F811
 ):
     starts = tmp_path / "starts.jsonl"
-    client, provider = copilot_native([{"say": "done"}], version="1.0.105",
-                                      starts=str(starts))
+    client, provider = copilot_native([{"say": "done"}], version="1.0.105", starts=str(starts))
     cid, run_id = start(client, project_dir, provider)
     assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
     # its status, then its run: both headless as a run starts it, never a plain --version (it
@@ -128,7 +151,11 @@ def test_copilots_version_and_protocol_are_read_in_one_start_with_no_auto_update
 
 @pytest.mark.parametrize("told", [{"status_error": True}, {"status_hang": True}])
 def test_a_copilot_that_does_not_say_its_status_runs_the_old_way_and_its_card_says(
-    copilot_native, wait_run, project_dir, monkeypatch, told  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,
+    monkeypatch,
+    told,  # noqa: F811
 ):
     monkeypatch.setattr(app.model_native, "VERSION_SECONDS", 1.0)  # (one that never says)
     client, provider = copilot_native([{"say": "done"}], **told)
@@ -142,7 +169,12 @@ def test_a_copilot_that_does_not_say_its_status_runs_the_old_way_and_its_card_sa
 
 @pytest.mark.parametrize("version, status", [("1.0.200", "failed"), ("1.0.105", "completed")])
 def test_its_run_itself_asks_a_protocol_3_copilot_its_version_before_it_works_natively(
-    copilot_native, wait_run, project_dir, monkeypatch, version, status  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,
+    monkeypatch,
+    version,
+    status,  # noqa: F811
 ):
     # (Its program replaced between the check and the run: the run asks again, and works
     # natively only on a measured version.)
@@ -174,10 +206,26 @@ def test_the_script_names_what_an_installed_cli_no_longer_has(tmp_path):
     agy = tmp_path / "agy.exe"
     agy.write_bytes(" ".join(surface["agy"]["names"]).encode())
     told = subprocess.run(
-        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-         str(ROOT / "scripts" / "cli-surface.ps1"), "-CodexSchema", str(schema),
-         "-Claude", str(claude), "-Copilot", str(copilot), "-Agy", str(agy)],
-        capture_output=True, text=True, timeout=120)
+        [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(ROOT / "scripts" / "cli-surface.ps1"),
+            "-CodexSchema",
+            str(schema),
+            "-Claude",
+            str(claude),
+            "-Copilot",
+            str(copilot),
+            "-Agy",
+            str(agy),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
     said = told.stdout
     assert told.returncode == 1, said + told.stderr
     assert f"codex: missing {surface['codex']['names'][0]}" in said
@@ -192,13 +240,17 @@ def test_the_script_asks_the_copilot_koloni_runs_and_searches_the_package_it_run
     names = surface["copilot"]["names"]
     seen = tmp_path / "seen.txt"
     copilot = tmp_path / "copilot.cmd"
-    copilot.write_text(f'@echo off\r\necho %*^|%COPILOT_HOME%> "{seen}"\r\n'
-                       f'dir /b "%COPILOT_HOME%" >> "{seen}" 2>nul\r\n'
-                       "echo GitHub Copilot CLI 1.0.115.\r\n", encoding="ascii")
+    copilot.write_text(
+        f'@echo off\r\necho %*^|%COPILOT_HOME%> "{seen}"\r\n'
+        f'dir /b "%COPILOT_HOME%" >> "{seen}" 2>nul\r\n'
+        "echo GitHub Copilot CLI 1.0.115.\r\n",
+        encoding="ascii",
+    )
     package = tmp_path / "local" / "copilot" / "pkg" / "win32-x64" / "1.0.115"
     (package / "prebuilds" / "win32-x64").mkdir(parents=True)
     (package / "prebuilds" / "win32-x64" / "runtime.node").write_bytes(
-        b"\x00".join(n.encode() for n in names[:-1]))
+        b"\x00".join(n.encode() for n in names[:-1])
+    )
     (package / "copilot-sdk").mkdir()
     (package / "copilot-sdk" / "index.js").write_text("// the SDK", encoding="utf-8")
     schema = tmp_path / "schema"
@@ -210,11 +262,27 @@ def test_the_script_asks_the_copilot_koloni_runs_and_searches_the_package_it_run
     agy = tmp_path / "agy.exe"
     agy.write_bytes(" ".join(surface["agy"]["names"]).encode())
     told = subprocess.run(
-        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-         str(ROOT / "scripts" / "cli-surface.ps1"), "-CodexSchema", str(schema),
-         "-Claude", str(claude), "-CopilotExe", str(copilot), "-Agy", str(agy)],
-        capture_output=True, text=True, timeout=120,
-        env={**os.environ, "LOCALAPPDATA": str(tmp_path / "local")})
+        [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(ROOT / "scripts" / "cli-surface.ps1"),
+            "-CodexSchema",
+            str(schema),
+            "-Claude",
+            str(claude),
+            "-CopilotExe",
+            str(copilot),
+            "-Agy",
+            str(agy),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env={**os.environ, "LOCALAPPDATA": str(tmp_path / "local")},
+    )
     said = told.stdout
     assert told.returncode == 1, said + told.stderr
     assert "copilot: version GitHub Copilot CLI 1.0.115. (NOT measured" in said
@@ -229,7 +297,10 @@ def test_the_script_asks_the_copilot_koloni_runs_and_searches_the_package_it_run
 
 
 def test_its_run_refuses_a_protocol_3_copilot_that_does_not_say_its_version_in_time(
-    copilot_native, wait_run, project_dir, monkeypatch  # noqa: F811
+    copilot_native,
+    wait_run,
+    project_dir,
+    monkeypatch,  # noqa: F811
 ):
     async def unchecked(client):
         return client

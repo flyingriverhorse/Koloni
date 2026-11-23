@@ -4,6 +4,7 @@ marked Ask first - asked at every level, Full auto too
 Revision ID: 0132
 Revises: 0131
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -16,8 +17,9 @@ depends_on = None
 
 def upgrade() -> None:
     with op.batch_alter_table("allowed_web") as batch:
-        batch.add_column(sa.Column("ask_first", sa.Boolean(), nullable=False,
-                                   server_default=sa.false()))
+        batch.add_column(
+            sa.Column("ask_first", sa.Boolean(), nullable=False, server_default=sa.false())
+        )
 
 
 def downgrade() -> None:

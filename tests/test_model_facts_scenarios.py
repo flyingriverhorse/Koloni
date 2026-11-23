@@ -45,30 +45,47 @@ ORIGIN = {"Origin": "http://127.0.0.1:8790"}
 # service, so no rule of the shipped catalogue applies to it.
 SNAPSHOT = {
     "acme": {
-        "id": "acme", "name": "Acme", "api": "https://api.acme.test",
-        "env": ["ACME_API_KEY"], "doc": "https://docs.acme.test",
+        "id": "acme",
+        "name": "Acme",
+        "api": "https://api.acme.test",
+        "env": ["ACME_API_KEY"],
+        "doc": "https://docs.acme.test",
         "models": {
             "acme-chat": {
-                "id": "acme-chat", "name": "Acme Chat", "family": "acme",
-                "reasoning": False, "tool_call": True,
+                "id": "acme-chat",
+                "name": "Acme Chat",
+                "family": "acme",
+                "reasoning": False,
+                "tool_call": True,
                 "limit": {"context": 128000, "output": 8192},
                 "cost": {"input": 0.27, "output": 1.1},
             },
             "acme-reasoner": {
-                "id": "acme-reasoner", "name": "Acme Reasoner", "family": "acme-thinking",
-                "reasoning": True, "tool_call": True,
+                "id": "acme-reasoner",
+                "name": "Acme Reasoner",
+                "family": "acme-thinking",
+                "reasoning": True,
+                "tool_call": True,
                 "reasoning_options": [{"type": "effort", "values": ["low", "medium", "high"]}],
                 "limit": {"context": 128000, "output": 65536},
                 "cost": {"input": 0.55, "output": 2.19},
             },
             "acme-old": {
-                "id": "acme-old", "name": "Old", "family": "acme", "status": "deprecated",
-                "limit": {"context": 32000, "output": 4096}, "cost": {"input": 1, "output": 2},
+                "id": "acme-old",
+                "name": "Old",
+                "family": "acme",
+                "status": "deprecated",
+                "limit": {"context": 32000, "output": 4096},
+                "cost": {"input": 1, "output": 2},
             },
             "acme-budget": {
-                "id": "acme-budget", "name": "Budget", "family": "acme", "reasoning": True,
+                "id": "acme-budget",
+                "name": "Budget",
+                "family": "acme",
+                "reasoning": True,
                 "reasoning_options": [{"type": "budget_tokens", "min": 1024}],
-                "limit": {"context": 64000, "output": 8192}, "cost": {"input": 0.1, "output": 0.2},
+                "limit": {"context": 64000, "output": 8192},
+                "cost": {"input": 0.1, "output": 0.2},
             },
         },
     },
@@ -123,7 +140,9 @@ def test_a_service_at_a_models_dev_address_has_its_models_facts(snapshot, quiet,
     assert said["deprecated"] is False
 
 
-def test_a_model_that_cannot_be_given_a_level_takes_none_rather_than_a_guess(snapshot, quiet, client):
+def test_a_model_that_cannot_be_given_a_level_takes_none_rather_than_a_guess(
+    snapshot, quiet, client
+):
     acme = add(client, kind="openai_compat", base_url="https://api.acme.test/v1")
     assert facts(client, acme, "acme-chat")["efforts"] == []  # reasoning: false
     assert facts(client, acme, "acme-budget")["efforts"] == []  # budget tokens only
@@ -156,8 +175,12 @@ def test_a_server_on_this_machine_is_in_no_services_catalogue(snapshot, quiet, c
 
 
 def test_a_retired_model_is_marked_and_not_offered(snapshot, quiet, client):
-    acme = add(client, kind="openai_compat", base_url="https://api.acme.test/v1",
-                   models=[{"name": "acme-old"}])
+    acme = add(
+        client,
+        kind="openai_compat",
+        base_url="https://api.acme.test/v1",
+        models=[{"name": "acme-old"}],
+    )
     assert facts(client, acme, "acme-old")["deprecated"] is True
     offered = client.get(f"/api/providers/{acme['id']}/models").json()["models"]
     assert "acme-old" in offered  # the user's own row stays offered: it still runs
@@ -166,8 +189,11 @@ def test_a_retired_model_is_marked_and_not_offered(snapshot, quiet, client):
 
 
 def test_a_retired_model_is_not_suggested_for_a_new_provider(snapshot, client):
-    said = client.post("/api/providers/suggest", headers=ORIGIN,
-                       json={"kind": "openai_compat", "base_url": "https://api.acme.test"})
+    said = client.post(
+        "/api/providers/suggest",
+        headers=ORIGIN,
+        json={"kind": "openai_compat", "base_url": "https://api.acme.test"},
+    )
     assert said.status_code == 200, said.text
     told = said.json()
     assert "acme-reasoner" in told["models"] and "acme-old" not in told["models"]
@@ -185,16 +211,24 @@ def test_without_a_family_rule_the_tier_follows_the_providers_prices(snapshot, q
 
 
 def test_the_users_tier_comes_first(snapshot, quiet, client):
-    acme = add(client, kind="openai_compat", base_url="https://api.acme.test/v1",
-                   models=[{"name": "acme-budget", "tier": "strongest"}])
+    acme = add(
+        client,
+        kind="openai_compat",
+        base_url="https://api.acme.test/v1",
+        models=[{"name": "acme-budget", "tier": "strongest"}],
+    )
     said = facts(client, acme, "acme-budget")
     assert said["tier"] == "strongest" and said["sources"]["tier"] == "you"
 
 
 def test_a_saved_tier_that_is_the_catalogues_is_said_to_be_the_catalogues(snapshot, quiet, client):
     # As a fill saved it: the user changed nothing, so it is not "set by you".
-    acme = add(client, kind="openai_compat", base_url="https://api.acme.test/v1",
-               models=[{"name": "acme-budget", "tier": "fast"}])
+    acme = add(
+        client,
+        kind="openai_compat",
+        base_url="https://api.acme.test/v1",
+        models=[{"name": "acme-budget", "tier": "fast"}],
+    )
     said = facts(client, acme, "acme-budget")
     assert said["tier"] == "fast" and said["sources"]["tier"] == "models.dev"
 
@@ -212,35 +246,49 @@ def test_the_shipped_catalogue_has_family_rules_not_a_row_per_model():
 
 
 def test_a_new_provider_gets_the_services_models_address_and_key_name(snapshot, client):
-    said = client.post("/api/providers/suggest", headers=ORIGIN,
-                       json={"kind": "openai_compat", "base_url": "https://api.acme.test"}).json()
+    said = client.post(
+        "/api/providers/suggest",
+        headers=ORIGIN,
+        json={"kind": "openai_compat", "base_url": "https://api.acme.test"},
+    ).json()
     assert said["api"] == "https://api.acme.test"
     assert said["env"] == ["ACME_API_KEY"]
-    assert all("acme" not in (p["base_url"] or "") for p in client.get("/api/providers").json())  # nothing saved
+    assert all(
+        "acme" not in (p["base_url"] or "") for p in client.get("/api/providers").json()
+    )  # nothing saved
 
 
 def test_an_openai_compatible_provider_is_offered_the_known_addresses(snapshot, client):
     def addresses(kind):
-        return client.post("/api/providers/suggest", headers=ORIGIN,
-                           json={"kind": kind}).json()["addresses"]
+        return client.post("/api/providers/suggest", headers=ORIGIN, json={"kind": kind}).json()[
+            "addresses"
+        ]
 
     known = {one["api"]: one["name"] for one in addresses("openai_compat")}
     # The catalogue's services by their own address, and the plans models.dev has none for.
     assert known["https://api.acme.test"] == "Acme"
-    assert "Token Plan" in known[
-        "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"]
+    assert (
+        "Token Plan"
+        in known["https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1"]
+    )
     assert addresses("anthropic") == []
 
 
-def test_suggestions_are_the_users_then_the_catalogues_then_the_providers(snapshot, client, monkeypatch):
+def test_suggestions_are_the_users_then_the_catalogues_then_the_providers(
+    snapshot, client, monkeypatch
+):
     from app.api import providers as api
 
     async def listed(provider, providers):
         return ["acme-chat", "its-own-new-model"], None, False
 
     monkeypatch.setattr(api, "_own_list", listed)
-    acme = add(client, kind="openai_compat", base_url="https://api.acme.test/v1",
-                   models=[{"name": "my-pick"}])
+    acme = add(
+        client,
+        kind="openai_compat",
+        base_url="https://api.acme.test/v1",
+        models=[{"name": "my-pick"}],
+    )
     offered = client.get(f"/api/providers/{acme['id']}/models").json()["models"]
     assert offered[0] == "my-pick"
     assert offered.index("acme-reasoner") < offered.index("its-own-new-model")
@@ -295,11 +343,14 @@ async def test_llama_server_that_takes_levels_offers_them_and_off():
 
     def handler(request):
         if request.url.path == "/props":
-            return httpx2.Response(200, json={
-                "default_generation_settings": {"n_ctx": 80128},
-                "chat_template_caps": {"supports_reasoning_effort": True},
-                "chat_template": "{% if enable_thinking %}…{% endif %}",
-            })
+            return httpx2.Response(
+                200,
+                json={
+                    "default_generation_settings": {"n_ctx": 80128},
+                    "chat_template_caps": {"supports_reasoning_effort": True},
+                    "chat_template": "{% if enable_thinking %}…{% endif %}",
+                },
+            )
         if request.url.path == "/v1/models":
             return httpx2.Response(200, json={"data": [{"id": "qwen"}]})
         sent.append(json.loads(request.content))

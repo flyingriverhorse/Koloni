@@ -4,6 +4,7 @@ file in it (slice 88)
 Revision ID: 0068
 Revises: 0067
 """
+
 import sqlalchemy as sa
 from alembic import op
 

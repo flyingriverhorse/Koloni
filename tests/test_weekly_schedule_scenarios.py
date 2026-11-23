@@ -32,7 +32,9 @@ def test_a_day_list_must_name_real_days_once(days):
 
 
 def test_the_old_forms_still_hold():
-    assert triggers.check_config("schedule", {"at": "09:30", "days": "weekdays"})["days"] == "weekdays"
+    assert (
+        triggers.check_config("schedule", {"at": "09:30", "days": "weekdays"})["days"] == "weekdays"
+    )
     assert triggers.check_config("schedule", {"at": "09:30"})["days"] == "daily"
 
 
@@ -47,15 +49,24 @@ def test_it_is_due_on_the_next_chosen_day_only():
 
 def test_a_chosen_day_that_is_today_and_still_ahead_is_today():
     after = datetime(2026, 10, 23, 7, 0, tzinfo=UTC)  # Friday 10:00 local
-    assert triggers.next_time("17:00", ["fri"], after, ZONE).astimezone(ZONE).date().isoformat() == "2026-10-23"
+    assert (
+        triggers.next_time("17:00", ["fri"], after, ZONE).astimezone(ZONE).date().isoformat()
+        == "2026-10-23"
+    )
 
 
 def test_past_today_it_is_a_week_later():
     after = datetime(2026, 10, 23, 15, 0, tzinfo=UTC)  # Friday 18:00 local
-    assert triggers.next_time("17:00", ["fri"], after, ZONE).astimezone(ZONE).date().isoformat() == "2026-10-30"
+    assert (
+        triggers.next_time("17:00", ["fri"], after, ZONE).astimezone(ZONE).date().isoformat()
+        == "2026-10-30"
+    )
 
 
 def test_it_is_said_in_words():
-    assert triggers.when_in_words("schedule", {"at": "17:00", "days": ["fri"]}) == "Fridays at 17:00"
+    assert (
+        triggers.when_in_words("schedule", {"at": "17:00", "days": ["fri"]}) == "Fridays at 17:00"
+    )
     assert triggers.when_in_words("schedule", {"at": "09:00", "days": ["mon", "thu"]}) == (
-        "Mondays and Thursdays at 09:00")
+        "Mondays and Thursdays at 09:00"
+    )

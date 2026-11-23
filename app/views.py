@@ -31,12 +31,25 @@ MAX_MODEL_BYTES = 50 * 1024 * 1024
 MODEL_FILES = (".stl", ".obj", ".gltf", ".glb", ".3mf", ".bin")
 MAX_NOTE_CHARS = 200
 KINDS = {
-    ".html": "html", ".htm": "html", ".svg": "svg", ".md": "md",
-    ".png": "image", ".jpg": "image", ".jpeg": "image", ".gif": "image", ".webp": "image",
-    ".stl": "model", ".obj": "model", ".gltf": "model", ".glb": "model", ".3mf": "model",
+    ".html": "html",
+    ".htm": "html",
+    ".svg": "svg",
+    ".md": "md",
+    ".png": "image",
+    ".jpg": "image",
+    ".jpeg": "image",
+    ".gif": "image",
+    ".webp": "image",
+    ".stl": "model",
+    ".obj": "model",
+    ".gltf": "model",
+    ".glb": "model",
+    ".3mf": "model",
     ".pdf": "pdf",
     # K-belge-ciktilari: drawn by the renderer of each, in a frame of no origin (`OFFICE`).
-    ".docx": "docx", ".xlsx": "xlsx", ".pptx": "pptx",
+    ".docx": "docx",
+    ".xlsx": "xlsx",
+    ".pptx": "pptx",
 }
 # R161: the kinds that read as something an agent made, as the canvas's output card counts them
 # (`frontend/src/canvas/outputs.ts`): not a note (.md), written all the time.
@@ -51,16 +64,32 @@ DIAGRAMS = (".drawio.xml", ".drawio", ".dio")
 # What a file is served as - said here, not guessed: Windows' registry can name .js and .css
 # otherwise.
 TYPES = {
-    ".html": "text/html; charset=utf-8", ".htm": "text/html; charset=utf-8",
-    ".svg": "image/svg+xml", ".md": "text/markdown; charset=utf-8",
-    ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8",
-    ".mjs": "text/javascript; charset=utf-8", ".json": "application/json",
-    ".txt": "text/plain; charset=utf-8", ".png": "image/png", ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp",
-    ".woff": "font/woff", ".woff2": "font/woff2", ".ttf": "font/ttf", ".otf": "font/otf",
-    ".stl": "model/stl", ".obj": "model/obj", ".gltf": "model/gltf+json",
-    ".glb": "model/gltf-binary", ".3mf": "model/3mf", ".mtl": "text/plain; charset=utf-8",
-    ".bin": "application/octet-stream", ".pdf": "application/pdf",
+    ".html": "text/html; charset=utf-8",
+    ".htm": "text/html; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".md": "text/markdown; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".mjs": "text/javascript; charset=utf-8",
+    ".json": "application/json",
+    ".txt": "text/plain; charset=utf-8",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".ttf": "font/ttf",
+    ".otf": "font/otf",
+    ".stl": "model/stl",
+    ".obj": "model/obj",
+    ".gltf": "model/gltf+json",
+    ".glb": "model/gltf-binary",
+    ".3mf": "model/3mf",
+    ".mtl": "text/plain; charset=utf-8",
+    ".bin": "application/octet-stream",
+    ".pdf": "application/pdf",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
@@ -68,11 +97,21 @@ TYPES = {
 _OWN = "'self' 'unsafe-inline' 'unsafe-eval' data: blob:"
 # Its own sandbox even opened alone; nothing reached by script, form or frame; what it draws
 # with comes from itself or from beside it; framed by the app alone.
-POLICY = "; ".join([
-    "sandbox allow-scripts", "default-src 'none'", f"script-src {_OWN}", f"style-src {_OWN}",
-    f"img-src {_OWN}", f"font-src {_OWN}", "connect-src 'none'", "form-action 'none'",
-    "frame-src 'none'", "base-uri 'none'", "frame-ancestors 'self'",
-])
+POLICY = "; ".join(
+    [
+        "sandbox allow-scripts",
+        "default-src 'none'",
+        f"script-src {_OWN}",
+        f"style-src {_OWN}",
+        f"img-src {_OWN}",
+        f"font-src {_OWN}",
+        "connect-src 'none'",
+        "form-action 'none'",
+        "frame-src 'none'",
+        "base-uri 'none'",
+        "frame-ancestors 'self'",
+    ]
+)
 HEADERS = {
     "Content-Security-Policy": POLICY,
     "X-Frame-Options": "SAMEORIGIN",
@@ -86,12 +125,21 @@ HEADERS = {
 # and it reaches nothing; what a diagram names elsewhere (a picture, a font) is not loaded.
 VIEWER_HEADERS = {
     **{name: value for name, value in HEADERS.items() if name != "Cache-Control"},
-    "Content-Security-Policy": "; ".join([
-        "sandbox allow-scripts", "default-src 'none'", "script-src 'self'",
-        "style-src 'self' 'unsafe-inline'", "img-src 'self' data: blob:", "font-src 'self' data:",
-        "connect-src 'none'", "form-action 'none'", "frame-src 'none'", "base-uri 'none'",
-        "frame-ancestors 'self'",
-    ]),
+    "Content-Security-Policy": "; ".join(
+        [
+            "sandbox allow-scripts",
+            "default-src 'none'",
+            "script-src 'self'",
+            "style-src 'self' 'unsafe-inline'",
+            "img-src 'self' data: blob:",
+            "font-src 'self' data:",
+            "connect-src 'none'",
+            "form-action 'none'",
+            "frame-src 'none'",
+            "base-uri 'none'",
+            "frame-ancestors 'self'",
+        ]
+    ),
 }
 # K-belge-ciktilari: a pdf, drawn by the browser's own viewer - which a sandbox keeps out (Chrome
 # draws no pdf in a sandboxed frame), as `default-src` / `object-src` may its embed. Its type,
@@ -104,7 +152,7 @@ VIEWER_HEADERS = {
 PDF_HEADERS = {
     **{name: value for name, value in HEADERS.items() if name != "Content-Security-Policy"},
     "Content-Security-Policy": "script-src 'none'; form-action 'none'; base-uri 'none'; "
-                               "frame-ancestors 'self'",
+    "frame-ancestors 'self'",
 }
 
 
@@ -162,8 +210,13 @@ def made_since(root: Path, since_ns: int) -> list[str]:
     for folder, folders, files in os.walk(root):
         here = Path(folder)
         top = here == root
-        folders[:] = [name for name in folders if name.casefold() not in UNREAD_FOLDERS
-                      and not (top and name.casefold() == ".koloni") and not _is_link(here / name)]
+        folders[:] = [
+            name
+            for name in folders
+            if name.casefold() not in UNREAD_FOLDERS
+            and not (top and name.casefold() == ".koloni")
+            and not _is_link(here / name)
+        ]
         walked += len(folders) + len(files)
         if walked > MOST_WALKED:
             break
@@ -202,12 +255,22 @@ def _key(path: str) -> str:
 def _changes(session: Session, cid: str) -> list:
     """The conversation's changes, oldest first, without their text: (id, path, agent_id,
     status, kind, after_sha, created_at)."""
-    return list(session.execute(
-        select(FileChange.id, FileChange.path, FileChange.agent_id, FileChange.status,
-               FileChange.kind, FileChange.after_sha, FileChange.created_at)
-        .join(Run, Run.id == FileChange.run_id).where(Run.conversation_id == cid)
-        .order_by(FileChange.created_at, FileChange.id)
-    ).all())
+    return list(
+        session.execute(
+            select(
+                FileChange.id,
+                FileChange.path,
+                FileChange.agent_id,
+                FileChange.status,
+                FileChange.kind,
+                FileChange.after_sha,
+                FileChange.created_at,
+            )
+            .join(Run, Run.id == FileChange.run_id)
+            .where(Run.conversation_id == cid)
+            .order_by(FileChange.created_at, FileChange.id)
+        ).all()
+    )
 
 
 def _live(changes: list) -> dict:
@@ -220,17 +283,20 @@ def _lines(session: Session, cid: str) -> list[dict]:
     changes = _changes(session, cid)
     live = _live(changes)
     shown = session.scalars(
-        select(ShownFile).where(ShownFile.conversation_id == cid)
+        select(ShownFile)
+        .where(ShownFile.conversation_id == cid)
         .order_by(ShownFile.created_at, ShownFile.id)
     ).all()
     records = [
-        (c.created_at, c.id, c.path, c.agent_id, None) for c in changes
+        (c.created_at, c.id, c.path, c.agent_id, None)
+        for c in changes
         if _key(c.path) in live and kind_of(c.path)
     ] + [(s.created_at, s.id, s.path, s.agent_id, s) for s in shown]
     lines: dict[str, dict] = {}
     for at, record_id, path, agent_id, show in sorted(records, key=lambda r: r[0]):
-        line = lines.setdefault(_key(path), {
-            "id": record_id, "path": path, "note": None, "copy_owner": None})
+        line = lines.setdefault(
+            _key(path), {"id": record_id, "path": path, "note": None, "copy_owner": None}
+        )
         line.update(agent_id=agent_id, at=at)
         if show is not None:
             line["copy_owner"] = show.copy_owner
@@ -291,11 +357,16 @@ def list_views(session: Session, cid: str, root: str, copy_of: CopyOf) -> list[d
             sha, too_large = change.after_sha, False
         else:
             sha, too_large = _on_disk(_where(root, copy_of, line), line["path"])
-        out.append({
-            **line, "status": change.status if change else "shown", "sha": sha,
-            "too_large": too_large, "url": f"/api/conversations/{cid}/views/{line['id']}/"
-            + PurePosixPath(line["path"]).name,
-        })
+        out.append(
+            {
+                **line,
+                "status": change.status if change else "shown",
+                "sha": sha,
+                "too_large": too_large,
+                "url": f"/api/conversations/{cid}/views/{line['id']}/"
+                + PurePosixPath(line["path"]).name,
+            }
+        )
     return sorted(out, key=lambda line: line["at"], reverse=True)
 
 
@@ -306,8 +377,12 @@ def _vetted(name: str) -> str:
     part that ends in a dot or a space (Windows drops those)."""
     parts = name.split("/")
     if not name or any(
-        not part or part in (".", "..") or "\\" in part or ":" in part
-        or any(ord(c) < 32 for c in part) or part.endswith((".", " "))
+        not part
+        or part in (".", "..")
+        or "\\" in part
+        or ":" in part
+        or any(ord(c) < 32 for c in part)
+        or part.endswith((".", " "))
         or DEVICES.fullmatch(part)
         for part in parts
     ):
@@ -345,8 +420,14 @@ def read_file(ws: Workspace, rel: str, limit: int | None = None) -> bytes:
 
 
 def serve(
-    session: Session, cid: str, root: str, runtime_root: Path, copy_of: CopyOf, view_id: str,
-    name: str, version: str | None = None,
+    session: Session,
+    cid: str,
+    root: str,
+    runtime_root: Path,
+    copy_of: CopyOf,
+    view_id: str,
+    name: str,
+    version: str | None = None,
 ) -> tuple[bytes, str]:
     """A file a view's frame asks for - the page itself, or one beside it - and its type.
     That one file is read, and no other. `version`: the `?v=<sha>-<status>` the list put on
@@ -360,8 +441,11 @@ def serve(
         raise Refused(404, "no such file")
     # A change come after the list was read is not served under the address of the text before
     # it: turned down, the next list gives that same address and the frame would keep its text.
-    if change is not None and change.status in NOT_ON_DISK_YET and (
-            version is None or version.startswith(f"{change.after_sha}-")):
+    if (
+        change is not None
+        and change.status in NOT_ON_DISK_YET
+        and (version is None or version.startswith(f"{change.after_sha}-"))
+    ):
         row = session.get_one(FileChange, change.id)
         if row.after_from:
             # An attached file saved into the project (85b): its text is a line saying what it is,
@@ -393,7 +477,8 @@ def check_shown(ws: Workspace, path: str) -> str:
             f"{path!r} is not a kind that can be shown: a page (.html, .htm), a drawing "
             "(.svg), a note (.md), a picture (.png, .jpg, .gif, .webp), a 3D model (.stl, .obj, "
             ".gltf, .glb, .3mf), a draw.io diagram (.drawio, .drawio.xml, .dio) or a document "
-            "(.pdf, .docx, .xlsx, .pptx)")
+            "(.pdf, .docx, .xlsx, .pptx)"
+        )
     if not target.is_file():
         raise WorkspaceError(f"{path!r} does not exist")
     if has_other_names(target):

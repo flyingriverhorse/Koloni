@@ -8,37 +8,84 @@ from app.db.models import Agent, Run, now
 
 
 def _row(team: str, status: str, recipe: str = "", agents: tuple[str, ...] = ()) -> dict:
-    return {"team_id": f"t-{team}", "recipe_id": None, "picked_by": "user", "why": None,
-            "state": {"run_id": "x", "team": team, "recipe": recipe, "status": status,
-                      "agents": list(agents)}}
+    return {
+        "team_id": f"t-{team}",
+        "recipe_id": None,
+        "picked_by": "user",
+        "why": None,
+        "state": {
+            "run_id": "x",
+            "team": team,
+            "recipe": recipe,
+            "status": status,
+            "agents": list(agents),
+        },
+    }
 
 
 def test_history_counts_roles_teams_and_recipes_and_leaves_the_turns_lead_out(client, monkeypatch):
     cid = client.post("/api/conversations", json={}).json()["id"]
     old = now() - timedelta(days=10)
     with client.app.state.session_factory() as session:
+
         def turn(at, teams, agents):
             run = Run(conversation_id=cid, status="completed", created_at=at, teams=teams)
             session.add(run)
             session.flush()
-            session.add(Agent(id=f"lead-{run.id}", run_id=run.id, role_name="Lead", name="Lead",
-                              tools=[], depth=0, status="completed", created_at=at))
+            session.add(
+                Agent(
+                    id=f"lead-{run.id}",
+                    run_id=run.id,
+                    role_name="Lead",
+                    name="Lead",
+                    tools=[],
+                    depth=0,
+                    status="completed",
+                    created_at=at,
+                )
+            )
             for agent_id, role, status in agents:
-                session.add(Agent(id=agent_id, run_id=run.id, role_name=role, name=role,
-                                  tools=[], depth=1, status=status, created_at=at))
+                session.add(
+                    Agent(
+                        id=agent_id,
+                        run_id=run.id,
+                        role_name=role,
+                        name=role,
+                        tools=[],
+                        depth=1,
+                        status=status,
+                        created_at=at,
+                    )
+                )
 
-        turn(now(), [
-            _row("Web app", "in", "Feature", agents=("a1", "a2")),
-            _row("Docs", "failed"),
-            {"team_id": "t-never", "recipe_id": None, "picked_by": "lead", "why": "w", "state": None},
-        ], [("a1", "Coder", "completed"), ("a2", "Tester", "failed"), ("a3", "Coder", "running"),
-            ("a4", "Coder", "proposed")])
+        turn(
+            now(),
+            [
+                _row("Web app", "in", "Feature", agents=("a1", "a2")),
+                _row("Docs", "failed"),
+                {
+                    "team_id": "t-never",
+                    "recipe_id": None,
+                    "picked_by": "lead",
+                    "why": "w",
+                    "state": None,
+                },
+            ],
+            [
+                ("a1", "Coder", "completed"),
+                ("a2", "Tester", "failed"),
+                ("a3", "Coder", "running"),
+                ("a4", "Coder", "proposed"),
+            ],
+        )
         turn(now(), [_row("Web app", "running", "Feature")], [("a5", "Reviewer", "cancelled")])
         turn(old, [_row("Web app", "done", "Evolve")], [("a6", "Coder", "completed")])
         session.commit()
 
     week = client.get("/api/roles/history", params={"days": 7}).json()
-    counts = lambda rows: {one["name"]: (one["done"], one["failed"], one["running"]) for one in rows}  # noqa: E731
+    counts = lambda rows: {  # noqa: E731
+        one["name"]: (one["done"], one["failed"], one["running"]) for one in rows
+    }
     # done / failed or stopped / in progress; a proposed agent never ran; the Lead is the turn
     assert counts(week["roles"]) == {"Coder": (1, 0, 1), "Tester": (0, 1, 0), "Reviewer": (0, 1, 0)}
     assert week["lead_turns"] == 2

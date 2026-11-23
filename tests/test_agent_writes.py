@@ -70,7 +70,9 @@ def test_reject_leaves_the_file_and_tells_the_model(make_client, wait_run, proje
     assert snap["runs"][0]["status"] == "completed"
 
 
-def test_file_changed_while_waiting_is_a_conflict_not_an_overwrite(make_client, wait_run, project_dir):
+def test_file_changed_while_waiting_is_a_conflict_not_an_overwrite(
+    make_client, wait_run, project_dir
+):
     client, model = make_client([edit(), text("I will re-read it.")])
     cid, run_id = start(client, project_dir)
     change = wait_status(client, cid, "waiting_approval")["file_changes"][0]
@@ -149,6 +151,7 @@ def test_an_instruction_file_in_the_path_hides_no_other_standing_name(project_di
     """Review of K-fullauto-sorma 2: `AGENTS.md/../.claude/settings.json` is `.claude`'s - the
     instruction file is the name only where nothing else stands, in either chain."""
     from app.workspace import Workspace, stands_over_later_turns
+
     ws = Workspace(project_dir)
     assert stands_over_later_turns(ws, "AGENTS.md/../.claude/settings.json") == ".claude"
     assert stands_over_later_turns(ws, "GEMINI.md/../.mcp.json") == ".mcp.json"
@@ -164,8 +167,14 @@ def test_an_instruction_file_in_the_path_hides_no_other_standing_name(project_di
     assert stands_over_later_turns(ws, ".koloni/tmp/.claude/settings.json") == ".claude"
 
 
-@pytest.mark.parametrize("path", ["AGENTS.md/../.claude/settings.json", "GEMINI.md/../.mcp.json",
-                                  "x/CLAUDE.md/../../.git/hooks/pre-commit"])
+@pytest.mark.parametrize(
+    "path",
+    [
+        "AGENTS.md/../.claude/settings.json",
+        "GEMINI.md/../.mcp.json",
+        "x/CLAUDE.md/../../.git/hooks/pre-commit",
+    ],
+)
 def test_a_standing_file_behind_an_instruction_files_name_is_still_a_card_at_full_auto(
     make_client, wait_run, project_dir, path
 ):
@@ -207,10 +216,22 @@ def test_edit_requires_exactly_one_match(make_client, wait_run, project_dir):
         args = json.dumps({"path": path, "old_string": old, "new_string": "b"})
         return ToolCallRequest(id, "edit_file", args)
 
-    client, _ = make_client([
-        StepResult("", [call("x", "dup.txt", "a"), call("y", "dup.txt", "zz"),
-                        call("z", "missing.txt", "a"), call("w", "dup.txt", "")], 1, 1),
-        text("ok")])
+    client, _ = make_client(
+        [
+            StepResult(
+                "",
+                [
+                    call("x", "dup.txt", "a"),
+                    call("y", "dup.txt", "zz"),
+                    call("z", "missing.txt", "a"),
+                    call("w", "dup.txt", ""),
+                ],
+                1,
+                1,
+            ),
+            text("ok"),
+        ]
+    )
     cid, run_id = start_in_mode(client, project_dir, "auto_edit")
     snap = wait_run(client, cid, run_id)
     results = [t["result"] for t in snap["tool_calls"]]
@@ -224,25 +245,37 @@ def test_edit_requires_exactly_one_match(make_client, wait_run, project_dir):
 
 def edits(*calls):
     """One step of edit_file calls, each (path, old, new)."""
-    return StepResult("", [
-        ToolCallRequest(f"e{at}", "edit_file", json.dumps(
-            {"path": path, "old_string": old, "new_string": new}))
-        for at, (path, old, new) in enumerate(calls)], 1, 1)
+    return StepResult(
+        "",
+        [
+            ToolCallRequest(
+                f"e{at}",
+                "edit_file",
+                json.dumps({"path": path, "old_string": old, "new_string": new}),
+            )
+            for at, (path, old, new) in enumerate(calls)
+        ],
+        1,
+        1,
+    )
 
 
-def test_an_edit_ignores_line_endings_and_writes_the_files_own(make_client, wait_run,
-                                                               project_dir):
+def test_an_edit_ignores_line_endings_and_writes_the_files_own(make_client, wait_run, project_dir):
     """B-92: an LF old_string is found in a CRLF file; the new lines are CRLF, the lines
     it does not touch (an LF one too) keep their bytes, and so does the BOM (G4.1)."""
     (project_dir / "calc.py").write_bytes(b"\xef\xbb\xbfdef f():\r\n    return 1\r\nx = 2\n")
-    client, _ = make_client([
-        edit("calc.py", "def f():\n    return 1\n", "def f():\n    # two\n    return 2\n"),
-        text("ok")])
+    client, _ = make_client(
+        [
+            edit("calc.py", "def f():\n    return 1\n", "def f():\n    # two\n    return 2\n"),
+            text("ok"),
+        ]
+    )
     cid, run_id = start_in_mode(client, project_dir, "auto_edit")
     snap = wait_run(client, cid, run_id)
     assert snap["tool_calls"][0]["result"].startswith("applied: calc.py")
     assert (project_dir / "calc.py").read_bytes() == (
-        b"\xef\xbb\xbfdef f():\r\n    # two\r\n    return 2\r\nx = 2\n")
+        b"\xef\xbb\xbfdef f():\r\n    # two\r\n    return 2\r\nx = 2\n"
+    )
 
 
 def test_a_whole_write_keeps_the_files_crlf_and_bom(make_client, wait_run, project_dir):
@@ -265,12 +298,19 @@ def test_an_edit_already_made_is_no_failure(make_client, wait_run, project_dir):
 
 
 def test_an_edit_not_found_shows_the_nearest_lines_and_a_third_miss_says_what_to_do(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     (project_dir / "calc.py").write_bytes(b"def f():\n\treturn 1\n")
-    client, _ = make_client([
-        edits(("calc.py", "def f():\n    return 1", "x"), ("calc.py", "nothing like it", "x"),
-              ("calc.py", "nor this", "x")),
-        text("ok")])
+    client, _ = make_client(
+        [
+            edits(
+                ("calc.py", "def f():\n    return 1", "x"),
+                ("calc.py", "nothing like it", "x"),
+                ("calc.py", "nor this", "x"),
+            ),
+            text("ok"),
+        ]
+    )
     cid, run_id = start_in_mode(client, project_dir, "auto_edit")
     results = [t["result"] for t in wait_run(client, cid, run_id)["tool_calls"]]
     # (a tab where the model wrote spaces: the copy's fault, shown)
@@ -280,29 +320,34 @@ def test_an_edit_not_found_shows_the_nearest_lines_and_a_third_miss_says_what_to
     assert "read_file" in results[2] and "write_file" in results[2]
 
 
-def test_a_loose_match_is_taken_only_where_it_is_the_one_place(make_client, wait_run,
-                                                               project_dir):
+def test_a_loose_match_is_taken_only_where_it_is_the_one_place(make_client, wait_run, project_dir):
     """G4.3: spaces at a line's end and curly quotes do not count - where only one place
     matches; the model is told the match was loose, and the change's diff is exact."""
     (project_dir / "msg.py").write_text("msg = “hi”   \nend = 1\n", encoding="utf-8")
     (project_dir / "two.py").write_text("a = ‘x’\na = ‘x’\n", encoding="utf-8")
-    client, _ = make_client([
-        edits(("msg.py", 'msg = "hi"\nend = 1', 'msg = "hello"\nend = 1'),
-              ("two.py", "a = 'x'", "b")),
-        text("ok")])
+    client, _ = make_client(
+        [
+            edits(
+                ("msg.py", 'msg = "hi"\nend = 1', 'msg = "hello"\nend = 1'),
+                ("two.py", "a = 'x'", "b"),
+            ),
+            text("ok"),
+        ]
+    )
     cid, run_id = start_in_mode(client, project_dir, "auto_edit")
     snap = wait_run(client, cid, run_id)
     first, second = snap["tool_calls"]
     assert first["status"] == "succeeded" and "quote marks differing" in first["result"]
     assert (project_dir / "msg.py").read_text(encoding="utf-8") == 'msg = "hello"\nend = 1\n'
-    assert '-msg = “hi”' in snap["file_changes"][0]["diff"]
+    assert "-msg = “hi”" in snap["file_changes"][0]["diff"]
     assert second["status"] == "failed" and "was not found" in second["result"]
     assert "a = ‘x’" in (project_dir / "two.py").read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("bad_writes", [1, 2], ids=["put back", "cannot be put back"])
 def test_a_write_that_does_not_read_back_is_a_failure_and_is_undone(
-        make_client, wait_run, project_dir, monkeypatch, bad_writes):
+    make_client, wait_run, project_dir, monkeypatch, bad_writes
+):
     """A write that went wrong on its way does not leave the file cut short: what it held
     is put back - or, where even that goes wrong, the result says so plainly."""
     import app.workspace
@@ -326,16 +371,20 @@ def test_a_write_that_does_not_read_back_is_a_failure_and_is_undone(
         assert "may be partly written" in said and "on this change's record" in said
 
 
-def test_a_deletion_or_a_typo_not_found_is_no_edit_already_made(make_client, wait_run,
-                                                               project_dir):
+def test_a_deletion_or_a_typo_not_found_is_no_edit_already_made(make_client, wait_run, project_dir):
     """new_string inside old_string - a line to drop, a typo - is never "already applied":
     the file tells nothing of an edit made, and the misses go on being counted."""
     (project_dir / "app.py").write_bytes(b"line_to_keep\nkeep()\n")
-    client, _ = make_client([
-        edits(("app.py", "line_to_drop\nkeep()", "keep()"),
-              ("app.py", "keep()  # a note, misspelt", "keep()"),
-              ("app.py", "line_to_drop\nkeep()", "keep()")),
-        text("ok")])
+    client, _ = make_client(
+        [
+            edits(
+                ("app.py", "line_to_drop\nkeep()", "keep()"),
+                ("app.py", "keep()  # a note, misspelt", "keep()"),
+                ("app.py", "line_to_drop\nkeep()", "keep()"),
+            ),
+            text("ok"),
+        ]
+    )
     cid, run_id = start_in_mode(client, project_dir, "auto_edit")
     calls = wait_run(client, cid, run_id)["tool_calls"]
     assert [t["status"] for t in calls] == ["failed", "failed", "failed"]
@@ -350,8 +399,11 @@ def test_a_loose_match_over_a_long_run_of_spaces_is_quick(tmp_path):
     (tmp_path / "wide.txt").write_bytes(b" " * 50_000 + b"y\n")
     began = time.monotonic()
     with pytest.raises(ToolError, match="was not found"):
-        plan_write(Workspace(tmp_path), "edit_file",
-                   {"path": "wide.txt", "old_string": "\nfoo", "new_string": "x"})
+        plan_write(
+            Workspace(tmp_path),
+            "edit_file",
+            {"path": "wide.txt", "old_string": "\nfoo", "new_string": "x"},
+        )
     assert time.monotonic() - began < 1
 
 
@@ -361,8 +413,11 @@ def test_a_file_larger_than_a_write_is_not_edited(tmp_path):
 
     (tmp_path / "big.txt").write_bytes(b"a" * (2**20 + 1))
     with pytest.raises(ToolError, match="larger than 1 MiB: it is not edited"):
-        plan_write(Workspace(tmp_path), "edit_file",
-                   {"path": "big.txt", "old_string": "aa", "new_string": "b"})
+        plan_write(
+            Workspace(tmp_path),
+            "edit_file",
+            {"path": "big.txt", "old_string": "aa", "new_string": "b"},
+        )
     # (nor replaced whole: undo could not put it back)
     with pytest.raises(ToolError, match="larger than 1 MiB: it is not replaced"):
         plan_write(Workspace(tmp_path), "write_file", {"path": "big.txt", "content": "b"})
@@ -374,18 +429,25 @@ def test_new_lines_end_as_the_line_they_are_on_and_a_whole_write_as_most_lines_d
 
     ws = Workspace(tmp_path)
     (tmp_path / "mixed.txt").write_bytes(b"a\nb\r\nc\r\n")
-    edited = plan_write(ws, "edit_file", {"path": "mixed.txt", "old_string": "b",
-                                          "new_string": "b1\nb2"})
+    edited = plan_write(
+        ws, "edit_file", {"path": "mixed.txt", "old_string": "b", "new_string": "b1\nb2"}
+    )
     assert edited.after == "a\nb1\r\nb2\r\nc\r\n"
     # (the last line, with no ending of its own: as most of the file's)
     (tmp_path / "last.txt").write_bytes(b"a\r\nb\r\nc")
-    assert plan_write(ws, "edit_file", {"path": "last.txt", "old_string": "c",
-                                        "new_string": "c\nd"}).after == "a\r\nb\r\nc\r\nd"
+    assert (
+        plan_write(
+            ws, "edit_file", {"path": "last.txt", "old_string": "c", "new_string": "c\nd"}
+        ).after
+        == "a\r\nb\r\nc\r\nd"
+    )
     (tmp_path / "lf.txt").write_bytes(b"a\nb\nc\r\nd\n")
     assert plan_write(ws, "write_file", {"path": "lf.txt", "content": "x\ny\n"}).after == "x\ny\n"
     (tmp_path / "crlf.txt").write_bytes(b"a\r\nb\r\nc\n")
-    assert plan_write(ws, "write_file", {"path": "crlf.txt",
-                                         "content": "x\ny\n"}).after == "x\r\ny\r\n"
+    assert (
+        plan_write(ws, "write_file", {"path": "crlf.txt", "content": "x\ny\n"}).after
+        == "x\r\ny\r\n"
+    )
 
 
 def test_write_outside_the_project_is_refused(make_client, wait_run, project_dir, tmp_path):
@@ -420,12 +482,16 @@ def test_cancel_while_waiting_rejects_the_pending_change(make_client, wait_run, 
 
 
 def test_switching_to_auto_mid_run_applies_later_edits_directly(make_client, wait_run, project_dir):
-    client, _ = make_client([
-        edit(new="one", id="a"), edit(old="one", new="two", id="b"), text("done")])
+    client, _ = make_client(
+        [edit(new="one", id="a"), edit(old="one", new="two", id="b"), text("done")]
+    )
     cid, run_id = start(client, project_dir)
     first = wait_status(client, cid, "waiting_approval")["file_changes"][0]
-    client.patch(f"/api/conversations/{cid}", json={"permission_mode": "auto_edit"},
-                 headers={"Origin": "http://127.0.0.1:8790"})
+    client.patch(
+        f"/api/conversations/{cid}",
+        json={"permission_mode": "auto_edit"},
+        headers={"Origin": "http://127.0.0.1:8790"},
+    )
     client.post(f"/api/file-changes/{first['id']}/approve")
     snap = wait_run(client, cid, run_id)
     assert [c["status"] for c in snap["file_changes"]] == ["applied", "applied"]
@@ -477,6 +543,8 @@ def test_misses_on_one_file_are_counted_by_any_spelling_of_it():
     from app.signs import Counts
 
     counts = Counts()
-    said = [counts.missed_edit(json.dumps({"path": path}))
-            for path in ("src/a.py", "src/../src/a.py", "src/./a.py")]
+    said = [
+        counts.missed_edit(json.dumps({"path": path}))
+        for path in ("src/a.py", "src/../src/a.py", "src/./a.py")
+    ]
     assert said[:2] == ["", ""] and "failed 3 times" in said[2]

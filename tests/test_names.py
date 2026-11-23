@@ -14,7 +14,11 @@ from tests.test_spawn import begin, new_role, spawn
 
 ZERO_WIDTH, RIGHT_TO_LEFT, ISOLATE, BOM = chr(0x200B), chr(0x202E), chr(0x2066), chr(0xFEFF)
 BAD = [
-    f"Co{ZERO_WIDTH}der", f"{RIGHT_TO_LEFT}redoC", "Co\x00der", "Co\x1bder", f"Co{ISOLATE}der",
+    f"Co{ZERO_WIDTH}der",
+    f"{RIGHT_TO_LEFT}redoC",
+    "Co\x00der",
+    "Co\x1bder",
+    f"Co{ISOLATE}der",
     f"Coder{BOM}",
 ]
 ROLE_WHY = "a role name cannot contain control or invisible characters"
@@ -49,8 +53,7 @@ def test_a_name_with_a_character_that_does_not_print_is_refused(client, name):
 
 
 def test_an_agent_cannot_create_a_role_with_such_a_name(make_client, wait_run, project_dir):
-    client, model = make_client([
-        new_role(f"Doc{ZERO_WIDTH}writer", ["read_file"]), text("done")])
+    client, model = make_client([new_role(f"Doc{ZERO_WIDTH}writer", ["read_file"]), text("done")])
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id)
     (asked,) = [t for t in snap["tool_calls"] if t["name"] == "create_role"]
@@ -61,30 +64,39 @@ def test_a_role_from_before_is_shown_clean_and_its_agents_are_named_clean(
     make_client, wait_run, project_dir
 ):
     stored = f"Doc{ZERO_WIDTH}{RIGHT_TO_LEFT}writer"
-    client, model = make_client({
-        "Lead": [spawn("Doc writer"), text("done")], "Doc writer": [text("wrote it")]})
+    client, model = make_client(
+        {"Lead": [spawn("Doc writer"), text("done")], "Doc writer": [text("wrote it")]}
+    )
     with client.app.state.session_factory() as session:
-        session.add(Role(name=stored, description="Writes docs", instructions="",
-                         tools=["read_file"]))
+        session.add(
+            Role(name=stored, description="Writes docs", instructions="", tools=["read_file"])
+        )
         session.commit()
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
     snap = wait_run(client, cid, run_id)
-    offered = next(
-        t for t in model.tool_args[0] if t["function"]["name"] == "spawn_agent")
+    offered = next(t for t in model.tool_args[0] if t["function"]["name"] == "spawn_agent")
     assert "\n- Doc writer — Writes docs" in offered["function"]["description"]
     # nothing an agent was sent holds the characters, and the agent is named without them
     sent = json.dumps([model.calls, model.tool_args], ensure_ascii=False)
     assert ZERO_WIDTH not in sent and RIGHT_TO_LEFT not in sent
     child = snap["agents"][1]
     assert (child["name"], child["role_name"], child["status"]) == (
-        "Doc writer", "Doc writer", "completed")
+        "Doc writer",
+        "Doc writer",
+        "completed",
+    )
     # the record is the user's: it is not rewritten
     assert stored in [r["name"] for r in client.get("/api/roles").json()]
 
 
 def test_a_provider_from_before_is_shown_clean_in_the_guide_and_chosen_by_that_name():
-    row = Provider(id="p", name=f"Fa{ZERO_WIDTH}st{RIGHT_TO_LEFT}", kind="openai_compat",
-                   for_agents=True, default_model="m")
+    row = Provider(
+        id="p",
+        name=f"Fa{ZERO_WIDTH}st{RIGHT_TO_LEFT}",
+        kind="openai_compat",
+        for_agents=True,
+        default_model="m",
+    )
     entries = guide([row])
     assert entries[0].name == "Fa st"
     assert '- "Fa st" (OpenAI-compatible server, API).' in describe(entries)

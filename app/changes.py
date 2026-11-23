@@ -44,8 +44,9 @@ def _current_sha(ws: Workspace, path: str, change: FileChange | None = None) -> 
         return "unreadable"
 
 
-def apply_change(session: Session, ws: Workspace, change: FileChange,
-                 runtime_root: Path | None = None) -> str:
+def apply_change(
+    session: Session, ws: Workspace, change: FileChange, runtime_root: Path | None = None
+) -> str:
     """Write the change if the file still has the content it was planned against.
     `runtime_root`: where KOLONİ keeps attached files - an attached file's change is written
     from there, found again by its id, never from where its record says (`attachments.path_of`).
@@ -64,7 +65,8 @@ def apply_change(session: Session, ws: Workspace, change: FileChange,
                 # (A new file, never one written over: one made meanwhile is a failure.)
                 cid = session.get_one(Run, change.run_id).conversation_id
                 kept = runtime_root and attachments.path_of(
-                    runtime_root, cid, PurePath(change.after_from).name)
+                    runtime_root, cid, PurePath(change.after_from).name
+                )
                 try:
                     data = kept.read_bytes() if kept else None
                 except OSError:
@@ -89,10 +91,15 @@ def changed_since(change: FileChange, current: str | None) -> str | None:
     # A deletion is reverted only while the file is still gone.
     expected = None if change.kind == "delete" else change.after_sha
     if current == NOT_HERE:
-        return (f"{change.path} can't be undone here: it is a CLI's settings for this whole "
-                "computer, opened only on a card; change it back by hand")
-    return None if current == expected else (
-        f"{change.path} has changed since this edit; revert it by hand")
+        return (
+            f"{change.path} can't be undone here: it is a CLI's settings for this whole "
+            "computer, opened only on a card; change it back by hand"
+        )
+    return (
+        None
+        if current == expected
+        else (f"{change.path} has changed since this edit; revert it by hand")
+    )
 
 
 def would_revert(changes: list[FileChange], ws_for) -> list[str | None]:
@@ -106,7 +113,8 @@ def would_revert(changes: list[FileChange], ws_for) -> list[str | None]:
         why = changed_since(change, files[change.path])
         if why is None:  # what `revert_change` would leave
             files[change.path] = sha256_text(
-                None if change.kind == "create" else change.before_content or "")
+                None if change.kind == "create" else change.before_content or ""
+            )
         whys.append(why)
     return whys
 
@@ -136,8 +144,8 @@ def in_copy(session: Session, agent_ids: list[str]) -> list[dict]:
     first: dict[str, FileChange] = {}
     last: dict[str, FileChange] = {}
     for row in session.scalars(
-        select(FileChange).where(FileChange.agent_id.in_(agent_ids),
-                                 FileChange.status == "in_copy")
+        select(FileChange)
+        .where(FileChange.agent_id.in_(agent_ids), FileChange.status == "in_copy")
         .order_by(FileChange.created_at, literal_column("file_changes.rowid"))
     ):
         if in_scratch(row.path):
@@ -152,6 +160,13 @@ def in_copy(session: Session, agent_ids: list[str]) -> list[dict]:
             continue
         diff, additions, deletions = unified_diff(before, after or "", path)
         kind = "delete" if after is None else "create" if before is None else "modify"
-        files.append({"path": path, "kind": kind, "diff": diff,
-                      "additions": additions, "deletions": deletions})
+        files.append(
+            {
+                "path": path,
+                "kind": kind,
+                "diff": diff,
+                "additions": additions,
+                "deletions": deletions,
+            }
+        )
     return files

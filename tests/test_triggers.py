@@ -85,8 +85,14 @@ def place(client, project_dir, **conversation):
 
 
 def trigger(client, pid, cid, kind="schedule", config=None, **more):
-    body = {"name": "watch", "kind": kind, "conversation_id": cid, "message": MESSAGE,
-            "config": config if config is not None else {"every_minutes": 60}, **more}
+    body = {
+        "name": "watch",
+        "kind": kind,
+        "conversation_id": cid,
+        "message": MESSAGE,
+        "config": config if config is not None else {"every_minutes": 60},
+        **more,
+    }
     made = client.post(f"/api/projects/{pid}/triggers", json=body)
     assert made.status_code == 201, made.text
     return made.json()
@@ -128,8 +134,11 @@ def run_of(snap, run_id):
 
 
 def results(snap, run_id):
-    return [(t["name"], t["status"], t["result"] or "") for t in snap["tool_calls"]
-            if t["run_id"] == run_id]
+    return [
+        (t["name"], t["status"], t["result"] or "")
+        for t in snap["tool_calls"]
+        if t["run_id"] == run_id
+    ]
 
 
 def until(check, what, seconds=10.0):
@@ -156,8 +165,7 @@ def test_an_unattended_turn_can_never_be_put_into_waiting_for_approval(
 ):
     """Everything that waits asks the gate first. Were something ever not to, the turn
     is still not made to wait: the one place that marks a turn as waiting refuses."""
-    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [
-        gate.step(text("looked"))]})
+    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [gate.step(text("looked"))]})
     made = trigger(client, pid, cid)
     run_id = run_now(client, made["id"])
     gate.wait_partial()
@@ -206,8 +214,13 @@ def test_the_table_names_every_kind_and_every_way_it_runs():
 @pytest.mark.parametrize("kind, mode", list(IN_AN_UNATTENDED_TURN))
 def test_what_each_kind_of_provider_is_in_a_turn_nobody_is_watching(settings, kind, mode):
     row = Provider(
-        id="p", name="P", kind=kind, mode=mode, base_url="http://127.0.0.1:9/v1",
-        api_key="k", options={},
+        id="p",
+        name="P",
+        kind=kind,
+        mode=mode,
+        base_url="http://127.0.0.1:9/v1",
+        api_key="k",
+        options={},
     )
     client = Providers(settings)._build(row, None)
     refused = IN_AN_UNATTENDED_TURN[kind, mode] == "refused"
@@ -225,8 +238,10 @@ def test_what_each_kind_of_provider_is_in_a_turn_nobody_is_watching(settings, ki
 
 
 FAKES = {
-    "session": HERE / "fake_session_cli.py", "step": HERE / "fake_cli.py",
-    "native": HERE / "fake_codex_app_server.py", "copilot": HERE / "fake_copilot_cli.py",
+    "session": HERE / "fake_session_cli.py",
+    "step": HERE / "fake_cli.py",
+    "native": HERE / "fake_codex_app_server.py",
+    "copilot": HERE / "fake_copilot_cli.py",
     "agy": HERE / "fake_agy_cli.py",
 }
 
@@ -240,36 +255,58 @@ CLIS = {
     "claude session": (
         {"kind": "claude_cli", "mode": "session"},
         lambda plan: ClaudeSessionClient(
-            launcher=_fake("session"), timeout=30, env={"FAKE_CLI_PLAN": plan})),
+            launcher=_fake("session"), timeout=30, env={"FAKE_CLI_PLAN": plan}
+        ),
+    ),
     "claude step": (
         {"kind": "claude_cli", "mode": "step"},
         lambda plan: ClaudeCliClient(
-            model=None, timeout=20, launcher=_fake("step"), env={"FAKE_CLI_PLAN": plan})),
+            model=None, timeout=20, launcher=_fake("step"), env={"FAKE_CLI_PLAN": plan}
+        ),
+    ),
     "codex step": (
         {"kind": "codex_cli", "mode": "step"},
         lambda plan: CodexCliClient(
-            model=None, timeout=20, launcher=_fake("step"), env={"FAKE_CLI_PLAN": plan})),
+            model=None, timeout=20, launcher=_fake("step"), env={"FAKE_CLI_PLAN": plan}
+        ),
+    ),
     "codex native": (
         {"kind": "codex_cli", "mode": "native"},
         lambda plan: CodexNativeClient(
-            launcher=_fake("native"), timeout=30, env={"FAKE_CLI_PLAN": plan})),
+            launcher=_fake("native"), timeout=30, env={"FAKE_CLI_PLAN": plan}
+        ),
+    ),
     "copilot native": (
-        {"kind": "copilot_cli", "mode": "native", "base_url": "http://127.0.0.1:9/v1",
-         "api_key": "sk-secret-123", "default_model": "qwen-local"},
+        {
+            "kind": "copilot_cli",
+            "mode": "native",
+            "base_url": "http://127.0.0.1:9/v1",
+            "api_key": "sk-secret-123",
+            "default_model": "qwen-local",
+        },
         lambda plan: CopilotNativeClient(
-            None, "qwen-local", timeout=30, launcher=_fake("copilot"),
-            env={"FAKE_CLI_PLAN": plan}, base_url="http://127.0.0.1:9/v1",
-            api_key="sk-secret-123", options={})),
+            None,
+            "qwen-local",
+            timeout=30,
+            launcher=_fake("copilot"),
+            env={"FAKE_CLI_PLAN": plan},
+            base_url="http://127.0.0.1:9/v1",
+            api_key="sk-secret-123",
+            options={},
+        ),
+    ),
     "agy native": (
         {"kind": "agy_cli", "mode": "native"},
         lambda plan: AgyClient(
-            None, None, timeout=30, reads=False, launcher=_fake("agy"),
-            env={"FAKE_AGY_PLAN": plan})),
+            None, None, timeout=30, reads=False, launcher=_fake("agy"), env={"FAKE_AGY_PLAN": plan}
+        ),
+    ),
     "agy reads": (
         {"kind": "agy_cli", "mode": "reads"},
         lambda plan: AgyClient(
-            None, None, timeout=30, reads=True, launcher=_fake("agy"),
-            env={"FAKE_AGY_PLAN": plan})),
+            None, None, timeout=30, reads=True, launcher=_fake("agy"), env={"FAKE_AGY_PLAN": plan}
+        ),
+    ),
 }
 
 
@@ -284,10 +321,14 @@ def cli_app(settings_env, tmp_path):
         told, build = CLIS[which]
         plan.write_text(json.dumps({"record": str(record), **plan_fields}), encoding="utf-8")
         default = ScriptedModel(
-            default_steps if isinstance(default_steps, dict) else list(default_steps))
-        app = create_app(load_settings(settings_env), model=default,
-                         clients={"Cli": build(str(plan))},
-                         executors=executor.factory if executor else None)
+            default_steps if isinstance(default_steps, dict) else list(default_steps)
+        )
+        app = create_app(
+            load_settings(settings_env),
+            model=default,
+            clients={"Cli": build(str(plan))},
+            executors=executor.factory if executor else None,
+        )
         client = TestClient(app, base_url=ORIGIN)
         client.__enter__()
         opened.append(client)
@@ -319,9 +360,16 @@ def test_a_cli_with_tools_of_its_own_does_not_lead_an_unattended_turn(
     made = trigger(client, pid, cid, permissions=everything(client, cid))
     # (Its conversation moved onto it since: one made now is refused, K-tetik-native-uyari.)
     client.patch(f"/api/conversations/{cid}", json={"provider_id": provider["id"]})
-    again = client.post(f"/api/projects/{pid}/triggers", json={
-        "name": "again", "kind": "schedule", "conversation_id": cid, "message": MESSAGE,
-        "config": {"every_minutes": 60}})
+    again = client.post(
+        f"/api/projects/{pid}/triggers",
+        json={
+            "name": "again",
+            "kind": "schedule",
+            "conversation_id": cid,
+            "message": MESSAGE,
+            "config": {"every_minutes": 60},
+        },
+    )
     assert again.status_code == 422 and "works with its own tools" in again.text
     run_id = run_now(client, made["id"])
     snap = wait_run(client, cid, run_id, timeout=20)
@@ -340,9 +388,14 @@ def test_a_cli_with_tools_of_its_own_is_not_a_sub_agent_of_an_unattended_turn(
 ):
     """Refused as what it is - not, at a level below Full auto, with the words for a
     turn the user is watching ("set the level to Full auto"): nobody is there to."""
-    client, provider, default = cli_app(which, script=[{"say": "working"}], default_steps=[
-        step(call("spawn_agent", {"role": "Coder", "task": "change things"}, "s")),
-        text("could not")])
+    client, provider, default = cli_app(
+        which,
+        script=[{"say": "working"}],
+        default_steps=[
+            step(call("spawn_agent", {"role": "Coder", "task": "change things"}, "s")),
+            text("could not"),
+        ],
+    )
     client.patch(f"/api/roles/{role_id(client, 'Coder')}", json={"provider_id": provider["id"]})
     pid, cid = place(client, project_dir, permission_mode=level)
     made = trigger(client, pid, cid, permissions=everything(client, cid))
@@ -360,12 +413,11 @@ def test_a_cli_with_tools_of_its_own_is_not_a_sub_agent_of_an_unattended_turn(
 def test_a_cli_with_tools_of_its_own_is_not_opened_for_a_discussion_of_an_unattended_turn(
     cli_app, wait_run, project_dir, which
 ):
-    talk = step(call("discuss", {"topic": "the greeting", "with": ["Reviewer"],
-                                 "rounds": 1}, "d"))
+    talk = step(call("discuss", {"topic": "the greeting", "with": ["Reviewer"], "rounds": 1}, "d"))
     client, provider, default = cli_app(
-        which, script=[{"say": "Fine by me."}], default_steps=[talk, text("could not")])
-    client.patch(f"/api/roles/{role_id(client, 'Reviewer')}",
-                 json={"provider_id": provider["id"]})
+        which, script=[{"say": "Fine by me."}], default_steps=[talk, text("could not")]
+    )
+    client.patch(f"/api/roles/{role_id(client, 'Reviewer')}", json={"provider_id": provider["id"]})
     pid, cid = place(client, project_dir, permission_mode="full_auto")
     made = trigger(client, pid, cid, permissions=everything(client, cid))
     run_id = run_now(client, made["id"])
@@ -382,8 +434,9 @@ def test_a_provider_set_up_to_work_with_its_own_tools_is_refused_whatever_stands
     """Decided by how the user set the provider up, not only by the client built for it:
     here every provider's client is the scripted model."""
     client, model, pid, cid = setup(make_client, project_dir, {"Lead": [text("looked")]})
-    own = client.post("/api/providers", json={
-        "name": "Own", "kind": "codex_cli", "mode": "native"}).json()["id"]
+    own = client.post(
+        "/api/providers", json={"name": "Own", "kind": "codex_cli", "mode": "native"}
+    ).json()["id"]
     made = trigger(client, pid, cid)  # (before its conversation was moved onto it)
     assert client.patch(f"/api/conversations/{cid}", json={"provider_id": own}).status_code == 200
     snap = wait_run(client, cid, run_now(client, made["id"]))
@@ -403,12 +456,16 @@ def test_a_session_cli_in_an_unattended_turn_is_held_by_the_gate(
 ):
     """A session has none of its own tools: every tool is KOLONİ's, and goes through
     the same gate as for any other model."""
-    client, provider, _ = cli_app("claude session", script=[
-        {"call": "write_file", "args": {"path": "made.txt", "content": "x"}},
-        {"call": "run_command", "args": {"command": "python hello.py"}},
-        {"call": "ask_user", "args": {"question": "may I?"}},
-        {"call": "read_file", "args": {"path": "hello.py"}},
-        {"say": "I could only read."}])
+    client, provider, _ = cli_app(
+        "claude session",
+        script=[
+            {"call": "write_file", "args": {"path": "made.txt", "content": "x"}},
+            {"call": "run_command", "args": {"command": "python hello.py"}},
+            {"call": "ask_user", "args": {"question": "may I?"}},
+            {"call": "read_file", "args": {"path": "hello.py"}},
+            {"say": "I could only read."},
+        ],
+    )
     pid, cid = place(client, project_dir, permission_mode=level, provider_id=provider["id"])
     made = trigger(client, pid, cid)
     run_id = run_now(client, made["id"])
@@ -416,8 +473,11 @@ def test_a_session_cli_in_an_unattended_turn_is_held_by_the_gate(
     assert run_of(snap, run_id)["status"] == "completed", run_of(snap, run_id)
     said = results(snap, run_id)
     assert [(name, status) for name, status, _ in said] == [
-        ("write_file", "denied"), ("run_command", "denied"), ("ask_user", "denied"),
-        ("read_file", "succeeded")]
+        ("write_file", "denied"),
+        ("run_command", "denied"),
+        ("ask_user", "denied"),
+        ("read_file", "succeeded"),
+    ]
     assert all(NOBODY in words for _, status, words in said if status == "denied")
     assert not (project_dir / "made.txt").exists()
     assert snap["commands"] == [] and snap["file_changes"] == [] and snap["questions"] == []
@@ -432,10 +492,19 @@ def test_a_cli_run_one_step_at_a_time_in_an_unattended_turn_is_held_by_the_gate(
 ):
     """One step at a time the CLI only answers: KOLONİ runs what it asks for. The
     stand-in asks for the same write at every step, so the turn ends at its budget."""
-    client, provider, _ = cli_app(which, answer={"text": "Writing.", "tool_calls": [
-        {"name": "write_file", "arguments": json.dumps({"path": "made.txt", "content": "x"})}]})
-    pid, cid = place(client, project_dir, permission_mode="full_auto",
-                     provider_id=provider["id"])
+    client, provider, _ = cli_app(
+        which,
+        answer={
+            "text": "Writing.",
+            "tool_calls": [
+                {
+                    "name": "write_file",
+                    "arguments": json.dumps({"path": "made.txt", "content": "x"}),
+                }
+            ],
+        },
+    )
+    pid, cid = place(client, project_dir, permission_mode="full_auto", provider_id=provider["id"])
     made = trigger(client, pid, cid, budget={"steps": 2, "minutes": 10, "per_day": 24})
     run_id = run_now(client, made["id"])
     snap = wait_run(client, cid, run_id, timeout=30)
@@ -453,15 +522,21 @@ def test_a_trigger_is_not_made_where_its_turn_could_not_start(make_client, proje
     to such a conversation - not as its first turn fails. The words name the conversation (the
     form shows them under it, `fieldOf`)."""
     client, _model, pid, cid = setup(make_client, project_dir, {"Lead": [text("looked")]})
-    own = client.post("/api/providers", json={
-        "name": "Own", "kind": "codex_cli", "mode": "native"}).json()["id"]
+    own = client.post(
+        "/api/providers", json={"name": "Own", "kind": "codex_cli", "mode": "native"}
+    ).json()["id"]
     other = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     made = trigger(client, pid, other)
     client.patch(f"/api/conversations/{cid}", json={"provider_id": own})
     said = kept.OWN_TOOLS.format(name="Own", fix="choose another provider")
     assert "conversation" in said and "command" not in said
-    body = {"name": "watch", "kind": "schedule", "conversation_id": cid, "message": MESSAGE,
-            "config": {"every_minutes": 60}}
+    body = {
+        "name": "watch",
+        "kind": "schedule",
+        "conversation_id": cid,
+        "message": MESSAGE,
+        "config": {"every_minutes": 60},
+    }
     refused = client.post(f"/api/projects/{pid}/triggers", json=body)
     assert (refused.status_code, refused.json()["detail"]) == (422, said)
     moved = client.patch(f"/api/triggers/{made['id']}", json={"conversation_id": cid})
@@ -471,7 +546,8 @@ def test_a_trigger_is_not_made_where_its_turn_could_not_start(make_client, proje
     client.patch(f"/api/conversations/{cid}", json={"provider_id": None})
     client.post(f"/api/providers/{own}/default")
     assert client.post(f"/api/projects/{pid}/triggers", json=body).json()["detail"] == (
-        kept.OWN_TOOLS.format(name="Default (Own)", fix="choose a provider"))
+        kept.OWN_TOOLS.format(name="Default (Own)", fix="choose a provider")
+    )
 
 
 def test_a_cli_with_tools_of_its_own_is_not_run_even_were_it_opened(
@@ -479,20 +555,24 @@ def test_a_cli_with_tools_of_its_own_is_not_run_even_were_it_opened(
 ):
     """`_spawn` refuses first; and were an agent on such a CLI ever there all the same,
     its turn does not start (`_run_child`)."""
-    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [
-        gate.step(text("looked"))]}, permission_mode="full_auto")
+    client, model, pid, cid = setup(
+        make_client, project_dir, {"Lead": [gate.step(text("looked"))]}, permission_mode="full_auto"
+    )
     run_id = run_now(client, trigger(client, pid, cid, permissions=everything(client, cid))["id"])
     gate.wait_partial()
     runner = client.app.state.runner
     lead = next(ctx for ctx in runner._ctxs.values() if ctx.run_id == run_id)
     plan = tmp_path / "plan.json"
-    plan.write_text(json.dumps({"record": str(tmp_path / "record.json"), "script": []}),
-                    encoding="utf-8")
-    codex = CodexNativeClient(launcher=_fake("native"), timeout=30,
-                              env={"FAKE_CLI_PLAN": str(plan)})
+    plan.write_text(
+        json.dumps({"record": str(tmp_path / "record.json"), "script": []}), encoding="utf-8"
+    )
+    codex = CodexNativeClient(
+        launcher=_fake("native"), timeout=30, env={"FAKE_CLI_PLAN": str(plan)}
+    )
     loop = client.app.state.triggers._loop
     status, error = asyncio.run_coroutine_threadsafe(
-        runner._run_child(replace(lead, model=codex, provider="Codex")), loop).result(20)
+        runner._run_child(replace(lead, model=codex, provider="Codex")), loop
+    ).result(20)
     assert status == "failed" and NOT_THIS in error
     assert not (tmp_path / "record.json").exists()
     gate.release()
@@ -515,8 +595,9 @@ def test_every_n_minutes_is_counted_from_the_anchor():
 
 
 def test_a_late_turn_does_not_shift_the_times_after_it(make_client, wait_run, project_dir):
-    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [
-        text("one"), text("two"), text("three")]})
+    client, model, pid, cid = setup(
+        make_client, project_dir, {"Lead": [text("one"), text("two"), text("three")]}
+    )
     made = trigger(client, pid, cid, config={"every_minutes": 30})
     (first,) = tick(client, T0)
     wait_run(client, cid, first)
@@ -533,6 +614,7 @@ def zone_with_summer_time() -> ZoneInfo:
     """Central European time as zoneinfo reads it from a file: no table of past changes,
     only the rule (last Sunday of March 02:00 -> 03:00, last Sunday of October 03:00 ->
     02:00). Built here because this machine has no zone files and none may be installed."""
+
     def block() -> bytes:
         header = b"TZif2" + bytes(15) + struct.pack(">6l", 0, 0, 0, 0, 1, 4)
         return header + struct.pack(">lBB", 3600, 0, 0) + b"CET\0"
@@ -546,16 +628,17 @@ def utc(*parts) -> datetime:
 
 
 def test_a_time_of_day_is_the_local_clocks_across_a_change_of_day():
-    east = timezone(timedelta(hours=3))    # where 21:00 UTC is already tomorrow
-    west = timezone(timedelta(hours=-5))   # where 01:00 UTC is still yesterday
+    east = timezone(timedelta(hours=3))  # where 21:00 UTC is already tomorrow
+    west = timezone(timedelta(hours=-5))  # where 01:00 UTC is still yesterday
     assert kept.next_time("00:30", "daily", utc(2026, 10, 8, 21, 0), east) == utc(
-        2026, 10, 8, 21, 30)
+        2026, 10, 8, 21, 30
+    )
     assert kept.next_time("00:30", "daily", utc(2026, 10, 8, 21, 30), east) == utc(
-        2026, 10, 9, 21, 30)
-    assert kept.next_time("23:30", "daily", utc(2026, 10, 9, 1, 0), west) == utc(
-        2026, 10, 9, 4, 30)
+        2026, 10, 9, 21, 30
+    )
+    assert kept.next_time("23:30", "daily", utc(2026, 10, 9, 1, 0), west) == utc(2026, 10, 9, 4, 30)
     # the day of the week is the local one too: Friday 23:30 there is Saturday in UTC
-    friday_evening = utc(2026, 10, 10, 1, 0)   # Friday 9 Oct, 20:00 in the west
+    friday_evening = utc(2026, 10, 10, 1, 0)  # Friday 9 Oct, 20:00 in the west
     assert kept.next_time("23:30", "weekdays", friday_evening, west) == utc(2026, 10, 10, 4, 30)
     saturday = utc(2026, 10, 10, 5, 0)
     assert kept.next_time("23:30", "weekdays", saturday, west) == utc(2026, 10, 13, 4, 30)
@@ -565,17 +648,20 @@ def test_a_time_of_day_stays_put_when_the_clocks_change():
     zone = zone_with_summer_time()
     # autumn: 09:00 is 07:00 UTC on the Saturday and 08:00 UTC on the Sunday - 25 hours on
     assert kept.next_time("09:00", "daily", utc(2026, 10, 24, 6, 0), zone) == utc(
-        2026, 10, 24, 7, 0)
+        2026, 10, 24, 7, 0
+    )
     assert kept.next_time("09:00", "daily", utc(2026, 10, 24, 7, 0), zone) == utc(
-        2026, 10, 25, 8, 0)
+        2026, 10, 25, 8, 0
+    )
     # spring: 23 hours on
-    assert kept.next_time("09:00", "daily", utc(2026, 3, 28, 8, 0), zone) == utc(
-        2026, 3, 29, 7, 0)
+    assert kept.next_time("09:00", "daily", utc(2026, 3, 28, 8, 0), zone) == utc(2026, 3, 29, 7, 0)
     # a time the clock skips that night is taken as the clock stood before it
     assert kept.next_time("02:30", "daily", utc(2026, 3, 28, 12, 0), zone) == utc(
-        2026, 3, 29, 1, 30)
+        2026, 3, 29, 1, 30
+    )
     assert kept.next_time("02:30", "daily", utc(2026, 3, 29, 1, 30), zone) == utc(
-        2026, 3, 30, 0, 30)
+        2026, 3, 30, 0, 30
+    )
     # a time the clock shows twice is the first of the two - and comes once
     first = kept.next_time("02:30", "daily", utc(2026, 10, 24, 12, 0), zone)
     assert first == utc(2026, 10, 25, 0, 30)
@@ -583,11 +669,12 @@ def test_a_time_of_day_stays_put_when_the_clocks_change():
 
 
 def test_a_days_turns_are_counted_by_the_local_day(make_client, wait_run, project_dir):
-    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [
-        text("one"), text("two"), text("three")]})
+    client, model, pid, cid = setup(
+        make_client, project_dir, {"Lead": [text("one"), text("two"), text("three")]}
+    )
     client.app.state.triggers.zone = timezone(timedelta(hours=3))
     made = trigger(client, pid, cid, budget={"steps": 15, "minutes": 10, "per_day": 1})
-    evening = utc(2026, 10, 8, 20, 30)          # 23:30 there
+    evening = utc(2026, 10, 8, 20, 30)  # 23:30 there
     (first,) = tick(client, evening)
     wait_run(client, cid, first)
     # an hour on it is 00:30 the next day there, though the same day in UTC
@@ -598,8 +685,7 @@ def test_a_days_turns_are_counted_by_the_local_day(make_client, wait_run, projec
 
 
 def test_a_time_of_day_runs_once_a_day_at_that_time(make_client, wait_run, project_dir):
-    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [
-        text("one"), text("two")]})
+    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [text("one"), text("two")]})
     client.app.state.triggers.zone = zone_with_summer_time()
     made = trigger(client, pid, cid, config={"at": "09:00", "days": "daily"})
     assert made["config"] == {"at": "09:00", "days": "daily"}
@@ -608,18 +694,32 @@ def test_a_time_of_day_runs_once_a_day_at_that_time(make_client, wait_run, proje
     assert tick(client, utc(2026, 10, 24, 6, 59, 59)) == []
     (first,) = tick(client, utc(2026, 10, 24, 7, 0))
     wait_run(client, cid, first)
-    assert tick(client, utc(2026, 10, 25, 7, 0)) == []      # 08:00 by Sunday's clock
+    assert tick(client, utc(2026, 10, 25, 7, 0)) == []  # 08:00 by Sunday's clock
     assert len(tick(client, utc(2026, 10, 25, 8, 0))) == 1  # 09:00
 
 
 # --- the files a trigger watches ---------------------------------------------------------------
 
 
-@pytest.mark.parametrize("glob", [
-    "../**/*", "..", "src/../../x", "/etc/passwd", "C:/Windows/*", "c:\\Windows\\*",
-    "\\\\server\\share\\*", "src//a.py", "./src/*.py", "src/./a.py", "", "   ",
-    "a" * 201, "src/\n*.py",
-])
+@pytest.mark.parametrize(
+    "glob",
+    [
+        "../**/*",
+        "..",
+        "src/../../x",
+        "/etc/passwd",
+        "C:/Windows/*",
+        "c:\\Windows\\*",
+        "\\\\server\\share\\*",
+        "src//a.py",
+        "./src/*.py",
+        "src/./a.py",
+        "",
+        "   ",
+        "a" * 201,
+        "src/\n*.py",
+    ],
+)
 def test_a_pattern_that_could_leave_the_project_is_no_pattern(glob):
     with pytest.raises(kept.Invalid):
         kept.check_glob(glob)
@@ -627,22 +727,40 @@ def test_a_pattern_that_could_leave_the_project_is_no_pattern(glob):
 
 def test_a_pattern_is_tidied_and_matches_only_what_it_says(tmp_path):
     assert kept.check_glob(" src\\**\\*.py ") == "src/**/*.py"
-    for path in ("src/a.py", "src/deep/er/b.py", "src/a.pyc", "srcx/c.py", "top.py",
-                 "docs/src/d.py"):
+    for path in (
+        "src/a.py",
+        "src/deep/er/b.py",
+        "src/a.pyc",
+        "srcx/c.py",
+        "top.py",
+        "docs/src/d.py",
+    ):
         (tmp_path / path).parent.mkdir(parents=True, exist_ok=True)
         (tmp_path / path).write_text("x", encoding="utf-8")
     assert sorted(kept.listing(tmp_path, "src/**/*.py")) == ["src/a.py", "src/deep/er/b.py"]
-    assert sorted(kept.listing(tmp_path, "*.py")) == ["top.py"]   # a star stays in its folder
+    assert sorted(kept.listing(tmp_path, "*.py")) == ["top.py"]  # a star stays in its folder
     assert sorted(kept.listing(tmp_path, "**/*.py")) == [
-        "docs/src/d.py", "src/a.py", "src/deep/er/b.py", "srcx/c.py", "top.py"]
+        "docs/src/d.py",
+        "src/a.py",
+        "src/deep/er/b.py",
+        "srcx/c.py",
+        "top.py",
+    ]
     assert kept.listing(tmp_path, "nowhere/**/*") == {}
     size, written = kept.listing(tmp_path, "top.py")["top.py"]
     assert size == 1 and written > 0
 
 
 def test_what_is_never_watched_is_not_listed_whatever_the_pattern(tmp_path):
-    for path in ("a.js", ".git/config", "node_modules/x/index.js", "runtime/data/k.db",
-                 "web/node_modules/y/index.js", "web/app.js", "web/.git/HEAD"):
+    for path in (
+        "a.js",
+        ".git/config",
+        "node_modules/x/index.js",
+        "runtime/data/k.db",
+        "web/node_modules/y/index.js",
+        "web/app.js",
+        "web/.git/HEAD",
+    ):
         (tmp_path / path).parent.mkdir(parents=True, exist_ok=True)
         (tmp_path / path).write_text("x", encoding="utf-8")
     assert sorted(kept.listing(tmp_path, "**/*")) == ["a.js", "web/app.js"]
@@ -652,10 +770,25 @@ def test_what_is_never_watched_is_not_listed_whatever_the_pattern(tmp_path):
     assert kept.listing(tmp_path, "web/node_modules/**/*") == {}
 
 
-@pytest.mark.parametrize("folder", [
-    ".venv", "venv", "env", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache",
-    "dist", "build", ".next", "target", ".git", "node_modules", "runtime",
-])
+@pytest.mark.parametrize(
+    "folder",
+    [
+        ".venv",
+        "venv",
+        "env",
+        "__pycache__",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
+        "dist",
+        "build",
+        ".next",
+        "target",
+        ".git",
+        "node_modules",
+        "runtime",
+    ],
+)
 def test_what_tools_make_and_fill_by_themselves_is_not_watched(tmp_path, folder):
     for path in ("src/a.py", f"{folder}/x.py", f"{folder}/deep/y.py", f"pkg/{folder}/z.py"):
         (tmp_path / path).parent.mkdir(parents=True, exist_ok=True)
@@ -671,13 +804,16 @@ def test_a_junction_is_not_followed_wherever_in_the_pattern_it_stands(tmp_path):
     project, outside = tmp_path / "proj", tmp_path / "outside"
     (project / "src" / "real").mkdir(parents=True)
     (outside / "deep").mkdir(parents=True)
-    for path in (outside / "secret.py", outside / "deep" / "more.py",
-                 project / "src" / "real" / "own.py"):
+    for path in (
+        outside / "secret.py",
+        outside / "deep" / "more.py",
+        project / "src" / "real" / "own.py",
+    ):
         path.write_text("x", encoding="utf-8")
     links = [project / "src" / "out", project / "linked", project / "src" / "again"]
-    junction(links[0], outside)             # below a folder the pattern names
-    junction(links[1], outside)             # the folder the pattern names is itself one
-    junction(links[2], project / "src" / "real")    # round again, inside the project
+    junction(links[0], outside)  # below a folder the pattern names
+    junction(links[1], outside)  # the folder the pattern names is itself one
+    junction(links[2], project / "src" / "real")  # round again, inside the project
     try:
         assert sorted(kept.listing(project, "src/**/*.py")) == ["src/real/own.py"]
         assert sorted(kept.listing(project, "**/*.py")) == ["src/real/own.py"]
@@ -709,18 +845,29 @@ def test_no_more_files_than_a_trigger_may_watch(make_client, project_dir, monkey
     (project_dir / "src").mkdir()
     for number in range(3):
         (project_dir / "src" / f"f{number}.py").write_text("x", encoding="utf-8")
-    assert len(kept.listing(project_dir, "src/*.py")) == 3   # as many as it may: fine
+    assert len(kept.listing(project_dir, "src/*.py")) == 3  # as many as it may: fine
     made = trigger(client, pid, cid, kind="files", config={"glob": "src/*.py"})
     (project_dir / "src" / "f3.py").write_text("x", encoding="utf-8")
     with pytest.raises(kept.TooMany):
         kept.listing(project_dir, "src/*.py")
     # a new trigger on it is not made; nor is one changed to it
-    refused = client.post(f"/api/projects/{pid}/triggers", json={
-        "name": "too much", "kind": "files", "conversation_id": cid, "message": "x",
-        "config": {"glob": "**/*.py"}})
+    refused = client.post(
+        f"/api/projects/{pid}/triggers",
+        json={
+            "name": "too much",
+            "kind": "files",
+            "conversation_id": cid,
+            "message": "x",
+            "config": {"glob": "**/*.py"},
+        },
+    )
     assert refused.status_code == 422 and "files match" in refused.text
-    assert client.patch(f"/api/triggers/{made['id']}", json={
-        "config": {"glob": "**/*.py"}}).status_code == 422
+    assert (
+        client.patch(
+            f"/api/triggers/{made['id']}", json={"config": {"glob": "**/*.py"}}
+        ).status_code
+        == 422
+    )
     assert one(client, made["id"])["config"] == {"glob": "src/*.py"}
     # and one whose pattern has come to name too many is switched off, where the user sees why
     assert tick(client, T0) == []
@@ -749,10 +896,10 @@ def test_files_must_have_been_left_alone_for_ten_seconds(make_client, wait_run, 
     made = trigger(client, pid, cid, kind="files", config={"glob": "src/*.py"})
     target = project_dir / "src" / "a.py"
     target.write_text("a = 1\n", encoding="utf-8")
-    assert tick(client, T0) == []                                    # seen
-    assert tick(client, T0 + timedelta(seconds=9.9)) == []           # not yet ten seconds
-    target.write_text("a = 1\nb = 2\n", encoding="utf-8")            # still being written
-    assert tick(client, T0 + timedelta(seconds=10)) == []            # the wait starts over
+    assert tick(client, T0) == []  # seen
+    assert tick(client, T0 + timedelta(seconds=9.9)) == []  # not yet ten seconds
+    target.write_text("a = 1\nb = 2\n", encoding="utf-8")  # still being written
+    assert tick(client, T0 + timedelta(seconds=10)) == []  # the wait starts over
     assert tick(client, T0 + timedelta(seconds=19.9)) == []
     (run_id,) = tick(client, T0 + timedelta(seconds=20))
     wait_run(client, cid, run_id)
@@ -773,12 +920,26 @@ def test_after_its_own_turn_a_files_trigger_starts_from_the_files_as_they_are(
 ):
     """What its own turn wrote is not news to it - and is not named as news later, when
     somebody else changes something."""
-    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [
-        step(call("write_file", {"path": "src/own.py", "content": "own = 1\n"}, "w")),
-        text("wrote"), text("looked again")]})
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [
+                step(call("write_file", {"path": "src/own.py", "content": "own = 1\n"}, "w")),
+                text("wrote"),
+                text("looked again"),
+            ]
+        },
+    )
     (project_dir / "src").mkdir()
-    made = trigger(client, pid, cid, kind="files", config={"glob": "src/**/*.py"},
-                   permissions=leave(write=True))
+    made = trigger(
+        client,
+        pid,
+        cid,
+        kind="files",
+        config={"glob": "src/**/*.py"},
+        permissions=leave(write=True),
+    )
     (project_dir / "src" / "a.py").write_text("a = 1\n", encoding="utf-8")
     tick(client, T0)
     (first,) = tick(client, T0 + timedelta(seconds=12))
@@ -791,7 +952,7 @@ def test_after_its_own_turn_a_files_trigger_starts_from_the_files_as_they_are(
     (second,) = tick(client, T0 + timedelta(seconds=81))
     wait_run(client, cid, second)
     sent = json.dumps(model.calls[-1], ensure_ascii=False)
-    told = sent[sent.rindex("Files that changed since"):]
+    told = sent[sent.rindex("Files that changed since") :]
     assert "src/theirs.py" in told and "own.py" not in told and "src/a.py" not in told
     assert len(one(client, made["id"])["runs"]) == 2
 
@@ -802,49 +963,60 @@ def test_a_change_seen_while_the_conversation_is_at_work_waits_for_it_and_starts
     """The change is kept, not spent: the turn starts at the first look when the
     conversation is free - once, naming all that changed meanwhile. That it was held
     back is written down once for a change, not at every look."""
-    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [
-        gate.step(text("my own turn")), text("looked"), text("again?")]})
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        {"Lead": [gate.step(text("my own turn")), text("looked"), text("again?")]},
+    )
     (project_dir / "src").mkdir()
     made = trigger(client, pid, cid, kind="files", config={"glob": "src/*.py"})
-    mine = client.post(f"/api/conversations/{cid}/messages",
-                       json={"content": "a turn of my own"}).json()["run"]["id"]
+    mine = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "a turn of my own"}
+    ).json()["run"]["id"]
     gate.wait_partial()
     (project_dir / "src" / "a.py").write_text("a = 1\n", encoding="utf-8")
     second = timedelta(seconds=1)
-    assert tick(client, T0) == []                       # seen
-    for later in (10, 15, 20, 25):                      # quiet, and the conversation at work
+    assert tick(client, T0) == []  # seen
+    for later in (10, 15, 20, 25):  # quiet, and the conversation at work
         assert tick(client, T0 + later * second) == []
     assert [ran["outcome"] for ran in one(client, made["id"])["runs"]] == ["skipped_busy"]
-    assert client.app.state.triggers._pending != {}     # still waited for
+    assert client.app.state.triggers._pending != {}  # still waited for
     # more changes meanwhile: things have to be quiet again, and it is another change
     (project_dir / "src" / "b.py").write_text("b = 2\n", encoding="utf-8")
     assert tick(client, T0 + 30 * second) == []
     assert tick(client, T0 + 41 * second) == []
     assert [ran["outcome"] for ran in one(client, made["id"])["runs"]] == [
-        "skipped_busy", "skipped_busy"]
+        "skipped_busy",
+        "skipped_busy",
+    ]
     gate.release()
     wait_run(client, cid, mine)
-    (run_id,) = tick(client, T0 + 45 * second)          # free: no new wait, it has been quiet
+    (run_id,) = tick(client, T0 + 45 * second)  # free: no new wait, it has been quiet
     wait_run(client, cid, run_id)
     sent = json.dumps(model.calls[-1], ensure_ascii=False)
-    told = sent[sent.rindex("Files that changed since"):]
+    told = sent[sent.rindex("Files that changed since") :]
     assert "src/a.py" in told and "src/b.py" in told
     # once: the change is spent now
     assert tick(client, T0 + 50 * second) == [] and tick(client, T0 + 90 * second) == []
     assert [ran["outcome"] for ran in one(client, made["id"])["runs"]] == [
-        "completed", "skipped_busy", "skipped_busy"]
+        "completed",
+        "skipped_busy",
+        "skipped_busy",
+    ]
     assert client.app.state.triggers._pending == {}
 
 
 def test_a_change_undone_while_the_conversation_was_at_work_starts_nothing(
     make_client, wait_run, project_dir, gate
 ):
-    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [
-        gate.step(text("my own turn")), text("never")]})
+    client, model, pid, cid = setup(
+        make_client, project_dir, {"Lead": [gate.step(text("my own turn")), text("never")]}
+    )
     (project_dir / "src").mkdir()
     made = trigger(client, pid, cid, kind="files", config={"glob": "src/*.py"})
-    mine = client.post(f"/api/conversations/{cid}/messages",
-                       json={"content": "a turn of my own"}).json()["run"]["id"]
+    mine = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "a turn of my own"}
+    ).json()["run"]["id"]
     gate.wait_partial()
     (project_dir / "src" / "a.py").write_text("a = 1\n", encoding="utf-8")
     tick(client, T0)
@@ -865,8 +1037,14 @@ def test_a_change_that_falls_on_a_day_whose_turns_are_used_up_is_spent(
     does not: the change is skipped, as a due time of a schedule is."""
     client, model, pid, cid = setup(make_client, project_dir, {"Lead": [text("one")]})
     (project_dir / "src").mkdir()
-    made = trigger(client, pid, cid, kind="files", config={"glob": "src/*.py"},
-                   budget={"steps": 15, "minutes": 10, "per_day": 1})
+    made = trigger(
+        client,
+        pid,
+        cid,
+        kind="files",
+        config={"glob": "src/*.py"},
+        budget={"steps": 15, "minutes": 10, "per_day": 1},
+    )
     (project_dir / "src" / "a.py").write_text("a = 1\n", encoding="utf-8")
     tick(client, T0)
     (run_id,) = tick(client, T0 + timedelta(seconds=12))
@@ -875,9 +1053,11 @@ def test_a_change_that_falls_on_a_day_whose_turns_are_used_up_is_spent(
     tick(client, T0 + timedelta(seconds=20))
     assert tick(client, T0 + timedelta(seconds=32)) == []
     assert tick(client, T0 + timedelta(seconds=50)) == []
-    assert tick(client, T0 + timedelta(days=1)) == []          # not made up the next day
+    assert tick(client, T0 + timedelta(days=1)) == []  # not made up the next day
     assert [ran["outcome"] for ran in one(client, made["id"])["runs"]] == [
-        "skipped_budget", "completed"]
+        "skipped_budget",
+        "completed",
+    ]
 
 
 def test_a_change_held_back_that_then_falls_on_a_used_up_day_is_written_down_as_that(
@@ -885,28 +1065,41 @@ def test_a_change_held_back_that_then_falls_on_a_used_up_day_is_written_down_as_
 ):
     """Held back once is written once - but why it started nothing in the end is another
     thing, and is on record too."""
-    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [
-        text("its one turn today"), gate.step(text("my own turn")), text("never")]})
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        {"Lead": [text("its one turn today"), gate.step(text("my own turn")), text("never")]},
+    )
     (project_dir / "src").mkdir()
-    made = trigger(client, pid, cid, kind="files", config={"glob": "src/*.py"},
-                   budget={"steps": 15, "minutes": 10, "per_day": 1})
+    made = trigger(
+        client,
+        pid,
+        cid,
+        kind="files",
+        config={"glob": "src/*.py"},
+        budget={"steps": 15, "minutes": 10, "per_day": 1},
+    )
     (project_dir / "src" / "a.py").write_text("a = 1\n", encoding="utf-8")
     tick(client, T0)
     (run_id,) = tick(client, T0 + timedelta(seconds=12))
     wait_run(client, cid, run_id)
-    mine = client.post(f"/api/conversations/{cid}/messages",
-                       json={"content": "a turn of my own"}).json()["run"]["id"]
+    mine = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "a turn of my own"}
+    ).json()["run"]["id"]
     gate.wait_partial()
     (project_dir / "src" / "b.py").write_text("b = 2\n", encoding="utf-8")
     tick(client, T0 + timedelta(seconds=20))
-    assert tick(client, T0 + timedelta(seconds=32)) == []          # held back: at work
+    assert tick(client, T0 + timedelta(seconds=32)) == []  # held back: at work
     assert tick(client, T0 + timedelta(seconds=40)) == []
     gate.release()
     wait_run(client, cid, mine)
-    assert tick(client, T0 + timedelta(seconds=50)) == []          # free, and the day used up
+    assert tick(client, T0 + timedelta(seconds=50)) == []  # free, and the day used up
     assert tick(client, T0 + timedelta(seconds=60)) == []
     assert [ran["outcome"] for ran in one(client, made["id"])["runs"]] == [
-        "skipped_budget", "skipped_busy", "completed"]
+        "skipped_budget",
+        "skipped_busy",
+        "completed",
+    ]
     assert client.app.state.triggers._pending == {}
 
 
@@ -927,7 +1120,8 @@ def everything_kept(client) -> bytes:
     """The database as it is on disk, with what has not been folded into it yet."""
     database = client.app.state.settings.db_path
     return b"".join(
-        path.read_bytes() for path in (database, Path(f"{database}-wal")) if path.exists())
+        path.read_bytes() for path in (database, Path(f"{database}-wal")) if path.exists()
+    )
 
 
 def test_a_key_is_long_random_and_kept_only_as_its_digest(make_client, project_dir):
@@ -936,7 +1130,7 @@ def test_a_key_is_long_random_and_kept_only_as_its_digest(make_client, project_d
     other = trigger(client, pid, cid, kind="webhook", config={})
     key = made["key"]
     assert len(key) >= 32 and key != other["key"]
-    assert re.fullmatch(r"[A-Za-z0-9_-]+", key)       # goes into an address as it is
+    assert re.fullmatch(r"[A-Za-z0-9_-]+", key)  # goes into an address as it is
     digest = hashlib.sha256(key.encode()).hexdigest()
     with client.app.state.session_factory() as session:
         row = session.get(Trigger, made["id"])
@@ -961,9 +1155,9 @@ def test_every_key_is_compared_in_constant_time(make_client, project_dir, monkey
     monkeypatch.setattr(kept.hmac, "compare_digest", spy)
     with client.app.state.session_factory() as session:
         assert kept.by_key(session, "not-a-key") is None
-        assert len(compared) == 2     # every webhook's digest, not only until one fits
+        assert len(compared) == 2  # every webhook's digest, not only until one fits
         assert kept.by_key(session, first["key"]).id == first["id"]
-        assert len(compared) == 4     # the first fitted: the second was compared all the same
+        assert len(compared) == 4  # the first fitted: the second was compared all the same
         assert kept.by_key(session, second["key"]).id == second["id"]
         # a key is never compared itself: only digests of the same length are
         assert all(len(a) == len(b) == 64 for a, b in compared)
@@ -975,8 +1169,14 @@ def test_a_key_is_shown_once_and_is_in_nothing_read_back(
 ):
     caplog.set_level(logging.DEBUG)
     client, model, pid, cid = setup(make_client, project_dir, {"Lead": [text("got it")]})
-    made = trigger(client, pid, cid, kind="webhook", config={},
-                   budget={"steps": 15, "minutes": 10, "per_day": 1})
+    made = trigger(
+        client,
+        pid,
+        cid,
+        kind="webhook",
+        config={},
+        budget={"steps": 15, "minutes": 10, "per_day": 1},
+    )
     key, tid = made["key"], made["id"]
     here = TestClient(client.app, base_url=ORIGIN, client=("127.0.0.1", 50000))
     answers = [
@@ -984,23 +1184,34 @@ def test_a_key_is_shown_once_and_is_in_nothing_read_back(
         client.get(f"/api/projects/{pid}/triggers"),
         client.patch(f"/api/triggers/{tid}", json={"name": "renamed"}),
         client.patch(f"/api/triggers/{tid}", json={"enabled": False}),
-        here.post(f"/api/hooks/{key}", content="x"),                 # 409: switched off
+        here.post(f"/api/hooks/{key}", content="x"),  # 409: switched off
         client.patch(f"/api/triggers/{tid}", json={"enabled": True}),
-        here.post(f"/api/hooks/{key}", content="x" * 4001),          # 413
+        here.post(f"/api/hooks/{key}", content="x" * 4001),  # 413
         client.put("/api/triggers/paused", json={"paused": True}),
-        here.post(f"/api/hooks/{key}", content="x"),                 # 409: paused
+        here.post(f"/api/hooks/{key}", content="x"),  # 409: paused
         client.put("/api/triggers/paused", json={"paused": False}),
-        here.post(f"/api/hooks/{key}x", content="x"),                # 404: almost the key
+        here.post(f"/api/hooks/{key}x", content="x"),  # 404: almost the key
     ]
     assert [a.status_code for a in answers] == [
-        200, 200, 200, 200, 409, 200, 413, 200, 409, 200, 404]
+        200,
+        200,
+        200,
+        200,
+        409,
+        200,
+        413,
+        200,
+        409,
+        200,
+        404,
+    ]
     # asked for as a page: "not found" where the built page is served, "not allowed" where not
     answers.append(here.get(f"/api/hooks/{key}"))
     assert answers[-1].status_code in (404, 405)
     started = here.post(f"/api/hooks/{key}", content="build 512 failed")
     assert started.status_code == 202
     snap = wait_run(client, cid, started.json()["run_id"])
-    answers.append(here.post(f"/api/hooks/{key}", content="x"))      # 429: the day's turns
+    answers.append(here.post(f"/api/hooks/{key}", content="x"))  # 429: the day's turns
     assert answers[-1].status_code == 429
     answers += [client.get(f"/api/triggers/{tid}"), client.post(f"/api/triggers/{tid}/run")]
     for answer in [*answers, started]:
@@ -1012,8 +1223,9 @@ def test_a_key_is_shown_once_and_is_in_nothing_read_back(
     assert key.encode() not in everything_kept(client)
     # nothing the app itself wrote to a log holds it (the test's own client logs what it
     # asks for, which is not the app's doing)
-    written = [record.getMessage() for record in caplog.records
-               if not record.name.startswith("httpx")]
+    written = [
+        record.getMessage() for record in caplog.records if not record.name.startswith("httpx")
+    ]
     assert not [line for line in written if key in line]
 
 
@@ -1022,8 +1234,14 @@ def test_the_access_log_filter_takes_a_key_out_of_whatever_holds_it():
     key = "k3y-OF_a-webhook_0123456789abcdefghijklmnop"
     # as uvicorn writes a request down: the address is one of the arguments
     record = logging.LogRecord(
-        "uvicorn.access", logging.INFO, __file__, 1, '%s - "%s %s HTTP/%s" %d',
-        ("127.0.0.1:50000", "POST", f"/api/hooks/{key}?x=1", "1.1", 202), None)
+        "uvicorn.access",
+        logging.INFO,
+        __file__,
+        1,
+        '%s - "%s %s HTTP/%s" %d',
+        ("127.0.0.1:50000", "POST", f"/api/hooks/{key}?x=1", "1.1", 202),
+        None,
+    )
     assert scrub.filter(record) is True
     assert record.getMessage() == '127.0.0.1:50000 - "POST /api/hooks/[key]?x=1 HTTP/1.1" 202'
     for message, arguments in (
@@ -1032,14 +1250,14 @@ def test_the_access_log_filter_takes_a_key_out_of_whatever_holds_it():
         ("%s", (f"http://127.0.0.1:8790/api/hooks/{key}",)),
         ("%s", (f"/API/Hooks/{key}/",)),
     ):
-        record = logging.LogRecord("uvicorn.error", logging.INFO, __file__, 1, message,
-                                   None, None)
+        record = logging.LogRecord("uvicorn.error", logging.INFO, __file__, 1, message, None, None)
         record.args = arguments
         scrub.filter(record)
         assert key not in record.getMessage() and "[key]" in record.getMessage()
     # everything else is left as it was
-    record = logging.LogRecord("uvicorn.access", logging.INFO, __file__, 1, "%s %d",
-                               ("/api/triggers/abc", 200), None)
+    record = logging.LogRecord(
+        "uvicorn.access", logging.INFO, __file__, 1, "%s %d", ("/api/triggers/abc", 200), None
+    )
     scrub.filter(record)
     assert record.getMessage() == "/api/triggers/abc 200"
 
@@ -1091,12 +1309,25 @@ def test_the_servers_access_log_never_holds_a_webhooks_key(settings, project_dir
 def test_a_files_trigger_does_not_look_while_its_own_turn_is_at_work(
     make_client, wait_run, project_dir, gate
 ):
-    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [
-        step(call("write_file", {"path": "src/own.py", "content": "own = 1\n"}, "w")),
-        gate.step(text("still at it"))]})
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [
+                step(call("write_file", {"path": "src/own.py", "content": "own = 1\n"}, "w")),
+                gate.step(text("still at it")),
+            ]
+        },
+    )
     (project_dir / "src").mkdir()
-    made = trigger(client, pid, cid, kind="files", config={"glob": "src/**/*.py"},
-                   permissions=leave(write=True))
+    made = trigger(
+        client,
+        pid,
+        cid,
+        kind="files",
+        config={"glob": "src/**/*.py"},
+        permissions=leave(write=True),
+    )
     (project_dir / "src" / "a.py").write_text("a = 1\n", encoding="utf-8")
     tick(client, T0)
     (run_id,) = tick(client, T0 + timedelta(seconds=12))
@@ -1117,8 +1348,9 @@ def test_a_files_trigger_does_not_look_while_its_own_turn_is_at_work(
 
 def held_turn(make_client, project_dir, gate, permissions, **conversation):
     """An unattended turn held open at its first step: the runner, its lead and the rest."""
-    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [
-        gate.step(text("looked"))]}, **conversation)
+    client, model, pid, cid = setup(
+        make_client, project_dir, {"Lead": [gate.step(text("looked"))]}, **conversation
+    )
     if callable(permissions):
         permissions = permissions(client, cid)  # with rules of this conversation's list
     made = trigger(client, pid, cid, permissions=permissions)
@@ -1137,21 +1369,21 @@ def set_leave(client, trigger_id, permissions):
 
 
 NOT_THE_COMMAND = [
-    "python hello",                       # the beginning of it
-    "python hello.py --verbose",          # it, and more
-    "python hello.py && echo x",          # it, chained
+    "python hello",  # the beginning of it
+    "python hello.py --verbose",  # it, and more
+    "python hello.py && echo x",  # it, chained
     "python hello.py; echo x",
     "python hello.py | more",
     "echo x && python hello.py",
-    'cmd /c "python hello.py"',           # it, wrapped
+    'cmd /c "python hello.py"',  # it, wrapped
     'sh -c "python hello.py"',
-    "python  hello.py",                   # other spacing
+    "python  hello.py",  # other spacing
     " python hello.py",
     "python hello.py ",
     "python\thello.py",
-    'python "hello.py"',                  # other quoting
+    'python "hello.py"',  # other quoting
     "'python hello.py'",
-    "Python hello.py",                    # another case
+    "Python hello.py",  # another case
     "python hello.py\necho x",
     "",
 ]
@@ -1163,11 +1395,11 @@ def test_the_gate_point_by_point(make_client, wait_run, project_dir, gate):
     def ticked(client, cid):
         for line in ("python hello.py", "git status", "python"):
             rules[line] = allow(client, cid, line)
-        return leave(write=True, commands=[rules["python hello.py"], rules["git status"]],
-                     agents=2)
+        return leave(write=True, commands=[rules["python hello.py"], rules["git status"]], agents=2)
 
     client, runner, lead, made, cid, run_id = held_turn(
-        make_client, project_dir, gate, ticked, permission_mode="full_auto")
+        make_client, project_dir, gate, ticked, permission_mode="full_auto"
+    )
     both = [rules["python hello.py"], rules["git status"]]
 
     def ask(what, **more):
@@ -1193,8 +1425,10 @@ def test_the_gate_point_by_point(make_client, wait_run, project_dir, gate):
     for what in ("model", "role", "question", "words", "core", "anything else", ""):
         assert refused(what), what
     # what the user takes back is gone at once, in the middle of a turn
-    assert client.patch(f"/api/triggers/{made['id']}", json={
-        "permissions": leave()}).status_code == 200
+    assert (
+        client.patch(f"/api/triggers/{made['id']}", json={"permissions": leave()}).status_code
+        == 200
+    )
     assert refused("write") and refused("command", command="python hello.py")
     assert refused("agent")
     # permissions that are not what they should be allow nothing: when in doubt, no
@@ -1206,7 +1440,10 @@ def test_the_gate_point_by_point(make_client, wait_run, project_dir, gate):
         {"write": [True], "commands": {hello: True}, "agents": 2.0},
         # the command's text where a rule's id belongs: what a trigger used to keep
         {"write": "true", "commands": ["python hello.py"], "agents": [2]},
-        {}, [], "everything", None,
+        {},
+        [],
+        "everything",
+        None,
     ):
         set_leave(client, made["id"], odd)
         assert refused("write"), odd
@@ -1218,8 +1455,7 @@ def test_the_gate_point_by_point(make_client, wait_run, project_dir, gate):
     assert ask("command", command="python") == ""
     assert refused("command", command="python hello.py")
     # a rule of another conversation's list, written straight into the row, gives nothing
-    other = client.post(
-        f"/api/projects/{made['project_id']}/conversations").json()["id"]
+    other = client.post(f"/api/projects/{made['project_id']}/conversations").json()["id"]
     foreign = allow(client, other, "python hello.py")
     set_leave(client, made["id"], leave(write=True, commands=[foreign], agents=2))
     assert refused("command", command="python hello.py")
@@ -1246,21 +1482,33 @@ def test_the_gate_point_by_point(make_client, wait_run, project_dir, gate):
 def test_an_agent_already_opened_counts_against_the_next(make_client, wait_run, project_dir):
     """`agents` is how many are opened below the lead in the whole turn, at any depth and
     by whichever agent: a sub-agent's own sub-agent uses the allowance up too."""
-    client, model, pid, cid = setup(make_client, project_dir, {
-        "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "one"}, "s1")),
-                 step(call("spawn_agent", {"role": "Coder", "task": "three"}, "s3")),
-                 text("done")],
-        "Coder": [step(call("spawn_agent", {"role": "Reviewer", "task": "two"}, "s2")),
-                  step(call("spawn_agent", {"role": "Tester", "task": "too many"}, "s4")),
-                  text("had it reviewed")],
-        "Reviewer": [text("fine")],
-    }, permission_mode="full_auto")
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [
+                step(call("spawn_agent", {"role": "Coder", "task": "one"}, "s1")),
+                step(call("spawn_agent", {"role": "Coder", "task": "three"}, "s3")),
+                text("done"),
+            ],
+            "Coder": [
+                step(call("spawn_agent", {"role": "Reviewer", "task": "two"}, "s2")),
+                step(call("spawn_agent", {"role": "Tester", "task": "too many"}, "s4")),
+                text("had it reviewed"),
+            ],
+            "Reviewer": [text("fine")],
+        },
+        permission_mode="full_auto",
+    )
     made = trigger(client, pid, cid, permissions=leave(agents=2))
     run_id = run_now(client, made["id"])
     snap = wait_run(client, cid, run_id)
     assert run_of(snap, run_id)["status"] == "completed", run_of(snap, run_id)
-    said = {json.loads(t["arguments"])["task"]: (t["status"], t["result"])
-            for t in snap["tool_calls"] if t["name"] == "spawn_agent"}
+    said = {
+        json.loads(t["arguments"])["task"]: (t["status"], t["result"])
+        for t in snap["tool_calls"]
+        if t["name"] == "spawn_agent"
+    }
     assert said["one"][0] == "succeeded" and said["two"][0] == "succeeded"
     for task in ("three", "too many"):
         assert said[task][0] == "denied" and NOBODY in said[task][1], said[task]
@@ -1273,22 +1521,38 @@ def test_a_sub_agent_and_a_turn_on_a_message_are_held_to_the_trigger(
     """The trigger lets one sub-agent be opened and nothing be changed or run: that holds
     for the sub-agent's own work and for the turn it takes when the lead writes to it."""
     executor = ScriptedExecutor([])
-    client, model, pid, cid = setup(make_client, project_dir, {
-        "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "write made.txt"}, "s")),
-                 step(call("message_agent", {"to": "Coder", "message": "now do write it"}, "m")),
-                 text("done")],
-        "Coder": [step(call("write_file", {"path": "made.txt", "content": "x"}, "w1")),
-                  step(call("run_command", {"command": "python hello.py"}, "c1")),
-                  step(call("ask_user", {"question": "may I?"}, "q1")),
-                  text("I could not."),
-                  # the turn it takes on the lead's message
-                  step(call("write_file", {"path": "made.txt", "content": "x"}, "w2")),
-                  step(call("edit_file", {"path": "hello.py", "old_string": "hi",
-                                          "new_string": "yo"}, "e2")),
-                  step(call("run_command", {"command": "python hello.py"}, "c2")),
-                  step(call("spawn_agent", {"role": "Tester", "task": "run it"}, "s2")),
-                  text("Still not.")],
-    }, executor=executor, permission_mode="full_auto", spawn_approval="never")
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [
+                step(call("spawn_agent", {"role": "Coder", "task": "write made.txt"}, "s")),
+                step(call("message_agent", {"to": "Coder", "message": "now do write it"}, "m")),
+                text("done"),
+            ],
+            "Coder": [
+                step(call("write_file", {"path": "made.txt", "content": "x"}, "w1")),
+                step(call("run_command", {"command": "python hello.py"}, "c1")),
+                step(call("ask_user", {"question": "may I?"}, "q1")),
+                text("I could not."),
+                # the turn it takes on the lead's message
+                step(call("write_file", {"path": "made.txt", "content": "x"}, "w2")),
+                step(
+                    call(
+                        "edit_file",
+                        {"path": "hello.py", "old_string": "hi", "new_string": "yo"},
+                        "e2",
+                    )
+                ),
+                step(call("run_command", {"command": "python hello.py"}, "c2")),
+                step(call("spawn_agent", {"role": "Tester", "task": "run it"}, "s2")),
+                text("Still not."),
+            ],
+        },
+        executor=executor,
+        permission_mode="full_auto",
+        spawn_approval="never",
+    )
     with client.app.state.session_factory() as session:
         session.add(AllowedCommand(conversation_id=cid, project_id=pid, prefix="python"))
         session.commit()
@@ -1297,12 +1561,18 @@ def test_a_sub_agent_and_a_turn_on_a_message_are_held_to_the_trigger(
     snap = wait_run(client, cid, run_id)
     assert run_of(snap, run_id)["status"] == "completed", run_of(snap, run_id)
     coder = next(a["id"] for a in snap["agents"] if a["name"] == "Coder")
-    own = [(t["name"], t["status"], t["result"]) for t in snap["tool_calls"]
-           if t["agent_id"] == coder]
+    own = [
+        (t["name"], t["status"], t["result"]) for t in snap["tool_calls"] if t["agent_id"] == coder
+    ]
     assert [(name, status) for name, status, _ in own] == [
-        ("write_file", "denied"), ("run_command", "denied"), ("ask_user", "denied"),
-        ("write_file", "denied"), ("edit_file", "denied"), ("run_command", "denied"),
-        ("spawn_agent", "denied")]
+        ("write_file", "denied"),
+        ("run_command", "denied"),
+        ("ask_user", "denied"),
+        ("write_file", "denied"),
+        ("edit_file", "denied"),
+        ("run_command", "denied"),
+        ("spawn_agent", "denied"),
+    ]
     assert all(NOBODY in said for _, _, said in own)
     assert not (project_dir / "made.txt").exists()
     assert (project_dir / "hello.py").read_bytes() == b"print('hi')\n"
@@ -1316,14 +1586,23 @@ def test_what_the_trigger_allows_is_opened_without_the_approval_the_conversation
 ):
     """The conversation asks before every sub-agent, and before one opened to talk: in a
     turn nobody is watching the trigger's leave is the whole answer - it does not wait."""
-    talk = step(call("discuss", {"topic": "the greeting", "with": ["Reviewer"],
-                                 "rounds": 1}, "d"))
-    client, model, pid, cid = setup(make_client, project_dir, {
-        "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "look"}, "s")),
-                 talk, text("Noted."), text("done")],
-        "Coder": [text("looked")],
-        "Reviewer": [text("Fine by me.")],
-    }, permission_mode="ask", spawn_approval="always")
+    talk = step(call("discuss", {"topic": "the greeting", "with": ["Reviewer"], "rounds": 1}, "d"))
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [
+                step(call("spawn_agent", {"role": "Coder", "task": "look"}, "s")),
+                talk,
+                text("Noted."),
+                text("done"),
+            ],
+            "Coder": [text("looked")],
+            "Reviewer": [text("Fine by me.")],
+        },
+        permission_mode="ask",
+        spawn_approval="always",
+    )
     statuses, emit = [], client.app.state.bus.emit
 
     def watched(conversation_id, run_id, kind, payload):
@@ -1337,19 +1616,26 @@ def test_what_the_trigger_allows_is_opened_without_the_approval_the_conversation
     snap = wait_run(client, cid, run_id, timeout=20)
     assert run_of(snap, run_id)["status"] == "completed", run_of(snap, run_id)
     assert [(name, status) for name, status, _ in results(snap, run_id)] == [
-        ("spawn_agent", "succeeded"), ("discuss", "succeeded")]
+        ("spawn_agent", "succeeded"),
+        ("discuss", "succeeded"),
+    ]
     assert [(a["name"], a["status"]) for a in snap["agents"]] == [
-        ("Lead", "completed"), ("Coder", "completed"), ("Reviewer", "completed")]
+        ("Lead", "completed"),
+        ("Coder", "completed"),
+        ("Reviewer", "completed"),
+    ]
     assert "waiting_approval" not in statuses
 
 
 def test_a_member_opened_for_a_discussion_is_an_agent_opened_below_the_lead(
     make_client, wait_run, project_dir
 ):
-    talk = step(call("discuss", {"topic": "the greeting", "with": ["Coder", "Reviewer"],
-                                 "rounds": 1}, "d"))
-    client, model, pid, cid = setup(make_client, project_dir, {
-        "Lead": [talk, text("could not")]}, permission_mode="full_auto")
+    talk = step(
+        call("discuss", {"topic": "the greeting", "with": ["Coder", "Reviewer"], "rounds": 1}, "d")
+    )
+    client, model, pid, cid = setup(
+        make_client, project_dir, {"Lead": [talk, text("could not")]}, permission_mode="full_auto"
+    )
     made = trigger(client, pid, cid, permissions=leave(write=True, agents=1))
     run_id = run_now(client, made["id"])
     snap = wait_run(client, cid, run_id)
@@ -1362,17 +1648,27 @@ def test_a_member_opened_for_a_discussion_is_an_agent_opened_below_the_lead(
 def test_in_a_discussion_of_an_unattended_turn_nobody_changes_or_asks_anything(
     make_client, wait_run, project_dir
 ):
-    talk = step(call("discuss", {"topic": "the greeting", "with": ["Coder", "Reviewer"],
-                                 "rounds": 1}, "d"))
-    client, model, pid, cid = setup(make_client, project_dir, {
-        "Lead": [talk, text("Noted."),
-                 step(call("spawn_agent", {"role": "Tester", "task": "one more"}, "s")),
-                 text("done")],
-        "Coder": [step(call("write_file", {"path": "made.txt", "content": "x"}, "w")),
-                  text("I would change the string.")],
-        "Reviewer": [step(call("ask_user", {"question": "may I?"}, "q")),
-                     text("Add a test.")],
-    }, permission_mode="full_auto")
+    talk = step(
+        call("discuss", {"topic": "the greeting", "with": ["Coder", "Reviewer"], "rounds": 1}, "d")
+    )
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [
+                talk,
+                text("Noted."),
+                step(call("spawn_agent", {"role": "Tester", "task": "one more"}, "s")),
+                text("done"),
+            ],
+            "Coder": [
+                step(call("write_file", {"path": "made.txt", "content": "x"}, "w")),
+                text("I would change the string."),
+            ],
+            "Reviewer": [step(call("ask_user", {"question": "may I?"}, "q")), text("Add a test.")],
+        },
+        permission_mode="full_auto",
+    )
     made = trigger(client, pid, cid, permissions=leave(write=True, agents=2))
     run_id = run_now(client, made["id"])
     snap = wait_run(client, cid, run_id)
@@ -1396,11 +1692,16 @@ def test_a_model_of_the_agents_own_choosing_is_not_had_in_an_unattended_turn(
     """Asked about at every level when somebody is there: here it is refused, and the
     sub-agent is not opened on it."""
     client, provider, default = cli_app(
-        "agy reads", script=[{"say": "It is fine."}], provider={"for_agents": True},
+        "agy reads",
+        script=[{"say": "It is fine."}],
+        provider={"for_agents": True},
         default_steps=[
-            step(call("spawn_agent", {"role": "Reviewer", "task": "review", "provider": "Cli"},
-                      "s")),
-            text("could not")])
+            step(
+                call("spawn_agent", {"role": "Reviewer", "task": "review", "provider": "Cli"}, "s")
+            ),
+            text("could not"),
+        ],
+    )
     pid, cid = place(client, project_dir, permission_mode="full_auto", spawn_approval="never")
     made = trigger(client, pid, cid, permissions=everything(client, cid))
     run_id = run_now(client, made["id"])
@@ -1421,7 +1722,9 @@ def junction(link: Path, target: Path) -> None:
         if os.name == "nt":
             made = subprocess.run(
                 ["cmd", "/c", "mklink", "/J", str(link), str(target)],
-                capture_output=True, check=False)
+                capture_output=True,
+                check=False,
+            )
             if made.returncode != 0:
                 raise OSError(made.stderr.decode(errors="replace"))
         else:
@@ -1430,38 +1733,90 @@ def junction(link: Path, target: Path) -> None:
         pytest.skip(f"this account may not make links: {exc}")
 
 
-@pytest.mark.parametrize("path", [
-    ".claude/settings.json", ".claude/agents/free.md", ".claude/hooks/x.sh", ".codex/config.toml",
-    ".qoder/rules.md", ".agy/settings.json", ".git/config", ".git/hooks/pre-commit",
-    ".github/workflows/ci.yml", ".vscode/tasks.json", ".husky/pre-commit",
-    ".pre-commit-config.yaml", "sub/.Pre-Commit-Config.yaml.", ".lintstagedrc",
-    ".lintstagedrc.json", "lefthook.yml", "Lefthook.YAML", ".lefthook.yml", "lefthook-local.yml",
-    "lint-staged.config.mjs", ".simple-git-hooks.json", "simple-git-hooks.js",
-    ".mcp.json", ".claude.json", "AGENTS.md", "CLAUDE.md", "GEMINI.md",
-    ".koloni/rules.md", ".koloni/settings.json", ".KOLONI./recipes/x.json",
-    # at any depth, in any case, with either slash
-    "sub/deep/.claude/x", "sub/AGENTS.md", "sub\\.git\\config", ".GIT/config", "Agents.MD",
-    ".Mcp.Json", "pkg/.VSCode/settings.json",
-    # as Windows would open them all the same: a dot or a space at the end, a stream
-    ".git./config", ".claude /x", "AGENTS.md.", "AGENTS.md ", "CLAUDE.md::$DATA",
-    ".git::$INDEX_ALLOCATION/config",
-    # by another way round
-    "./.git/config", "src/../.git/config", "src/../AGENTS.md",
-    # an environment's .pth: it runs at every start of its Python
-    ".venv/Lib/site-packages/x.pth", "env/lib/python3.12/site-packages/X.PTH.",
-    ".venv/lib/site-packages/a.pth::$DATA",
-])
+@pytest.mark.parametrize(
+    "path",
+    [
+        ".claude/settings.json",
+        ".claude/agents/free.md",
+        ".claude/hooks/x.sh",
+        ".codex/config.toml",
+        ".qoder/rules.md",
+        ".agy/settings.json",
+        ".git/config",
+        ".git/hooks/pre-commit",
+        ".github/workflows/ci.yml",
+        ".vscode/tasks.json",
+        ".husky/pre-commit",
+        ".pre-commit-config.yaml",
+        "sub/.Pre-Commit-Config.yaml.",
+        ".lintstagedrc",
+        ".lintstagedrc.json",
+        "lefthook.yml",
+        "Lefthook.YAML",
+        ".lefthook.yml",
+        "lefthook-local.yml",
+        "lint-staged.config.mjs",
+        ".simple-git-hooks.json",
+        "simple-git-hooks.js",
+        ".mcp.json",
+        ".claude.json",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "GEMINI.md",
+        ".koloni/rules.md",
+        ".koloni/settings.json",
+        ".KOLONI./recipes/x.json",
+        # at any depth, in any case, with either slash
+        "sub/deep/.claude/x",
+        "sub/AGENTS.md",
+        "sub\\.git\\config",
+        ".GIT/config",
+        "Agents.MD",
+        ".Mcp.Json",
+        "pkg/.VSCode/settings.json",
+        # as Windows would open them all the same: a dot or a space at the end, a stream
+        ".git./config",
+        ".claude /x",
+        "AGENTS.md.",
+        "AGENTS.md ",
+        "CLAUDE.md::$DATA",
+        ".git::$INDEX_ALLOCATION/config",
+        # by another way round
+        "./.git/config",
+        "src/../.git/config",
+        "src/../AGENTS.md",
+        # an environment's .pth: it runs at every start of its Python
+        ".venv/Lib/site-packages/x.pth",
+        "env/lib/python3.12/site-packages/X.PTH.",
+        ".venv/lib/site-packages/a.pth::$DATA",
+    ],
+)
 def test_what_gives_later_turns_leave_or_runs_by_itself_is_told_by_its_path(tmp_path, path):
     (tmp_path / "src").mkdir()
     assert stands_over_later_turns(Workspace(tmp_path), path), path
 
 
-@pytest.mark.parametrize("path", [
-    "notes/ok.txt", "hello.py", "src/claude.py", "docs/AGENTS.md.txt", "docs/agents.md.bak",
-    "my.github/x.yml", ".gitignore", ".claudeignore", "git/config", "claude/settings.json",
-    "src/vscode/x.json", "README.md", "mcp.json", "src/.env.example", "docs/x.pth",
-    ".venv/Lib/site-packages/x.py",
-])
+@pytest.mark.parametrize(
+    "path",
+    [
+        "notes/ok.txt",
+        "hello.py",
+        "src/claude.py",
+        "docs/AGENTS.md.txt",
+        "docs/agents.md.bak",
+        "my.github/x.yml",
+        ".gitignore",
+        ".claudeignore",
+        "git/config",
+        "claude/settings.json",
+        "src/vscode/x.json",
+        "README.md",
+        "mcp.json",
+        "src/.env.example",
+        "docs/x.pth",
+        ".venv/Lib/site-packages/x.py",
+    ],
+)
 def test_an_ordinary_file_is_not_taken_for_one_that_gives_leave(tmp_path, path):
     assert not stands_over_later_turns(Workspace(tmp_path), path), path
 
@@ -1483,14 +1838,46 @@ def test_every_kind_of_file_that_is_not_written_unattended_says_why():
     for name, why in NOT_WRITTEN_UNATTENDED.items():
         assert name == name.casefold() and len(why) > 20, name
     assert set(NOT_WRITTEN_UNATTENDED) == {
-        ".claude", ".codex", ".qoder", ".agy", ".agents", ".agent", "_agents", "_agent", ".git",
-        ".github", ".vscode", ".husky", ".mcp.json", ".claude.json", "agents.md", "claude.md",
-        "gemini.md", ".koloni", ".gemini", ".copilot", ".pre-commit-config.yaml", "lefthook.yml",
-        "lefthook.yaml", ".lintstagedrc", ".lintstagedrc.json", ".lintstagedrc.yaml",
-        ".lintstagedrc.yml", ".lintstagedrc.js", ".lintstagedrc.cjs", ".lintstagedrc.mjs",
-        ".lefthook.yml", ".lefthook.yaml", "lefthook-local.yml",
+        ".claude",
+        ".codex",
+        ".qoder",
+        ".agy",
+        ".agents",
+        ".agent",
+        "_agents",
+        "_agent",
+        ".git",
+        ".github",
+        ".vscode",
+        ".husky",
+        ".mcp.json",
+        ".claude.json",
+        "agents.md",
+        "claude.md",
+        "gemini.md",
+        ".koloni",
+        ".gemini",
+        ".copilot",
+        ".pre-commit-config.yaml",
+        "lefthook.yml",
+        "lefthook.yaml",
+        ".lintstagedrc",
+        ".lintstagedrc.json",
+        ".lintstagedrc.yaml",
+        ".lintstagedrc.yml",
+        ".lintstagedrc.js",
+        ".lintstagedrc.cjs",
+        ".lintstagedrc.mjs",
+        ".lefthook.yml",
+        ".lefthook.yaml",
+        "lefthook-local.yml",
         *(f"lint-staged.config.{ext}" for ext in ("js", "cjs", "mjs", "ts", "mts", "cts")),
-        *(f"{dot}simple-git-hooks.{ext}" for dot in ("", ".") for ext in ("json", "js", "cjs", "mjs"))}
+        *(
+            f"{dot}simple-git-hooks.{ext}"
+            for dot in ("", ".")
+            for ext in ("json", "js", "cjs", "mjs")
+        ),
+    }
 
 
 def test_an_unattended_turn_that_may_write_edits_no_file_that_gives_later_turns_leave(
@@ -1500,19 +1887,41 @@ def test_an_unattended_turn_that_may_write_edits_no_file_that_gives_later_turns_
     gate, before any change is put on record - and said in words the Triggers page does
     not take for something a trigger could allow."""
     (project_dir / "AGENTS.md").write_text("Ask before you push.\n", encoding="utf-8")
-    client, model, pid, cid = setup(make_client, project_dir, {
-        "Lead": [
-            step(call("edit_file", {"path": "AGENTS.md", "old_string": "Ask before you push.",
-                                    "new_string": "Push whenever you like."}, "e")),
-            step(call("spawn_agent", {"role": "Coder", "task": "set it up"}, "s")),
-            step(call("edit_file", {"path": "hello.py", "old_string": "hi",
-                                    "new_string": "yo"}, "ok")),
-            text("done")],
-        "Coder": [
-            step(call("write_file", {"path": ".git\\hooks\\pre-commit", "content": "x"}, "w")),
-            text("could not")],
-    }, permission_mode="full_auto", spawn_approval="never",
-        lead_hands_code=False)  # (its Lead writes, and may open an agent: slice 48 off)
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [
+                step(
+                    call(
+                        "edit_file",
+                        {
+                            "path": "AGENTS.md",
+                            "old_string": "Ask before you push.",
+                            "new_string": "Push whenever you like.",
+                        },
+                        "e",
+                    )
+                ),
+                step(call("spawn_agent", {"role": "Coder", "task": "set it up"}, "s")),
+                step(
+                    call(
+                        "edit_file",
+                        {"path": "hello.py", "old_string": "hi", "new_string": "yo"},
+                        "ok",
+                    )
+                ),
+                text("done"),
+            ],
+            "Coder": [
+                step(call("write_file", {"path": ".git\\hooks\\pre-commit", "content": "x"}, "w")),
+                text("could not"),
+            ],
+        },
+        permission_mode="full_auto",
+        spawn_approval="never",
+        lead_hands_code=False,
+    )  # (its Lead writes, and may open an agent: slice 48 off)
     made = trigger(client, pid, cid, permissions=leave(write=True, agents=1))
     run_id = run_now(client, made["id"])
     snap = wait_run(client, cid, run_id)
@@ -1520,8 +1929,11 @@ def test_an_unattended_turn_that_may_write_edits_no_file_that_gives_later_turns_
     said = {t["id"]: (t["name"], t["status"], t["result"]) for t in snap["tool_calls"]}
     by_name = sorted(said.values())
     assert [(name, status) for name, status, _ in by_name] == [
-        ("edit_file", "denied"), ("edit_file", "succeeded"), ("spawn_agent", "succeeded"),
-        ("write_file", "denied")]
+        ("edit_file", "denied"),
+        ("edit_file", "succeeded"),
+        ("spawn_agent", "succeeded"),
+        ("write_file", "denied"),
+    ]
     for _name, status, words in by_name:
         if status == "denied":
             assert NOBODY in words and '"watch"' in words
@@ -1536,8 +1948,16 @@ def test_an_unattended_turn_that_may_write_edits_no_file_that_gives_later_turns_
 def test_a_trigger_that_may_not_write_refuses_such_a_file_as_any_other(
     make_client, wait_run, project_dir
 ):
-    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [
-        step(call("write_file", {"path": "AGENTS.md", "content": "x"}, "w")), text("done")]})
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [
+                step(call("write_file", {"path": "AGENTS.md", "content": "x"}, "w")),
+                text("done"),
+            ]
+        },
+    )
     made = trigger(client, pid, cid)
     snap = wait_run(client, cid, run_now(client, made["id"]))
     ((name, status, words),) = results(snap, snap["runs"][-1]["id"])
@@ -1551,20 +1971,37 @@ def test_a_turn_the_user_started_writes_such_files_on_their_word_at_every_level(
     """With the user there such a file is put forward as a change to approve - at Full
     auto too (K-claude-yazma) - and written on their yes. (K-fullauto-sorma 2: at Full auto
     the instruction file alone is written unasked; `.claude` is a card there too.)"""
-    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [
-        step(call("write_file", {"path": ".claude/settings.json", "content": "{}"}, "w")),
-        step(call("write_file", {"path": "AGENTS.md", "content": "Be kind.\n"}, "a")),
-        text("done")]}, permission_mode=level, lead_hands_code=False)  # (slice 48 off)
-    run_id = client.post(f"/api/conversations/{cid}/messages",
-                         json={"content": "set it up"}).json()["run"]["id"]
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [
+                step(call("write_file", {"path": ".claude/settings.json", "content": "{}"}, "w")),
+                step(call("write_file", {"path": "AGENTS.md", "content": "Be kind.\n"}, "a")),
+                text("done"),
+            ]
+        },
+        permission_mode=level,
+        lead_hands_code=False,
+    )  # (slice 48 off)
+    run_id = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "set it up"}
+    ).json()["run"]["id"]
     for _ in range(1 if level == "full_auto" else 2):
-        change = until(lambda: [
-            c for c in client.get(f"/api/conversations/{cid}").json()["file_changes"]
-            if c["status"] == "proposed"], "a change is put forward")[0]
+        change = until(
+            lambda: [
+                c
+                for c in client.get(f"/api/conversations/{cid}").json()["file_changes"]
+                if c["status"] == "proposed"
+            ],
+            "a change is put forward",
+        )[0]
         assert client.post(f"/api/file-changes/{change['id']}/approve").status_code == 200
     snap = wait_run(client, cid, run_id)
     assert [(t["name"], t["status"]) for t in snap["tool_calls"]] == [
-        ("write_file", "succeeded"), ("write_file", "succeeded")]
+        ("write_file", "succeeded"),
+        ("write_file", "succeeded"),
+    ]
     assert (project_dir / ".claude" / "settings.json").read_text(encoding="utf-8") == "{}"
     assert (project_dir / "AGENTS.md").read_text(encoding="utf-8") == "Be kind.\n"
 
@@ -1579,21 +2016,31 @@ def test_only_a_command_that_is_the_triggers_word_for_word_is_run(
     of that helps a turn nobody is watching."""
     tried = [line for line in NOT_THE_COMMAND if line.strip() not in ("", "python hello.py")]
     (project_dir / "src").mkdir()
-    steps = [step(call("run_command", {"command": line}, f"c{number}"))
-             for number, line in enumerate(tried)]
+    steps = [
+        step(call("run_command", {"command": line}, f"c{number}"))
+        for number, line in enumerate(tried)
+    ]
     steps.append(step(call("run_command", {"command": "python hello.py", "cwd": "src"}, "cw")))
     steps.append(step(call("run_command", {"command": "python hello.py"}, "ok")))
     executor = ScriptedExecutor([Script(chunks=["hi\n"])])
     client, model, pid, cid = setup(
-        make_client, project_dir, {"Lead": [*steps, text("done")]}, executor=executor,
-        permission_mode="full_auto")
+        make_client,
+        project_dir,
+        {"Lead": [*steps, text("done")]},
+        executor=executor,
+        permission_mode="full_auto",
+    )
     with client.app.state.session_factory() as session:
         for prefix in ("python", "echo", "cmd", "sh"):
             session.add(AllowedCommand(conversation_id=cid, project_id=pid, prefix=prefix))
         session.commit()
-    made = trigger(client, pid, cid,
-                   permissions=leave(commands=[allow(client, cid, "python hello.py")]),
-                   budget={"steps": 40, "minutes": 10, "per_day": 24})
+    made = trigger(
+        client,
+        pid,
+        cid,
+        permissions=leave(commands=[allow(client, cid, "python hello.py")]),
+        budget={"steps": 40, "minutes": 10, "per_day": 24},
+    )
     run_id = run_now(client, made["id"])
     snap = wait_run(client, cid, run_id, timeout=20)
     assert run_of(snap, run_id)["status"] == "completed", run_of(snap, run_id)
@@ -1615,24 +2062,33 @@ def test_the_turn_after_a_triggers_permissions_changed_is_told_what_they_are_now
     by the refusal it remembered ("I'm not retrying it another way"). Once: a turn on the
     clock (made up late, its time long past) is told it only once too."""
     client, _model, pid, cid = setup(
-        make_client, project_dir, {"Lead": [text("refused"), text("wrote it"), text("same")]})
+        make_client, project_dir, {"Lead": [text("refused"), text("wrote it"), text("same")]}
+    )
     made = trigger(client, pid, cid)
 
     def turn(n):
-        (run_id,) = [run_now(client, made["id"])] if by == "hand" else tick(
-            client, T0 + timedelta(minutes=60 * n))
+        (run_id,) = (
+            [run_now(client, made["id"])]
+            if by == "hand"
+            else tick(client, T0 + timedelta(minutes=60 * n))
+        )
         return wait_run(client, cid, run_id)
 
     turn(0)
-    assert client.patch(f"/api/triggers/{made['id']}",
-                        json={"permissions": leave(write=True)}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/triggers/{made['id']}", json={"permissions": leave(write=True)}
+        ).status_code
+        == 200
+    )
     turn(1)
     snap = turn(2)
     told = "Since your last turn the user changed what this trigger's turns may do without asking"
     said = [m["content"] for m in snap["messages"] if m["role"] == "trigger"]
     assert [told in one for one in said] == [False, True, False], said
-    assert ("now: may write files. Go by this, not by what this trigger's permissions refused "
-            "before.") in said[1]
+    assert (
+        "now: may write files. Go by this, not by what this trigger's permissions refused before."
+    ) in said[1]
 
 
 def test_a_triggers_commands_are_rules_of_its_conversations_list(make_client, project_dir):
@@ -1645,20 +2101,32 @@ def test_a_triggers_commands_are_rules_of_its_conversations_list(make_client, pr
     other = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     foreign = allow(client, other, "python hello.py")
     for bad in (["python hello.py"], ["no-such-rule"], [foreign], [hello, foreign], [""]):
-        refused = client.patch(f"/api/triggers/{made['id']}", json={
-            "permissions": leave(commands=bad)})
+        refused = client.patch(
+            f"/api/triggers/{made['id']}", json={"permissions": leave(commands=bad)}
+        )
         assert refused.status_code == 422 and "allow list" in refused.text, (bad, refused.text)
         # (a rule's text is no rule: what it asks for is said)
         assert "by the id of a rule" in refused.text and "not the id of a rule" in refused.text
-    assert client.patch(f"/api/triggers/{made['id']}", json={
-        "permissions": leave(commands=[hello] * 21)}).status_code == 422
-    assert client.patch(f"/api/triggers/{made['id']}", json={
-        "permissions": leave(agents=5)}).status_code == 422
+    assert (
+        client.patch(
+            f"/api/triggers/{made['id']}", json={"permissions": leave(commands=[hello] * 21)}
+        ).status_code
+        == 422
+    )
+    assert (
+        client.patch(
+            f"/api/triggers/{made['id']}", json={"permissions": leave(agents=5)}
+        ).status_code
+        == 422
+    )
     after = one(client, made["id"])
     assert (after["permissions"], after["command_lines"]) == (
-        made["permissions"], made["command_lines"])
+        made["permissions"],
+        made["command_lines"],
+    )
     assert [t["command_lines"] for t in client.get(f"/api/projects/{pid}/triggers").json()] == [
-        ["pytest -q", "python hello.py"]]
+        ["pytest -q", "python hello.py"]
+    ]
 
 
 def test_a_trigger_moved_to_another_conversation_keeps_no_rule_of_the_first(
@@ -1671,15 +2139,21 @@ def test_a_trigger_moved_to_another_conversation_keeps_no_rule_of_the_first(
     # moved with nothing said about what it may run: it may run nothing there
     moved = client.patch(f"/api/triggers/{made['id']}", json={"conversation_id": other})
     assert moved.status_code == 200, moved.text
-    assert (moved.json()["permissions"], moved.json()["command_lines"]) == (
-        leave(write=True), [])
+    assert (moved.json()["permissions"], moved.json()["command_lines"]) == (leave(write=True), [])
     with client.app.state.session_factory() as session:
         assert session.get(Trigger, made["id"]).permissions["commands"] == []
     # moved back together with a rule: the rule is checked against where it goes
-    assert client.patch(f"/api/triggers/{made['id']}", json={
-        "conversation_id": cid, "permissions": leave(commands=[theirs])}).status_code == 422
-    back = client.patch(f"/api/triggers/{made['id']}", json={
-        "conversation_id": cid, "permissions": leave(commands=[mine])})
+    assert (
+        client.patch(
+            f"/api/triggers/{made['id']}",
+            json={"conversation_id": cid, "permissions": leave(commands=[theirs])},
+        ).status_code
+        == 422
+    )
+    back = client.patch(
+        f"/api/triggers/{made['id']}",
+        json={"conversation_id": cid, "permissions": leave(commands=[mine])},
+    )
     assert back.status_code == 200 and back.json()["command_lines"] == ["python hello.py"]
 
 
@@ -1687,13 +2161,14 @@ def test_the_agent_of_an_unattended_turn_is_told_the_lines_it_may_run(
     make_client, wait_run, project_dir
 ):
     client, model, pid, cid = setup(make_client, project_dir, {"Lead": [text("looked")]})
-    made = trigger(client, pid, cid, permissions=leave(
-        commands=[allow(client, cid, "python hello.py")]))
+    made = trigger(
+        client, pid, cid, permissions=leave(commands=[allow(client, cid, "python hello.py")])
+    )
     wait_run(client, cid, run_now(client, made["id"]))
     told = json.dumps(model.calls[0], ensure_ascii=False)
     assert "run exactly these command lines" in told and "python hello.py" in told
     assert "the project's own test command if it has one" in told  # (`own_test`: it runs unticked)
-    assert made["permissions"]["commands"][0] not in told   # its text, not the rule's id
+    assert made["permissions"]["commands"][0] not in told  # its text, not the rule's id
 
 
 def test_a_rule_stored_for_one_that_deletes_is_not_promised_and_shows_it_covers_nothing(
@@ -1705,14 +2180,20 @@ def test_a_rule_stored_for_one_that_deletes_is_not_promised_and_shows_it_covers_
         session.add(old)
         session.commit()
         old_id = old.id
-    made = trigger(client, pid, cid, permissions=leave(
-        commands=[old_id, allow(client, cid, "python hello.py")]))
+    made = trigger(
+        client,
+        pid,
+        cid,
+        permissions=leave(commands=[old_id, allow(client, cid, "python hello.py")]),
+    )
     wait_run(client, cid, run_now(client, made["id"]))
     told = json.dumps(model.calls[0], ensure_ascii=False)
     assert "python hello.py" in told and "rm -rf build" not in told
     rules = client.get(f"/api/conversations/{cid}").json()["allowed_commands"]
     assert {r["prefix"]: r["danger"] for r in rules} == {
-        "rm -rf build": "Deletes files or disks.", "python hello.py": ""}
+        "rm -rf build": "Deletes files or disks.",
+        "python hello.py": "",
+    }
 
 
 def test_a_command_naming_a_secret_file_never_runs_unattended_whatever_rule_names_it(
@@ -1722,12 +2203,25 @@ def test_a_command_naming_a_secret_file_never_runs_unattended_whatever_rule_name
     slice 90 - or the user's own test command - names it to the letter; `is_exactly`
     (`danger` -> `names_secret`) still refuses it where nobody is watching."""
     executor = ScriptedExecutor([])
-    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [
-        step(call("run_command", {"command": "type .env"}, "c1")),
-        step(call("run_command", {"command": "cat .env"}, "c2")), text("done")]},
-        executor=executor, permission_mode="full_auto")
-    assert client.post(f"/api/conversations/{cid}/allowed-commands",
-                       json={"prefix": "type .env"}).status_code == 422
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [
+                step(call("run_command", {"command": "type .env"}, "c1")),
+                step(call("run_command", {"command": "cat .env"}, "c2")),
+                text("done"),
+            ]
+        },
+        executor=executor,
+        permission_mode="full_auto",
+    )
+    assert (
+        client.post(
+            f"/api/conversations/{cid}/allowed-commands", json={"prefix": "type .env"}
+        ).status_code
+        == 422
+    )
     with client.app.state.session_factory() as session:
         old = AllowedCommand(conversation_id=cid, project_id=pid, prefix="type .env")
         session.add(old)
@@ -1744,31 +2238,51 @@ def test_a_command_naming_a_secret_file_never_runs_unattended_whatever_rule_name
 
 def test_a_command_is_put_on_a_conversations_allow_list_by_hand(make_client, project_dir):
     client, model, pid, cid = setup(make_client, project_dir, {"Lead": []})
-    made = client.post(f"/api/conversations/{cid}/allowed-commands",
-                       json={"prefix": "  python   -m  pytest -q "})
+    made = client.post(
+        f"/api/conversations/{cid}/allowed-commands", json={"prefix": "  python   -m  pytest -q "}
+    )
     assert made.status_code == 201, made.text
-    assert made.json()["prefix"] == "python -m pytest -q"     # tidied, and whole: not cut
+    assert made.json()["prefix"] == "python -m pytest -q"  # tidied, and whole: not cut
     # the same rule again is the rule that is there
-    again = client.post(f"/api/conversations/{cid}/allowed-commands",
-                        json={"prefix": "python -m pytest  -q"})
+    again = client.post(
+        f"/api/conversations/{cid}/allowed-commands", json={"prefix": "python -m pytest  -q"}
+    )
     assert again.status_code == 200 and again.json()["id"] == made.json()["id"]
-    for bad in ("", "   ", "python hello.py && echo x", "python hello.py | more",
-                "echo $HOME", "python hello.py > out.txt", "python hello.py\necho x",
-                "env python hello.py", "FOO=1 python hello.py", "timeout 5 python hello.py",
-                "cmd /c dir", "powershell -File x.ps1", "bash run.sh",
-                "python " + "a" * 200):
-        refused = client.post(f"/api/conversations/{cid}/allowed-commands",
-                              json={"prefix": bad})
+    for bad in (
+        "",
+        "   ",
+        "python hello.py && echo x",
+        "python hello.py | more",
+        "echo $HOME",
+        "python hello.py > out.txt",
+        "python hello.py\necho x",
+        "env python hello.py",
+        "FOO=1 python hello.py",
+        "timeout 5 python hello.py",
+        "cmd /c dir",
+        "powershell -File x.ps1",
+        "bash run.sh",
+        "python " + "a" * 200,
+    ):
+        refused = client.post(f"/api/conversations/{cid}/allowed-commands", json={"prefix": bad})
         assert refused.status_code == 422, (bad, refused.text)
-    assert client.post("/api/conversations/no-such/allowed-commands",
-                       json={"prefix": "git status"}).status_code == 404
+    assert (
+        client.post(
+            "/api/conversations/no-such/allowed-commands", json={"prefix": "git status"}
+        ).status_code
+        == 404
+    )
     snap = client.get(f"/api/conversations/{cid}").json()
     assert [rule["prefix"] for rule in snap["allowed_commands"]] == ["python -m pytest -q"]
     # only from the app's own page: a request that does not say where it is from is not
     # the user's
     del client.headers["Origin"]
-    assert client.post(f"/api/conversations/{cid}/allowed-commands",
-                       json={"prefix": "git status"}).status_code == 403
+    assert (
+        client.post(
+            f"/api/conversations/{cid}/allowed-commands", json={"prefix": "git status"}
+        ).status_code
+        == 403
+    )
 
 
 def test_with_the_user_there_a_rule_still_covers_the_command_with_more_arguments(
@@ -1777,15 +2291,26 @@ def test_with_the_user_there_a_rule_still_covers_the_command_with_more_arguments
     """What a ticked rule means where nobody is watching changes nothing for a turn the
     user started: there it is the prefix it always was."""
     executor = ScriptedExecutor([Script(chunks=["hi\n"])])
-    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [
-        step(call("run_command", {"command": "python hello.py --more"}, "c")), text("ran")]},
-        executor=executor, permission_mode="ask")
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [
+                step(call("run_command", {"command": "python hello.py --more"}, "c")),
+                text("ran"),
+            ]
+        },
+        executor=executor,
+        permission_mode="ask",
+    )
     allow(client, cid, "python hello.py")
-    run_id = client.post(f"/api/conversations/{cid}/messages",
-                         json={"content": "run it"}).json()["run"]["id"]
+    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "run it"}).json()[
+        "run"
+    ]["id"]
     snap = wait_run(client, cid, run_id)
     assert [(c["command"], c["status"]) for c in snap["commands"]] == [
-        ("python hello.py --more", "exited")]
+        ("python hello.py --more", "exited")
+    ]
 
 
 # --- budgets -------------------------------------------------------------------------------------
@@ -1815,13 +2340,25 @@ NOT_SLOW = (WATCHED_SLOW_MINUTES * 60.0,)  # (`HeldClock`'s `but`)
 
 def test_the_steps_of_all_its_agents_are_one_budget(make_client, wait_run, project_dir):
     reads = [step(call("read_file", {"path": "hello.py"}, f"r{i}")) for i in range(6)]
-    client, model, pid, cid = setup(make_client, project_dir, {
-        "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "read a lot"}, "s")),
-                 text("done")],
-        "Coder": [*reads, text("read it")],
-    }, permission_mode="full_auto")
-    made = trigger(client, pid, cid, permissions=leave(agents=1),
-                   budget={"steps": 4, "minutes": 10, "per_day": 24})
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [
+                step(call("spawn_agent", {"role": "Coder", "task": "read a lot"}, "s")),
+                text("done"),
+            ],
+            "Coder": [*reads, text("read it")],
+        },
+        permission_mode="full_auto",
+    )
+    made = trigger(
+        client,
+        pid,
+        cid,
+        permissions=leave(agents=1),
+        budget={"steps": 4, "minutes": 10, "per_day": 24},
+    )
     run_id = run_now(client, made["id"])
     snap = wait_run(client, cid, run_id)
     run = run_of(snap, run_id)
@@ -1830,7 +2367,9 @@ def test_the_steps_of_all_its_agents_are_one_budget(make_client, wait_run, proje
     assert len(model.calls) == 4
     assert len(model.calls_of["Lead"]) == 1 and len(model.calls_of["Coder"]) == 3
     assert [(a["name"], a["status"]) for a in snap["agents"]] == [
-        ("Lead", "failed"), ("Coder", "failed")]
+        ("Lead", "failed"),
+        ("Coder", "failed"),
+    ]
     assert not [t for t in snap["tool_calls"] if t["status"] in ("pending", "running")]
     after = one(client, made["id"])
     assert (after["runs"][0]["outcome"], after["failures"]) == ("budget", 1)
@@ -1838,8 +2377,9 @@ def test_the_steps_of_all_its_agents_are_one_budget(make_client, wait_run, proje
 
 def test_a_cli_sessions_steps_are_counted_too(cli_app, wait_run, project_dir):
     read = {"call": "read_file", "args": {"path": "hello.py"}}
-    client, provider, _ = cli_app("claude session", script=[read, read, read, read,
-                                                             {"say": "read it"}])
+    client, provider, _ = cli_app(
+        "claude session", script=[read, read, read, read, {"say": "read it"}]
+    )
     pid, cid = place(client, project_dir, provider_id=provider["id"])
     made = trigger(client, pid, cid, budget={"steps": 2, "minutes": 10, "per_day": 24})
     run_id = run_now(client, made["id"])
@@ -1858,17 +2398,26 @@ def test_at_the_end_of_its_minutes_everything_of_the_turn_is_stopped(
     agent is are stopped, as Stop stops them."""
     executor = ScriptedExecutor([Script(chunks=["working\n"], hold=gate)])
     client, provider, default = cli_app(
-        "claude session", executor=executor,
-        script=[{"call": "run_command", "args": {"command": "python hello.py"}},
-                {"say": "ran it"}],
-        default_steps={"Lead": [
-            step(call("spawn_agent", {"role": "Coder", "task": "run it"}, "s")), text("done")]})
+        "claude session",
+        executor=executor,
+        script=[{"call": "run_command", "args": {"command": "python hello.py"}}, {"say": "ran it"}],
+        default_steps={
+            "Lead": [
+                step(call("spawn_agent", {"role": "Coder", "task": "run it"}, "s")),
+                text("done"),
+            ]
+        },
+    )
     clock = client.app.state.runner.call_later = HeldClock(but=NOT_SLOW)
     client.patch(f"/api/roles/{role_id(client, 'Coder')}", json={"provider_id": provider["id"]})
     pid, cid = place(client, project_dir, permission_mode="ask")
-    made = trigger(client, pid, cid,
-                   permissions=leave(commands=[allow(client, cid, "python hello.py")], agents=1),
-                   budget={"steps": 15, "minutes": 7, "per_day": 24})
+    made = trigger(
+        client,
+        pid,
+        cid,
+        permissions=leave(commands=[allow(client, cid, "python hello.py")], agents=1),
+        budget={"steps": 15, "minutes": 7, "per_day": 24},
+    )
     run_id = run_now(client, made["id"])
 
     def running():
@@ -1882,22 +2431,26 @@ def test_at_the_end_of_its_minutes_everything_of_the_turn_is_stopped(
     assert alive(pid_of_cli)
     assert run_of(client.get(f"/api/conversations/{cid}").json(), run_id)["status"] == "running"
 
-    on_loop(client, timer.fire)                       # seven minutes are over
+    on_loop(client, timer.fire)  # seven minutes are over
     snap = wait_run(client, cid, run_id, timeout=20)
     run = run_of(snap, run_id)
     assert run["status"] == "failed", run
-    assert run["error"] == "budget: stopped after 7 minutes, the longest this trigger lets a turn run"
+    assert (
+        run["error"] == "budget: stopped after 7 minutes, the longest this trigger lets a turn run"
+    )
     assert [c["status"] for c in snap["commands"]] == ["killed"]
     assert len(executor.killed) == 1
     until(lambda: not alive(pid_of_cli), "the CLI is gone")
     assert [(a["name"], a["status"]) for a in snap["agents"]] == [
-        ("Lead", "failed"), ("Coder", "failed")]
+        ("Lead", "failed"),
+        ("Coder", "failed"),
+    ]
     assert all(a["error"] == run["error"] for a in snap["agents"])
     assert not [t for t in snap["tool_calls"] if t["status"] in ("pending", "running")]
     after = one(client, made["id"])
     assert (after["runs"][0]["outcome"], after["failures"]) == ("budget", 1)
     assert "7 minutes" in after["runs"][0]["note"]
-    assert timer.cancelled                            # put away with the turn
+    assert timer.cancelled  # put away with the turn
     # a turn the user starts has no minutes to run out of
     client.app.state.providers.override.by_agent["Lead"].append(text("hello"))
     mine = client.post(f"/api/conversations/{cid}/messages", json={"content": "x"}).json()
@@ -1914,7 +2467,7 @@ def test_a_turn_that_ends_in_time_puts_its_clock_away(make_client, wait_run, pro
     (timer,) = clock.set
     assert timer.delay == 10 * 60
     until(lambda: timer.cancelled, "the timer is cancelled")
-    on_loop(client, timer.fire)   # were it to go off late all the same: nothing to stop
+    on_loop(client, timer.fire)  # were it to go off late all the same: nothing to stop
     assert run_of(client.get(f"/api/conversations/{cid}").json(), run_id)["status"] == "completed"
     assert one(client, made["id"])["failures"] == 0
 
@@ -1927,9 +2480,15 @@ def test_how_a_turn_ended_as_its_trigger_keeps_it():
     assert kept.how_it_ended("cancelled", None) == ("stopped", kept.STOPPED, False)
     assert kept.how_it_ended("interrupted", None) == ("failed", kept.INTERRUPTED, True)
     assert kept.how_it_ended("failed", "budget: stopped after 3 model steps") == (
-        "budget", "budget: stopped after 3 model steps", True)
+        "budget",
+        "budget: stopped after 3 model steps",
+        True,
+    )
     assert kept.how_it_ended("failed", "model server unreachable") == (
-        "failed", "model server unreachable", True)
+        "failed",
+        "model server unreachable",
+        True,
+    )
     assert kept.how_it_ended("failed", None) == ("failed", "the turn failed", True)
 
 
@@ -1937,8 +2496,23 @@ def test_three_failures_in_a_row_and_only_failures_switch_a_trigger_off(
     make_client, wait_run, project_dir, gate
 ):
     down = ModelUnavailable("model server unreachable: refused")
-    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [
-        down, down, gate.step(text("it is back")), down, down, text("fine"), down, down, down]})
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        {
+            "Lead": [
+                down,
+                down,
+                gate.step(text("it is back")),
+                down,
+                down,
+                text("fine"),
+                down,
+                down,
+                down,
+            ]
+        },
+    )
     made = trigger(client, pid, cid, budget={"steps": 15, "minutes": 10, "per_day": 5})
     hour = timedelta(hours=1)
 
@@ -1954,17 +2528,20 @@ def test_three_failures_in_a_row_and_only_failures_switch_a_trigger_off(
     (good,) = tick(client, T0 + 2 * hour)
     gate.wait_partial()
     assert tick(client, T0 + 3 * hour) == []
-    assert state() == (2, True, "skipped_busy")          # a skipped time is not a failure
+    assert state() == (2, True, "skipped_busy")  # a skipped time is not a failure
     gate.release()
     wait_run(client, cid, good)
     after = one(client, made["id"])
-    assert (after["failures"], after["last_words"]) == (0, "it is back")  # a good turn starts the count over
+    assert (after["failures"], after["last_words"]) == (
+        0,
+        "it is back",
+    )  # a good turn starts the count over
     for number in (4, 5):
         (run_id,) = tick(client, T0 + number * hour)
         wait_run(client, cid, run_id)
     assert state() == (2, True, "failed")
     assert one(client, made["id"])["last_words"] is None  # (R114: not an older turn's words)
-    assert tick(client, T0 + 6 * hour) == []             # five turns that day: no more
+    assert tick(client, T0 + 6 * hour) == []  # five turns that day: no more
     assert state() == (2, True, "skipped_budget")
     # the next day: a good turn, then three that fail one after another
     day = timedelta(days=1)
@@ -1981,12 +2558,13 @@ def test_three_failures_in_a_row_and_only_failures_switch_a_trigger_off(
     assert (after["failures"], after["enabled"]) == (3, False)
     assert "refused" in after["off_because"]
     assert tick(client, T0 + day + 4 * hour) == []
-    assert len(one(client, made["id"])["runs"]) == len(after["runs"])   # off: not even looked at
+    assert len(one(client, made["id"])["runs"]) == len(after["runs"])  # off: not even looked at
 
 
 def test_a_turn_the_user_stopped_is_not_a_failure(make_client, wait_run, project_dir, gate):
-    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [
-        gate.step(text("never said"))]})
+    client, model, pid, cid = setup(
+        make_client, project_dir, {"Lead": [gate.step(text("never said"))]}
+    )
     made = trigger(client, pid, cid)
     (run_id,) = tick(client, T0)
     gate.wait_partial()
@@ -1994,7 +2572,10 @@ def test_a_turn_the_user_stopped_is_not_a_failure(make_client, wait_run, project
     assert run_of(wait_run(client, cid, run_id), run_id)["status"] == "cancelled"
     after = one(client, made["id"])
     assert (after["runs"][0]["outcome"], after["failures"], after["enabled"]) == (
-        "stopped", 0, True)
+        "stopped",
+        0,
+        True,
+    )
 
 
 # --- across a restart ----------------------------------------------------------------------------
@@ -2024,12 +2605,10 @@ def started(settings_env):
     stop()
 
 
-def test_a_time_that_came_due_is_never_run_twice_across_a_restart(
-    started, wait_run, project_dir
-):
+def test_a_time_that_came_due_is_never_run_twice_across_a_restart(started, wait_run, project_dir):
     client = started([text("one")])
     pid, cid = place(client, project_dir)
-    made = trigger(client, pid, cid)                      # every hour
+    made = trigger(client, pid, cid)  # every hour
     (first,) = tick(client, T0)
     wait_run(client, cid, first)
 
@@ -2038,9 +2617,9 @@ def test_a_time_that_came_due_is_never_run_twice_across_a_restart(
     assert tick(client, T0 + timedelta(minutes=10), starting=True) == []
     assert tick(client, T0 + timedelta(minutes=10)) == []
     back = T0 + timedelta(hours=3, minutes=20)
-    (late,) = tick(client, back, starting=True)           # three times missed: one turn
+    (late,) = tick(client, back, starting=True)  # three times missed: one turn
     wait_run(client, cid, late)
-    assert tick(client, back, starting=True) == []        # looked at twice on the same start
+    assert tick(client, back, starting=True) == []  # looked at twice on the same start
     assert tick(client, back + timedelta(seconds=5)) == []
 
     client = started([])
@@ -2061,7 +2640,7 @@ def test_a_turn_cut_short_when_the_app_stops_is_on_its_trigger_once(
     (run_id,) = tick(client, T0)
     gate.wait_partial()
 
-    for _ in range(2):                                    # started again, and once more
+    for _ in range(2):  # started again, and once more
         client = started([])
         snap = client.get(f"/api/conversations/{cid}").json()
         assert run_of(snap, run_id)["status"] == "interrupted"
@@ -2089,8 +2668,9 @@ def test_a_turn_left_open_by_a_crash_is_told_to_its_trigger_when_the_app_comes_b
     # as a crash would leave it: the turn still "running", its trigger still waiting for it
     with contextlib.closing(sqlite3.connect(database)) as db:
         db.execute("UPDATE runs SET status = 'running', ended_at = NULL WHERE id = ?", (run_id,))
-        db.execute("UPDATE trigger_runs SET outcome = NULL, note = NULL WHERE run_id = ?",
-                   (run_id,))
+        db.execute(
+            "UPDATE trigger_runs SET outcome = NULL, note = NULL WHERE run_id = ?", (run_id,)
+        )
         db.execute("UPDATE triggers SET failures = 0, last_result = NULL, last_words = NULL")
         db.commit()
 
@@ -2112,8 +2692,11 @@ def test_pausing_stops_what_runs_by_itself_at_once_and_nothing_of_the_users(
     make_client, wait_run, project_dir, gate, tmp_path
 ):
     mine_gate = Gate()
-    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [
-        gate.step(text("unattended")), mine_gate.step(text("mine")), text("after")]})
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        {"Lead": [gate.step(text("unattended")), mine_gate.step(text("mine")), text("after")]},
+    )
     other = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     (project_dir / "src").mkdir()
     clock = trigger(client, pid, cid)
@@ -2123,17 +2706,20 @@ def test_pausing_stops_what_runs_by_itself_at_once_and_nothing_of_the_users(
     try:
         (unattended,) = tick(client, T0)
         gate.wait_partial()
-        mine = client.post(f"/api/conversations/{other}/messages",
-                           json={"content": "a turn of my own"}).json()["run"]["id"]
+        mine = client.post(
+            f"/api/conversations/{other}/messages", json={"content": "a turn of my own"}
+        ).json()["run"]["id"]
         mine_gate.wait_partial()
 
-        assert client.put("/api/triggers/paused", json={"paused": True}).json() == {
-            "paused": True}
+        assert client.put("/api/triggers/paused", json={"paused": True}).json() == {"paused": True}
         # the turn that was running by itself is stopped - and that is not a failure
         assert run_of(wait_run(client, cid, unattended), unattended)["status"] == "cancelled"
         after = one(client, clock["id"])
         assert (after["runs"][0]["outcome"], after["failures"], after["enabled"]) == (
-            "stopped", 0, True)
+            "stopped",
+            0,
+            True,
+        )
         # the user's own turn goes on
         assert run_of(client.get(f"/api/conversations/{other}").json(), mine)["status"] == "running"
         # nothing starts by itself, whichever way: the clock, a file, a request, "Run now"
@@ -2144,8 +2730,8 @@ def test_pausing_stops_what_runs_by_itself_at_once_and_nothing_of_the_users(
         assert client.post(f"/api/triggers/{clock['id']}/run").status_code == 409
         assert client.get("/api/triggers/paused").json() == {"paused": True}
         for made in (clock, files, hook):
-            assert one(client, made["id"])["enabled"] is True   # paused, not switched off
-        assert len(one(client, clock["id"])["runs"]) == 1       # nor written down as skipped
+            assert one(client, made["id"])["enabled"] is True  # paused, not switched off
+        assert len(one(client, clock["id"])["runs"]) == 1  # nor written down as skipped
     finally:
         mine_gate.release()
     wait_run(client, other, mine)
@@ -2180,47 +2766,77 @@ def whats(client, trigger_id):
 def test_a_trigger_is_on_record_from_when_it_is_made(make_client, project_dir):
     client, model, pid, cid = setup(make_client, project_dir, {"Lead": []})
     rule = allow(client, cid, "python hello.py")
-    made = trigger(client, pid, cid, permissions=leave(write=True, commands=[rule], agents=2),
-                   budget={"steps": 30, "minutes": 5, "per_day": 1})
+    made = trigger(
+        client,
+        pid,
+        cid,
+        permissions=leave(write=True, commands=[rule], agents=2),
+        budget={"steps": 30, "minutes": 5, "per_day": 1},
+    )
     ((what, detail),) = whats(client, made["id"])
     # what it starts on, what it may do and how much, as it was made
     assert what == "created"
-    assert detail == ("every 60 minutes; no end; may write files; may run: python hello.py; "
-                      "may open 2 agents; 30 model steps and 5 minutes a run, 1 run a day")
+    assert detail == (
+        "every 60 minutes; no end; may write files; may run: python hello.py; "
+        "may open 2 agents; 30 model steps and 5 minutes a run, 1 run a day"
+    )
     assert made["changes"][0]["name"] == "watch" and made["updated_at"] == made["created_at"]
     plain = trigger(client, pid, cid, name="plain", kind="files", config={"glob": "src/*.py"})
     assert whats(client, plain["id"]) == [
-        ("created", "when src/*.py changes; no end; reads only; "
-                    "15 model steps and 10 minutes a run, 24 runs a day")]
+        (
+            "created",
+            "when src/*.py changes; no end; reads only; "
+            "15 model steps and 10 minutes a run, 24 runs a day",
+        )
+    ]
 
 
-def test_one_change_that_changes_several_things_is_written_once_for_each(
-    make_client, project_dir
-):
+def test_one_change_that_changes_several_things_is_written_once_for_each(make_client, project_dir):
     client, model, pid, cid = setup(make_client, project_dir, {"Lead": []})
     other = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     client.patch(f"/api/conversations/{other}", json={"title": "Nightly"})
     made = trigger(client, pid, cid)
-    as_made = {key: made[key] for key in (
-        "name", "conversation_id", "message", "config", "permissions", "budget", "catch_up")}
+    as_made = {
+        key: made[key]
+        for key in (
+            "name",
+            "conversation_id",
+            "message",
+            "config",
+            "permissions",
+            "budget",
+            "catch_up",
+        )
+    }
     # the form sends all it holds: saved with nothing changed, nothing is written
     same = client.patch(f"/api/triggers/{made['id']}", json=as_made)
     assert same.status_code == 200
     assert [what for what, _ in whats(client, made["id"])] == ["created"]
     assert same.json()["updated_at"] == made["updated_at"]
-    changed = client.patch(f"/api/triggers/{made['id']}", json={
-        **as_made, "name": "watch closely", "message": "look harder",
-        "config": {"at": "07:30", "days": "weekdays"}, "conversation_id": other,
-        "permissions": leave(write=True, agents=1),
-        "budget": {"steps": 40, "minutes": 30, "per_day": 2}, "enabled": False})
+    changed = client.patch(
+        f"/api/triggers/{made['id']}",
+        json={
+            **as_made,
+            "name": "watch closely",
+            "message": "look harder",
+            "config": {"at": "07:30", "days": "weekdays"},
+            "conversation_id": other,
+            "permissions": leave(write=True, agents=1),
+            "budget": {"steps": 40, "minutes": 30, "per_day": 2},
+            "enabled": False,
+        },
+    )
     assert changed.status_code == 200, changed.text
     after = changed.json()
     assert [(c["what"], c["detail"]) for c in after["changes"]][:-1] == [
         ("switched off", "by the user"),
         ("budget changed", "40 model steps and 30 minutes a run, 2 runs a day"),
         ("permissions changed", "may write files; may open 1 agent"),
-        ("settings changed", 'weekdays at 07:30; its turns go into "Nightly"; '
-                             "a run missed while KOLONİ was off is made up once; no end"),
+        (
+            "settings changed",
+            'weekdays at 07:30; its turns go into "Nightly"; '
+            "a run missed while KOLONİ was off is made up once; no end",
+        ),
         ("message changed", '"look harder"'),
         ("renamed", 'it was "watch"'),
     ]
@@ -2231,17 +2847,31 @@ def test_one_change_that_changes_several_things_is_written_once_for_each(
     # taken back to reading only, and switched on again
     client.patch(f"/api/triggers/{made['id']}", json={"permissions": leave(), "enabled": True})
     assert whats(client, made["id"])[:2] == [
-        ("switched on", None), ("permissions changed", "reads only")]
+        ("switched on", None),
+        ("permissions changed", "reads only"),
+    ]
     client.patch(f"/api/triggers/{made['id']}", json={"catch_up": False})
     assert whats(client, made["id"])[0] == (
-        "settings changed", 'weekdays at 07:30; its turns go into "Nightly"; '
-                            "a run missed while KOLONİ was off is not made up; no end")
+        "settings changed",
+        'weekdays at 07:30; its turns go into "Nightly"; '
+        "a run missed while KOLONİ was off is not made up; no end",
+    )
     # what was refused changed nothing, and is not written
     before = whats(client, made["id"])
-    assert client.patch(f"/api/triggers/{made['id']}", json={
-        "name": "x", "budget": {"steps": 0, "minutes": 1, "per_day": 1}}).status_code == 422
-    assert client.patch(f"/api/triggers/{made['id']}", json={
-        "name": "renamed again", "permissions": leave(commands=["nope"])}).status_code == 422
+    assert (
+        client.patch(
+            f"/api/triggers/{made['id']}",
+            json={"name": "x", "budget": {"steps": 0, "minutes": 1, "per_day": 1}},
+        ).status_code
+        == 422
+    )
+    assert (
+        client.patch(
+            f"/api/triggers/{made['id']}",
+            json={"name": "renamed again", "permissions": leave(commands=["nope"])},
+        ).status_code
+        == 422
+    )
     assert whats(client, made["id"]) == before
 
 
@@ -2271,14 +2901,18 @@ def test_a_trigger_switched_off_by_koloni_has_the_reason_on_its_record(
     after = one(client, made["id"])
     assert after["enabled"] is False
     assert whats(client, made["id"])[0] == (
-        "switched off", "after 3 failures in a row: model server unreachable: refused")
+        "switched off",
+        "after 3 failures in a row: model server unreachable: refused",
+    )
     assert after["updated_at"] == after["changes"][0]["at"]
     # switched on by the user, and off again by KOLONİ for another reason
     client.patch(f"/api/triggers/{made['id']}", json={"enabled": True})
     forget(client, "conversations", cid)
     assert tick(client, T0 + timedelta(hours=5)) == []
     assert whats(client, made["id"])[:2] == [
-        ("switched off", "its conversation is gone"), ("switched on", None)]
+        ("switched off", "its conversation is gone"),
+        ("switched on", None),
+    ]
 
 
 def test_a_deleted_trigger_stays_on_its_projects_record(make_client, project_dir, tmp_path):
@@ -2294,12 +2928,16 @@ def test_a_deleted_trigger_stays_on_its_projects_record(make_client, project_dir
     listed = client.get(f"/api/projects/{pid}/triggers/changes")
     assert listed.status_code == 200
     assert [(c["what"], c["name"], c["trigger_id"]) for c in listed.json()] == [
-        ("deleted", "first", first["id"]), ("renamed", "second", second["id"]),
-        ("created", "b", second["id"]), ("created", "first", first["id"])]
+        ("deleted", "first", first["id"]),
+        ("renamed", "second", second["id"]),
+        ("created", "b", second["id"]),
+        ("created", "first", first["id"]),
+    ]
     assert listed.json()[0]["detail"] is None and listed.json()[0]["at"]
     # another project's are its own
-    assert [c["trigger_id"] for c in client.get(
-        f"/api/projects/{pid2}/triggers/changes").json()] == [theirs["id"]]
+    assert [
+        c["trigger_id"] for c in client.get(f"/api/projects/{pid2}/triggers/changes").json()
+    ] == [theirs["id"]]
     assert client.get("/api/projects/no-such/triggers/changes").status_code == 404
     # the newest fifty
     for number in range(30):
@@ -2307,7 +2945,9 @@ def test_a_deleted_trigger_stays_on_its_projects_record(make_client, project_dir
         client.patch(f"/api/triggers/{second['id']}", json={"message": f"m{number}"})
     newest = client.get(f"/api/projects/{pid}/triggers/changes").json()
     assert len(newest) == 50 and (newest[0]["what"], newest[0]["detail"]) == (
-        "message changed", '"m29"')
+        "message changed",
+        '"m29"',
+    )
     assert len(one(client, second["id"])["changes"]) == 50
 
 
@@ -2327,40 +2967,69 @@ def test_migration_0020_on_a_database_that_has_triggers_and_back(tmp_path):
     alembic_command.upgrade(cfg, "0019")
     made = "2026-10-07 08:00:00.000000"
     with contextlib.closing(sqlite3.connect(db)) as conn:
-        conn.execute("INSERT INTO projects (id, name, root_path, created_at) "
-                     "VALUES ('p', 'P', 'C:/p', ?)", (made,))
+        conn.execute(
+            "INSERT INTO projects (id, name, root_path, created_at) VALUES ('p', 'P', 'C:/p', ?)",
+            (made,),
+        )
         columns = [row[1] for row in conn.execute("PRAGMA table_info(conversations)")]
-        needed = [row[1] for row in conn.execute("PRAGMA table_info(conversations)")
-                  if row[3] and row[4] is None]
-        values = {"id": "c", "project_id": "p", "title": "T", "created_at": made,
-                  "updated_at": made, "permission_mode": "ask", "spawn_approval": "auto",
-                  "spawn_max_depth": 2, "spawn_max_agents": 4, "spawn_max_parallel": 2}
+        needed = [
+            row[1]
+            for row in conn.execute("PRAGMA table_info(conversations)")
+            if row[3] and row[4] is None
+        ]
+        values = {
+            "id": "c",
+            "project_id": "p",
+            "title": "T",
+            "created_at": made,
+            "updated_at": made,
+            "permission_mode": "ask",
+            "spawn_approval": "auto",
+            "spawn_max_depth": 2,
+            "spawn_max_agents": 4,
+            "spawn_max_parallel": 2,
+        }
         assert set(needed) <= set(values), needed
         used = [name for name in columns if name in values]
         conn.execute(
             f"INSERT INTO conversations ({', '.join(used)}) "
-            f"VALUES ({', '.join('?' for _ in used)})", [values[name] for name in used])
+            f"VALUES ({', '.join('?' for _ in used)})",
+            [values[name] for name in used],
+        )
         for trigger_id, name, permissions in (
-            ("t1", "typed", {"write": True, "commands": ["python hello.py", "pytest -q"],
-                             "agents": 1}),
+            (
+                "t1",
+                "typed",
+                {"write": True, "commands": ["python hello.py", "pytest -q"], "agents": 1},
+            ),
             ("t2", "reads", {"write": False, "commands": [], "agents": 0}),
         ):
             conn.execute(
                 "INSERT INTO triggers (id, project_id, conversation_id, name, kind, config, "
                 "message, permissions, budget, catch_up, enabled, failures, created_at) "
                 "VALUES (?, 'p', 'c', ?, 'schedule', ?, 'look', ?, ?, 1, 1, 0, ?)",
-                (trigger_id, name, json.dumps({"every_minutes": 60}), json.dumps(permissions),
-                 json.dumps({"steps": 15, "minutes": 10, "per_day": 24}), made))
+                (
+                    trigger_id,
+                    name,
+                    json.dumps({"every_minutes": 60}),
+                    json.dumps(permissions),
+                    json.dumps({"steps": 15, "minutes": 10, "per_day": 24}),
+                    made,
+                ),
+            )
         conn.commit()
     alembic_command.upgrade(cfg, "head")
     with contextlib.closing(sqlite3.connect(db)) as conn:
-        kept_now = {row[0]: (json.loads(row[1]), row[2]) for row in conn.execute(
-            "SELECT id, permissions, updated_at FROM triggers")}
+        kept_now = {
+            row[0]: (json.loads(row[1]), row[2])
+            for row in conn.execute("SELECT id, permissions, updated_at FROM triggers")
+        }
         assert kept_now["t1"][0] == {"write": True, "commands": [], "agents": 1}
         assert kept_now["t2"][0] == {"write": False, "commands": [], "agents": 0}
         assert kept_now["t1"][1] and kept_now["t2"][1] == made
         rows = conn.execute(
-            "SELECT project_id, trigger_id, name, what, detail FROM trigger_changes").fetchall()
+            "SELECT project_id, trigger_id, name, what, detail FROM trigger_changes"
+        ).fetchall()
     ((project, trigger_id, name, what, detail),) = rows
     assert (project, trigger_id, name, what) == ("p", "t1", "typed", "permissions changed")
     assert "python hello.py" in detail and "pytest -q" in detail and "no command" in detail
@@ -2375,8 +3044,7 @@ def test_migration_0020_on_a_database_that_has_triggers_and_back(tmp_path):
     with contextlib.closing(sqlite3.connect(db)) as conn:
         tables = [row[0] for row in conn.execute("SELECT name FROM sqlite_master")]
         assert "trigger_changes" not in tables
-        assert "updated_at" not in [
-            row[1] for row in conn.execute("PRAGMA table_info(triggers)")]
+        assert "updated_at" not in [row[1] for row in conn.execute("PRAGMA table_info(triggers)")]
 
 
 # --- a look that goes wrong ---------------------------------------------------------------------
@@ -2387,8 +3055,7 @@ def test_a_look_that_raises_does_not_switch_the_trigger_off(
 ):
     """The database busy for a moment, anything nobody thought of: it is written to the
     log and the trigger is looked at again at the next look. The others are looked at."""
-    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [
-        text("one"), text("two")]})
+    client, model, pid, cid = setup(make_client, project_dir, {"Lead": [text("one"), text("two")]})
     other = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     unlucky = trigger(client, pid, cid, name="unlucky")
     sound = trigger(client, pid, other, name="sound")
@@ -2402,7 +3069,7 @@ def test_a_look_that_raises_does_not_switch_the_trigger_off(
 
     monkeypatch.setattr(triggers, "_look_at_clock", at_clock)
     with caplog.at_level(logging.WARNING):
-        (run_id,) = tick(client, T0)                 # the sound one, looked at after it
+        (run_id,) = tick(client, T0)  # the sound one, looked at after it
     wait_run(client, other, run_id)
     after = one(client, unlucky["id"])
     assert (after["enabled"], after["off_because"], after["runs"]) == (True, None, [])
@@ -2440,10 +3107,13 @@ def test_a_listing_that_cannot_be_read_does_not_switch_a_files_trigger_off(
     assert len(tick(client, T0 + timedelta(seconds=16))) == 1
 
 
-@pytest.mark.parametrize("finding", [
-    kept.TooMany("more than 5000 files match this pattern; name fewer"),
-    kept.Invalid("the pattern must name paths inside the project folder"),
-])
+@pytest.mark.parametrize(
+    "finding",
+    [
+        kept.TooMany("more than 5000 files match this pattern; name fewer"),
+        kept.Invalid("the pattern must name paths inside the project folder"),
+    ],
+)
 def test_only_a_finding_about_the_trigger_itself_switches_it_off(
     make_client, wait_run, project_dir, monkeypatch, finding
 ):
@@ -2467,15 +3137,17 @@ def test_only_a_finding_about_the_trigger_itself_switches_it_off(
         return switch_off(trigger_id, why)
 
     monkeypatch.setattr(triggers, "_switch_off", cannot)
-    (run_id,) = tick(client, T0)                     # the sound one still starts
+    (run_id,) = tick(client, T0)  # the sound one still starts
     wait_run(client, other, run_id)
-    assert one(client, wrong["id"])["enabled"] is True      # could not be written: still on
+    assert one(client, wrong["id"])["enabled"] is True  # could not be written: still on
     fail[0] = False
     assert tick(client, T0 + timedelta(seconds=5)) == []
     after = one(client, wrong["id"])
     assert after["enabled"] is False and after["off_because"] == str(finding)
     assert (after["changes"][0]["what"], after["changes"][0]["detail"]) == (
-        "switched off", str(finding))
+        "switched off",
+        str(finding),
+    )
     assert one(client, sound["id"])["enabled"] is True
 
 
@@ -2489,10 +3161,14 @@ def forget(client, table, row_id):
         db.commit()
 
 
-@pytest.mark.parametrize("gone, why", [
-    ("conversations", "its conversation is gone"), ("projects", "its project is gone"),
-    ("folder", "folder is gone"),
-])
+@pytest.mark.parametrize(
+    "gone, why",
+    [
+        ("conversations", "its conversation is gone"),
+        ("projects", "its project is gone"),
+        ("folder", "folder is gone"),
+    ],
+)
 def test_a_trigger_whose_conversation_or_project_is_gone_is_switched_off_not_crashed_on(
     make_client, wait_run, project_dir, tmp_path, gone, why
 ):
@@ -2507,7 +3183,7 @@ def test_a_trigger_whose_conversation_or_project_is_gone_is_switched_off_not_cra
     by_files = trigger(client, pid, lost_cid, kind="files", config={"glob": "src/*.py"})
     by_hook = trigger(client, pid, lost_cid, kind="webhook", config={})
     by_hand = trigger(client, pid, lost_cid, name="by hand")
-    sound = trigger(client, pid2, cid2, name="sound")     # made later: looked at after them
+    sound = trigger(client, pid2, cid2, name="sound")  # made later: looked at after them
     if gone == "folder":
         shutil.rmtree(project_dir)
     else:

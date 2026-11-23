@@ -35,10 +35,12 @@ async def answer(
         text = next((one for one in question.options if one.casefold() == text.casefold()), "")
         if not text:
             raise HTTPException(
-                422, f"answer with one of its options: {', '.join(question.options)}")
+                422, f"answer with one of its options: {', '.join(question.options)}"
+            )
     # (Its record says first: one no longer current - its turn over, asked again - takes none.)
     if question.status != "pending" or not request.app.state.runner.answer_question(
-            question_id, text):
+        question_id, text
+    ):
         raise HTTPException(409, "this question is no longer waiting for an answer")
     # The agent task records the answer; reply once it has.
     deadline = asyncio.get_running_loop().time() + DECISION_TIMEOUT
@@ -69,8 +71,12 @@ def _seen(request: Request, session: Session, question: Question) -> dict:
     question.seen_at = now()
     session.commit()
     payload = question_out(question)
-    request.app.state.bus.emit(session.get_one(Run, question.run_id).conversation_id,
-                               question.run_id, "question.updated", payload)
+    request.app.state.bus.emit(
+        session.get_one(Run, question.run_id).conversation_id,
+        question.run_id,
+        "question.updated",
+        payload,
+    )
     return payload
 
 

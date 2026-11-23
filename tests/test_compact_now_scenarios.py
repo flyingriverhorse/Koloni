@@ -68,18 +68,30 @@ def test_below_the_users_threshold_nothing_is_summarised(windowed, wait_run, pro
 
 
 def test_past_the_users_threshold_the_older_part_is_summarised(windowed, wait_run, project_dir):  # noqa: F811
-    client, model = windowed([step(call("read_file", {"path": "hello.py"}, "r1"), i=100),
-                              step(call("list_dir", {}, "l1"), i=600),
-                              text("SUMMARY: hello.py prints hi"), text("done")])
+    client, model = windowed(
+        [
+            step(call("read_file", {"path": "hello.py"}, "r1"), i=100),
+            step(call("list_dir", {}, "l1"), i=600),
+            text("SUMMARY: hello.py prints hi"),
+            text("done"),
+        ]
+    )
     assert client.put("/api/compaction", json={"compact_at": 50}).status_code == 200
     ran(client, wait_run, project_dir)
     assert len(model.calls) == 4 and "SUMMARY: hello.py prints hi" in sent(model.calls[3])
 
 
-@pytest.mark.parametrize("body", [
-    {"compact_at": 49}, {"compact_at": 96}, {"compact_at": 75.5}, {"compact_at": "75"}, {},
-    {"compact_at": 80, "more": 1},
-])
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"compact_at": 49},
+        {"compact_at": 96},
+        {"compact_at": 75.5},
+        {"compact_at": "75"},
+        {},
+        {"compact_at": 80, "more": 1},
+    ],
+)
 def test_a_threshold_outside_50_to_95_is_refused(windowed, body):  # noqa: F811
     client, _model = windowed([])
     assert client.put("/api/compaction", json=body).status_code == 422
@@ -107,24 +119,43 @@ def test_a_threshold_row_out_of_shape_is_held_to_50_95_or_counts_for_nothing(win
 
 def answered(sent_tokens, content="", tool=None, stop=None):
     """One streamed answer of the Messages API: text, or one tool call."""
-    blocks = [{"type": "content_block_start", "index": 0, "content_block": {"type": "text"}},
-              {"type": "content_block_delta", "index": 0,
-               "delta": {"type": "text_delta", "text": content}}] if content else []
+    blocks = (
+        [
+            {"type": "content_block_start", "index": 0, "content_block": {"type": "text"}},
+            {
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "text_delta", "text": content},
+            },
+        ]
+        if content
+        else []
+    )
     if tool:
         name, arguments, call_id = tool
         blocks += [
-            {"type": "content_block_start", "index": 1,
-             "content_block": {"type": "tool_use", "id": call_id, "name": name}},
-            {"type": "content_block_delta", "index": 1,
-             "delta": {"type": "input_json_delta", "partial_json": json.dumps(arguments)}},
+            {
+                "type": "content_block_start",
+                "index": 1,
+                "content_block": {"type": "tool_use", "id": call_id, "name": name},
+            },
+            {
+                "type": "content_block_delta",
+                "index": 1,
+                "delta": {"type": "input_json_delta", "partial_json": json.dumps(arguments)},
+            },
         ]
     return events(
-        {"type": "message_start", "message": {"usage": {"input_tokens": sent_tokens,
-                                                         "output_tokens": 1}}},
+        {
+            "type": "message_start",
+            "message": {"usage": {"input_tokens": sent_tokens, "output_tokens": 1}},
+        },
         *blocks,
-        {"type": "message_delta",
-         "delta": {"stop_reason": stop or ("tool_use" if tool else "end_turn")},
-         "usage": {"output_tokens": 5}},
+        {
+            "type": "message_delta",
+            "delta": {"stop_reason": stop or ("tool_use" if tool else "end_turn")},
+            "usage": {"output_tokens": 5},
+        },
         {"type": "message_stop"},
     )
 
@@ -136,17 +167,21 @@ def on_anthropic(settings_env, wait_run, project_dir, answers):
 
     def api(request):
         if request.method == "GET":  # the Models API: its window and the most it writes
-            return httpx2.Response(200, json={"id": "claude-test", "max_input_tokens": 1000,
-                                              "max_tokens": 4096})
+            return httpx2.Response(
+                200, json={"id": "claude-test", "max_input_tokens": 1000, "max_tokens": 4096}
+            )
         bodies.append(json.loads(request.content))
         answer = answers[len(bodies) - 1]
-        return answer if isinstance(answer, httpx2.Response) else httpx2.Response(
-            200, content=answer)
+        return (
+            answer if isinstance(answer, httpx2.Response) else httpx2.Response(200, content=answer)
+        )
 
-    model = AnthropicClient("https://api.test", "sk-ant-test", "claude-test",
-                            transport=httpx2.MockTransport(api))
-    with TestClient(create_app(load_settings(settings_env), model=model),
-                    base_url=ORIGIN) as client:
+    model = AnthropicClient(
+        "https://api.test", "sk-ant-test", "claude-test", transport=httpx2.MockTransport(api)
+    )
+    with TestClient(
+        create_app(load_settings(settings_env), model=model), base_url=ORIGIN
+    ) as client:
         client.headers["Origin"] = ORIGIN
         return ran(client, wait_run, project_dir)[1], bodies
 
@@ -157,9 +192,17 @@ READ = answered(100, tool=("read_file", {"path": "hello.py"}, "toolu_1"))
 def test_an_anthropic_summary_cut_at_its_max_tokens_is_not_taken(
     settings_env, wait_run, project_dir
 ):
-    snap, bodies = on_anthropic(settings_env, wait_run, project_dir, [
-        READ, answered(800, tool=("list_dir", {}, "toolu_2")),
-        answered(50, "SUMMARY: hello.py pri", stop="max_tokens"), answered(300, "done")])
+    snap, bodies = on_anthropic(
+        settings_env,
+        wait_run,
+        project_dir,
+        [
+            READ,
+            answered(800, tool=("list_dir", {}, "toolu_2")),
+            answered(50, "SUMMARY: hello.py pri", stop="max_tokens"),
+            answered(300, "done"),
+        ],
+    )
     assert snap["runs"][0]["status"] == "completed" and len(bodies) == 4
     after = json.dumps(bodies[3])
     assert "SUMMARY: hello.py pri" not in after and "print('hi')" not in after  # left out
@@ -170,15 +213,30 @@ def test_an_anthropic_summary_cut_at_its_max_tokens_is_not_taken(
 def test_anthropics_prompt_is_too_long_is_summarised_and_asked_once_more(
     settings_env, wait_run, project_dir
 ):
-    too_long = httpx2.Response(400, json={"type": "error", "error": {
-        "type": "invalid_request_error",
-        "message": "prompt is too long: 1200 tokens > 1000 maximum"}})
+    too_long = httpx2.Response(
+        400,
+        json={
+            "type": "error",
+            "error": {
+                "type": "invalid_request_error",
+                "message": "prompt is too long: 1200 tokens > 1000 maximum",
+            },
+        },
+    )
     # (What it read is larger than its summary: asked again only with less.)
     (project_dir / "big.txt").write_text("big " * 1000)
-    snap, bodies = on_anthropic(settings_env, wait_run, project_dir, [
-        answered(100, tool=("read_file", {"path": "big.txt"}, "toolu_1")),
-        answered(200, tool=("list_dir", {}, "toolu_2")), too_long,
-        answered(50, "SUMMARY: hello.py prints hi"), answered(300, "done")])
+    snap, bodies = on_anthropic(
+        settings_env,
+        wait_run,
+        project_dir,
+        [
+            answered(100, tool=("read_file", {"path": "big.txt"}, "toolu_1")),
+            answered(200, tool=("list_dir", {}, "toolu_2")),
+            too_long,
+            answered(50, "SUMMARY: hello.py prints hi"),
+            answered(300, "done"),
+        ],
+    )
     assert snap["runs"][0]["status"] == "completed" and len(bodies) == 5
     again = json.dumps(bodies[4])
     assert "SUMMARY: hello.py prints hi" in again and "big big" not in again
@@ -187,9 +245,17 @@ def test_anthropics_prompt_is_too_long_is_summarised_and_asked_once_more(
 def test_anthropics_api_is_compacted_by_koloni_against_its_models_window(
     settings_env, wait_run, project_dir
 ):
-    snap, bodies = on_anthropic(settings_env, wait_run, project_dir, [
-        READ, answered(800, tool=("list_dir", {}, "toolu_2")),  # 80% of its window
-        answered(50, "SUMMARY: hello.py prints hi"), answered(300, "done")])
+    snap, bodies = on_anthropic(
+        settings_env,
+        wait_run,
+        project_dir,
+        [
+            READ,
+            answered(800, tool=("list_dir", {}, "toolu_2")),  # 80% of its window
+            answered(50, "SUMMARY: hello.py prints hi"),
+            answered(300, "done"),
+        ],
+    )
     assert snap["runs"][0]["status"] == "completed" and len(bodies) == 4
     summariser, after = json.dumps(bodies[2]), json.dumps(bodies[3])
     assert "print('hi')" in summariser and "tools" not in bodies[2]
@@ -207,7 +273,9 @@ SHORT = [step(call("read_file", {"path": "hello.py"}, "r1"), i=100), text("It pr
 
 
 def test_compact_now_summarises_a_lead_whose_turn_is_over_and_the_next_turn_goes_on_from_it(
-    windowed, wait_run, project_dir  # noqa: F811
+    windowed,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, model = windowed([*SHORT, text("SUMMARY: hello.py prints hi"), text("done again")])
     cid, _snap = ran(client, wait_run, project_dir)
@@ -242,12 +310,17 @@ def test_compact_now_whose_model_cannot_be_asked_says_so(windowed, wait_run, pro
 
     model.info = down
     refused = client.post(f"/api/agents/{lead_of(client, cid)['id']}/compact")
-    assert refused.status_code == 409 and "not compacted: model server unreachable: down" in refused.text
+    assert (
+        refused.status_code == 409
+        and "not compacted: model server unreachable: down" in refused.text
+    )
     assert lead_of(client, cid)["summarised"] == 0
 
 
 def test_compact_now_while_its_turn_is_still_being_closed_is_refused(
-    windowed, wait_run, project_dir  # noqa: F811
+    windowed,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, model = windowed([*SHORT, text("SUMMARY: never asked")])
     held, done = threading.Event(), threading.Event()
@@ -270,7 +343,9 @@ def test_compact_now_while_its_turn_is_still_being_closed_is_refused(
 
 
 def test_while_compact_now_works_another_and_a_correction_are_refused(
-    windowed, wait_run, project_dir  # noqa: F811
+    windowed,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     gate = Gate()
     client, _model = windowed([*SHORT, gate.step(text("SUMMARY: hello.py prints hi"))])
@@ -295,8 +370,7 @@ def test_while_compact_now_works_another_and_a_correction_are_refused(
 def test_a_correction_while_a_step_is_summarised_is_refused(windowed, wait_run, project_dir):  # noqa: F811
     """77: the summary being made at a step would be written over the user's words."""
     gate = Gate()
-    client, _model = windowed([*WORK, gate.step(text("SUMMARY: hello.py prints hi")),
-                               text("done")])
+    client, _model = windowed([*WORK, gate.step(text("SUMMARY: hello.py prints hi")), text("done")])
     cid, run_id = begin(client, project_dir, mode="full_auto", content="look at hello please")
     try:
         gate.wait_partial()
@@ -310,15 +384,24 @@ def test_a_correction_while_a_step_is_summarised_is_refused(windowed, wait_run, 
 
 
 def test_compact_now_on_a_lead_that_goes_on_from_a_summary_summarises_the_summary_too(
-    windowed, wait_run, project_dir  # noqa: F811
+    windowed,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, model = windowed([
-        *SHORT, text("SUMMARY: one"),
-        step(call("read_file", {"path": "hello.py"}, "r2"), i=100), text("Still hi.", i=200),
-        text("SUMMARY: two"), text("done")])
+    client, model = windowed(
+        [
+            *SHORT,
+            text("SUMMARY: one"),
+            step(call("read_file", {"path": "hello.py"}, "r2"), i=100),
+            text("Still hi.", i=200),
+            text("SUMMARY: two"),
+            text("done"),
+        ]
+    )
     cid, _snap = ran(client, wait_run, project_dir)
     assert client.post(f"/api/agents/{lead_of(client, cid)['id']}/compact").json()["summary"] == (
-        "SUMMARY: one")
+        "SUMMARY: one"
+    )
     posted = client.post(f"/api/conversations/{cid}/messages", json={"content": "and again?"})
     snap = wait_run(client, cid, posted.json()["run"]["id"])
     second = snap["agents"][-1]
@@ -334,12 +417,19 @@ def test_compact_now_on_a_lead_that_goes_on_from_a_summary_summarises_the_summar
 
 
 def test_a_working_state_edited_before_a_compaction_is_refused_after_it(
-    windowed, wait_run, project_dir  # noqa: F811
+    windowed,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, _model = windowed([
-        *SHORT, text("SUMMARY: one"),
-        step(call("read_file", {"path": "hello.py"}, "r2"), i=100), text("Still hi.", i=200),
-        text("SUMMARY: two")])
+    client, _model = windowed(
+        [
+            *SHORT,
+            text("SUMMARY: one"),
+            step(call("read_file", {"path": "hello.py"}, "r2"), i=100),
+            text("Still hi.", i=200),
+            text("SUMMARY: two"),
+        ]
+    )
     cid, _snap = ran(client, wait_run, project_dir)
     assert client.post(f"/api/agents/{lead_of(client, cid)['id']}/compact").status_code == 200
     posted = client.post(f"/api/conversations/{cid}/messages", json={"content": "and again?"})
@@ -356,10 +446,13 @@ def test_a_working_state_edited_before_a_compaction_is_refused_after_it(
 
 
 def test_a_continuing_leads_first_step_is_compacted_at_the_threshold_set_since(
-    windowed, wait_run, project_dir  # noqa: F811
+    windowed,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, model = windowed([*FULL_AT_THE_END, text("SUMMARY: hello.py prints hi"),
-                              text("done again")])
+    client, model = windowed(
+        [*FULL_AT_THE_END, text("SUMMARY: hello.py prints hi"), text("done again")]
+    )
     assert client.put("/api/compaction", json={"compact_at": 90}).status_code == 200
     cid, _snap = ran(client, wait_run, project_dir)  # its last step sent 80%: not after it
     assert len(model.calls) == 2 and lead_of(client, cid)["summarised"] == 0
@@ -373,7 +466,11 @@ def test_a_continuing_leads_first_step_is_compacted_at_the_threshold_set_since(
 
 @pytest.mark.parametrize("mode, kept", [("step", None), ("native", {"id": "s-0001", "under": "u"})])
 def test_compact_now_is_refused_for_a_cli_that_keeps_what_it_is_sent(  # noqa: F811
-    windowed, wait_run, project_dir, mode, kept  # noqa: F811
+    windowed,
+    wait_run,
+    project_dir,
+    mode,
+    kept,  # noqa: F811
 ):
     # (Step by step, as before; or one whose next turn goes on in its session. A native or
     # session CLI that starts anew is KOLONİ's to compact: test_cli_compaction.)
@@ -386,20 +483,30 @@ def test_compact_now_is_refused_for_a_cli_that_keeps_what_it_is_sent(  # noqa: F
         session.commit()
     assert lead_of(client, cid)["compacts_itself"] is True
     refused = client.post(f"/api/agents/{lead_id}/compact")
-    assert refused.status_code == 409 and (
-        "each step is sent a trimmed history; not compacted" if mode == "step"
-        else "keeps what it is sent itself") in refused.text
+    assert (
+        refused.status_code == 409
+        and (
+            "each step is sent a trimmed history; not compacted"
+            if mode == "step"
+            else "keeps what it is sent itself"
+        )
+        in refused.text
+    )
     assert len(model.calls) == 2
 
 
 def test_compact_now_is_refused_for_an_agent_at_work_and_a_sub_agent(
-    windowed, wait_run, project_dir  # noqa: F811
+    windowed,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     gate = Gate()
-    client, model = windowed({
-        "Lead": [spawn("Coder", "look at hello.py"), gate.step(text("all done"))],
-        "Coder": [text("It prints hi.")],
-    })
+    client, model = windowed(
+        {
+            "Lead": [spawn("Coder", "look at hello.py"), gate.step(text("all done"))],
+            "Coder": [text("It prints hi.")],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     gate.wait_partial()
     snap = client.get(f"/api/conversations/{cid}").json()

@@ -17,8 +17,9 @@ from tests.test_take_in_scenarios import needs_git, repository
 
 pytestmark = needs_git
 LINES = "".join(f"line {n}\n" for n in range(1, 61))
-WHOLE = "{} went in whole, as the project has it: any edits of your own there went into this " \
-        "commit too"
+WHOLE = (
+    "{} went in whole, as the project has it: any edits of your own there went into this commit too"
+)
 
 
 def lines(**changed):
@@ -28,8 +29,11 @@ def lines(**changed):
 def bare(folder):
     """A repository with no commit yet."""
     in_repo(folder, "init", "-q", "-b", "main")
-    for key, value in (("user.email", "user@example.com"), ("user.name", "The User"),
-                       ("commit.gpgsign", "false")):
+    for key, value in (
+        ("user.email", "user@example.com"),
+        ("user.name", "The User"),
+        ("commit.gpgsign", "false"),
+    ):
         in_repo(folder, "config", key, value)
 
 
@@ -78,12 +82,12 @@ def head(project, path):
 
 def test_the_commit_holds_the_agents_line_and_the_users_own_stay_out(repo, tmp_path):
     (repo / "a.txt").write_text(lines(l1="USER"), encoding="utf-8", newline="\n")
-    (repo / "b.txt").write_bytes(b"b staged\n")                 # the user's, staged
+    (repo / "b.txt").write_bytes(b"b staged\n")  # the user's, staged
     in_repo(repo, "add", "b.txt")
     sides = taken(tmp_path, repo, {"a.txt": lines(l1="USER", l50="AGENT").encode()})
     sha, notes = git.commit(repo, ["a.txt"], "Coder: line 50", sides=sides)
     assert notes == [] and sha == in_repo(repo, "rev-parse", "HEAD")
-    assert head(repo, "a.txt") + "\n" == lines(l50="AGENT")    # line 50 alone
+    assert head(repo, "a.txt") + "\n" == lines(l50="AGENT")  # line 50 alone
     assert in_repo(repo, "show", "--stat", "--format=", "HEAD").startswith("a.txt")
     # line 1 is still the user's own, in the working tree; b.txt is still staged, not committed
     assert (repo / "a.txt").read_text(encoding="utf-8") == lines(l1="USER", l50="AGENT")
@@ -95,8 +99,9 @@ def test_the_commit_holds_the_agents_line_and_the_users_own_stay_out(repo, tmp_p
 
 
 def test_new_deleted_and_binary_files_go_in_as_the_agent_left_them(repo, tmp_path):
-    sides = taken(tmp_path, repo, {
-        "new.txt": b"new\n", "old.txt": None, "pic.bin": b"\x00\xff\x00"})
+    sides = taken(
+        tmp_path, repo, {"new.txt": b"new\n", "old.txt": None, "pic.bin": b"\x00\xff\x00"}
+    )
     sha, notes = git.commit(repo, ["new.txt", "old.txt", "pic.bin"], "Coder: files", sides=sides)
     assert notes == []
     assert head(repo, "new.txt") == "new"
@@ -121,12 +126,17 @@ def test_where_the_users_edit_and_the_agents_touch_the_same_lines_the_file_goes_
     each said by name, for the card."""
     (repo / "a.txt").write_text(lines(l50="USER"), encoding="utf-8", newline="\n")
     (repo / "pic.bin").write_bytes(b"\x00user")
-    sides = taken(tmp_path, repo, {"a.txt": lines(l50="AGENT").encode(),
-                                   "pic.bin": b"\x00agent", "b.txt": b"b agent\n"})
+    sides = taken(
+        tmp_path,
+        repo,
+        {"a.txt": lines(l50="AGENT").encode(), "pic.bin": b"\x00agent", "b.txt": b"b agent\n"},
+    )
     del sides["b.txt"]
     sha, notes = git.commit(repo, ["a.txt", "b.txt", "pic.bin"], "Coder: all", sides=sides)
-    assert notes == ["a.txt, b.txt, pic.bin went in whole, as the project has them: any edits "
-                     "of your own there went into this commit too"]
+    assert notes == [
+        "a.txt, b.txt, pic.bin went in whole, as the project has them: any edits "
+        "of your own there went into this commit too"
+    ]
     assert head(repo, "a.txt") + "\n" == lines(l50="AGENT")
     assert head(repo, "b.txt") == "b agent"
     assert in_repo(repo, "status", "--porcelain") == ""
@@ -138,11 +148,17 @@ def test_a_new_file_git_ignores_is_left_out_and_said(repo, tmp_path):
     sha, notes = git.commit(repo, [".env", "b.txt"], "Coder: env", sides=sides)
     assert notes == [".env was left out of the commit: git ignores it"]
     assert in_repo(repo, "ls-tree", "--name-only", "HEAD").split() == [
-        ".gitignore", "a.txt", "b.txt", "old.txt", "pic.bin"]
+        ".gitignore",
+        "a.txt",
+        "b.txt",
+        "old.txt",
+        "pic.bin",
+    ]
     # alone, there is nothing to commit - and that says why
     sides = taken(tmp_path, repo, {".env": b"SECRET=2\n"})
-    with pytest.raises(git.Refused, match="nothing to commit.*.env was left out of the commit: "
-                                          "git ignores it"):
+    with pytest.raises(
+        git.Refused, match="nothing to commit.*.env was left out of the commit: git ignores it"
+    ):
         git.commit(repo, [".env"], "Coder: env", sides=sides)
 
 
@@ -163,10 +179,12 @@ def test_a_file_whose_change_was_taken_back_is_not_committed(repo, tmp_path):
     """The working tree no longer holds the agent's line: committing it would put into history
     what the user undid."""
     sides = taken(tmp_path, repo, {"a.txt": lines(l50="AGENT").encode(), "b.txt": b"b agent\n"})
-    (repo / "a.txt").write_text(LINES, encoding="utf-8", newline="\n")     # taken back
+    (repo / "a.txt").write_text(LINES, encoding="utf-8", newline="\n")  # taken back
     sha, notes = git.commit(repo, ["a.txt", "b.txt"], "Coder: both", sides=sides)
-    assert notes == ["a.txt was left out of the commit: the agent's change is no longer in it "
-                     "as the project has it"]
+    assert notes == [
+        "a.txt was left out of the commit: the agent's change is no longer in it "
+        "as the project has it"
+    ]
     assert head(repo, "a.txt") + "\n" == LINES and head(repo, "b.txt") == "b agent"
     # written over since, on its own lines: still the agent's - and the user's line stays out
     sides = taken(tmp_path, repo, {"a.txt": lines(l50="AGENT").encode()})
@@ -187,10 +205,12 @@ def test_a_file_with_staged_changes_the_working_tree_does_not_hold_is_left_out(r
     in_repo(repo, "add", "a.txt")
     (repo / "a.txt").write_text(lines(l1="LATER", l50="AGENT"), encoding="utf-8", newline="\n")
     sha, notes = git.commit(repo, ["a.txt", "b.txt"], "Coder: both", sides=sides)
-    assert notes == ["a.txt was left out of the commit: you have changes staged in it that the "
-                     "file in the project does not hold: commit or unstage them first"]
+    assert notes == [
+        "a.txt was left out of the commit: you have changes staged in it that the "
+        "file in the project does not hold: commit or unstage them first"
+    ]
     assert head(repo, "a.txt") + "\n" == LINES and head(repo, "b.txt") == "b agent"
-    assert "+STAGED" in in_repo(repo, "diff", "--cached", "--", "a.txt")      # still staged
+    assert "+STAGED" in in_repo(repo, "diff", "--cached", "--", "a.txt")  # still staged
 
 
 def test_a_commit_hook_that_adds_the_users_files_is_named(repo, tmp_path):
@@ -202,7 +222,7 @@ def test_a_commit_hook_that_adds_the_users_files_is_named(repo, tmp_path):
     sha, notes = git.commit(repo, ["a.txt"], "Coder: line 50", sides=sides)
     assert notes == ["a commit hook changed what went in: b.txt"]
     assert head(repo, "b.txt") == "b the user's"
-    assert in_repo(repo, "status", "--porcelain") == ""       # nor is it shown as taken back
+    assert in_repo(repo, "status", "--porcelain") == ""  # nor is it shown as taken back
 
 
 def test_where_git_will_not_set_the_index_afterwards_the_card_says_what_to_run(repo, tmp_path):
@@ -251,9 +271,10 @@ def test_a_crlf_file_in_a_subfolder_has_the_agents_line_alone_too(tmp_path):
     (project / "src" / "a.txt").write_bytes(crlf())
     in_repo(project, "add", "-A")
     in_repo(project, "commit", "-q", "-m", "as it was")
-    blob = subprocess.run(["git", "cat-file", "blob", "HEAD:src/a.txt"], cwd=project,
-                          capture_output=True, check=True).stdout
-    assert b"\r" not in blob                                     # git keeps it with LF
+    blob = subprocess.run(
+        ["git", "cat-file", "blob", "HEAD:src/a.txt"], cwd=project, capture_output=True, check=True
+    ).stdout
+    assert b"\r" not in blob  # git keeps it with LF
     (project / "src" / "a.txt").write_bytes(crlf(l1="USER"))
     sides = taken(tmp_path, project, {"src/a.txt": crlf(l1="USER", l50="AGENT")})
     _sha, notes = git.commit(project, ["src/a.txt"], "Coder: line 50", sides=sides)
@@ -310,14 +331,15 @@ def test_what_was_kept_for_a_commit_goes_once_none_is_offered(tmp_path):
         (tmp_path / "commit-sides" / name).mkdir(parents=True)
     prune_commit_sides(tmp_path, Session())
     assert [one.name for one in (tmp_path / "commit-sides").iterdir()] == ["offered"]
-    prune_commit_sides(tmp_path / "nothing", Session())       # no folder: nothing to do
+    prune_commit_sides(tmp_path / "nothing", Session())  # no folder: nothing to do
 
 
 def test_two_thousand_files_go_in_though_no_command_line_holds_them(tmp_path):
     # (Windows' command line holds 32K characters: some 300 such paths, WinError 206)
     project = tmp_path / "p"
-    paths = [f"generated/a/long/folder/name/module_{n:04}_with_a_long_name.py"
-             for n in range(2000)] + ["ü dosya.txt"]
+    paths = [
+        f"generated/a/long/folder/name/module_{n:04}_with_a_long_name.py" for n in range(2000)
+    ] + ["ü dosya.txt"]
     for path in paths:
         (project / path).parent.mkdir(parents=True, exist_ok=True)
         (project / path).write_bytes(b"one\n")

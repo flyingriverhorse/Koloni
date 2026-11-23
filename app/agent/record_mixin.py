@@ -56,8 +56,9 @@ log = logging.getLogger("app.agent")
 class RecordMixin:
     # --- record keeping ------------------------------------------------------
 
-    def _save_message(self: "AgentRunner", message_id: str, content: str, status: str,
-                      blocks: dict | None = None) -> dict:
+    def _save_message(
+        self: "AgentRunner", message_id: str, content: str, status: str, blocks: dict | None = None
+    ) -> dict:
         with self._factory() as session:
             message = session.get(Message, message_id)
             message.content = content
@@ -76,8 +77,12 @@ class RecordMixin:
         self.bus.emit(cid, run_id, "tool_call.updated", payload)
 
     def _interrupt_open_calls(
-        self: "AgentRunner", run_id: str, cid: str, agent_id: str | None = None,
-        after_call: int = 0, only: set | None = None,
+        self: "AgentRunner",
+        run_id: str,
+        cid: str,
+        agent_id: str | None = None,
+        after_call: int = 0,
+        only: set | None = None,
     ) -> None:
         """Settle what was cut short: the whole run's, or only one agent's (and of that
         agent's calls, only those made after call number `after_call`). With `only` - the
@@ -88,8 +93,9 @@ class RecordMixin:
             open_calls = session.scalars(
                 select(ToolCall)
                 .where(ToolCall.run_id == run_id, ToolCall.status.in_(("pending", "running")))
-                .where(ToolCall.agent_id == agent_id if agent_id else true(),
-                       ToolCall.seq > after_call)
+                .where(
+                    ToolCall.agent_id == agent_id if agent_id else true(), ToolCall.seq > after_call
+                )
                 .where(ToolCall.id.in_(only) if only is not None else true())
                 .order_by(ToolCall.seq)
             ).all()
@@ -102,11 +108,18 @@ class RecordMixin:
             self.bus.emit(cid, run_id, "tool_call.updated", payload)
         cut_short = [call.id for call in open_calls]
         if only is None or cut_short:
-            self._interrupt_hanging(run_id, cid, agent_id, cut_short,
-                                    None if only is None else cut_short)
+            self._interrupt_hanging(
+                run_id, cid, agent_id, cut_short, None if only is None else cut_short
+            )
 
-    def _interrupt_hanging(self: "AgentRunner", run_id: str, cid: str, agent_id: str | None,
-                           cut_short: list[str], calls: list[str] | None) -> None:
+    def _interrupt_hanging(
+        self: "AgentRunner",
+        run_id: str,
+        cid: str,
+        agent_id: str | None,
+        cut_short: list[str],
+        calls: list[str] | None,
+    ) -> None:
         """`_interrupt_open_calls`: what hangs on the calls `calls` - else the run's, or its
         agent's, all of it: its commands, cards, questions and discussion."""
 
@@ -122,14 +135,15 @@ class RecordMixin:
         with self._factory() as session:
             waiting = session.scalars(
                 select(FileChange)
-                .where(FileChange.run_id == run_id,
-                       FileChange.status.in_(("proposed", "approved")))
+                .where(FileChange.run_id == run_id, FileChange.status.in_(("proposed", "approved")))
                 .where(of(FileChange))
             ).all()
             for change in waiting:
                 change.status, change.decided_at = (
-                    ("discarded", change.decided_at) if change.status == "approved"
-                    else ("rejected", now()))
+                    ("discarded", change.decided_at)
+                    if change.status == "approved"
+                    else ("rejected", now())
+                )
             session.commit()
             payloads = [file_change_out(change) for change in waiting]
         for payload in payloads:
@@ -141,10 +155,15 @@ class RecordMixin:
         with self._factory() as session:
             undecided = session.scalars(
                 select(WebRequest)
-                .where(WebRequest.run_id == run_id, or_(
-                    WebRequest.status == "proposed",
-                    and_(WebRequest.status == "approved",
-                         WebRequest.tool_call_id.in_(cut_short))))
+                .where(
+                    WebRequest.run_id == run_id,
+                    or_(
+                        WebRequest.status == "proposed",
+                        and_(
+                            WebRequest.status == "approved", WebRequest.tool_call_id.in_(cut_short)
+                        ),
+                    ),
+                )
                 .where(of(WebRequest))
             ).all()
             for asked in undecided:
@@ -171,8 +190,14 @@ class RecordMixin:
             self.bus.emit(cid, run_id, "question.updated", payload)
         self._interrupt_talks(run_id, cid, agent_id, calls)
 
-    def _interrupt_talks(self: "AgentRunner", run_id: str, cid: str, agent_id: str | None,
-                         calls: list[str] | None = None, status: str = "cancelled") -> None:
+    def _interrupt_talks(
+        self: "AgentRunner",
+        run_id: str,
+        cid: str,
+        agent_id: str | None,
+        calls: list[str] | None = None,
+        status: str = "cancelled",
+    ) -> None:
         # And a discussion that was going on: the whole run's, the one this agent opened, or one
         # of these calls - cut off ("cancelled"), or broken by an error ("failed": `_discuss_cut`).
         with self._factory() as session:
@@ -196,8 +221,11 @@ class RecordMixin:
             if run_id in self._unwatched:
                 # Should never be reached: everything that waits asks `_nobody_to_ask`
                 # first. If something ever does not, it is refused here, not waited for.
-                raise _NobodyToAsk(NOBODY.format(
-                    trigger=quoted(self._unwatched[run_id].trigger_name), what="do this"))
+                raise _NobodyToAsk(
+                    NOBODY.format(
+                        trigger=quoted(self._unwatched[run_id].trigger_name), what="do this"
+                    )
+                )
             self._asking[run_id] = self._asking.get(run_id, 0) + 1
             if run_id in self._away_jobs:  # (after what it waits for is on record)
                 asyncio.get_running_loop().call_soon(self._job_waits, run_id, True)
@@ -223,8 +251,11 @@ class RecordMixin:
         self.bus.emit(cid, run_id, "run.updated", payload)
         if "status" in fields:  # (K-symphony: a task's card says when its turn waits for you)
             with contextlib.suppress(Exception), self._factory() as session:
-                project_id = session.scalar(select(BacklogTask.project_id).where(
-                    BacklogTask.conversation_id == cid, BacklogTask.status == "doing").limit(1))
+                project_id = session.scalar(
+                    select(BacklogTask.project_id)
+                    .where(BacklogTask.conversation_id == cid, BacklogTask.status == "doing")
+                    .limit(1)
+                )
                 announce(self._factory, self.bus, project_id, "backlog.changed")
 
     def _roles_not_opened(self: "AgentRunner", run_id: str, cid: str, ctx: Ctx) -> None:
@@ -237,28 +268,44 @@ class RecordMixin:
         shortcut: English only - the name then a past-tense verb in the same sentence, or
         "I asked / had / opened / let / got" before it; a claim worded otherwise is missed
         (better than noise) - add its words where a line is seen to mislead."""
-        did = (r"\b(?:confirmed|checked|reviewed|tested|verified|found|reported|approved|agreed"
-               r"|said|wrote|fixed|ran|looked|finished|done|(?:has|have|had) \w+e[dn])\b")
+        did = (
+            r"\b(?:confirmed|checked|reviewed|tested|verified|found|reported|approved|agreed"
+            r"|said|wrote|fixed|ran|looked|finished|done|(?:has|have|had) \w+e[dn])\b"
+        )
         i_had = r"\bI (?:asked|had|opened|let|got|told|sent|made)\b"
         modal = r"\b(?:could|would|can|will|may|might|should)\b"
         with self._factory() as session:
             message = self.last_answer(session, run_id, ctx.agent_id)
             if message is None:
                 return
-            opened = {name.casefold() for name in session.scalars(
-                select(Agent.role_name).where(Agent.run_id == run_id, Agent.id != ctx.agent_id))}
-            claims = [one for line in message.content.splitlines()
-                      if not line.rstrip().endswith("?")
-                      for one in re.split(r"[.!;]", line) if not re.search(modal, one, re.I)]
-            named = [name for name in session.scalars(select(Role.name).order_by(Role.name))
-                     if name.casefold() not in opened and name.casefold() != LEAD.casefold()
-                     and (word := rf"\b{re.escape(name)}\b")
-                     and any(re.search(rf"{word}.*?{did}|{i_had}.*?{word}", one, re.I)
-                             for one in claims)]
+            opened = {
+                name.casefold()
+                for name in session.scalars(
+                    select(Agent.role_name).where(Agent.run_id == run_id, Agent.id != ctx.agent_id)
+                )
+            }
+            claims = [
+                one
+                for line in message.content.splitlines()
+                if not line.rstrip().endswith("?")
+                for one in re.split(r"[.!;]", line)
+                if not re.search(modal, one, re.I)
+            ]
+            named = [
+                name
+                for name in session.scalars(select(Role.name).order_by(Role.name))
+                if name.casefold() not in opened
+                and name.casefold() != LEAD.casefold()
+                and (word := rf"\b{re.escape(name)}\b")
+                and any(re.search(rf"{word}.*?{did}|{i_had}.*?{word}", one, re.I) for one in claims)
+            ]
             if not named:
                 return
-        self._koloni_line(cid, run_id, (
-            f"{', '.join(named)} {'was' if len(named) == 1 else 'were'} not opened this turn."))
+        self._koloni_line(
+            cid,
+            run_id,
+            (f"{', '.join(named)} {'was' if len(named) == 1 else 'were'} not opened this turn."),
+        )
 
     def _closed_not_opened(self: "AgentRunner", run_id: str, cid: str | None) -> None:
         """B-385: at the turn's end, however it ended, the user is told of each role refused on
@@ -267,8 +314,14 @@ class RecordMixin:
         if not said or cid is None:
             return
         with self._factory() as session:
-            opened = {name.casefold() for name in session.scalars(select(Agent.role_name).where(
-                Agent.run_id == run_id, Agent.status != "rejected"))}
+            opened = {
+                name.casefold()
+                for name in session.scalars(
+                    select(Agent.role_name).where(
+                        Agent.run_id == run_id, Agent.status != "rejected"
+                    )
+                )
+            }
         for role, text in said.items():
             if shown_name(role).casefold() not in opened:
                 self._koloni_line(cid, run_id, text)
@@ -277,9 +330,11 @@ class RecordMixin:
         """A line of KOLONİ's own in the chat - a "koloni" message, which no agent is given - once
         a turn for the same words (B-385: an agent refused on a model closed to agents)."""
         with self._factory() as session:
-            if session.scalar(select(Message.id).where(
-                    Message.run_id == run_id, Message.role == "koloni",
-                    Message.content == text).limit(1)):
+            if session.scalar(
+                select(Message.id)
+                .where(Message.run_id == run_id, Message.role == "koloni", Message.content == text)
+                .limit(1)
+            ):
                 return
             note = Message(conversation_id=cid, run_id=run_id, role="koloni", content=text)
             session.add(note)
@@ -336,8 +391,9 @@ class RecordMixin:
             payload = message_out(message)
         self.bus.emit(cid, run_id, "message.completed", payload)
 
-    def _finish(self: "AgentRunner", run_id: str, cid: str, status: str,
-                error: str | None) -> list[str]:
+    def _finish(
+        self: "AgentRunner", run_id: str, cid: str, status: str, error: str | None
+    ) -> list[str]:
         """The turn on record as over, and what follows at once. The backlog tasks it
         moved, or whose turn stopped the backlog working itself (`backlog.turn_ended`)."""
         with self._factory() as session:
@@ -387,30 +443,56 @@ class RecordMixin:
         return moved
 
     @staticmethod
-    def _still_waiting(session, cid: str, run_id: str | None, but: str | None = None
-                       ) -> list[str]:
+    def _still_waiting(session, cid: str, run_id: str | None, but: str | None = None) -> list[str]:
         """G7: what waits for the user, as it stands now: the questions of turn `run_id` nobody
         answered - not KOLONİ's card under no call, its model slow (K-yavas): moot once closed -
         and, of any turn of the chat but `but`, a plan still to decide on and a kept copy still to
         take in or discard. What somebody wrote is quoted (`board.said`)."""
-        names = dict(session.execute(select(Agent.id, Agent.name).join(
-            Run, Run.id == Agent.run_id).where(Run.conversation_id == cid)).all())
+        names = dict(
+            session.execute(
+                select(Agent.id, Agent.name)
+                .join(Run, Run.id == Agent.run_id)
+                .where(Run.conversation_id == cid)
+            ).all()
+        )
         other = Run.id != but if but else true()
-        waits = [f"{names.get(asked.agent_id, 'an agent')} asked, not answered: "
-                 f"{board.said(asked.question)}" for asked in session.scalars(
-                     select(Question).where(
-                         Question.run_id == run_id, Question.tool_call_id.is_not(None),
-                         Question.status.in_(("pending", "cancelled", "interrupted"))
-                     ).order_by(Question.created_at))]
-        waits += [f"the plan, to approve or turn down: {board.said(str(plan.get('text') or ''))}"
-                  for plan in session.scalars(select(Run.plan).where(
-                      Run.conversation_id == cid, Run.plan.is_not(None), other
-                  ).order_by(Run.created_at)) if plan.get("status") == "proposed"]
-        waits += [f"{names.get(kept.agent_id, 'an agent')}'s work, kept for Take in or Discard "
-                  f"({len(kept.files)} {'file' if len(kept.files) == 1 else 'files'})"
-                  for kept in session.scalars(select(Merge).join(Run, Run.id == Merge.run_id).where(
-                      Run.conversation_id == cid, Merge.status == "interrupted",
-                      Merge.kept_in.is_not(None), other).order_by(Merge.created_at))]
+        waits = [
+            f"{names.get(asked.agent_id, 'an agent')} asked, not answered: "
+            f"{board.said(asked.question)}"
+            for asked in session.scalars(
+                select(Question)
+                .where(
+                    Question.run_id == run_id,
+                    Question.tool_call_id.is_not(None),
+                    Question.status.in_(("pending", "cancelled", "interrupted")),
+                )
+                .order_by(Question.created_at)
+            )
+        ]
+        waits += [
+            f"the plan, to approve or turn down: {board.said(str(plan.get('text') or ''))}"
+            for plan in session.scalars(
+                select(Run.plan)
+                .where(Run.conversation_id == cid, Run.plan.is_not(None), other)
+                .order_by(Run.created_at)
+            )
+            if plan.get("status") == "proposed"
+        ]
+        waits += [
+            f"{names.get(kept.agent_id, 'an agent')}'s work, kept for Take in or Discard "
+            f"({len(kept.files)} {'file' if len(kept.files) == 1 else 'files'})"
+            for kept in session.scalars(
+                select(Merge)
+                .join(Run, Run.id == Merge.run_id)
+                .where(
+                    Run.conversation_id == cid,
+                    Merge.status == "interrupted",
+                    Merge.kept_in.is_not(None),
+                    other,
+                )
+                .order_by(Merge.created_at)
+            )
+        ]
         return waits
 
     def _continuation_note(self: "AgentRunner", run_id: str, cid: str) -> None:
@@ -421,16 +503,28 @@ class RecordMixin:
         is told nothing of it; write one there if that is missed."""
         with self._factory() as session:
             run = session.get_one(Run, run_id)
-            agents = session.scalars(select(Agent).where(Agent.run_id == run_id).order_by(
-                Agent.created_at, literal_column("agents.rowid"))).all()
+            agents = session.scalars(
+                select(Agent)
+                .where(Agent.run_id == run_id)
+                .order_by(Agent.created_at, literal_column("agents.rowid"))
+            ).all()
             waits = self._still_waiting(session, cid, run_id)
-            asked = session.scalar(select(Message.content).where(
-                Message.run_id == run_id, Message.role == "user").order_by(
-                Message.created_at, literal_column("messages.rowid")).limit(1)) if (
-                run.by_user and run.status != "completed") else None
+            asked = (
+                session.scalar(
+                    select(Message.content)
+                    .where(Message.run_id == run_id, Message.role == "user")
+                    .order_by(Message.created_at, literal_column("messages.rowid"))
+                    .limit(1)
+                )
+                if (run.by_user and run.status != "completed")
+                else None
+            )
             done = [agent.name for agent in agents if agent.depth and agent.status == "completed"]
-            left = [f"{agent.name} ({agent.status})" for agent in agents
-                    if agent.depth and agent.status in ("failed", "cancelled", "interrupted")]
+            left = [
+                f"{agent.name} ({agent.status})"
+                for agent in agents
+                if agent.depth and agent.status in ("failed", "cancelled", "interrupted")
+            ]
             for row, team, _lead in self._rows(session, cid):
                 state = row.state or {}
                 if state.get("run_id") != run_id or state.get("status") == recipe_run.WAITING:
@@ -441,19 +535,41 @@ class RecordMixin:
                 elif state["status"] != recipe_run.READY:  # (its copy waits: above)
                     why = f": {state['why']}" if state.get("why") else ""
                     left.append(f"{what}, {state['status']}{why})")
-            files = list(dict.fromkeys(path for path in session.scalars(
-                select(FileChange.path).where(
-                    FileChange.run_id == run_id, FileChange.status == "applied")
-                .order_by(FileChange.created_at)) if not in_scratch(path)))
+            files = list(
+                dict.fromkeys(
+                    path
+                    for path in session.scalars(
+                        select(FileChange.path)
+                        .where(FileChange.run_id == run_id, FileChange.status == "applied")
+                        .order_by(FileChange.created_at)
+                    )
+                    if not in_scratch(path)
+                )
+            )
             note = board.continuation(
-                board.ENDED.get(run.status, run.status), waits, asked, done,
-                files[:board.FILES_NAMED] + ([f"{len(files) - board.FILES_NAMED} more"]
-                                             if len(files) > board.FILES_NAMED else []), left)
+                board.ENDED.get(run.status, run.status),
+                waits,
+                asked,
+                done,
+                files[: board.FILES_NAMED]
+                + (
+                    [f"{len(files) - board.FILES_NAMED} more"]
+                    if len(files) > board.FILES_NAMED
+                    else []
+                ),
+                left,
+            )
             if note is None:
                 return
             last = session.scalar(select(func.max(BoardPost.seq)).where(BoardPost.run_id == run_id))
-            post = BoardPost(run_id=run_id, conversation_id=cid, agent_id=None, content=note,
-                             seq=(last or 0) + 1, koloni=True)
+            post = BoardPost(
+                run_id=run_id,
+                conversation_id=cid,
+                agent_id=None,
+                content=note,
+                seq=(last or 0) + 1,
+                koloni=True,
+            )
             session.add(post)
             session.commit()
             payload = board_post_out(post)

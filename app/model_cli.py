@@ -60,8 +60,10 @@ STEP_SCHEMA = {
 
 # B-389 (R187, live): Codex step sent its patch as a command, it was refused, and it gave up.
 # Told only to one given a write tool (`build_step_prompt`).
-PATCH_NOTE = ("To change a file, use KOLONİ's write_file / edit_file tools. A patch command "
-              "(apply_patch, git apply) is asked about as a command, and may be refused.")
+PATCH_NOTE = (
+    "To change a file, use KOLONİ's write_file / edit_file tools. A patch command "
+    "(apply_patch, git apply) is asked about as a command, and may be refused."
+)
 STEP_RULES = """You are one step of an agent loop that another program runs. The input is a JSON
 document with three parts: "instructions" (who you are and how to work), "tools" (what you
 can ask for) and "conversation" (everything so far, oldest first).
@@ -103,16 +105,23 @@ PLAIN_NAME = re.compile(r"[A-Za-z0-9_-]+")
 # not given (they would be sent to that address), and the token Claude Code is given instead.
 # shortcut: a llama-server started with --api-key refuses this token; give the CLI that
 # server's key if one is set up so.
-SIGN_INS = {"claude": ("ANTHROPIC_", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_USE_"),
-            "codex": ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN")}
+SIGN_INS = {
+    "claude": ("ANTHROPIC_", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_USE_"),
+    "codex": ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"),
+}
 # Claude Code's own settings among the CLAUDE_CODE_* a command is not given (`HANDLE`): its
 # CLI keeps these - never a socket, port, session or entrypoint of the Claude Code KOLONİ was
 # started from. shortcut: named from its documentation as known; add one a user is seen to set.
-CLAUDE_SETTINGS = frozenset({
-    "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY",
-    "CLAUDE_CODE_GIT_BASH_PATH", "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
-    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
-})
+CLAUDE_SETTINGS = frozenset(
+    {
+        "CLAUDE_CODE_USE_BEDROCK",
+        "CLAUDE_CODE_USE_VERTEX",
+        "CLAUDE_CODE_USE_FOUNDRY",
+        "CLAUDE_CODE_GIT_BASH_PATH",
+        "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
+        "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
+    }
+)
 LOCAL_TOKEN = "koloni-local"
 # And the home it keeps its settings and stored login in, which is one of KOLONİ's, made empty:
 # none of the user's login, profiles, model providers or settings (`apiKeyHelper`, `env`).
@@ -161,8 +170,10 @@ def claude_content(prompt: str, messages: list[dict]) -> str | list[dict]:
     images: list[dict] = []
     for one in (one for m in messages for one in m.get("files") or () if one["kind"] == "image"):
         for _kind, mime, data in files_of({"files": [one]}):  # (none for one gone since)
-            images += [{"type": "text", "text": f"{one['name']}:"}, {"type": "image", "source": {
-                "type": "base64", "media_type": mime, "data": data}}]
+            images += [
+                {"type": "text", "text": f"{one['name']}:"},
+                {"type": "image", "source": {"type": "base64", "media_type": mime, "data": data}},
+            ]
     return [{"type": "text", "text": prompt}, *images] if images else prompt
 
 
@@ -210,7 +221,7 @@ def _json_object(text: str) -> object:
     text = text.strip()
     if text.startswith("```"):
         text = text.strip("`")
-        text = text[text.find("{"):] if "{" in text else text
+        text = text[text.find("{") :] if "{" in text else text
     with contextlib.suppress(ValueError):
         return json.loads(text)
     start, end = text.find("{"), text.rfind("}")
@@ -359,9 +370,9 @@ def codex_skills_off(env: dict[str, str]) -> list[str]:
     Nothing for no skills; ModelUnavailable for one that cannot be named there."""
     homes = [_codex_config(env).parent / "skills", Path.home() / ".agents" / "skills"]
     try:
-        found = sorted({
-            path for home in homes if home.is_dir() for path in _skill_files(home, SKILL_DEPTH)
-        })
+        found = sorted(
+            {path for home in homes if home.is_dir() for path in _skill_files(home, SKILL_DEPTH)}
+        )
     except OSError:
         raise OwnStop(
             "your own Codex skills could not be listed, so they cannot be switched off"
@@ -433,8 +444,12 @@ _LEVEL_IN_NAME = re.compile(r"-(minimal|low|medium|high|xhigh|max)$", re.IGNOREC
 
 def level_in_name(kind: str | None, model: str | None) -> bool:
     """B-404: whether a model's name fixes its level, so that it is sent none."""
-    return (kind == "agy_cli" and bool(model and _LEVEL_IN_NAME.search(model))
-            or kind == "copilot_cli" and model in ("auto", "fusion"))
+    return (
+        kind == "agy_cli"
+        and bool(model and _LEVEL_IN_NAME.search(model))
+        or kind == "copilot_cli"
+        and model in ("auto", "fusion")
+    )
 
 
 class CliStepClient:
@@ -474,22 +489,28 @@ class CliStepClient:
             return [arguments[0], "-c", f"model_reasoning_effort='{effort}'", *arguments[1:]]
         return [self.effort_flag, effort, *arguments]
 
-    def _given(self, arguments: list[str], prompt: str, messages: list[dict],
-               workdir: Path) -> tuple[list[str], str]:
+    def _given(
+        self, arguments: list[str], prompt: str, messages: list[dict], workdir: Path
+    ) -> tuple[list[str], str]:
         """Its line and its stdin, with the pictures its model is sent as they are (slice
         85c) given its own way: Codex's --image right after `exec` (it takes several values:
         what follows must be a flag); Claude Code's image blocks, on stream-json input. No
         other CLI is chosen to be sent one (`providers.IMAGE_CLIS`)."""
         if self.command == "codex":
-            images = [part for copy in image_copies(messages, workdir)
-                      for part in ("--image", copy)]
+            images = [
+                part for copy in image_copies(messages, workdir) for part in ("--image", copy)
+            ]
             return [arguments[0], *images, *arguments[1:]], prompt
         content = claude_content(prompt, messages) if self.command == "claude" else prompt
         if isinstance(content, str):
             return arguments, prompt
         # As the Agent SDK's client sends a prompt (`ClaudeNativeClient._control`).
-        line = {"type": "user", "message": {"role": "user", "content": content},
-                "parent_tool_use_id": None, "session_id": "default"}
+        line = {
+            "type": "user",
+            "message": {"role": "user", "content": content},
+            "parent_tool_use_id": None,
+            "session_id": "default",
+        }
         return [*arguments, "--input-format", "stream-json"], json.dumps(line) + "\n"
 
     def _limit_event(self, event: dict) -> tuple[str, datetime | None] | None:
@@ -572,9 +593,11 @@ class CliStepClient:
         kept = {k: v for k, v in env.items() if not k.upper().startswith(SIGN_INS[self.command])}
         kept[HOMES[self.command]] = str(self._home)
         if self.command == "claude":
-            kept |= {"ANTHROPIC_BASE_URL": (self.server or "").removesuffix("/v1"),
-                     "ANTHROPIC_AUTH_TOKEN": LOCAL_TOKEN,
-                     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"}
+            kept |= {
+                "ANTHROPIC_BASE_URL": (self.server or "").removesuffix("/v1"),
+                "ANTHROPIC_AUTH_TOKEN": LOCAL_TOKEN,
+                "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+            }
         return kept
 
     def _server_settings(self) -> list[str]:
@@ -583,9 +606,16 @@ class CliStepClient:
         if not self.server:
             return []
         named = "model_providers.koloni_local"
-        return ["-c", "model_provider='koloni_local'", "-c", f"{named}.name='koloni_local'",
-                "-c", f"{named}.base_url='{self.server}'",
-                "-c", f"{named}.wire_api='responses'"]
+        return [
+            "-c",
+            "model_provider='koloni_local'",
+            "-c",
+            f"{named}.name='koloni_local'",
+            "-c",
+            f"{named}.base_url='{self.server}'",
+            "-c",
+            f"{named}.wire_api='responses'",
+        ]
 
     def _command(self) -> tuple[list[str], bool]:
         """How the CLI is started, and whether that is a batch shim."""
@@ -613,7 +643,9 @@ class CliStepClient:
         own = self._settings_model()
         # Nothing is made up: a default nobody can name stays "<command> default".
         return ModelInfo(
-            own or f"{self.command} default", True, "settings" if own else None,
+            own or f"{self.command} default",
+            True,
+            "settings" if own else None,
             efforts=self.efforts,
         )
 
@@ -653,7 +685,8 @@ class CliStepClient:
             arguments = await asyncio.to_thread(self._arguments, workdir)
             # (In a thread: its pictures are read or copied.)
             arguments, given = await asyncio.to_thread(
-                self._given, self._leveled(arguments, effort), prompt, messages, workdir)
+                self._given, self._leveled(arguments, effort), prompt, messages, workdir
+            )
             code, stdout, stderr = await self._run([*command, *arguments], shim, given, workdir)
         finally:
             shutil.rmtree(workdir, ignore_errors=True)
@@ -664,9 +697,7 @@ class CliStepClient:
             failed = exc
             if code != 0 and _brief(stderr):
                 # It gave up, whatever it printed first: its own words say why.
-                failed = ModelUnavailable(
-                    f"{self.label} exited with code {code}: {_brief(stderr)}"
-                )
+                failed = ModelUnavailable(f"{self.label} exited with code {code}: {_brief(stderr)}")
             elif code != 0 and not stdout.strip():
                 failed = ModelUnavailable(f"{self.label} exited with code {code}")
             failed.failure = limited or failed.failure
@@ -676,7 +707,12 @@ class CliStepClient:
             # The whole answer arrives at once; there is nothing to stream.
             await on_delta(text)
         return StepResult(
-            text, calls, input_tokens, output_tokens, self._used(stdout), *self._cache(stdout),
+            text,
+            calls,
+            input_tokens,
+            output_tokens,
+            self._used(stdout),
+            *self._cache(stdout),
             # shortcut: read in the last ERRORS_KEPT of its stderr only (R182: ~90 bytes a line,
             # 27 at most in a step); look at each line as `complaints` reads it if a step is
             # seen to write more than that after its last refusal.
@@ -692,11 +728,21 @@ class CliStepClient:
         shortcut: what it is given (its own sign-in's key) its commands can still read through
         the CLI's /proc/<pid>/environ on Linux - KOLONİ's own is closed (`main.not_dumpable`);
         start the CLI non-dumpable too if a key is seen to leak so."""
-        held = set() if self.logins is None else {
-            name for name in held_back(os.environ, pass_env) if name.upper() not in self.logins
-            and not (self.command == "claude" and name.upper() in CLAUDE_SETTINGS)}
-        return {k: v for k, v in os.environ.items()
-                if not k.upper().startswith("KOLONI_") and k not in held}
+        held = (
+            set()
+            if self.logins is None
+            else {
+                name
+                for name in held_back(os.environ, pass_env)
+                if name.upper() not in self.logins
+                and not (self.command == "claude" and name.upper() in CLAUDE_SETTINGS)
+            }
+        )
+        return {
+            k: v
+            for k, v in os.environ.items()
+            if not k.upper().startswith("KOLONI_") and k not in held
+        }
 
     async def _start(
         self, argv: list[str], shim: bool, workdir: Path, extra_env: dict[str, str] | None = None
@@ -709,8 +755,7 @@ class CliStepClient:
             env = self._on_server(env)
         elif self.home is not None:
             # Signed in by its folder alone: none of the user's own sign-in goes with it.
-            env = {k: v for k, v in env.items()
-                   if not k.upper().startswith(SIGN_INS[self.command])}
+            env = {k: v for k, v in env.items() if not k.upper().startswith(SIGN_INS[self.command])}
             env[HOMES[self.command]] = str(self.home)
             self.home.mkdir(parents=True, exist_ok=True)
         options: dict = {
@@ -725,8 +770,11 @@ class CliStepClient:
         if sys.platform != "win32":
             options["start_new_session"] = True  # so the whole group can be ended
         self._fits(argv, shim)
-        process = await (asyncio.create_subprocess_exec(*argv, **options) if not shim else
-                         asyncio.create_subprocess_shell(subprocess.list2cmdline(argv), **options))
+        process = await (
+            asyncio.create_subprocess_exec(*argv, **options)
+            if not shim
+            else asyncio.create_subprocess_shell(subprocess.list2cmdline(argv), **options)
+        )
         return process, _job_for(process)
 
     def _fits(self, argv: list[str], shim: bool) -> None:
@@ -780,9 +828,7 @@ class CliStepClient:
         but for a CLI whose line grows with what the user has (Codex: `_would_start`,
         in a thread - it walks the user's skills)."""
 
-    async def run_status(
-        self, arguments: list[str], seconds: float
-    ) -> tuple[int | None, str, str]:
+    async def run_status(self, arguments: list[str], seconds: float) -> tuple[int | None, str, str]:
         """Run the CLI once with these arguments and no prompt - for a command that answers at
         once and calls no model, like its --help or a sign-in status - in an empty folder of
         its own, ended after `seconds` at most: its exit code, stdout and stderr. Raises what
@@ -797,8 +843,11 @@ class CliStepClient:
                 await self._end(process, job)
         finally:
             shutil.rmtree(workdir, ignore_errors=True)
-        return (process.returncode, printed.decode("utf-8", errors="replace"),
-                complaint.decode("utf-8", errors="replace"))
+        return (
+            process.returncode,
+            printed.decode("utf-8", errors="replace"),
+            complaint.decode("utf-8", errors="replace"),
+        )
 
     async def _run(
         self, argv: list[str], shim: bool, prompt: str, workdir: Path
@@ -876,7 +925,11 @@ class CliStepClient:
                 # No job to end the tree with: ask Windows to end it by process id.
                 with contextlib.suppress(Exception):
                     killer = await asyncio.create_subprocess_exec(
-                        "taskkill", "/T", "/F", "/PID", str(process.pid),
+                        "taskkill",
+                        "/T",
+                        "/F",
+                        "/PID",
+                        str(process.pid),
                         stdout=asyncio.subprocess.DEVNULL,
                         stderr=asyncio.subprocess.DEVNULL,
                     )
@@ -930,8 +983,10 @@ def _input_tokens(usage: object) -> int | None:
     """Input tokens, cached parts included, from a Claude usage block."""
     if not isinstance(usage, dict):
         return None
-    parts = [usage.get(key) for key in (
-        "input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")]
+    parts = [
+        usage.get(key)
+        for key in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
+    ]
     counted = [part for part in map(count_of, parts) if part is not None]  # never a `true`
     return sum(counted) if counted else None
 
@@ -940,8 +995,10 @@ def _cache_tokens(usage: object) -> tuple[int | None, int | None]:
     """What a Claude usage block says was read again from the cache and written to it:
     parts of what `_input_tokens` adds up. None for each it does not say."""
     told = usage if isinstance(usage, dict) else {}
-    return (count_of(told.get("cache_read_input_tokens")),
-            count_of(told.get("cache_creation_input_tokens")))
+    return (
+        count_of(told.get("cache_read_input_tokens")),
+        count_of(told.get("cache_creation_input_tokens")),
+    )
 
 
 class ClaudeCliClient(CliStepClient):
@@ -953,14 +1010,19 @@ class ClaudeCliClient(CliStepClient):
     def _arguments(self, workdir: Path) -> list[str]:
         arguments = [
             "-p",
-            "--tools", "",  # none of its own tools
+            "--tools",
+            "",  # none of its own tools
             "--strict-mcp-config",  # none of the user's MCP servers either
             "--no-session-persistence",
-            "--setting-sources", "",
-            "--output-format", "stream-json",
+            "--setting-sources",
+            "",
+            "--output-format",
+            "stream-json",
             "--verbose",  # the stream format needs it
-            "--system-prompt", SYSTEM_LINE,
-            "--json-schema", json.dumps(STEP_SCHEMA),
+            "--system-prompt",
+            SYSTEM_LINE,
+            "--json-schema",
+            json.dumps(STEP_SCHEMA),
         ]
         if self._model:
             arguments += ["--model", self._model]
@@ -1006,9 +1068,7 @@ class ClaudeCliClient(CliStepClient):
                 elif block.get("type") == "tool_use" and block.get("name") != self.OWN_TOOL:
                     if not calls:
                         first, usage = message_id, message.get("usage")
-                    calls.append(
-                        {"name": block.get("name"), "arguments": block.get("input") or {}}
-                    )
+                    calls.append({"name": block.get("name"), "arguments": block.get("input") or {}})
         return request(False) if calls else None
 
     def _complete(self, stdout: str) -> bool:
@@ -1051,7 +1111,8 @@ class ClaudeCliClient(CliStepClient):
 
         names = sorted(
             (name for name in used if isinstance(name, str) and name.strip()),
-            key=written, reverse=True,
+            key=written,
+            reverse=True,
         )
         if len(names) > 1 and written(names[0]) == written(names[1]):
             return None  # no telling which of them answered
@@ -1071,10 +1132,26 @@ class CodexCliClient(CliStepClient):
     # refused ("code-mode host is disabled"). The rest are switched off as well so that
     # nothing depends on that one switch alone.
     DISABLED = (
-        "code_mode_host", "shell_tool", "unified_exec", "unified_exec_tty", "multi_agent",
-        "apps", "plugins", "browser_use", "browser_use_external", "browser_use_full_cdp_access",
-        "computer_use", "image_generation", "view_image", "goals", "memories", "hooks",
-        "sleep_tool", "skill_search", "tool_suggest", "in_app_browser",
+        "code_mode_host",
+        "shell_tool",
+        "unified_exec",
+        "unified_exec_tty",
+        "multi_agent",
+        "apps",
+        "plugins",
+        "browser_use",
+        "browser_use_external",
+        "browser_use_full_cdp_access",
+        "computer_use",
+        "image_generation",
+        "view_image",
+        "goals",
+        "memories",
+        "hooks",
+        "sleep_tool",
+        "skill_search",
+        "tool_suggest",
+        "in_app_browser",
         "in_app_local_automation",
     )
     # Measured 4 Nov 2026 (R182): one stderr line for each refused attempt. (Not stdout's
@@ -1098,8 +1175,7 @@ class CodexCliClient(CliStepClient):
             servers = tomllib.loads(config.read_text(encoding="utf-8")).get("mcp_servers")
         except (OSError, ValueError):
             raise OwnStop(
-                "Codex's config.toml could not be read, so its MCP servers cannot be "
-                "switched off"
+                "Codex's config.toml could not be read, so its MCP servers cannot be switched off"
             ) from None
         names = list(servers) if isinstance(servers, dict) else []
         for name in names:
@@ -1116,12 +1192,16 @@ class CodexCliClient(CliStepClient):
         arguments = [
             "exec",
             "--json",
-            "--sandbox", "read-only",
+            "--sandbox",
+            "read-only",
             "--skip-git-repo-check",
             "--ephemeral",
-            "--color", "never",
-            "--cd", str(workdir),
-            "--output-schema", str(schema),
+            "--color",
+            "never",
+            "--cd",
+            str(workdir),
+            "--output-schema",
+            str(schema),
         ]
         for feature in self.DISABLED:
             arguments += ["--disable", feature]
@@ -1165,9 +1245,14 @@ class CodexCliClient(CliStepClient):
 
     def _cache(self, stdout: str) -> tuple[int | None, int | None]:
         # Codex says what of its input came from the cache; of what it wrote there, nothing.
-        usage = next((e["usage"] for e in reversed(_events(stdout))
-                      if e.get("type") == "turn.completed" and isinstance(e.get("usage"), dict)),
-                     {})
+        usage = next(
+            (
+                e["usage"]
+                for e in reversed(_events(stdout))
+                if e.get("type") == "turn.completed" and isinstance(e.get("usage"), dict)
+            ),
+            {},
+        )
         return count_of(usage.get("cached_input_tokens")), None
 
 
@@ -1236,8 +1321,17 @@ class CodexSearch(_Searches, CodexCliClient):
 
     def _arguments(self, workdir: Path) -> list[str]:
         arguments = [
-            "--search", "exec", "--json", "--sandbox", "read-only", "--skip-git-repo-check",
-            "--ephemeral", "--color", "never", "--cd", str(workdir),
+            "--search",
+            "exec",
+            "--json",
+            "--sandbox",
+            "read-only",
+            "--skip-git-repo-check",
+            "--ephemeral",
+            "--color",
+            "never",
+            "--cd",
+            str(workdir),
         ]
         for feature in self.DISABLED:
             if feature != "code_mode_host":
@@ -1251,7 +1345,8 @@ class CodexSearch(_Searches, CodexCliClient):
 
     def _searched(self, stdout: str) -> bool:
         items = (
-            _dict(event.get("item")) for event in _events(stdout)
+            _dict(event.get("item"))
+            for event in _events(stdout)
             if event.get("type") == "item.completed"
         )
         return any(
@@ -1266,9 +1361,18 @@ class ClaudeSearch(_Searches, ClaudeCliClient):
 
     def _arguments(self, workdir: Path) -> list[str]:
         arguments = [
-            "-p", "--tools", "WebSearch", "--allowedTools", "WebSearch",
-            "--setting-sources", "", "--strict-mcp-config", "--no-session-persistence",
-            "--output-format", "stream-json", "--verbose",
+            "-p",
+            "--tools",
+            "WebSearch",
+            "--allowedTools",
+            "WebSearch",
+            "--setting-sources",
+            "",
+            "--strict-mcp-config",
+            "--no-session-persistence",
+            "--output-format",
+            "stream-json",
+            "--verbose",
         ]
         if self._model:
             arguments += ["--model", self._model]
@@ -1286,7 +1390,9 @@ class ClaudeSearch(_Searches, ClaudeCliClient):
                 if not isinstance(block, dict):
                     continue
                 if (event.get("type"), block.get("type"), block.get("name")) == (
-                    "assistant", "tool_use", "WebSearch"
+                    "assistant",
+                    "tool_use",
+                    "WebSearch",
                 ):
                     asked.add(block.get("id"))
                 elif (event.get("type"), block.get("type")) == ("user", "tool_result") and (

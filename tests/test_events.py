@@ -62,12 +62,13 @@ async def test_no_plain_def_endpoint_sends_events():
     sync = []
     for found in pkgutil.iter_modules(api.__path__):
         router = getattr(importlib.import_module(f"app.api.{found.name}"), "router", None)
-        sync += [f"{found.name}.{route.endpoint.__name__}"
-                 for route in getattr(router, "routes", ())
-                 if isinstance(route, APIRoute)
-                 and not inspect.iscoroutinefunction(route.endpoint)
-                 and any(word in inspect.getsource(route.endpoint)
-                         for word in (".bus", "announce("))]
+        sync += [
+            f"{found.name}.{route.endpoint.__name__}"
+            for route in getattr(router, "routes", ())
+            if isinstance(route, APIRoute)
+            and not inspect.iscoroutinefunction(route.endpoint)
+            and any(word in inspect.getsource(route.endpoint) for word in (".bus", "announce("))
+        ]
     assert sync == []
 
 
@@ -83,8 +84,13 @@ async def test_the_page_listens_for_every_event_the_server_sends():
     root = Path(__file__).parent.parent
     sent = {project_notes.OFFERED}
     for source in (root / "app").rglob("*.py"):
-        sent |= set(re.findall(r'(?:emit|emit_transient|announce)\((?:[^()"]|\([^()]*\))*?'
-                               r'"([a-z_]+\.[a-z_]+)"', source.read_text(encoding="utf-8")))
+        sent |= set(
+            re.findall(
+                r'(?:emit|emit_transient|announce)\((?:[^()"]|\([^()]*\))*?'
+                r'"([a-z_]+\.[a-z_]+)"',
+                source.read_text(encoding="utf-8"),
+            )
+        )
     listened = (root / "frontend/src/api/sse.ts").read_text(encoding="utf-8")
     heard = set(re.findall(r"^  '([a-z_.]+)',$", listened.split("] as const")[0], re.M))
     assert "view.shown" in sent and sent - heard == set()

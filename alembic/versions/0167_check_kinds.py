@@ -6,6 +6,7 @@ left out is on, so every project starts with all of them on ({}). Going back dro
 Revision ID: 0167
 Revises: 0166
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -17,8 +18,7 @@ depends_on = None
 
 def upgrade() -> None:
     with op.batch_alter_table("projects") as batch:
-        batch.add_column(sa.Column("check_kinds", sa.JSON(), nullable=False,
-                                   server_default="{}"))
+        batch.add_column(sa.Column("check_kinds", sa.JSON(), nullable=False, server_default="{}"))
 
 
 def downgrade() -> None:

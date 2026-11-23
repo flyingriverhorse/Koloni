@@ -48,15 +48,24 @@ def test_an_address_is_read_as_printed_colours_aside_and_never_half():
     assert preview_url(" * Running on http://[::1]:5000\n", set()) == "http://[::1]:5000"
     assert preview_url("at http://127.0.0.1:51", set()) is None  # the rest of it may follow
     assert preview_url("http://127.0.0.1:8790/ then http://127.0.0.1:3000/\n", {8790}) == (
-        "http://127.0.0.1:3000/")
+        "http://127.0.0.1:3000/"
+    )
     assert preview_url("http://localhost.evil.com:3000/ http://10.0.0.2:3000/\n", set()) is None
 
 
 def test_a_rule_does_not_cover_a_server_and_none_is_offered(make_client, wait_run, project_dir):
     executor = ScriptedExecutor([Script(["ok"]), Script(["Local: http://127.0.0.1:3000\n"])])
     client, _model = make_client(
-        [StepResult("", [ToolCallRequest("k0", "run_command", '{"command": "npm run dev"}')], 1, 1),
-         text("ran"), serve(), text("up")], executor=executor)
+        [
+            StepResult(
+                "", [ToolCallRequest("k0", "run_command", '{"command": "npm run dev"}')], 1, 1
+            ),
+            text("ran"),
+            serve(),
+            text("up"),
+        ],
+        executor=executor,
+    )
     cid, run_id = start(client, project_dir)
     first = wait_status(client, cid, "waiting_approval")["commands"][0]
     client.post(f"/api/commands/{first['id']}/approve", json={"remember": True})
@@ -64,7 +73,10 @@ def test_a_rule_does_not_cover_a_server_and_none_is_offered(make_client, wait_ru
     client.post(f"/api/conversations/{cid}/messages", json={"content": "serve it"})
     asked = wait_status(client, cid, "waiting_approval")["commands"][1]
     assert (asked["status"], asked["keep_running"], asked["suggested_prefix"]) == (
-        "proposed", True, "")
+        "proposed",
+        True,
+        "",
+    )
 
 
 def test_in_docker_it_says_so_and_starts_nothing(make_client, wait_run, project_dir):
@@ -74,8 +86,9 @@ def test_in_docker_it_says_so_and_starts_nothing(make_client, wait_run, project_
     client.patch(f"/api/projects/{pid}", json={"exec_location": "docker", "docker_image": "alpine"})
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto"}, headers=ORIGIN)
-    run_id = client.post(f"/api/conversations/{cid}/messages",
-                         json={"content": "serve"}).json()["run"]["id"]
+    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "serve"}).json()[
+        "run"
+    ]["id"]
     done = wait_run(client, cid, run_id)
     assert done["commands"] == [] and executor.started == []
     assert "only on this machine" in model.calls[1][-1]["content"]
@@ -91,18 +104,27 @@ def test_the_next_turn_goes_on_while_it_runs_and_putting_the_chat_away_stops_it(
     second = client.post(f"/api/conversations/{cid}/messages", json={"content": "and?"}).json()
     after = wait_run(client, cid, second["run"]["id"])
     assert after["commands"][0]["status"] == "running"
-    assert client.patch(f"/api/conversations/{cid}", json={"archived": True},
-                        headers=ORIGIN).status_code == 200
+    assert (
+        client.patch(
+            f"/api/conversations/{cid}", json={"archived": True}, headers=ORIGIN
+        ).status_code
+        == 200
+    )
     until(lambda: snap(client, cid)["commands"][0]["status"] == "killed")
     assert executor.killed == [after["commands"][0]["id"]]
-    assert client.post(f"/api/commands/{after['commands'][0]['id']}/stop",
-                       headers=ORIGIN).status_code == 409
+    assert (
+        client.post(f"/api/commands/{after['commands'][0]['id']}/stop", headers=ORIGIN).status_code
+        == 409
+    )
 
 
 def test_one_running_when_koloni_closes_is_recorded_so(settings_env, project_dir, gate):
     executor = ScriptedExecutor([Script(["Local: http://127.0.0.1:3000\n"], hold=gate)])
-    app = create_app(load_settings(settings_env), model=ScriptedModel([serve(), text("up")]),
-                     executors=executor.factory)
+    app = create_app(
+        load_settings(settings_env),
+        model=ScriptedModel([serve(), text("up")]),
+        executors=executor.factory,
+    )
     with TestClient(app, base_url="http://127.0.0.1:8790") as client:
         cid, _run_id = start_in_mode(client, project_dir, "full_auto")
         until(lambda: snap(client, cid)["runs"][0]["status"] == "completed")
@@ -136,7 +158,8 @@ def test_a_real_server_is_shown_asked_whether_it_may_be_framed_and_stopped(
     (project_dir / "serve.py").write_text(SERVER)
     python = f'& "{sys.executable}"' if sys.platform == "win32" else f'"{sys.executable}"'
     client, _model = make_client(
-        [serve(f"{python} -u serve.py"), serve(f"{python} -u serve.py deny", "k2"), text("up")])
+        [serve(f"{python} -u serve.py"), serve(f"{python} -u serve.py deny", "k2"), text("up")]
+    )
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
     served, denied = wait_run(client, cid, run_id, timeout=30)["commands"]
     try:
@@ -167,8 +190,9 @@ def test_the_frame_check_follows_redirects_on_this_machine_only(
     executor = ScriptedExecutor([Script(["Local: http://127.0.0.1:3000/\n"], hold=gate)])
     client, _model = make_client([serve(), text("up")], executor=executor)
     cid, _run_id = start_in_mode(client, project_dir, "full_auto")
-    command = until(lambda: next(
-        (c for c in snap(client, cid)["commands"] if c["preview_url"]), None))
+    command = until(
+        lambda: next((c for c in snap(client, cid)["commands"] if c["preview_url"]), None)
+    )
     asked, pages = [], {}
 
     def answer(request):
@@ -177,8 +201,9 @@ def test_the_frame_check_follows_redirects_on_this_machine_only(
         return httpx.Response(status, headers=headers)
 
     real = httpx.AsyncClient
-    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: real(
-        **kw, transport=httpx.MockTransport(answer)))
+    monkeypatch.setattr(
+        httpx, "AsyncClient", lambda **kw: real(**kw, transport=httpx.MockTransport(answer))
+    )
     frame = lambda: client.get(f"/api/commands/{command['id']}/frame").json()  # noqa: E731
     pages.update({"/": (302, {"Location": "/in"}), "/in": (200, {"X-Frame-Options": "DENY"})})
     assert frame() == {"frameable": False}
@@ -236,11 +261,23 @@ def test_no_server_for_a_sub_agent_in_a_working_copy_nor_a_turn_nobody_watches(t
         return ws
 
     with pytest.raises(ToolError) as refused:
-        runner._may_serve(None, "c", project, ws, why != "unwatched",
-                          where if why == "sub-agent" else None, lead=why == "lead")
+        runner._may_serve(
+            None,
+            "c",
+            project,
+            ws,
+            why != "unwatched",
+            where if why == "sub-agent" else None,
+            lead=why == "lead",
+        )
     # (B-311 review: a recipe's Lead in its copy has nobody above it to start the server.)
-    assert ("nobody watches" if why == "unwatched" else "the user's Take in" if why == "lead"
-            else "not in a working copy") in str(refused.value)
+    assert (
+        "nobody watches"
+        if why == "unwatched"
+        else "the user's Take in"
+        if why == "lead"
+        else "not in a working copy"
+    ) in str(refused.value)
 
 
 def test_koloni_s_port_and_every_model_server_s_are_closed(client):

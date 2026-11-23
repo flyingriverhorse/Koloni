@@ -14,15 +14,43 @@ import struct
 import httpx2
 
 # The end-to-end tests point it at their stand-in server: nothing leaves the machine there.
-BASE = (os.environ.get("KOLONI_GEMINI_URL") or "https://generativelanguage.googleapis.com").rstrip("/")
+BASE = (os.environ.get("KOLONI_GEMINI_URL") or "https://generativelanguage.googleapis.com").rstrip(
+    "/"
+)
 URL = f"{BASE}/v1beta/interactions"
 MODELS = ("gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts")
 # The 30 prebuilt voices, in the page's order.
 VOICES = (
-    "Zephyr", "Puck", "Charon", "Kore", "Fenrir", "Leda", "Orus", "Aoede", "Callirrhoe",
-    "Autonoe", "Enceladus", "Iapetus", "Umbriel", "Algieba", "Despina", "Erinome", "Algenib",
-    "Rasalgethi", "Laomedeia", "Achernar", "Alnilam", "Schedar", "Gacrux", "Pulcherrima",
-    "Achird", "Zubenelgenubi", "Vindemiatrix", "Sadachbia", "Sadaltager", "Sulafat",
+    "Zephyr",
+    "Puck",
+    "Charon",
+    "Kore",
+    "Fenrir",
+    "Leda",
+    "Orus",
+    "Aoede",
+    "Callirrhoe",
+    "Autonoe",
+    "Enceladus",
+    "Iapetus",
+    "Umbriel",
+    "Algieba",
+    "Despina",
+    "Erinome",
+    "Algenib",
+    "Rasalgethi",
+    "Laomedeia",
+    "Achernar",
+    "Alnilam",
+    "Schedar",
+    "Gacrux",
+    "Pulcherrima",
+    "Achird",
+    "Zubenelgenubi",
+    "Vindemiatrix",
+    "Sadachbia",
+    "Sadaltager",
+    "Sulafat",
 )
 SECONDS = 60.0
 RATE = 24000
@@ -50,8 +78,15 @@ def _said(response: httpx2.Response) -> str:
 def _wav(pcm: bytes) -> bytes:
     """A 44-byte WAV header before bare 16-bit PCM, 24 kHz, mono."""
     fmt = struct.pack("<IHHIIHH", 16, 1, 1, RATE, RATE * 2, 2, 16)
-    return b"RIFF" + struct.pack("<I", 36 + len(pcm)) + b"WAVEfmt " + fmt + b"data" + \
-        struct.pack("<I", len(pcm)) + pcm
+    return (
+        b"RIFF"
+        + struct.pack("<I", 36 + len(pcm))
+        + b"WAVEfmt "
+        + fmt
+        + b"data"
+        + struct.pack("<I", len(pcm))
+        + pcm
+    )
 
 
 def _is_wav(data: bytes) -> bool:
@@ -64,9 +99,9 @@ def _pcm(data: bytes) -> bytes:
         return data
     at = 12
     while at + 8 <= len(data):
-        size = struct.unpack("<I", data[at + 4:at + 8])[0]
-        if data[at:at + 4] == b"data":
-            return data[at + 8:at + 8 + size]
+        size = struct.unpack("<I", data[at + 4 : at + 8])[0]
+        if data[at : at + 4] == b"data":
+            return data[at + 8 : at + 8 + size]
         at += 8 + size + (size & 1)
     raise SpeechFailed("Google's sound had no samples in it")
 
@@ -106,8 +141,10 @@ async def synthesize(key: str, model: str, text: str, voice: str, style: str | N
         # of it when there is one.)
         pieces = [
             base64.b64decode(item["data"])
-            for step in response.json()["steps"] if step.get("type") == "model_output"
-            for item in step.get("content", []) if item.get("type") == "audio"
+            for step in response.json()["steps"]
+            if step.get("type") == "model_output"
+            for item in step.get("content", [])
+            if item.get("type") == "audio"
         ]
     except (ValueError, KeyError, TypeError, AttributeError):
         raise SpeechFailed("Google answered with no sound") from None

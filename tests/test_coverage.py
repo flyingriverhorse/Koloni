@@ -9,20 +9,26 @@ from app import coverage
 
 def test_tool_of_each_kind_and_none(tmp_path):
     assert coverage.tool_of(tmp_path, "python -m pytest -q") is None  # (nothing installed)
-    (tmp_path / "pyproject.toml").write_text('[project.optional-dependencies]\ndev = ["pytest-cov"]\n',
-                                            encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text(
+        '[project.optional-dependencies]\ndev = ["pytest-cov"]\n', encoding="utf-8"
+    )
     assert coverage.tool_of(tmp_path, "python -m pytest -q") == "pytest-cov"
     assert coverage.tool_of(tmp_path, "python -m pytest -q | tail -1") is None  # (exit masked)
     web = tmp_path / "web"
     web.mkdir()
-    (web / "package.json").write_text(json.dumps({
-        "scripts": {"test": "vitest run"}, "devDependencies": {"@vitest/coverage-v8": "^3"}}),
-        encoding="utf-8")
+    (web / "package.json").write_text(
+        json.dumps(
+            {"scripts": {"test": "vitest run"}, "devDependencies": {"@vitest/coverage-v8": "^3"}}
+        ),
+        encoding="utf-8",
+    )
     assert coverage.tool_of(web, "npm test") == "vitest"
     assert coverage.tool_of(web, "npx vitest run") == "vitest"
     assert coverage.tool_of(web, "make test") is None  # (a node runner's only)
-    (web / "package.json").write_text(json.dumps({
-        "scripts": {"test": "mocha"}, "devDependencies": {"c8": "^9"}}), encoding="utf-8")
+    (web / "package.json").write_text(
+        json.dumps({"scripts": {"test": "mocha"}, "devDependencies": {"c8": "^9"}}),
+        encoding="utf-8",
+    )
     assert coverage.tool_of(web, "npm test") is None  # (no local bin: never a download)
     (web / "node_modules" / ".bin").mkdir(parents=True)
     (web / "node_modules" / ".bin" / ("c8.cmd" if sys.platform == "win32" else "c8")).write_text("")
@@ -33,33 +39,55 @@ def test_with_coverage_commands():
     out = "C:/p/.koloni/tmp/coverage-x" if sys.platform == "win32" else "/p/.koloni/tmp/coverage-x"
     q = (lambda one: f'"{one}"') if sys.platform == "win32" else (lambda one: one)
     assert coverage.with_coverage("python -m pytest -q", "pytest-cov", out) == (
-        f"python -m pytest -q --cov=. --cov-report=json:{q(out + '/coverage.json')}")
+        f"python -m pytest -q --cov=. --cov-report=json:{q(out + '/coverage.json')}"
+    )
     assert coverage.with_coverage("npm test", "vitest", out) == (
-        f"npm test -- --coverage --coverage.reporter=json --coverage.reportsDirectory={q(out)}")
+        f"npm test -- --coverage --coverage.reporter=json --coverage.reportsDirectory={q(out)}"
+    )
     assert coverage.with_coverage("pnpm test", "vitest", out).startswith("pnpm test --coverage ")
     assert coverage.with_coverage("npx vitest run", "vitest", out).startswith(
-        "npx vitest run --coverage ")
+        "npx vitest run --coverage "
+    )
     assert coverage.with_coverage("npm test", "c8", out) == (
-        f"npx --no c8 --reporter=json --report-dir {q(out)} npm test")
+        f"npx --no c8 --reporter=json --report-dir {q(out)} npm test"
+    )
 
 
 def test_covered_from_coverage_py_json(tmp_path):
-    data = {"files": {"app/a.py": {"executed_lines": [1, 2, 5], "missing_lines": [3, 4]},
-                      "app/b.py": {"executed_lines": [1], "missing_lines": []}}}
-    said = coverage.changed_lines_covered(tmp_path, data, "pytest-cov",
-                                          {"app/a.py": [2, 3, 4, 9], "docs/x.md": [1]})
+    data = {
+        "files": {
+            "app/a.py": {"executed_lines": [1, 2, 5], "missing_lines": [3, 4]},
+            "app/b.py": {"executed_lines": [1], "missing_lines": []},
+        }
+    }
+    said = coverage.changed_lines_covered(
+        tmp_path, data, "pytest-cov", {"app/a.py": [2, 3, 4, 9], "docs/x.md": [1]}
+    )
     assert said == coverage.Covered(33, {"app/a.py": [3, 4]})  # (9 no test could run: out)
     # (a part's run names its files from its folder)
-    said = coverage.changed_lines_covered(tmp_path, {"files": {"a.py": data["files"]["app/a.py"]}},
-                                          "pytest-cov", {"app/a.py": [2, 3]}, "app")
+    said = coverage.changed_lines_covered(
+        tmp_path,
+        {"files": {"a.py": data["files"]["app/a.py"]}},
+        "pytest-cov",
+        {"app/a.py": [2, 3]},
+        "app",
+    )
     assert said == coverage.Covered(50, {"app/a.py": [3]})
 
 
 def test_covered_from_istanbul_json(tmp_path):
     path = str(tmp_path / "src" / "a.ts")
-    data = {path: {"path": path, "statementMap": {
-        "0": {"start": {"line": 1}}, "1": {"start": {"line": 2}}, "2": {"start": {"line": 3}}},
-        "s": {"0": 4, "1": 0, "2": 1}}}
+    data = {
+        path: {
+            "path": path,
+            "statementMap": {
+                "0": {"start": {"line": 1}},
+                "1": {"start": {"line": 2}},
+                "2": {"start": {"line": 3}},
+            },
+            "s": {"0": 4, "1": 0, "2": 1},
+        }
+    }
     said = coverage.changed_lines_covered(tmp_path, data, "vitest", {"src/a.ts": [1, 2, 3]})
     assert said == coverage.Covered(67, {"src/a.ts": [2]})
 
@@ -88,10 +116,12 @@ def test_a_report_that_breaks_the_reader_is_none(tmp_path):
     assert coverage.report(tmp_path, inside, "pytest-cov") is None  # (RecursionError: not read)
     odd = {"files": {"a.py": {"executed_lines": [[1], "x", 2], "missing_lines": 3}, "b.py": 4}}
     assert coverage.changed_lines_covered(tmp_path, odd, "pytest-cov", {"a.py": [2]}) == (
-        coverage.Covered(100, {}))
+        coverage.Covered(100, {})
+    )
     odd = {"x": {"statementMap": {"0": 5, "1": {"start": 6}}, "s": [], "path": 7}}
     assert coverage.changed_lines_covered(tmp_path, odd, "vitest", {"x": [1]}) == (
-        coverage.Covered(None, {}))
+        coverage.Covered(None, {})
+    )
 
 
 def test_the_coverage_settings_mark_changes_with_them(tmp_path):

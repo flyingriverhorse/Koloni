@@ -55,13 +55,22 @@ def edit(old, new, id="e", path="hello.py"):
     return call("edit_file", {"path": path, "old_string": old, "new_string": new}, id)
 
 
-def start(make_client, project_dir, scripts, goal="Fix the greeting together",
-          members=("Coder", "Reviewer"), budget=None, steps=None, **conversation):
+def start(
+    make_client,
+    project_dir,
+    scripts,
+    goal="Fix the greeting together",
+    members=("Coder", "Reviewer"),
+    budget=None,
+    steps=None,
+    **conversation,
+):
     """A conversation in which the user opens a room; returns the client, the model, the
     conversation's id, the run's and the room as it was when it opened. `steps`: the app's
     step limit."""
-    client, model = make_client({"Lead": [text("The room is over: here is what came of it.")],
-                                 **scripts})
+    client, model = make_client(
+        {"Lead": [text("The room is over: here is what came of it.")], **scripts}
+    )
     client.headers["Origin"] = ORIGIN
     if steps:
         assert client.put("/api/steps", json={"max_steps": steps}).status_code == 200
@@ -79,14 +88,19 @@ def start(make_client, project_dir, scripts, goal="Fix the greeting together",
 
 def results(snap, agent_name, tool):
     wanted = next(a["id"] for a in snap["agents"] if a["name"] == agent_name)
-    return [(t["status"], t["result"] or "") for t in snap["tool_calls"]
-            if t["agent_id"] == wanted and t["name"] == tool]
+    return [
+        (t["status"], t["result"] or "")
+        for t in snap["tool_calls"]
+        if t["agent_id"] == wanted and t["name"] == tool
+    ]
 
 
 def items(snap):
     by = {a["id"]: a["name"] for a in snap["agents"]}
-    return [(i["number"], i["title"], i["status"], by.get(i["holder_agent_id"]))
-            for i in snap["room_items"]]
+    return [
+        (i["number"], i["title"], i["status"], by.get(i["holder_agent_id"]))
+        for i in snap["room_items"]
+    ]
 
 
 def posts(snap):
@@ -105,18 +119,28 @@ def asked(model, name):
 def test_the_user_opens_a_room_its_members_share_the_work_out_and_do_it_in_one_copy(
     make_client, wait_run, project_dir
 ):
-    client, model, cid, run_id, room = start(make_client, project_dir, {
-        "Coder": [step(add("Change the greeting", ["hello.py"], "a1"), take(1, "t1")),
-                  step(edit("hi", "yo")),
-                  step(post("result", "The greeting says yo now.", "p1"),
-                       finish(1, "hello.py prints yo", "f1")),
-                  text("My part is done.")],
-        "Reviewer": [step(add("Review the greeting", id="a2"), take(2, "t2")),
-                     wait(),                                    # until the Coder has posted
-                     step(call("read_file", {"path": "hello.py"}, "r")),
-                     step(finish(2, "It prints yo, as asked.", "f2")),
-                     text("Looked at it: fine.")],
-    })
+    client, model, cid, run_id, room = start(
+        make_client,
+        project_dir,
+        {
+            "Coder": [
+                step(add("Change the greeting", ["hello.py"], "a1"), take(1, "t1")),
+                step(edit("hi", "yo")),
+                step(
+                    post("result", "The greeting says yo now.", "p1"),
+                    finish(1, "hello.py prints yo", "f1"),
+                ),
+                text("My part is done."),
+            ],
+            "Reviewer": [
+                step(add("Review the greeting", id="a2"), take(2, "t2")),
+                wait(),  # until the Coder has posted
+                step(call("read_file", {"path": "hello.py"}, "r")),
+                step(finish(2, "It prints yo, as asked.", "f2")),
+                text("Looked at it: fine."),
+            ],
+        },
+    )
     assert room["goal"] == "Fix the greeting together" and len(room["members"]) == 2
     assert room["summary"] is None  # (AC: said once it is over, not while it runs)
     snap = wait_run(client, cid, run_id, timeout=LONG)
@@ -126,13 +150,16 @@ def test_the_user_opens_a_room_its_members_share_the_work_out_and_do_it_in_one_c
     # list and a word to the room - nothing that changes or runs anything
     for offered in (names(model.tool_args[0]), names(model.tool_args[1])):
         assert {"add_item", "take_item", "post_to_room"} <= set(offered)
-        assert set(offered) <= READING | {"add_item", "take_item", "post_to_room",
-                                          "invite_to_room"}
+        assert set(offered) <= READING | {"add_item", "take_item", "post_to_room", "invite_to_room"}
 
-    assert items(snap) == [(1, "Change the greeting", "done", "Coder"),
-                           (2, "Review the greeting", "done", "Reviewer")]
+    assert items(snap) == [
+        (1, "Change the greeting", "done", "Coder"),
+        (2, "Review the greeting", "done", "Reviewer"),
+    ]
     assert [i["result"] for i in snap["room_items"]] == [
-        "hello.py prints yo", "It prints yo, as asked."]
+        "hello.py prints yo",
+        "It prints yo, as asked.",
+    ]
     # one copy for both: the Reviewer read what the Coder had just written
     assert "yo" in results(snap, "Reviewer", "read_file")[0][1]
     # and the project has it now that the room is over (full auto: nobody is asked)
@@ -154,17 +181,26 @@ def test_the_user_opens_a_room_its_members_share_the_work_out_and_do_it_in_one_c
 
     # the lead took no part: one request, after the room, with the goal and what came of it
     (told,) = asked(model, "Lead")
-    for held in ("Fix the greeting together", "Change the greeting", "hello.py prints yo",
-                 "It prints yo, as asked."):
+    for held in (
+        "Fix the greeting together",
+        "Change the greeting",
+        "hello.py prints yo",
+        "It prints yo, as asked.",
+    ):
         assert held in told
     # (AC) what the Lead reads still says whose work is over, with its last words; and so does
     # what a member is handed of the others' posts
     assert "Coder's work is over. Its last words:" in told and "You took no part in it." in told
-    assert any("work is over. Its last words:" in m["content"] for m in snap["messages"]
-               if m["room_post_id"])
+    assert any(
+        "work is over. Its last words:" in m["content"]
+        for m in snap["messages"]
+        if m["room_post_id"]
+    )
     # (Under the answer, KOLONİ's line on where the work is: B-205.)
     assert [m["content"] for m in snap["messages"] if m["role"] != "checked"][-2:] == [
-        "The room is over: here is what came of it.", "In the project: hello.py (+1 −1)."]
+        "The room is over: here is what came of it.",
+        "In the project: hello.py (+1 −1).",
+    ]
     lead, coder, reviewer = snap["agents"]
     assert (lead["depth"], coder["depth"], reviewer["depth"]) == (0, 1, 1)
 
@@ -173,23 +209,31 @@ def test_an_item_has_one_holder_and_a_file_is_changed_only_under_an_item_of_ones
     make_client, wait_run, project_dir
 ):
     held = Gate()
-    client, _model, cid, run_id, _room = start(make_client, project_dir, {
-        "Coder": [step(add("Change the greeting", ["hello.py"], "a1"), take(1, "t1")),
-                  step(edit("hi", "yo")),
-                  held.step(step(finish(1, "done", "f1"))),     # holds its item meanwhile
-                  text("Done.")],
-        "Coder 2": [step(take(1, "t2")),                            # somebody has it
-                    step(call("write_file", {"path": "hello.py", "content": "mine\n"}, "w")),
-                    step(add("Also the greeting", ["hello.py"], "a2"), take(2, "t3")),
-                    step(call("write_file", {"path": "notes.txt", "content": "n\n"}, "w2")),
-                    text("Nothing for me to change.")],
-    }, members=("Coder", "Coder"))
-    snap = until(client, cid, lambda s: len(results(s, "Coder 2", "write_file")) == 2,
-                 timeout=LONG)
+    client, _model, cid, run_id, _room = start(
+        make_client,
+        project_dir,
+        {
+            "Coder": [
+                step(add("Change the greeting", ["hello.py"], "a1"), take(1, "t1")),
+                step(edit("hi", "yo")),
+                held.step(step(finish(1, "done", "f1"))),  # holds its item meanwhile
+                text("Done."),
+            ],
+            "Coder 2": [
+                step(take(1, "t2")),  # somebody has it
+                step(call("write_file", {"path": "hello.py", "content": "mine\n"}, "w")),
+                step(add("Also the greeting", ["hello.py"], "a2"), take(2, "t3")),
+                step(call("write_file", {"path": "notes.txt", "content": "n\n"}, "w2")),
+                text("Nothing for me to change."),
+            ],
+        },
+        members=("Coder", "Coder"),
+    )
+    snap = until(client, cid, lambda s: len(results(s, "Coder 2", "write_file")) == 2, timeout=LONG)
     ((status, said),) = results(snap, "Coder 2", "take_item")[:1]
-    assert status == "failed" and "Coder" in said               # who holds it, by name
+    assert status == "failed" and "Coder" in said  # who holds it, by name
     for status, said in results(snap, "Coder 2", "write_file"):
-        assert status == "failed" and "item" in said            # no item of its own covers it
+        assert status == "failed" and "item" in said  # no item of its own covers it
     # an item whose files another's item already covers cannot be taken beside it
     assert results(snap, "Coder 2", "take_item")[1][0] == "failed"
     assert not (project_dir / "notes.txt").exists()
@@ -197,23 +241,31 @@ def test_an_item_has_one_holder_and_a_file_is_changed_only_under_an_item_of_ones
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert (project_dir / "hello.py").read_text(encoding="utf-8") == "print('yo')\n"
     assert items(snap)[0] == (1, "Change the greeting", "done", "Coder")
-    assert items(snap)[1][2] == "open"                          # asked for, never held
+    assert items(snap)[1][2] == "open"  # asked for, never held
 
 
 def test_a_question_is_read_at_the_others_next_step_and_stays_open_until_it_is_answered(
     make_client, wait_run, project_dir
 ):
-    client, model, cid, run_id, _room = start(make_client, project_dir, {
-        "Coder": [step(add("Change the greeting", ["hello.py"], "a1"), take(1, "t1")),
-                  step(post("question", "Which greeting do you want?", "q", to="Reviewer")),
-                  wait(),                                           # until it is answered
-                  step(finish(1, "left as it is", "f1")),
-                  text("Done.")],
-        "Reviewer": [text("Nothing to add to the list."),
-                     wait(),                                        # until somebody posts
-                     step(post("answer", "Keep hi.", "ans", reply_to=1)),
-                     text("Answered.")],
-    })
+    client, model, cid, run_id, _room = start(
+        make_client,
+        project_dir,
+        {
+            "Coder": [
+                step(add("Change the greeting", ["hello.py"], "a1"), take(1, "t1")),
+                step(post("question", "Which greeting do you want?", "q", to="Reviewer")),
+                wait(),  # until it is answered
+                step(finish(1, "left as it is", "f1")),
+                text("Done."),
+            ],
+            "Reviewer": [
+                text("Nothing to add to the list."),
+                wait(),  # until somebody posts
+                step(post("answer", "Keep hi.", "ans", reply_to=1)),
+                text("Answered."),
+            ],
+        },
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     question, answer = [p for p in snap["room_posts"] if p["type"] in ("question", "answer")]
@@ -229,10 +281,14 @@ def test_a_question_is_read_at_the_others_next_step_and_stays_open_until_it_is_a
 
 def test_the_user_speaks_in_the_room_and_ends_it(make_client, wait_run, project_dir):
     held = Gate()
-    client, model, cid, run_id, room = start(make_client, project_dir, {
-        "Coder": [text("Nothing to add."), held.step(text("Never said."))],   # at work all along
-        "Reviewer": [text("Nothing to add."), wait(), text("Heard you.")],
-    })
+    client, model, cid, run_id, room = start(
+        make_client,
+        project_dir,
+        {
+            "Coder": [text("Nothing to add."), held.step(text("Never said."))],  # at work all along
+            "Reviewer": [text("Nothing to add."), wait(), text("Heard you.")],
+        },
+    )
     held.wait_partial()
     said = client.post(f"/api/rooms/{room['id']}/posts", json={"text": "Tests first!"})
     assert said.status_code == 201, said.text
@@ -242,21 +298,30 @@ def test_the_user_speaks_in_the_room_and_ends_it(make_client, wait_run, project_
     assert "Tests first!" in asked(model, "Reviewer")[2]
     ended = client.post(f"/api/rooms/{room['id']}/end")
     assert ended.status_code == 200, ended.text
-    snap = wait_run(client, cid, run_id, timeout=LONG)        # the one still at work is ended
+    snap = wait_run(client, cid, run_id, timeout=LONG)  # the one still at work is ended
     held.release()
     assert (snap["rooms"][0]["status"], snap["rooms"][0]["outcome"]) == ("ended", "ended_by_user")
-    assert snap["runs"][0]["status"] == "completed"           # the lead still has its word
+    assert snap["runs"][0]["status"] == "completed"  # the lead still has its word
     assert ("said", "You", "Tests first!") in posts(snap)
     assert client.post(f"/api/rooms/{room['id']}/posts", json={"text": "late"}).status_code == 409
 
 
 def test_a_room_ends_at_its_budget_and_the_lead_is_told(make_client, wait_run, project_dir):
-    client, model, cid, run_id, room = start(make_client, project_dir, {
-        "Coder": [text("Nothing to add."),
-                  step(post("result", "one", "p1")), step(post("result", "two", "p2")),
-                  step(post("result", "three", "p3")), text("Done.")],
-        "Reviewer": [text("Nothing to add."), wait(), wait(), wait(), text("Done.")],
-    }, budget={"posts": 2})
+    client, model, cid, run_id, room = start(
+        make_client,
+        project_dir,
+        {
+            "Coder": [
+                text("Nothing to add."),
+                step(post("result", "one", "p1")),
+                step(post("result", "two", "p2")),
+                step(post("result", "three", "p3")),
+                text("Done."),
+            ],
+            "Reviewer": [text("Nothing to add."), wait(), wait(), wait(), text("Done.")],
+        },
+        budget={"posts": 2},
+    )
     assert room["budget"]["posts"] == 2
     snap = wait_run(client, cid, run_id, timeout=LONG)
     (ended,) = snap["rooms"]
@@ -268,10 +333,14 @@ def test_a_room_ends_at_its_budget_and_the_lead_is_told(make_client, wait_run, p
 
 def test_what_a_room_may_be_and_when_it_may_be_opened(make_client, wait_run, project_dir):
     held = Gate()
-    client, _model, cid, run_id, room = start(make_client, project_dir, {
-        "Coder": [text("Nothing to add."), held.step(text("Done."))],
-        "Reviewer": [text("Nothing to add."), text("Done.")],
-    })
+    client, _model, cid, run_id, room = start(
+        make_client,
+        project_dir,
+        {
+            "Coder": [text("Nothing to add."), held.step(text("Done."))],
+            "Reviewer": [text("Nothing to add."), text("Done.")],
+        },
+    )
     rooms = f"/api/conversations/{cid}/rooms"
     two = [{"role": "Coder"}, {"role": "Reviewer"}]
     # one room to a turn, and none while the conversation is at work
@@ -280,28 +349,44 @@ def test_what_a_room_may_be_and_when_it_may_be_opened(make_client, wait_run, pro
     assert more.status_code == 200 and more.json()["budget"]["posts"] == room["budget"]["posts"] + 5
     held.release()
     wait_run(client, cid, run_id, timeout=LONG)
-    for bad in ({"goal": "x", "with": two[:1]},                              # alone is no room
-                {"goal": "x", "with": two * 3 + two[:1]},                    # seven is a crowd
-                {"goal": "x", "with": [{"role": "Coder"}, {"role": "No such role"}]},
-                {"goal": "  ", "with": two},
-                {"goal": "x", "with": two, "budget": {"posts": 0}}):
+    for bad in (
+        {"goal": "x", "with": two[:1]},  # alone is no room
+        {"goal": "x", "with": two * 3 + two[:1]},  # seven is a crowd
+        {"goal": "x", "with": [{"role": "Coder"}, {"role": "No such role"}]},
+        {"goal": "  ", "with": two},
+        {"goal": "x", "with": two, "budget": {"posts": 0}},
+    ):
         assert client.post(rooms, json=bad).status_code == 422, bad
     del client.headers["Origin"]
-    assert client.post(rooms, json={"goal": "x", "with": two},
-                       headers={"Origin": "http://evil.example"}).status_code == 403
+    assert (
+        client.post(
+            rooms, json={"goal": "x", "with": two}, headers={"Origin": "http://evil.example"}
+        ).status_code
+        == 403
+    )
 
 
 # --- how it ends otherwise -------------------------------------------------------------------
 
 
 def test_where_the_user_is_asked_the_rooms_copy_is_one_card(make_client, wait_run, project_dir):
-    client, _model, cid, run_id, room = start(make_client, project_dir, {
-        "Coder": [step(add("Change the greeting", ["hello.py"], "a1"), take(1, "t1")),
-                  step(edit("hi", "yo")), step(finish(1, "done", "f1")), text("Done.")],
-        "Reviewer": [text("Nothing to add."), text("Done.")],
-    }, permission_mode="ask")
-    snap = until(client, cid, lambda s: [m["status"] for m in s["merges"]] == ["pending"],
-                 timeout=LONG)
+    client, _model, cid, run_id, room = start(
+        make_client,
+        project_dir,
+        {
+            "Coder": [
+                step(add("Change the greeting", ["hello.py"], "a1"), take(1, "t1")),
+                step(edit("hi", "yo")),
+                step(finish(1, "done", "f1")),
+                text("Done."),
+            ],
+            "Reviewer": [text("Nothing to add."), text("Done.")],
+        },
+        permission_mode="ask",
+    )
+    snap = until(
+        client, cid, lambda s: [m["status"] for m in s["merges"]] == ["pending"], timeout=LONG
+    )
     assert (project_dir / "hello.py").read_text(encoding="utf-8") == "print('hi')\n"
     assert [f["path"] for f in snap["merges"][0]["files"]] == ["hello.py"]
     # the room's own: its card is in the room, and no other copy of its lead's is
@@ -313,11 +398,18 @@ def test_where_the_user_is_asked_the_rooms_copy_is_one_card(make_client, wait_ru
 
 def test_stop_ends_the_room_and_takes_nothing(make_client, wait_run, project_dir):
     held = Gate()
-    client, _model, cid, run_id, _room = start(make_client, project_dir, {
-        "Coder": [step(add("Change the greeting", ["hello.py"], "a1"), take(1, "t1")),
-                  step(edit("hi", "yo")), held.step(text("Done."))],
-        "Reviewer": [text("Nothing to add."), wait(), text("Done.")],
-    })
+    client, _model, cid, run_id, _room = start(
+        make_client,
+        project_dir,
+        {
+            "Coder": [
+                step(add("Change the greeting", ["hello.py"], "a1"), take(1, "t1")),
+                step(edit("hi", "yo")),
+                held.step(text("Done.")),
+            ],
+            "Reviewer": [text("Nothing to add."), wait(), text("Done.")],
+        },
+    )
     held.wait_partial()
     assert client.post(f"/api/runs/{run_id}/cancel").status_code in (200, 202)
     snap = wait_run(client, cid, run_id, timeout=LONG)
@@ -331,19 +423,27 @@ def test_stop_ends_the_room_and_takes_nothing(make_client, wait_run, project_dir
 def test_a_member_that_fails_gives_its_item_back_and_one_alone_is_no_room(
     make_client, wait_run, project_dir
 ):
-    client, model, cid, run_id, _room = start(make_client, project_dir, {
-        "Coder": [step(add("Change the greeting", ["hello.py"], "a1"), take(1, "t1")),
-                  ModelUnavailable("the model went away")],
-        "Reviewer": [text("Nothing to add."), wait(), text("Alone now.")],
-    })
+    client, model, cid, run_id, _room = start(
+        make_client,
+        project_dir,
+        {
+            "Coder": [
+                step(add("Change the greeting", ["hello.py"], "a1"), take(1, "t1")),
+                ModelUnavailable("the model went away"),
+            ],
+            "Reviewer": [text("Nothing to add."), wait(), text("Alone now.")],
+        },
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    assert items(snap) == [(1, "Change the greeting", "open", None)]    # nobody's again
+    assert items(snap) == [(1, "Change the greeting", "open", None)]  # nobody's again
     (ended,) = snap["rooms"]
     assert (ended["status"], ended["outcome"]) == ("ended", "too_few")
-    assert next(m for m in ended["members"]
-                if m["agent_id"] == snap["agents"][1]["id"])["status"] == "left"
-    assert "Change the greeting" in asked(model, "Lead")[0]            # left open: said
+    assert (
+        next(m for m in ended["members"] if m["agent_id"] == snap["agents"][1]["id"])["status"]
+        == "left"
+    )
+    assert "Change the greeting" in asked(model, "Lead")[0]  # left open: said
     assert now_snap(client, cid)["rooms"][0]["status"] == "ended"
 
 
@@ -353,14 +453,24 @@ def waits_out(make_client, project_dir):
     over: one whose member left asks the user to take its work in.) No timing: the sharing
     round runs one member after another, so item 1 is the Coder's before the Reviewer works -
     held while the Coder is at it, closed (given at once) after."""
-    client, _model, cid, _run_id, _room = start(make_client, project_dir, {
-        "Coder": [step(add("Change the greeting", ["hello.py"], "a1"), take(1, "t1")),
-                  step(edit("hi", "yo")), step(finish(1, "hello.py prints yo", "f1")),
-                  text("My part is done.")],
-        "Reviewer": [text("I review the greeting once it is changed."),
-                     *[step(call("wait_for_item", {"item": 1}, f"w{at}")) for at in range(7)],
-                     text("Looked at it: fine.")],
-    }, steps=5)
+    client, _model, cid, _run_id, _room = start(
+        make_client,
+        project_dir,
+        {
+            "Coder": [
+                step(add("Change the greeting", ["hello.py"], "a1"), take(1, "t1")),
+                step(edit("hi", "yo")),
+                step(finish(1, "hello.py prints yo", "f1")),
+                text("My part is done."),
+            ],
+            "Reviewer": [
+                text("I review the greeting once it is changed."),
+                *[step(call("wait_for_item", {"item": 1}, f"w{at}")) for at in range(7)],
+                text("Looked at it: fine."),
+            ],
+        },
+        steps=5,
+    )
     snap = until(client, cid, lambda s: s["rooms"][0]["status"] == "ended", timeout=LONG)
     reviewer = next(a for a in snap["agents"] if a["name"] == "Reviewer")
     (ended,) = snap["rooms"]
@@ -382,7 +492,7 @@ def test_a_members_steps_that_only_wait_are_free_only_up_to_their_cap(
     """(A wait may come back at once: a model that kept asking for it would never stop.)"""
     monkeypatch.setattr(rooms, "FREE_WAITS", 2)
     snap, reviewer, ended = waits_out(make_client, project_dir)
-    assert len(results(snap, "Reviewer", "wait_for_item")) == 7       # two free, five counted
+    assert len(results(snap, "Reviewer", "wait_for_item")) == 7  # two free, five counted
     assert (reviewer["status"], reviewer["error"]) == ("failed", "step_limit")
     assert (ended["status"], ended["outcome"]) == ("ended", "too_few")
 
@@ -396,18 +506,27 @@ def test_a_members_next_request_begins_with_its_last_one_posts_and_all(
     """B-34: what a member was sent at one step is the start of what it is sent at the next -
     the room's posts handed to it stay where they were handed, so a prompt cache keeps it. Only
     how the room stands now, said at the end of each step, is not sent again."""
-    client, model, cid, run_id, _room = start(make_client, project_dir, {
-        "Coder": [step(add("Change the greeting", ["hello.py"], "a1"), take(1, "t1")),
-                  step(post("result", "The greeting says yo now.", "p1")),
-                  step(post("result", "And it is tested.", "p2")),
-                  step(finish(1, "hello.py prints yo", "f1")),
-                  text("My part is done.")],
-        "Reviewer": [step(add("Review the greeting", id="a2"), take(2, "t2")),
-                     wait("w1"), wait("w2"),
-                     step(call("read_file", {"path": "hello.py"}, "r")),
-                     step(finish(2, "It prints yo, as asked.", "f2")),
-                     text("Looked at it: fine.")],
-    })
+    client, model, cid, run_id, _room = start(
+        make_client,
+        project_dir,
+        {
+            "Coder": [
+                step(add("Change the greeting", ["hello.py"], "a1"), take(1, "t1")),
+                step(post("result", "The greeting says yo now.", "p1")),
+                step(post("result", "And it is tested.", "p2")),
+                step(finish(1, "hello.py prints yo", "f1")),
+                text("My part is done."),
+            ],
+            "Reviewer": [
+                step(add("Review the greeting", id="a2"), take(2, "t2")),
+                wait("w1"),
+                wait("w2"),
+                step(call("read_file", {"path": "hello.py"}, "r")),
+                step(finish(2, "It prints yo, as asked.", "f2")),
+                text("Looked at it: fine."),
+            ],
+        },
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
 
@@ -418,4 +537,4 @@ def test_a_members_next_request_begins_with_its_last_one_posts_and_all(
     handed = [m["content"] for m in working[-1] if str(m["content"]).startswith("Said in the room")]
     assert len(handed) >= 2, handed  # (both posts reached it, at one step or two)
     for earlier, later in zip(working, working[1:], strict=False):
-        assert kept(later)[:len(kept(earlier))] == kept(earlier)
+        assert kept(later)[: len(kept(earlier))] == kept(earlier)

@@ -3,6 +3,7 @@
 Revision ID: 0089
 Revises: 0088
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -16,10 +17,12 @@ def upgrade() -> None:
     with op.batch_alter_table("board_posts") as batch:
         batch.add_column(sa.Column("team_id", sa.String(32), nullable=True))
         batch.add_column(sa.Column("team", sa.String(60), nullable=True))
-        batch.add_column(sa.Column("everyone", sa.Boolean(), nullable=False,
-                                   server_default=sa.false()))
-        batch.add_column(sa.Column("koloni", sa.Boolean(), nullable=False,
-                                   server_default=sa.false()))
+        batch.add_column(
+            sa.Column("everyone", sa.Boolean(), nullable=False, server_default=sa.false())
+        )
+        batch.add_column(
+            sa.Column("koloni", sa.Boolean(), nullable=False, server_default=sa.false())
+        )
 
 
 def downgrade() -> None:

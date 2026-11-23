@@ -20,7 +20,7 @@ NOTEBOOK = ["post_note", "read_notes"]
 MEMORY = ["remember", "recall"]
 REVIEWER = [*READ, "ask_user", "message_agent", *NOTEBOOK, *MEMORY]
 # What it is offered: show too, after the file tools - every agent's at its own work (slice 39).
-OFFERED_REVIEWER = [*READ, "show", *REVIEWER[len(READ):], "recall_output"]
+OFFERED_REVIEWER = [*READ, "show", *REVIEWER[len(READ) :], "recall_output"]
 # The roles a new database has: six, five more since 28a, nine since 43, one 33b, two 52, five and
 # two experts of the user's own (K-takim-duzen, 0103), the Designer (K-belge-ciktilari), three for a
 # site (K-site-roller): the built-in roles and 0103's two experts.
@@ -47,12 +47,18 @@ def begin(client, project_dir, mode="ask", content="please check my greeting", *
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     # (a level is raised only from the app's own page: this request says it is from there)
-    patched = client.patch(f"/api/conversations/{cid}", json={"permission_mode": mode, **settings},
-                           headers={"Origin": "http://127.0.0.1:8790"})
+    patched = client.patch(
+        f"/api/conversations/{cid}",
+        json={"permission_mode": mode, **settings},
+        headers={"Origin": "http://127.0.0.1:8790"},
+    )
     assert patched.status_code == 200, patched.text
     # (The user's own message, from the app's own page: a role it names is opened, slice 81b.)
-    posted = client.post(f"/api/conversations/{cid}/messages", json={"content": content},
-                         headers={"Origin": "http://127.0.0.1:8790"}).json()
+    posted = client.post(
+        f"/api/conversations/{cid}/messages",
+        json={"content": content},
+        headers={"Origin": "http://127.0.0.1:8790"},
+    ).json()
     return cid, posted["run"]["id"]
 
 
@@ -75,18 +81,25 @@ def test_a_role_the_lead_names_but_never_opened_is_said_so_under_its_answer(
     make_client, wait_run, project_dir
 ):
     # K-lead-andigi-rol (R114): "Reviewer confirmed" with no Reviewer opened; a question is no claim.
-    client, model = make_client([
-        text("Reviewer confirmed the change.\nShould I open a Tester?"),
-        spawn("Reviewer"), text("No problems found."), text("Reviewer confirmed it."),
-    ])
+    client, model = make_client(
+        [
+            text("Reviewer confirmed the change.\nShould I open a Tester?"),
+            spawn("Reviewer"),
+            text("No problems found."),
+            text("Reviewer confirmed it."),
+        ]
+    )
     cid, run_id = begin(client, project_dir)
 
     def koloni(snap):
         return [m["content"] for m in snap["messages"] if m["role"] == "koloni"]
 
     assert koloni(wait_run(client, cid, run_id)) == ["Reviewer was not opened this turn."]
-    again = client.post(f"/api/conversations/{cid}/messages", json={"content": "again"},
-                        headers={"Origin": "http://127.0.0.1:8790"}).json()["run"]["id"]
+    again = client.post(
+        f"/api/conversations/{cid}/messages",
+        json={"content": "again"},
+        headers={"Origin": "http://127.0.0.1:8790"},
+    ).json()["run"]["id"]
     # Opened this time: no line. KOLONİ's line is the user's to read, never the Lead's.
     assert koloni(wait_run(client, cid, again)) == ["Reviewer was not opened this turn."]
     assert "not opened this turn" not in json.dumps(model.calls)
@@ -96,34 +109,41 @@ def test_a_role_merely_named_is_not_said_so_but_one_the_lead_says_it_asked_is(
     make_client, wait_run, project_dir
 ):
     # B-331: a list of roles, a could / will, is no claim; "I asked Tester to run it" is one.
-    client, _model = make_client([
-        text("You could use Coder, Data analyst or Debugger for that. Tester and Reviewer "
-             "will check it; Reviewer has access."),
-        text("I asked Tester to run it."),
-    ])
+    client, _model = make_client(
+        [
+            text(
+                "You could use Coder, Data analyst or Debugger for that. Tester and Reviewer "
+                "will check it; Reviewer has access."
+            ),
+            text("I asked Tester to run it."),
+        ]
+    )
     cid, run_id = begin(client, project_dir)
 
     def koloni(snap):
         return [m["content"] for m in snap["messages"] if m["role"] == "koloni"]
 
     assert koloni(wait_run(client, cid, run_id)) == []
-    again = client.post(f"/api/conversations/{cid}/messages", json={"content": "again"},
-                        headers={"Origin": "http://127.0.0.1:8790"}).json()["run"]["id"]
+    again = client.post(
+        f"/api/conversations/{cid}/messages",
+        json={"content": "again"},
+        headers={"Origin": "http://127.0.0.1:8790"},
+    ).json()["run"]["id"]
     assert koloni(wait_run(client, cid, again)) == ["Tester was not opened this turn."]
 
 
 # --- the child loop -----------------------------------------------------------
 
 
-def test_child_runs_with_a_clean_context_and_its_report_returns(
-    make_client, wait_run, project_dir
-):
-    client, model = make_client([
-        step(call("read_file", {"path": "hello.py"}), content="Looking."),
-        spawn("Reviewer", "Review hello.py for bugs"),
-        text("No problems found."),
-        text("The reviewer is happy."),
-    ])
+def test_child_runs_with_a_clean_context_and_its_report_returns(make_client, wait_run, project_dir):
+    client, model = make_client(
+        [
+            step(call("read_file", {"path": "hello.py"}), content="Looking."),
+            spawn("Reviewer", "Review hello.py for bugs"),
+            text("No problems found."),
+            text("The reviewer is happy."),
+        ]
+    )
     cid, run_id = begin(client, project_dir)
     snap = wait_run(client, cid, run_id)
 
@@ -139,24 +159,36 @@ def test_child_runs_with_a_clean_context_and_its_report_returns(
     back = model.calls[3][-1]
     assert back["role"] == "tool"
     # (K-kanit: what it did, counted by KOLONİ - none of it, beside a report that claims nothing)
-    assert back["content"] == ("Reviewer finished.\n\nNo problems found.\n\nWhat it did, from "
-                               "KOLONİ's record: read 0 files, wrote 0, ran 0 commands, 0 web."
-                               "\n\nKOLONİ: the task you gave "
-                               "Reviewer is short (24 characters); its report may miss what you "
-                               "meant - next time say the goal, what done looks like, the files, "
-                               "what to leave alone, and the report you want.")
+    assert back["content"] == (
+        "Reviewer finished.\n\nNo problems found.\n\nWhat it did, from "
+        "KOLONİ's record: read 0 files, wrote 0, ran 0 commands, 0 web."
+        "\n\nKOLONİ: the task you gave "
+        "Reviewer is short (24 characters); its report may miss what you "
+        "meant - next time say the goal, what done looks like, the files, "
+        "what to leave alone, and the report you want."
+    )
 
     lead, kid = snap["agents"]
     assert (lead["depth"], kid["depth"], kid["parent_agent_id"]) == (0, 1, lead["id"])
     assert (lead["status"], kid["status"]) == ("completed", "completed")
     assert (kid["role_name"], kid["task"], kid["report"]) == (
-        "Reviewer", "Review hello.py for bugs", "No problems found.")
+        "Reviewer",
+        "Review hello.py for bugs",
+        "No problems found.",
+    )
     assert kid["started_at"] and kid["ended_at"]
-    assert [(m["kind"], m["from_agent_id"], m["to_agent_id"], m["content"])
-            for m in snap["channel_messages"]] == [
+    assert [
+        (m["kind"], m["from_agent_id"], m["to_agent_id"], m["content"])
+        for m in snap["channel_messages"]
+    ] == [
         ("task", lead["id"], kid["id"], "Review hello.py for bugs"),
-        ("report", kid["id"], lead["id"], "No problems found.\n\nWhat it did, from KOLONİ's "
-                                          "record: read 0 files, wrote 0, ran 0 commands, 0 web."),
+        (
+            "report",
+            kid["id"],
+            lead["id"],
+            "No problems found.\n\nWhat it did, from KOLONİ's "
+            "record: read 0 files, wrote 0, ran 0 commands, 0 web.",
+        ),
     ]
     spawned = next(t for t in snap["tool_calls"] if t["name"] == "spawn_agent")
     assert spawned["status"] == "succeeded" and spawned["agent_id"] == lead["id"]
@@ -166,12 +198,14 @@ def test_child_runs_with_a_clean_context_and_its_report_returns(
 
 
 def test_child_tools_are_the_intersection(make_client, wait_run, project_dir):
-    client, model = make_client([
-        spawn("Reviewer"),
-        step(call("write_file", {"path": "x.txt", "content": "x"})),
-        text("done"),
-        text("ok"),
-    ])
+    client, model = make_client(
+        [
+            spawn("Reviewer"),
+            step(call("write_file", {"path": "x.txt", "content": "x"})),
+            text("done"),
+            text("ok"),
+        ]
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id)
     assert names(model.tool_args[1]) == OFFERED_REVIEWER
@@ -186,19 +220,32 @@ def test_a_grandchild_has_its_roles_tools_capped_by_the_orchestrators_not_its_op
     make_client, wait_run, project_dir
 ):
     # B-333: the Planner cannot write, the Coder it opens can; the Lead's lack still holds.
-    client, model = make_client([
-        spawn("Planner"), spawn("Coder", id="s2"), text("coded"), text("planned"), text("led")])
+    client, model = make_client(
+        [spawn("Planner"), spawn("Coder", id="s2"), text("coded"), text("planned"), text("led")]
+    )
     lead_tools = next(r for r in client.get("/api/roles").json() if r["name"] == "Lead")["tools"]
-    client.patch(f"/api/roles/{role_id(client, 'Lead')}",
-                 json={"tools": [t for t in lead_tools if t != "run_command"]})
+    client.patch(
+        f"/api/roles/{role_id(client, 'Lead')}",
+        json={"tools": [t for t in lead_tools if t != "run_command"]},
+    )
     cid, run_id = begin(client, project_dir, mode="auto_edit")
     snap = wait_run(client, cid, run_id)
     lead, planner, coder = snap["agents"]
     assert planner["tools"] == [
-        *READ, "spawn_agent", "create_role", "ask_user", "ask_folder", "message_agent",
-        "discuss", "propose_trigger", *NOTEBOOK, *MEMORY]
-    assert coder["tools"] == [t for t in effective_tools(BUILTIN_ROLES["Coder"].tools, None)
-                              if t != "run_command"]
+        *READ,
+        "spawn_agent",
+        "create_role",
+        "ask_user",
+        "ask_folder",
+        "message_agent",
+        "discuss",
+        "propose_trigger",
+        *NOTEBOOK,
+        *MEMORY,
+    ]
+    assert coder["tools"] == [
+        t for t in effective_tools(BUILTIN_ROLES["Coder"].tools, None) if t != "run_command"
+    ]
     assert "write_file" in coder["tools"]
     assert (coder["depth"], coder["parent_agent_id"]) == (2, planner["id"])
     assert "Your task comes from the Planner" in model.calls[2][0]["content"]
@@ -206,12 +253,22 @@ def test_a_grandchild_has_its_roles_tools_capped_by_the_orchestrators_not_its_op
 
 
 def test_a_coder_an_architect_opens_writes_the_file(make_client, wait_run, project_dir):
-    client, _ = make_client([
-        spawn("Architect"), spawn("Coder", id="s2"),
-        step(call("write_file", {"path": "x.txt", "content": "x"}, "w1")),
-        text("coded"), text("designed"), text("led")])
-    cid, run_id = begin(client, project_dir, mode="full_auto",
-                        content="Architect, design it and hand the code to a Coder")
+    client, _ = make_client(
+        [
+            spawn("Architect"),
+            spawn("Coder", id="s2"),
+            step(call("write_file", {"path": "x.txt", "content": "x"}, "w1")),
+            text("coded"),
+            text("designed"),
+            text("led"),
+        ]
+    )
+    cid, run_id = begin(
+        client,
+        project_dir,
+        mode="full_auto",
+        content="Architect, design it and hand the code to a Coder",
+    )
     snap = wait_run(client, cid, run_id)
     assert [a["role_name"] for a in snap["agents"]] == ["Lead", "Architect", "Coder"]
     written = next(t for t in snap["tool_calls"] if t["name"] == "write_file")
@@ -219,14 +276,14 @@ def test_a_coder_an_architect_opens_writes_the_file(make_client, wait_run, proje
     assert (project_dir / "x.txt").read_text() == "x"
 
 
-def test_editing_a_role_does_not_change_an_agent_already_opened(
-    make_client, wait_run, project_dir
-):
+def test_editing_a_role_does_not_change_an_agent_already_opened(make_client, wait_run, project_dir):
     client, model = make_client([spawn("Reviewer"), text("r"), text("l")])
     cid, run_id = begin(client, project_dir, spawn_approval="always")
     kid = wait_status(client, cid, "waiting_approval")["agents"][1]
     # (Karar 5: the Reviewer keeps its reading tools - the edit takes away the rest.)
-    edited = client.patch(f"/api/roles/{role_id(client, 'Reviewer')}", json={"tools": [*READ, "ask_user"]})
+    edited = client.patch(
+        f"/api/roles/{role_id(client, 'Reviewer')}", json={"tools": [*READ, "ask_user"]}
+    )
     assert edited.status_code == 200, edited.text
     assert client.post(f"/api/agents/{kid['id']}/approve").status_code == 200
     snap = wait_run(client, cid, run_id)
@@ -235,12 +292,16 @@ def test_editing_a_role_does_not_change_an_agent_already_opened(
 
 
 def test_unknown_role_and_empty_task_are_tool_errors(make_client, wait_run, project_dir):
-    client, _ = make_client([
-        step(call("spawn_agent", {"role": "Nobody", "task": "x"}, "a"),
-             call("spawn_agent", {"role": "Reviewer", "task": "   "}, "b"),
-             call("spawn_agent", {"role": "reviewer"}, "c")),
-        text("ok"),
-    ])
+    client, _ = make_client(
+        [
+            step(
+                call("spawn_agent", {"role": "Nobody", "task": "x"}, "a"),
+                call("spawn_agent", {"role": "Reviewer", "task": "   "}, "b"),
+                call("spawn_agent", {"role": "reviewer"}, "c"),
+            ),
+            text("ok"),
+        ]
+    )
     cid, run_id = begin(client, project_dir)
     snap = wait_run(client, cid, run_id)
     unknown, empty, missing = snap["tool_calls"]
@@ -251,14 +312,28 @@ def test_unknown_role_and_empty_task_are_tool_errors(make_client, wait_run, proj
     assert snap["runs"][0]["status"] == "completed"
 
 
-def test_an_agent_s_name_given_as_a_role_points_to_message_agent(make_client, wait_run, project_dir):
+def test_an_agent_s_name_given_as_a_role_points_to_message_agent(
+    make_client, wait_run, project_dir
+):
     # R154 (live): the Lead opened "Coder 2" and was told only "unknown role".
-    client, _ = make_client([spawn("Reviewer", id="s1"), text("r"), spawn("Reviewer", id="s2"), text("r2"),
-                             spawn("reviewer  2", id="s3"), text("ok")])
+    client, _ = make_client(
+        [
+            spawn("Reviewer", id="s1"),
+            text("r"),
+            spawn("Reviewer", id="s2"),
+            text("r2"),
+            spawn("reviewer  2", id="s3"),
+            text("ok"),
+        ]
+    )
     cid, run_id = begin(client, project_dir, spawn_approval="never")
     snap = wait_run(client, cid, run_id)
     status, said = snap["tool_calls"][-1]["status"], snap["tool_calls"][-1]["result"]
-    assert status == "failed" and said == "error: Reviewer 2 is an agent of this turn, not a role: message_agent reaches it"
+    assert (
+        status == "failed"
+        and said
+        == "error: Reviewer 2 is an agent of this turn, not a role: message_agent reaches it"
+    )
 
 
 TEMP = os.path.join(tempfile.gettempdir(), "koloni-cli-j1y3vywd")
@@ -277,24 +352,41 @@ class CliLead(ScriptedModel):
     def __init__(self):
         super().__init__([])
 
-    async def run_session(self, model_id, messages, tools, call_tool, on_text, on_message=None, effort=None,
-                           on_live=None):
+    async def run_session(
+        self,
+        model_id,
+        messages,
+        tools,
+        call_tool,
+        on_text,
+        on_message=None,
+        effort=None,
+        on_live=None,
+    ):
         if "Your name here is Reviewer" not in str(messages[0]["content"]):
             await call_tool("spawn_agent", json.dumps({"role": "Reviewer", "task": TASK + DOUBLED}))
         await on_text("done")
         return SimpleNamespace(input_tokens=5, output_tokens=1, model=None)
 
 
-def test_a_cli_leads_temp_folder_in_a_task_is_the_folder_it_works_in(settings_env, make_client, wait_run, project_dir):
+def test_a_cli_leads_temp_folder_in_a_task_is_the_folder_it_works_in(
+    settings_env, make_client, wait_run, project_dir
+):
     # B-81 (live, CC-S haiku): "Project folder: …\Temp\koloni-cli-j1y3vywd" in the Coder's task. Made
     # relative - the project's own path would lead an agent working in a copy out of it.
     from app.config import load_settings
     from app.main import create_app
     from tests.keyed import TestClient
-    with TestClient(create_app(load_settings(settings_env), model=CliLead()), base_url="http://127.0.0.1:8790") as client:
+
+    with TestClient(
+        create_app(load_settings(settings_env), model=CliLead()), base_url="http://127.0.0.1:8790"
+    ) as client:
         cid, run_id = begin(client, project_dir)
         task = wait_run(client, cid, run_id)["agents"][1]["task"]
-    assert task == f"Project folder: ./\nRead `calc.py` and D:{os.sep}koloni-cli-notes{os.sep}x.\nIn the project folder: hello.py"
+    assert (
+        task
+        == f"Project folder: ./\nRead `calc.py` and D:{os.sep}koloni-cli-notes{os.sep}x.\nIn the project folder: hello.py"
+    )
     # Opened by KOLONİ's own loop, which runs in no temp folder, a task is as it was written.
     client, _ = make_client([spawn("Reviewer", TASK), text("read"), text("done")])
     cid, run_id = begin(client, project_dir)
@@ -311,8 +403,9 @@ def test_a_role_is_found_whatever_its_case(make_client, wait_run, project_dir):
 
 
 def test_depth_limit(make_client, wait_run, project_dir):
-    client, _ = make_client([
-        spawn("Planner"), spawn("Researcher", id="s2"), text("planned"), text("led")])
+    client, _ = make_client(
+        [spawn("Planner"), spawn("Researcher", id="s2"), text("planned"), text("led")]
+    )
     cid, run_id = begin(client, project_dir, spawn_max_depth=1)
     snap = wait_run(client, cid, run_id)
     refused = snap["tool_calls"][1]
@@ -322,9 +415,16 @@ def test_depth_limit(make_client, wait_run, project_dir):
 
 
 def test_agent_count_limit_counts_the_whole_tree(make_client, wait_run, project_dir):
-    client, _ = make_client([
-        spawn("Planner"), spawn("Researcher", id="s2"), text("found"), text("planned"),
-        spawn("Reviewer", id="s3"), text("led")])
+    client, _ = make_client(
+        [
+            spawn("Planner"),
+            spawn("Researcher", id="s2"),
+            text("found"),
+            text("planned"),
+            spawn("Reviewer", id="s3"),
+            text("led"),
+        ]
+    )
     cid, run_id = begin(client, project_dir, spawn_max_agents=2)
     snap = wait_run(client, cid, run_id)
     refused = snap["tool_calls"][2]
@@ -335,14 +435,18 @@ def test_agent_count_limit_counts_the_whole_tree(make_client, wait_run, project_
 
 
 def test_a_role_with_no_usable_tools_cannot_be_spawned(make_client, wait_run, project_dir):
-    client, _ = make_client([
-        spawn("Reviewer"), spawn("Runner", id="s2"), text("reviewed"), text("led")])
-    client.patch(f"/api/roles/{role_id(client, 'Reviewer')}",
-                 json={"tools": [*READ, "spawn_agent"]})
+    client, _ = make_client(
+        [spawn("Reviewer"), spawn("Runner", id="s2"), text("reviewed"), text("led")]
+    )
+    client.patch(
+        f"/api/roles/{role_id(client, 'Reviewer')}", json={"tools": [*READ, "spawn_agent"]}
+    )
     # (Capped by what the Orchestrator may hand on, B-333: the Lead runs nothing here.)
     lead_tools = next(r for r in client.get("/api/roles").json() if r["name"] == "Lead")["tools"]
-    client.patch(f"/api/roles/{role_id(client, 'Lead')}",
-                 json={"tools": [t for t in lead_tools if t != "run_command"]})
+    client.patch(
+        f"/api/roles/{role_id(client, 'Lead')}",
+        json={"tools": [t for t in lead_tools if t != "run_command"]},
+    )
     created = client.post("/api/roles", json={"name": "Runner", "tools": ["run_command"]})
     assert created.status_code == 201
     cid, run_id = begin(client, project_dir)
@@ -408,9 +512,13 @@ def test_reject_returns_the_users_decision(make_client, wait_run, project_dir):
 
 
 def test_child_failure_does_not_end_the_parent(make_client, wait_run, project_dir):
-    client, model = make_client([
-        spawn("Reviewer"), ModelUnavailable("model server unreachable: refused"),
-        text("I could not get a review.")])
+    client, model = make_client(
+        [
+            spawn("Reviewer"),
+            ModelUnavailable("model server unreachable: refused"),
+            text("I could not get a review."),
+        ]
+    )
     cid, run_id = begin(client, project_dir)
     snap = wait_run(client, cid, run_id)
     lead, kid = snap["agents"]
@@ -418,7 +526,8 @@ def test_child_failure_does_not_end_the_parent(make_client, wait_run, project_di
     assert (lead["status"], snap["runs"][0]["status"]) == ("completed", "completed")
     assert snap["tool_calls"][0]["status"] == "failed"
     assert model.calls[2][-1]["content"].startswith(
-        "Reviewer failed: model server unreachable: refused")
+        "Reviewer failed: model server unreachable: refused"
+    )
 
 
 # (test_child_step_limit: B-397 asks the user first - tests/test_b397.py)
@@ -437,9 +546,14 @@ def test_parent_waits_then_resumes(make_client, wait_run, project_dir, gate):
 
 def test_stop_cancels_the_whole_tree(make_client, wait_run, project_dir, gate):
     executor = ScriptedExecutor([Script(["x\n"], hold=gate)])
-    client, _ = make_client([
-        spawn("Coder"), spawn("Tester", id="s2"),
-        step(call("run_command", {"command": "pytest"}))], executor=executor)
+    client, _ = make_client(
+        [
+            spawn("Coder"),
+            spawn("Tester", id="s2"),
+            step(call("run_command", {"command": "pytest"})),
+        ],
+        executor=executor,
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     for _ in range(250):
         snap = client.get(f"/api/conversations/{cid}").json()
@@ -467,9 +581,14 @@ def test_stop_while_a_spawn_waits_for_approval(make_client, wait_run, project_di
 
 
 def test_child_file_requests_use_the_same_cards(make_client, wait_run, project_dir):
-    client, _ = make_client([
-        spawn("Coder"), step(call("write_file", {"path": "n.txt", "content": "new\n"})),
-        text("written"), text("l")])
+    client, _ = make_client(
+        [
+            spawn("Coder"),
+            step(call("write_file", {"path": "n.txt", "content": "new\n"})),
+            text("written"),
+            text("l"),
+        ]
+    )
     cid, run_id = begin(client, project_dir, mode="ask", spawn_approval="never")
     snap = wait_status(client, cid, "waiting_approval")
     change = snap["file_changes"][0]
@@ -502,13 +621,15 @@ def test_a_bug_inside_a_child_fails_only_the_child(make_client, wait_run, projec
 
 
 def test_next_turn_history_excludes_sub_agent_transcripts(make_client, wait_run, project_dir):
-    client, model = make_client([
-        spawn("Reviewer", "look closely"),
-        step(call("read_file", {"path": "hello.py"}), content="child thinking"),
-        text("child report"),
-        text("first answer"),
-        text("second answer"),
-    ])
+    client, model = make_client(
+        [
+            spawn("Reviewer", "look closely"),
+            step(call("read_file", {"path": "hello.py"}), content="child thinking"),
+            text("child report"),
+            text("first answer"),
+            text("second answer"),
+        ]
+    )
     cid, run_id = begin(client, project_dir)
     wait_run(client, cid, run_id)
     second = client.post(f"/api/conversations/{cid}/messages", json={"content": "and now?"}).json()
@@ -518,7 +639,15 @@ def test_next_turn_history_excludes_sub_agent_transcripts(make_client, wait_run,
     # (the blocks before the new message are KOLONİ's record of the turn before, with what its
     # sub-agent read (K-gecmis-zengin), and its note of it: G7)
     assert [m["role"] for m in history] == [
-        "system", "user", "assistant", "tool", "assistant", "user", "user", "user"]
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "user",
+        "user",
+    ]
     assert history[-3]["content"].endswith('- files read: "hello.py"')
     assert history[-2]["content"].endswith('- KOLONİ: "This turn is done. Done: Reviewer."')
     assert history[2]["tool_calls"][0]["function"]["name"] == "spawn_agent"
@@ -528,9 +657,13 @@ def test_next_turn_history_excludes_sub_agent_transcripts(make_client, wait_run,
 
 
 def test_tokens_are_kept_per_agent(make_client, wait_run, project_dir):
-    client, _ = make_client([
-        step(call("spawn_agent", {"role": "Reviewer", "task": "t"}), i=5, o=2),
-        text("r", 7, 4), text("l", 9, 1)])
+    client, _ = make_client(
+        [
+            step(call("spawn_agent", {"role": "Reviewer", "task": "t"}), i=5, o=2),
+            text("r", 7, 4),
+            text("l", 9, 1),
+        ]
+    )
     cid, run_id = begin(client, project_dir)
     snap = wait_run(client, cid, run_id)
     lead, kid = snap["agents"]
@@ -543,16 +676,20 @@ def test_tokens_are_kept_per_agent(make_client, wait_run, project_dir):
 # --- create_role --------------------------------------------------------------
 
 
-def test_an_agent_creates_a_role_and_uses_it_in_the_same_turn(
-    make_client, wait_run, project_dir
-):
-    client, model = make_client([
-        new_role("  Documenter ", ["write_file", "read_file"], description="Writes the docs.",
-                 instructions="Keep it short."),
-        spawn("Documenter", "document hello.py"),
-        text("documented"),
-        text("all done"),
-    ])
+def test_an_agent_creates_a_role_and_uses_it_in_the_same_turn(make_client, wait_run, project_dir):
+    client, model = make_client(
+        [
+            new_role(
+                "  Documenter ",
+                ["write_file", "read_file"],
+                description="Writes the docs.",
+                instructions="Keep it short.",
+            ),
+            spawn("Documenter", "document hello.py"),
+            text("documented"),
+            text("all done"),
+        ]
+    )
     cid, run_id = begin(client, project_dir, mode="auto_edit")
     snap = wait_run(client, cid, run_id)
 
@@ -564,8 +701,9 @@ def test_an_agent_creates_a_role_and_uses_it_in_the_same_turn(
     assert created["status"] == "succeeded" and 'created role "Documenter"' in created["result"]
 
     def roles_offered(tools):
-        return next(t for t in tools if t["function"]["name"] == "spawn_agent")[
-            "function"]["description"]
+        return next(t for t in tools if t["function"]["name"] == "spawn_agent")["function"][
+            "description"
+        ]
 
     assert "Reviewer — Reviews changes" in roles_offered(model.tool_args[0])
     assert "Documenter" not in roles_offered(model.tool_args[0])
@@ -576,13 +714,17 @@ def test_an_agent_creates_a_role_and_uses_it_in_the_same_turn(
 
 
 def test_create_role_refuses_a_taken_name_and_unknown_tools(make_client, wait_run, project_dir):
-    client, _ = make_client([
-        step(call("create_role", {"name": "reviewer", "tools": ["read_file"]}, "a"),
-             call("create_role", {"name": "Pilot", "tools": ["fly"]}, "b"),
-             call("create_role", {"name": "Idle", "tools": []}, "c"),
-             call("create_role", {"name": " ", "tools": ["read_file"]}, "d")),
-        text("ok"),
-    ])
+    client, _ = make_client(
+        [
+            step(
+                call("create_role", {"name": "reviewer", "tools": ["read_file"]}, "a"),
+                call("create_role", {"name": "Pilot", "tools": ["fly"]}, "b"),
+                call("create_role", {"name": "Idle", "tools": []}, "c"),
+                call("create_role", {"name": " ", "tools": ["read_file"]}, "d"),
+            ),
+            text("ok"),
+        ]
+    )
     cid, run_id = begin(client, project_dir, mode="auto_edit")
     taken, unknown, empty, nameless = wait_run(client, cid, run_id)["tool_calls"]
     assert {taken["status"], unknown["status"], empty["status"], nameless["status"]} == {"failed"}
@@ -594,17 +736,26 @@ def test_create_role_refuses_a_taken_name_and_unknown_tools(make_client, wait_ru
 
 
 def test_create_role_asks_first_in_ask_mode(make_client, wait_run, project_dir):
-    client, _ = make_client([
-        new_role("Documenter", ["read_file", "write_file"], description="Docs."), text("made")])
+    client, _ = make_client(
+        [new_role("Documenter", ["read_file", "write_file"], description="Docs."), text("made")]
+    )
     cid, run_id = begin(client, project_dir, mode="ask")
     snap = wait_status(client, cid, "waiting_approval")
     assert all(r["name"] != "Documenter" for r in client.get("/api/roles").json())
     pending = snap["pending_roles"]
     call_id = snap["tool_calls"][0]["id"]
-    assert pending == [{
-        "tool_call_id": call_id, "run_id": run_id, "agent_id": snap["agents"][0]["id"],
-        "name": "Documenter", "description": "Docs.", "instructions": "",
-        "tools": ["read_file", "write_file"], "knowledge": None}]
+    assert pending == [
+        {
+            "tool_call_id": call_id,
+            "run_id": run_id,
+            "agent_id": snap["agents"][0]["id"],
+            "name": "Documenter",
+            "description": "Docs.",
+            "instructions": "",
+            "tools": ["read_file", "write_file"],
+            "knowledge": None,
+        }
+    ]
     assert client.post("/api/tool-calls/nope/approve").status_code == 404
     assert client.post(f"/api/tool-calls/{call_id}/approve").status_code == 200
     assert client.post(f"/api/tool-calls/{call_id}/approve").status_code == 409
@@ -636,8 +787,9 @@ def test_stopping_while_a_role_waits_creates_nothing(make_client, wait_run, proj
 
 
 def test_a_role_without_create_role_cannot_create_roles(make_client, wait_run, project_dir):
-    client, _ = make_client([
-        spawn("Coder"), new_role("Helper", ["read_file"]), text("c"), text("l")])
+    client, _ = make_client(
+        [spawn("Coder"), new_role("Helper", ["read_file"]), text("c"), text("l")]
+    )
     cid, run_id = begin(client, project_dir, mode="auto_edit")
     snap = wait_run(client, cid, run_id)
     refused = snap["tool_calls"][1]
@@ -650,14 +802,27 @@ def test_a_created_role_cannot_grant_more_than_the_orchestrator_has(
     make_client, wait_run, project_dir
 ):
     everything = [*READ, "write_file", "edit_file", "run_command", "spawn_agent", "create_role"]
-    client, _ = make_client([
-        spawn("Reviewer"), new_role("Omni", everything), spawn("Omni", id="s2"),
-        text("o"), text("r"), text("l")])
-    client.patch(f"/api/roles/{role_id(client, 'Reviewer')}",
-                 json={"tools": [*READ, "spawn_agent", "create_role"]})
+    client, _ = make_client(
+        [
+            spawn("Reviewer"),
+            new_role("Omni", everything),
+            spawn("Omni", id="s2"),
+            text("o"),
+            text("r"),
+            text("l"),
+        ]
+    )
+    client.patch(
+        f"/api/roles/{role_id(client, 'Reviewer')}",
+        json={"tools": [*READ, "spawn_agent", "create_role"]},
+    )
     lead_tools = next(r for r in client.get("/api/roles").json() if r["name"] == "Lead")["tools"]
-    client.patch(f"/api/roles/{role_id(client, 'Lead')}", json={"tools": [
-        t for t in lead_tools if t not in ("write_file", "edit_file", "run_command")]})
+    client.patch(
+        f"/api/roles/{role_id(client, 'Lead')}",
+        json={
+            "tools": [t for t in lead_tools if t not in ("write_file", "edit_file", "run_command")]
+        },
+    )
     cid, run_id = begin(client, project_dir, mode="auto_edit")
     snap = wait_run(client, cid, run_id)
     omni = snap["agents"][2]
@@ -670,27 +835,34 @@ def test_a_created_role_cannot_grant_more_than_the_orchestrator_has(
 
 def test_a_completed_child_reports_only_its_final_answer(make_client, wait_run, project_dir):
     # Narration from an earlier step is not a report: the child ended without one.
-    client, model = make_client([
-        spawn("Reviewer"),
-        step(call("read_file", {"path": "hello.py"}), content="Let me read the file."),
-        text(""),
-        text("ok"),
-    ])
+    client, model = make_client(
+        [
+            spawn("Reviewer"),
+            step(call("read_file", {"path": "hello.py"}), content="Let me read the file."),
+            text(""),
+            text("ok"),
+        ]
+    )
     cid, run_id = begin(client, project_dir)
     snap = wait_run(client, cid, run_id)
     kid = snap["agents"][1]
     assert (kid["status"], kid["report"]) == ("completed", None)
-    assert reported(model.calls[-1][-1]["content"]) == "Reviewer finished.\n\n(it ended without a report)"
+    assert (
+        reported(model.calls[-1][-1]["content"])
+        == "Reviewer finished.\n\n(it ended without a report)"
+    )
     assert "Let me read the file." not in snap["channel_messages"][-1]["content"]
 
 
 def test_a_failed_child_still_says_how_far_it_got(make_client, wait_run, project_dir):
-    client, model = make_client([
-        spawn("Reviewer"),
-        step(call("read_file", {"path": "hello.py"}), content="Halfway there."),
-        ModelUnavailable("model server unreachable: refused"),
-        text("ok"),
-    ])
+    client, model = make_client(
+        [
+            spawn("Reviewer"),
+            step(call("read_file", {"path": "hello.py"}), content="Halfway there."),
+            ModelUnavailable("model server unreachable: refused"),
+            text("ok"),
+        ]
+    )
     cid, run_id = begin(client, project_dir)
     snap = wait_run(client, cid, run_id)
     assert snap["agents"][1]["report"] == "Halfway there."
@@ -715,24 +887,31 @@ def test_a_rejected_sub_agent_does_not_use_up_the_limit(make_client, wait_run, p
 def test_stop_while_a_child_change_waits_settles_everything(make_client, wait_run, project_dir):
     # Since slice 19b the child's change waits in its working copy, asked about when its
     # work is over: the child is done by then, and Stop keeps its copy for the user (6 Nov).
-    client, _ = make_client([
-        spawn("Coder"), step(call("write_file", {"path": "n.txt", "content": "new\n"})),
-        text("written")])
+    client, _ = make_client(
+        [
+            spawn("Coder"),
+            step(call("write_file", {"path": "n.txt", "content": "new\n"})),
+            text("written"),
+        ]
+    )
     cid, run_id = begin(client, project_dir, mode="ask", spawn_approval="never")
     wait_status(client, cid, "waiting_approval")
     client.post(f"/api/runs/{run_id}/cancel")
     snap = wait_run(client, cid, run_id)
-    assert snap["file_changes"][0]["status"] == "in_copy"       # nobody rejected it
+    assert snap["file_changes"][0]["status"] == "in_copy"  # nobody rejected it
     assert [m["status"] for m in snap["merges"]] == ["kept"]
     assert [a["status"] for a in snap["agents"]] == ["cancelled", "completed"]
     assert {t["name"]: t["status"] for t in snap["tool_calls"]} == {
-        "spawn_agent": "interrupted", "write_file": "succeeded"}
+        "spawn_agent": "interrupted",
+        "write_file": "succeeded",
+    }
     assert not (project_dir / "n.txt").exists()
 
 
 def test_a_sub_agents_role_request_waits_under_its_own_name(make_client, wait_run, project_dir):
-    client, _ = make_client([
-        spawn("Planner"), new_role("Documenter", ["read_file"]), text("planned"), text("led")])
+    client, _ = make_client(
+        [spawn("Planner"), new_role("Documenter", ["read_file"]), text("planned"), text("led")]
+    )
     cid, run_id = begin(client, project_dir, mode="ask")
     snap = wait_status(client, cid, "waiting_approval")
     planner = snap["agents"][1]
@@ -745,6 +924,7 @@ def test_a_sub_agents_role_request_waits_under_its_own_name(make_client, wait_ru
 def test_a_folder_in_a_task_is_made_relative_only_where_it_is_that_folder_whole():
     # (The review of B-129, S5: proj.bak was cut, /mnt/home/u/proj rewritten, and proj/../x led out.)
     from app.agent import _path_in_text, _relative
+
     proj = os.path.join("C:" if os.name == "nt" else "/", "work", "proj")
     found = _path_in_text(proj)
     sep = os.sep
@@ -757,9 +937,11 @@ def test_a_folder_in_a_task_is_made_relative_only_where_it_is_that_folder_whole(
 def test_a_thin_task_is_judged_by_its_length_and_what_it_names():
     # K-brief-kalitesi: short, or naming no file nor part and no report or check.
     from app.agent import thin_task
+
     assert thin_task("Review hello.py for bugs") == "short (24 characters)"
     assert thin_task("Look at the whole thing and do what seems right to you") == (
-        "short (54 characters) and names no file or check")
+        "short (54 characters) and names no file or check"
+    )
     long = "Go through the greeting and make it friendlier for a first-time visitor. " * 3
     assert thin_task(long) == "names no file or check"
     assert thin_task(long + "Tell me what you changed.") is None
@@ -771,36 +953,54 @@ def test_a_thin_task_is_judged_by_its_length_and_what_it_names():
 def test_a_task_naming_the_copy_and_the_project_says_them_two_ways():
     # B-159 (live): "Project folder: ./ is NOT the project; … (the project is ./ …)" - both made "./".
     from app.agent import CLI_TEMP, _path_in_text, _said_from_here
+
     base = "C:" if os.name == "nt" else "/"
-    proj, copy = os.path.join(base, "work", "proj"), os.path.join(base, "runtime", "copies", "a1", "tree")
-    in_copy = [(_path_in_text(copy), "./"), (_path_in_text(proj), "the project folder"),
-               (CLI_TEMP, "the caller's own temp folder")]
+    proj, copy = (
+        os.path.join(base, "work", "proj"),
+        os.path.join(base, "runtime", "copies", "a1", "tree"),
+    )
+    in_copy = [
+        (_path_in_text(copy), "./"),
+        (_path_in_text(proj), "the project folder"),
+        (CLI_TEMP, "the caller's own temp folder"),
+    ]
     said = _said_from_here(
         f"Project folder: {copy} is NOT the project; edit README.md (the project is {proj} itself).",
-        in_copy)
-    assert said == ("Project folder: ./ is NOT the project; edit README.md "
-                    "(the project is the project folder itself).")
+        in_copy,
+    )
+    assert said == (
+        "Project folder: ./ is NOT the project; edit README.md "
+        "(the project is the project folder itself)."
+    )
     assert proj not in said
     # The project named alone is still where the agent works (B-129), and a file under it relative.
     assert _said_from_here(f"Fix {proj}{os.sep}a.py in {proj}", in_copy) == "Fix a.py in ./"
     # (The review: in a command the project beside the copy stays a folder to run in, "./" - never words.)
-    assert _said_from_here(f"Work in {copy}; then cd {proj} && npm test, or `npm --prefix {proj} test`.",
-                           in_copy) == "Work in ./; then cd ./ && npm test, or `npm --prefix ./ test`."
+    assert (
+        _said_from_here(
+            f"Work in {copy}; then cd {proj} && npm test, or `npm --prefix {proj} test`.", in_copy
+        )
+        == "Work in ./; then cd ./ && npm test, or `npm --prefix ./ test`."
+    )
     # A CLI's temp folder beside the project (the Docs lead's "./ hayır, ./"): the project is "./".
     temp = os.path.join(tempfile.gettempdir(), "koloni-cli-j1y3vywd")
-    assert _said_from_here(f"Proje klasörü: {temp} hayır, proje klasörü: {proj}", [
-        (_path_in_text(proj), "the project folder"), (CLI_TEMP, "the caller's own temp folder")]) == (
-        "Proje klasörü: the caller's own temp folder hayır, proje klasörü: ./")
+    assert _said_from_here(
+        f"Proje klasörü: {temp} hayır, proje klasörü: {proj}",
+        [(_path_in_text(proj), "the project folder"), (CLI_TEMP, "the caller's own temp folder")],
+    ) == ("Proje klasörü: the caller's own temp folder hayır, proje klasörü: ./")
 
 
 def test_line_breaks_a_model_wrote_out_are_real_ones():
     # B-352 (live): a Lead's task read "...before judging.\n\nYour job: ..." in Talk.
     from app.agent import _lines_written_out
+
     assert _lines_written_out(r"Read it before judging.\n\nYour job:\n- review") == (
-        "Read it before judging.\n\nYour job:\n- review")
+        "Read it before judging.\n\nYour job:\n- review"
+    )
     # A path's stays: before a small letter, after a backslash (JSON-escaped); and a real break.
     assert _lines_written_out(r"Fix C:\notes\a.py.\n\nThen C:\\node_modules") == (
-        "Fix C:\\notes\\a.py.\n\nThen C:\\\\node_modules")
+        "Fix C:\\notes\\a.py.\n\nThen C:\\\\node_modules"
+    )
     assert _lines_written_out(r"Fix C:\notes\Next.py") == r"Fix C:\notes\Next.py"
     assert _lines_written_out("Two\nlines\\n\\nNo") == "Two\nlines\\n\\nNo"
 
@@ -808,11 +1008,13 @@ def test_line_breaks_a_model_wrote_out_are_real_ones():
 def test_a_task_with_its_breaks_written_out_reaches_the_child_and_talk_with_real_ones(
     make_client, wait_run, project_dir
 ):
-    client, model = make_client([
-        spawn("Reviewer", r"Read hello.py before judging.\n\nYour job: review it for bugs."),
-        text("No problems found."),
-        text("Done."),
-    ])
+    client, model = make_client(
+        [
+            spawn("Reviewer", r"Read hello.py before judging.\n\nYour job: review it for bugs."),
+            text("No problems found."),
+            text("Done."),
+        ]
+    )
     cid, run_id = begin(client, project_dir)
     snap = wait_run(client, cid, run_id)
     task = "Read hello.py before judging.\n\nYour job: review it for bugs."
@@ -826,11 +1028,16 @@ REFUSED = "File reads were blocked because the tool host returned 'code-mode hos
 
 
 def test_an_end_saying_codex_s_own_tools_were_refused_is_told_once_to_use_koloni_s(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     from app.agent import CODEX_TOOLS_OFF
-    client, model = make_client({
-        "Lead": [spawn("Reviewer"), text("Reviewed.")],
-        "Reviewer": [text(REFUSED), step(call("list_dir", {})), text("No problems found.")]})
+
+    client, model = make_client(
+        {
+            "Lead": [spawn("Reviewer"), text("Reviewed.")],
+            "Reviewer": [text(REFUSED), step(call("list_dir", {})), text("No problems found.")],
+        }
+    )
     model.command = "codex"  # (a Codex step client's; any other model is not told)
     cid, run_id = begin(client, project_dir)
     _lead, kid = wait_run(client, cid, run_id)["agents"]
@@ -844,12 +1051,20 @@ def tried(*calls, content=""):
 
 
 def test_a_step_codex_s_own_tools_were_refused_in_is_told_once_and_goes_on(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     from app.agent import CODEX_TOOLS_OFF
-    client, model = make_client({
-        "Lead": [spawn("Reviewer"), text("Reviewed.")],
-        "Reviewer": [tried(call("list_dir", {})), tried(call("list_dir", {}, "c2")),
-                     text("No problems found.")]})
+
+    client, model = make_client(
+        {
+            "Lead": [spawn("Reviewer"), text("Reviewed.")],
+            "Reviewer": [
+                tried(call("list_dir", {})),
+                tried(call("list_dir", {}, "c2")),
+                text("No problems found."),
+            ],
+        }
+    )
     cid, run_id = begin(client, project_dir)
     _lead, kid = wait_run(client, cid, run_id)["agents"]
     # (tried again, but with KOLONİ's tools asked for: it goes on, told once)
@@ -860,9 +1075,12 @@ def test_a_step_codex_s_own_tools_were_refused_in_is_told_once_and_goes_on(
 
 
 def test_an_agent_that_used_koloni_s_tools_may_quote_the_words(make_client, wait_run, project_dir):
-    client, model = make_client({
-        "Lead": [spawn("Reviewer"), text("Reviewed.")],
-        "Reviewer": [step(call("list_dir", {})), text(REFUSED)]})
+    client, model = make_client(
+        {
+            "Lead": [spawn("Reviewer"), text("Reviewed.")],
+            "Reviewer": [step(call("list_dir", {})), text(REFUSED)],
+        }
+    )
     model.command = "codex"
     cid, run_id = begin(client, project_dir)
     _lead, kid = wait_run(client, cid, run_id)["agents"]
@@ -876,16 +1094,26 @@ def test_a_lead_told_may_answer_from_what_it_knows(make_client, wait_run, projec
     assert lead["status"] == "completed"
 
 
-FAILED = ("could not work: Codex kept trying its own tools, which are off in step mode. Try "
-          "running Codex as One session per agent (Models › Codex › How it runs).")
+FAILED = (
+    "could not work: Codex kept trying its own tools, which are off in step mode. Try "
+    "running Codex as One session per agent (Models › Codex › How it runs)."
+)
 
 
 def test_three_steps_in_a_row_that_tried_codex_s_own_tools_fail(make_client, wait_run, project_dir):
     from app.agent import CODEX_TOOLS_OFF
-    client, model = make_client({
-        "Lead": [spawn("Reviewer"), text("It could not.")],
-        "Reviewer": [tried(call("list_dir", {})), tried(content="I could not read the files."),
-                     tried(), tried()]})
+
+    client, model = make_client(
+        {
+            "Lead": [spawn("Reviewer"), text("It could not.")],
+            "Reviewer": [
+                tried(call("list_dir", {})),
+                tried(content="I could not read the files."),
+                tried(),
+                tried(),
+            ],
+        }
+    )
     cid, run_id = begin(client, project_dir)
     _lead, kid = wait_run(client, cid, run_id)["agents"]
     assert (kid["status"], kid["error"]) == ("failed", FAILED)
@@ -895,10 +1123,15 @@ def test_three_steps_in_a_row_that_tried_codex_s_own_tools_fail(make_client, wai
 
 
 @pytest.mark.parametrize("asks", [step(call("list_dir", {})), tried(call("list_dir", {}))])
-def test_a_step_with_a_call_of_koloni_s_starts_the_count_anew(asks, make_client, wait_run, project_dir):
-    client, model = make_client({
-        "Lead": [spawn("Reviewer"), text("Reviewed.")],
-        "Reviewer": [tried(), tried(), asks, tried(), tried(), text("No problems found.")]})
+def test_a_step_with_a_call_of_koloni_s_starts_the_count_anew(
+    asks, make_client, wait_run, project_dir
+):
+    client, model = make_client(
+        {
+            "Lead": [spawn("Reviewer"), text("Reviewed.")],
+            "Reviewer": [tried(), tried(), asks, tried(), tried(), text("No problems found.")],
+        }
+    )
     cid, run_id = begin(client, project_dir)
     _lead, kid = wait_run(client, cid, run_id)["agents"]
     # (a refused step that asked for KOLONİ's tools too is no try counted)
@@ -906,10 +1139,15 @@ def test_a_step_with_a_call_of_koloni_s_starts_the_count_anew(asks, make_client,
 
 
 @pytest.mark.parametrize("then", [REFUSED, "I could not read the files."])
-def test_said_again_or_no_tool_used_after_it_counts_as_a_try(then, make_client, wait_run, project_dir):
-    client, model = make_client({
-        "Lead": [spawn("Reviewer"), text("It could not.")],
-        "Reviewer": [text(REFUSED), text(then), text(then)]})
+def test_said_again_or_no_tool_used_after_it_counts_as_a_try(
+    then, make_client, wait_run, project_dir
+):
+    client, model = make_client(
+        {
+            "Lead": [spawn("Reviewer"), text("It could not.")],
+            "Reviewer": [text(REFUSED), text(then), text(then)],
+        }
+    )
     model.command = "codex"
     cid, run_id = begin(client, project_dir)
     _lead, kid = wait_run(client, cid, run_id)["agents"]
@@ -917,12 +1155,23 @@ def test_said_again_or_no_tool_used_after_it_counts_as_a_try(then, make_client, 
 
 
 def test_told_to_go_on_in_the_same_turn_its_tries_start_anew(make_client, wait_run, project_dir):
-    client, _model = make_client({
-        "Lead": [spawn("Reviewer"),
-                 step(call("message_agent", {"to": "Reviewer", "message": "go on"}, "m1")),
-                 text("Reviewed.")],
-        "Reviewer": [step(call("list_dir", {})), tried(), tried(), text("First look."),
-                     tried(), text("Second look.")]})
+    client, _model = make_client(
+        {
+            "Lead": [
+                spawn("Reviewer"),
+                step(call("message_agent", {"to": "Reviewer", "message": "go on"}, "m1")),
+                text("Reviewed."),
+            ],
+            "Reviewer": [
+                step(call("list_dir", {})),
+                tried(),
+                tried(),
+                text("First look."),
+                tried(),
+                text("Second look."),
+            ],
+        }
+    )
     cid, run_id = begin(client, project_dir)
     _lead, kid = wait_run(client, cid, run_id)["agents"]
     # (its two tries of the job before are not its job's now: the third would have failed it)
@@ -930,11 +1179,16 @@ def test_told_to_go_on_in_the_same_turn_its_tries_start_anew(make_client, wait_r
 
 
 def test_an_answer_with_no_call_of_koloni_s_is_no_try(make_client, wait_run, project_dir):
-    client, model = make_client({
-        "Lead": [spawn("Reviewer"), spawn("Coder", id="s2"), text("done")],
-        "Reviewer": [tried(), tried(), tried(), text("It looked fine.")],
-        "Coder": [step(call("message_agent", {"to": "Reviewer", "message": "How was it?"}, "m1")),
-                  text("coded")]})
+    client, model = make_client(
+        {
+            "Lead": [spawn("Reviewer"), spawn("Coder", id="s2"), text("done")],
+            "Reviewer": [tried(), tried(), tried(), text("It looked fine.")],
+            "Coder": [
+                step(call("message_agent", {"to": "Reviewer", "message": "How was it?"}, "m1")),
+                text("coded"),
+            ],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_run(client, cid, run_id)
     assert snap["agents"][1]["error"] == FAILED  # (told, and with no call of KOLONİ's)
@@ -944,9 +1198,17 @@ def test_an_answer_with_no_call_of_koloni_s_is_no_try(make_client, wait_run, pro
 def test_tries_cost_steps_and_a_streak_ends_at_the_step_limit(make_client, wait_run, project_dir):
     client, _model = make_client([tried(), tried(), step(call("list_dir", {})), tried(), tried()])
     # (B-413: the Orchestrator's step limit is only one the user set - its role's)
-    assert client.patch(f"/api/roles/{role_id(client, 'Lead')}", json={"max_steps": 4},
-                        headers={"Origin": "http://127.0.0.1:8790"}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/roles/{role_id(client, 'Lead')}",
+            json={"max_steps": 4},
+            headers={"Origin": "http://127.0.0.1:8790"},
+        ).status_code
+        == 200
+    )
     cid, run_id = begin(client, project_dir)
     snap = wait_run(client, cid, run_id)
     assert (snap["runs"][0]["status"], snap["runs"][0]["error"]) == (
-        "failed", "stopped at its role's limit of 4 steps")
+        "failed",
+        "stopped at its role's limit of 4 steps",
+    )

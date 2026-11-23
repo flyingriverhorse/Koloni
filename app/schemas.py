@@ -45,6 +45,7 @@ class KoloniAsks(TypedDict):
     """What a folder's .koloni/settings.json may say (slice 86c): checked by this very type as
     it is read (`koloni.settings`), so what is shown and what is used cannot differ. A null
     is not one: the record holds none for these."""
+
     exec_location: NotRequired[ExecLocation]
     docker_image: NotRequired[DockerImage | None]
     docker_network: NotRequired[bool]
@@ -58,6 +59,7 @@ class KoloniUseIn(BaseModel):
 
 class KoloniOut(BaseModel):
     """The folder's `.koloni/` (slice 86c), kept in git with it."""
+
     # Whether its settings.json and rules.md are there and read.
     settings_kept: bool
     rules_kept: bool
@@ -162,8 +164,7 @@ class ChatTeamState(BaseModel):
     # taken in; failed / stopped / interrupted (a restart): with `why`; waiting: picked, not
     # started in a turn another team started in. A team with no recipe beside one (B-101):
     # running while its lead works, then done, failed or stopped; its `recipe` is "".
-    status: Literal["running", "ready", "done", "in", "failed", "stopped", "interrupted",
-                    "waiting"]
+    status: Literal["running", "ready", "done", "in", "failed", "stopped", "interrupted", "waiting"]
     why: str | None = None
     steps: list[RecipePart] = []
     # Every agent of its run: its lead's too, beside another team.
@@ -337,7 +338,8 @@ class ProjectPatch(BaseModel):
     continue_steps: int | None = Field(default=None, ge=1, le=200, strict=True)
     # The same: null takes it away. A number as such: not `true`, not "5".
     monthly_budget: float | None = Field(
-        default=None, gt=0, le=2**53, allow_inf_nan=False, strict=True)
+        default=None, gt=0, le=2**53, allow_inf_nan=False, strict=True
+    )
     # Left out: kept as it is. Empty: none.
     check_command: str | None = Field(default=None, max_length=500)
     measure_command: str | None = Field(default=None, max_length=500)
@@ -441,6 +443,7 @@ class StorageOut(BaseModel):
     """What KOLONİ's own data takes on this machine, in MB: the database (its WAL too), its
     backups (each migration's and update's, and the daily ones: apart, R125 - they were most of
     "db"), the working copies, the log. None: not counted in time."""
+
     db_mb: float | None
     backups_mb: float | None
     copies_mb: float | None
@@ -482,7 +485,6 @@ TierRule = Literal["fast", "balanced", "strongest", "conversation"]
 # How hard a model thinks, lowest first (`app.model_client.EFFORTS`, kept the same by a
 # test); null: the provider's own. "off": no thinking, where a model is known to turn it off.
 Effort = Literal["off", "low", "medium", "high", "xhigh", "max"]
-
 
 
 class ConversationOut(Out):
@@ -877,6 +879,7 @@ class CheckedCounts(BaseModel):
 
 class CheckedRow(BaseModel):
     """One line of a turn's Checked section (`app.proof.Row`)."""
+
     # S1: "tests", "rounds", "waiting", "not_checked"; later slices add theirs.
     kind: str
     state: Literal["passed", "failed", "running", "not_run", "timed_out", "note"]
@@ -912,8 +915,18 @@ class MessageOut(Out):
     # at Take in, a .venv or the like an agent made in its copy, which stays out (B-383).
     # "landed": KOLONİ's line under a turn's answer on where its work is, from the records (B-205).
     # "checked": what KOLONİ checked at the turn's end (`checked`), drawn in the turn's foot.
-    role: Literal["user", "assistant", "agent", "memory", "trigger", "away", "git", "koloni",
-                  "landed", "checked"]
+    role: Literal[
+        "user",
+        "assistant",
+        "agent",
+        "memory",
+        "trigger",
+        "away",
+        "git",
+        "koloni",
+        "landed",
+        "checked",
+    ]
     from_agent_id: str | None
     delivered_at: datetime | None
     discussion_id: str | None
@@ -983,8 +996,16 @@ class FileChangeOut(BaseModel):
     # working copy to a file the project changed too - what the project got of it is
     # the one change that joins the two (a record of its own, which can be reverted).
     status: Literal[
-        "proposed", "approved", "in_copy", "applied", "rejected", "discarded", "reverted",
-        "conflict", "failed", "merged",
+        "proposed",
+        "approved",
+        "in_copy",
+        "applied",
+        "rejected",
+        "discarded",
+        "reverted",
+        "conflict",
+        "failed",
+        "merged",
     ]
     diff: str
     additions: int
@@ -1000,11 +1021,13 @@ class FileChangeOut(BaseModel):
 
 class FileChangeDiffOut(BaseModel):
     """A change's diff with the whole file around it: read when a fold is opened (slice 42a)."""
+
     diff: str
 
 
 class ProjectEntryOut(BaseModel):
     """One file or folder of a project's tree, in the Files window (slice 42c)."""
+
     name: str
     kind: Literal["dir", "file"]
     size: int | None  # a folder's: None
@@ -1012,6 +1035,7 @@ class ProjectEntryOut(BaseModel):
 
 class SharedFileOut(BaseModel):
     """A file of the teams' shared folder (K-ortak-klasor): its path in it, when last written."""
+
     path: str
     at: datetime
 
@@ -1038,6 +1062,7 @@ class GitSwitchIn(BaseModel):
 
 class ProjectFileOut(BaseModel):
     """A file of the project, read only: its text, or why not (larger than 256 KB, or not text)."""
+
     text: str | None
     size: int
     binary: bool
@@ -1047,6 +1072,7 @@ class ProjectFileOut(BaseModel):
 class OthersInstructionsOut(BaseModel):
     """Another project's agent instruction files below the project's root, which CLI agents
     load by themselves (`project_files.others_instructions`)."""
+
     paths: list[str]
     more: int  # found beyond `paths`
     partial: bool  # a cap stopped the walk before every folder was looked in
@@ -1054,6 +1080,7 @@ class OthersInstructionsOut(BaseModel):
 
 class ProjectPartOut(BaseModel):
     """A part of the project in its map (`project_map`): a folder with a marker file."""
+
     path: str  # "./" for the project's own folder, else "folder/sub/"
     language: str
     files: int  # at most `project_map.MOST_COUNTED`
@@ -1095,6 +1122,7 @@ class UndoTurn(BaseModel):
 
 class UndoCopy(BaseModel):
     """A kept working copy discarded: its folder is deleted, and these files were only there."""
+
     folder: str
     files: list[str]
 
@@ -1105,6 +1133,7 @@ class UndoOut(BaseModel):
     latest first), those skipped and why; the files of kept working copies turned down, and
     those copies, whose folders are deleted; the commands run and what else is done but not
     on record to take back (`stays`); and, once done, what happened meanwhile (`note`)."""
+
     turns: list[UndoTurn]
     revert: list[str]
     skip: list[UndoSkip]
@@ -1121,8 +1150,15 @@ class UndoOut(BaseModel):
 # reported its end), or, with no `started_at`, one the user said yes to whose turn ended
 # before it started.
 CommandStatus = Literal[
-    "proposed", "approved", "running", "exited", "timed_out", "killed", "rejected",
-    "failed_to_start", "interrupted",
+    "proposed",
+    "approved",
+    "running",
+    "exited",
+    "timed_out",
+    "killed",
+    "rejected",
+    "failed_to_start",
+    "interrupted",
     "blocked",  # K-48: a CLI's own, its write refused by its sandbox (`model_native.WRITE_BLOCKED`)
     "refused",  # K-yargic: at Full auto a sentence of the user's forbids it - not asked, not run
 ]
@@ -1264,8 +1300,16 @@ class AllowedWebOut(Out):
 
 # "blocked": it waits for a file another agent holds (`waiting_for` says which).
 AgentStatus = Literal[
-    "proposed", "queued", "running", "waiting", "blocked", "completed", "failed",
-    "cancelled", "rejected", "interrupted",
+    "proposed",
+    "queued",
+    "running",
+    "waiting",
+    "blocked",
+    "completed",
+    "failed",
+    "cancelled",
+    "rejected",
+    "interrupted",
 ]
 
 
@@ -1640,8 +1684,9 @@ class MergeOut(Out):
         return self
 
 
-Failure =Literal["rate_limited", "credits_exhausted", "signed_out", "cli_crashed", "empty_output",
-                  "other"]
+Failure = Literal[
+    "rate_limited", "credits_exhausted", "signed_out", "cli_crashed", "empty_output", "other"
+]
 
 
 class AskedModel(BaseModel):
@@ -2011,7 +2056,8 @@ class Knowledge(BaseModel):
     # Its folder's name: `.koloni/knowledge/<topic>/`. One line: it goes into agents' prompts.
     topic: str = Field(min_length=1, max_length=40)
     sources: list[Annotated[str, Field(min_length=1, max_length=2000)]] = Field(
-        min_length=1, max_length=10)
+        min_length=1, max_length=10
+    )
     # A learning reads everything under its sources, at most this many pages (or files: a
     # safety cap), and spends at most this much on writing the guide where the model's price is
     # known (K-uzman-derin; migration 0136 raised the old default, 20).
@@ -2025,7 +2071,8 @@ class Knowledge(BaseModel):
     learn_with: LearnWith | None = None
     # Pages a search found that the user took off its list: never read again.
     removed: list[Annotated[str, Field(max_length=2000)]] = Field(
-        default_factory=list, max_length=200)
+        default_factory=list, max_length=200
+    )
     # A guide from a topic to research is learned again once it is a week old, the next time the
     # expert is at work or a recipe's Learn step runs (no job of its own).
     weekly: bool = False
@@ -2143,7 +2190,8 @@ class SkillOut(SkillFound):
         """What its `allowed-tools` asks of a role (`app.skills.needs`)."""
         found = skill_needs(self.text)
         return SkillNeeds.model_validate(
-            {**found, "tools": {group: list(SKILL_GROUPS[group]) for group in found["groups"]}})
+            {**found, "tools": {group: list(SKILL_GROUPS[group]) for group in found["groups"]}}
+        )
 
     @computed_field
     @property
@@ -2339,8 +2387,9 @@ class RoomPostOut(Out):
     # "said": the user's. "done" and "left" are KOLONİ's own, for a member whose work is
     # over (with its last words) or that failed.
     # "ended": the opener's sentence of what came of it, as it ended it (K-oda-lead).
-    type: Literal["result", "review", "question", "answer", "blocked", "said", "done", "left",
-                  "ended"]
+    type: Literal[
+        "result", "review", "question", "answer", "blocked", "said", "done", "left", "ended"
+    ]
     text: str
     to_agent_id: str | None
     reply_to: int | None
@@ -2759,6 +2808,7 @@ class RoleOut(Out):
         """Karar 5: the tools it keeps whatever the user takes away, as `app.roles.locked_tools`
         gives them (a core role's: never off either); [] for any other."""
         return list(CORE.get(self.name, ())) if self.builtin else []
+
     provider_id: str | None
     model_id: str | None
     # K-rol-model-sirasi: the models its agents are tried on first, in this order - one not
@@ -2782,6 +2832,7 @@ class RoleOut(Out):
     @classmethod
     def _ids(cls, value: list) -> list:
         return [getattr(team, "id", team) for team in value]
+
     # The providers (ids) an agent may pick for a sub-agent of this role, out of the
     # team guide. None: every one in the guide; empty: none.
     pick_from: list[str] | None
@@ -2849,8 +2900,9 @@ class WhoRole(Shut):
     # K-rol-cogul: at most this many agents of the role in the step, as many as its lead splits
     # the work into; one (None, or 1) is left out of what is written, so an old recipe's file
     # reads as it did.
-    most: Annotated[int | None, Field(None, ge=1, le=5,
-                                      exclude_if=lambda value: value in (None, 1))]
+    most: Annotated[
+        int | None, Field(None, ge=1, le=5, exclude_if=lambda value: value in (None, 1))
+    ]
 
 
 class CandidateModel(Shut):
@@ -2871,8 +2923,10 @@ class WhoCandidates(Shut):
     # K-evrim-model: "auto" - the Lead gives each candidate a model, the same or not; "same" -
     # each runs on the role's; a list - the user's, candidate N on its Nth (those past its end
     # on the role's). "auto" is left out of what is written, so an old recipe reads as it did.
-    models: Annotated[Literal["auto", "same"] | list[CandidateModel],
-                      Field("auto", exclude_if=lambda value: value == "auto")]
+    models: Annotated[
+        Literal["auto", "same"] | list[CandidateModel],
+        Field("auto", exclude_if=lambda value: value == "auto"),
+    ]
 
     @model_validator(mode="after")
     def _one_each_at_most(self) -> "WhoCandidates":
@@ -2970,6 +3024,7 @@ class RecipeLoop(Shut):
 class RecipeChecks(Shut):
     """S5c (plan decision 16): what KOLONİ checks at the end of this recipe's turn, set for the
     recipe - its Checks step's "Set for this recipe"; each part on or off."""
+
     tests: bool = True
     review: bool = True
     docs: bool = False
@@ -3042,8 +3097,10 @@ def no_knowledge(data: object) -> object:
     """K-bilgi: a role's knowledge is on the Knowledge page - said, not dropped unseen (a page
     from before would make a plain role)."""
     if isinstance(data, dict) and "knowledge" in data:
-        raise ValueError("a role's knowledge is kept on the project's Knowledge page now: add it "
-                         "there and give it to the role")
+        raise ValueError(
+            "a role's knowledge is kept on the project's Knowledge page now: add it "
+            "there and give it to the role"
+        )
     return data
 
 
@@ -3108,7 +3165,6 @@ class RolePatch(BaseModel):
     skills: list[str] | None = Field(default=None, max_length=200)
     # Left out: kept.
     inside_cli: bool | None = None
-
 
 
 McpMark = Literal["ask", "free", "off"]
@@ -3456,7 +3512,8 @@ class ProviderModel(BaseModel):
     # Copilot's auto's or fusion's routing (`model_session.ROUTINGS`), only on the user's GitHub
     # account (`providers.check_guide`). None: Copilot's own default.
     routing: Literal["efficiency", "balance", "intelligence", "standard", "high", "max"] | None = (
-        None)
+        None
+    )
 
 
 class TierModel(BaseModel):
@@ -3492,7 +3549,12 @@ class ProviderOut(Out):
     id: str
     name: str
     kind: Literal[
-        "openai_compat", "anthropic", "claude_cli", "qoder_cli", "codex_cli", "copilot_cli",
+        "openai_compat",
+        "anthropic",
+        "claude_cli",
+        "qoder_cli",
+        "codex_cli",
+        "copilot_cli",
         "agy_cli",
     ]
     base_url: str | None
@@ -3541,16 +3603,31 @@ class ProviderOut(Out):
         from app import cli_surface  # (they import the clients: not at the top)
         from app.providers import mode_of, most_at_once, not_watched
 
-        fields = {name: getattr(value, name) for name in cls.model_fields if name not in (
-            "has_key", "key_warning", "most_at_once", "version_note", "not_watched",
-            "not_watched_in_docker")}
-        return {**fields, "models": value.models or [], "has_key": bool(value.api_key),
-                "key_warning": _key_warning(value.kind, value.api_key),
-                "most_at_once": most_at_once(value),
-                "not_watched": not_watched(value.kind, docker=False),
-                "not_watched_in_docker": not_watched(value.kind, docker=True),
-                "version_note": cli_surface.note(value.kind, value.executable)
-                if mode_of(value) in ("native", "reads") else None}  # (reads: agy's, B-310)
+        fields = {
+            name: getattr(value, name)
+            for name in cls.model_fields
+            if name
+            not in (
+                "has_key",
+                "key_warning",
+                "most_at_once",
+                "version_note",
+                "not_watched",
+                "not_watched_in_docker",
+            )
+        }
+        return {
+            **fields,
+            "models": value.models or [],
+            "has_key": bool(value.api_key),
+            "key_warning": _key_warning(value.kind, value.api_key),
+            "most_at_once": most_at_once(value),
+            "not_watched": not_watched(value.kind, docker=False),
+            "not_watched_in_docker": not_watched(value.kind, docker=True),
+            "version_note": cli_surface.note(value.kind, value.executable)
+            if mode_of(value) in ("native", "reads")
+            else None,
+        }  # (reads: agy's, B-310)
 
 
 def _key_warning(kind: str, key: str | None) -> str | None:
@@ -3558,8 +3635,10 @@ def _key_warning(kind: str, key: str | None) -> str | None:
     and only a subscription token's is known to be refused - the user's working key had a
     prefix other than sk-ant-api, so no other is warned of."""
     if kind == "anthropic" and key and key.startswith("sk-ant-oat"):
-        return ("this looks like a Claude subscription token - the API does not accept it; "
-                "add Claude Code instead")
+        return (
+            "this looks like a Claude subscription token - the API does not accept it; "
+            "add Claude Code instead"
+        )
     return None
 
 
@@ -3598,10 +3677,10 @@ class ProviderPatch(BaseModel):
     # The same, each of them (slice 81c); `plan` left out or null is kept.
     plan: bool | None = None
     step_down_at: int | None = Field(default=None, ge=50, le=100, strict=True)
-    day_limit: float | None = Field(
-        default=None, gt=0, le=2**53, allow_inf_nan=False, strict=True)
+    day_limit: float | None = Field(default=None, gt=0, le=2**53, allow_inf_nan=False, strict=True)
     month_limit: float | None = Field(
-        default=None, gt=0, le=2**53, allow_inf_nan=False, strict=True)
+        default=None, gt=0, le=2**53, allow_inf_nan=False, strict=True
+    )
 
 
 class ProviderModelsOut(BaseModel):
@@ -3867,8 +3946,21 @@ class MemoryOut(BaseModel):
     decided_at: datetime | None
     # What that decision was ("feedback": the user's words at a card asking for changes,
     # K-devir-2); null for one from before this was kept.
-    decided_how: Literal["written", "feedback", "approved", "corrected", "confirmed", "restored",
-                         "rejected", "removed", "replaced", "added"] | None
+    decided_how: (
+        Literal[
+            "written",
+            "feedback",
+            "approved",
+            "corrected",
+            "confirmed",
+            "restored",
+            "rejected",
+            "removed",
+            "replaced",
+            "added",
+        ]
+        | None
+    )
     # Written in a turn nobody was watching (a trigger started it).
     unattended: bool
     created_at: datetime
@@ -3878,8 +3970,18 @@ class MemoryOut(BaseModel):
 class MemoryDecision(BaseModel):
     """Something decided in the user's name: on a record, or on the rules."""
 
-    kind: Literal["written", "feedback", "approved", "corrected", "confirmed", "restored",
-                  "rejected", "removed", "added", "rules"]
+    kind: Literal[
+        "written",
+        "feedback",
+        "approved",
+        "corrected",
+        "confirmed",
+        "restored",
+        "rejected",
+        "removed",
+        "added",
+        "rules",
+    ]
     at: datetime
     # The record it was decided on, with its words as they are now; null for the rules.
     memory_id: str | None
@@ -4095,10 +4197,20 @@ class TriggerRunOut(Out):
     run_id: str | None
     at: datetime
     # None while its turn is still running. "stopped": the user stopped the turn.
-    outcome: Literal[
-        "completed", "failed", "budget", "stopped", "skipped_busy", "skipped_budget",
-        "skipped_month", "skipped_limit", "skipped_same",
-    ] | None
+    outcome: (
+        Literal[
+            "completed",
+            "failed",
+            "budget",
+            "stopped",
+            "skipped_busy",
+            "skipped_budget",
+            "skipped_month",
+            "skipped_limit",
+            "skipped_same",
+        ]
+        | None
+    )
     late: bool
     note: str | None
 
@@ -4113,8 +4225,16 @@ class TriggerChangeOut(BaseModel):
     name: str
     at: datetime
     what: Literal[
-        "created", "renamed", "message changed", "settings changed", "permissions changed",
-        "budget changed", "switched on", "switched off", "new key", "deleted",
+        "created",
+        "renamed",
+        "message changed",
+        "settings changed",
+        "permissions changed",
+        "budget changed",
+        "switched on",
+        "switched off",
+        "new key",
+        "deleted",
     ]
     # How it stood afterwards, in words: what it may do now, why it was switched off.
     detail: str | None
@@ -4207,6 +4327,7 @@ class HoldOut(BaseModel):
     """Stop everything (`app.api.hold`): whether it holds, since when, how many turns of every
     chat have not ended, and what a hold holds (triggers on, backlogs that work themselves,
     the projects' nights while the user is away) - and, while it holds, the turns it stopped."""
+
     held: bool
     since: datetime | None
     running: int
@@ -4250,9 +4371,11 @@ class PriceIn(PriceOut):
     output: float = Field(ge=0, le=MAX_PRICE, allow_inf_nan=False, strict=True)
     currency: str = Field(min_length=1, max_length=8)
     cache_read: float | None = Field(
-        default=None, ge=0, le=MAX_PRICE, allow_inf_nan=False, strict=True)
+        default=None, ge=0, le=MAX_PRICE, allow_inf_nan=False, strict=True
+    )
     cache_write: float | None = Field(
-        default=None, ge=0, le=MAX_PRICE, allow_inf_nan=False, strict=True)
+        default=None, ge=0, le=MAX_PRICE, allow_inf_nan=False, strict=True
+    )
 
     @field_validator("model_id", mode="before")
     @classmethod
@@ -4849,6 +4972,7 @@ class LocalServerOut(LocalServerIn):
 class RestoreOut(BaseModel):
     """A restore staged for the next start (`app.backup`): when its export was made, whether
     it holds the secrets, and what needs its key again where it does not."""
+
     made_at: str | None
     secrets: bool
     need_keys: list[str]
@@ -4857,5 +4981,6 @@ class RestoreOut(BaseModel):
 class StagedOut(BaseModel):
     """The restore that waits for the next start (None: none does), and where the newest
     one a start could not apply is kept (None: none is)."""
+
     staged: RestoreOut | None
     failed: str | None

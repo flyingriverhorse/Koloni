@@ -17,30 +17,63 @@ def seed(factory, root):
         s.flush()
         s.add(Conversation(id="c", project_id="p"))
         s.flush()
-        s.add_all([
-            Run(id="r1", conversation_id="c", status="waiting_approval"),
-            Run(id="r2", conversation_id="c", status="queued"),
-            Run(id="r3", conversation_id="c", status="completed"),
-        ])
+        s.add_all(
+            [
+                Run(id="r1", conversation_id="c", status="waiting_approval"),
+                Run(id="r2", conversation_id="c", status="queued"),
+                Run(id="r3", conversation_id="c", status="completed"),
+            ]
+        )
         s.flush()
         s.add(Agent(id="a", run_id="r1", role_name="Lead", tools=[]))
         s.flush()
-        s.add(Message(id="m", conversation_id="c", run_id="r1", role="assistant",
-                      content="par", status="streaming"))
+        s.add(
+            Message(
+                id="m",
+                conversation_id="c",
+                run_id="r1",
+                role="assistant",
+                content="par",
+                status="streaming",
+            )
+        )
         s.flush()
 
         def call(id, seq, name, status, result=None):
-            return ToolCall(id=id, run_id="r1", agent_id="a", message_id="m", seq=seq, provider_call_id=id,
-                            name=name, arguments="{}", status=status, result=result)
+            return ToolCall(
+                id=id,
+                run_id="r1",
+                agent_id="a",
+                message_id="m",
+                seq=seq,
+                provider_call_id=id,
+                name=name,
+                arguments="{}",
+                status=status,
+                result=result,
+            )
 
-        s.add_all([
-            call("t1", 1, "write_file", "running"),
-            call("t2", 2, "read_file", "pending"),
-            call("t3", 0, "read_file", "succeeded", "ok"),
-        ])
+        s.add_all(
+            [
+                call("t1", 1, "write_file", "running"),
+                call("t2", 2, "read_file", "pending"),
+                call("t3", 0, "read_file", "succeeded", "ok"),
+            ]
+        )
         s.flush()
-        s.add(FileChange(id="f", run_id="r1", agent_id="a", tool_call_id="t1", path="f.txt", kind="create",
-                         after_content="x", after_sha="0" * 64, status="proposed"))
+        s.add(
+            FileChange(
+                id="f",
+                run_id="r1",
+                agent_id="a",
+                tool_call_id="t1",
+                path="f.txt",
+                kind="create",
+                after_content="x",
+                after_sha="0" * 64,
+                status="proposed",
+            )
+        )
         s.commit()
 
 
@@ -55,10 +88,16 @@ def test_restart_marks_open_work_interrupted_and_runs_nothing(tmp_path):
 
     with factory() as s:
         assert {r.id: r.status for r in s.query(Run)} == {
-            "r1": "interrupted", "r2": "interrupted", "r3": "completed"}
+            "r1": "interrupted",
+            "r2": "interrupted",
+            "r3": "completed",
+        }
         assert s.get(Run, "r1").ended_at is not None
         assert {t.id: t.status for t in s.query(ToolCall)} == {
-            "t1": "interrupted", "t2": "interrupted", "t3": "succeeded"}
+            "t1": "interrupted",
+            "t2": "interrupted",
+            "t3": "succeeded",
+        }
         assert "server restarted" in s.get(ToolCall, "t1").result
         assert s.get(ToolCall, "t3").result == "ok"
         assert s.get(FileChange, "f").status == "rejected"
@@ -91,8 +130,11 @@ def queued_then_restarted(tmp_path):
     with factory() as s:
         s.get_one(Run, "r1").started_at = now()
         s.get_one(Run, "r2").by_user = True
-        s.add(Message(id="q", conversation_id="c", run_id="r2", role="user",
-                      content="then run the tests"))
+        s.add(
+            Message(
+                id="q", conversation_id="c", run_id="r2", role="user", content="then run the tests"
+            )
+        )
         s.commit()
     return settings, factory
 
@@ -119,13 +161,16 @@ def test_a_message_queued_before_a_restart_is_not_sent_until_the_user_sends_it(t
         assert client.post("/api/runs/r2/send", headers=OWN).status_code == 409  # (sent once)
 
 
-@pytest.mark.parametrize("over", [
-    {"by_user": False},  # (KOLONİ's own turn, or one asked from no page of the app)
-    {"unattended": True},  # (a trigger's)
-    {"compare_id": "k"},  # (one side of a comparison)
-    {"started_at": now()},  # (it ran)
-    {"status": "queued"},  # (sent again already, and waiting)
-])
+@pytest.mark.parametrize(
+    "over",
+    [
+        {"by_user": False},  # (KOLONİ's own turn, or one asked from no page of the app)
+        {"unattended": True},  # (a trigger's)
+        {"compare_id": "k"},  # (one side of a comparison)
+        {"started_at": now()},  # (it ran)
+        {"status": "queued"},  # (sent again already, and waiting)
+    ],
+)
 def test_only_a_message_of_the_users_never_begun_is_sent_again(tmp_path, over):
     settings, factory = queued_then_restarted(tmp_path)
     model = ScriptedModel([])
@@ -144,8 +189,9 @@ def test_a_message_sent_again_brings_its_archived_chat_back(tmp_path):
     with factory() as s:
         s.get_one(Conversation, "c").archived_at = now()
         s.commit()
-    with TestClient(create_app(settings, model=ScriptedModel([])),
-                    base_url="http://127.0.0.1:8790") as client:
+    with TestClient(
+        create_app(settings, model=ScriptedModel([])), base_url="http://127.0.0.1:8790"
+    ) as client:
         with factory() as s:  # (a turn at work: it waits, and runs nothing here)
             s.add(Run(id="r4", conversation_id="c", status="running", started_at=now()))
             s.commit()
@@ -176,12 +222,34 @@ def test_an_agent_that_had_finished_and_was_only_answering_stays_finished(tmp_pa
     done = datetime(2026, 10, 5, 10, 0, 0, tzinfo=UTC)
     with factory() as s:
         # Both had finished; another agent's message had them answering when the server died.
-        s.add_all([
-            Agent(id="k1", run_id="r1", parent_agent_id="a", role_name="Coder", name="Coder",
-                  tools=[], depth=1, status="running", report="coded", ended_at=done),
-            Agent(id="k2", run_id="r1", parent_agent_id="a", role_name="Tester", name="Tester",
-                  tools=[], depth=1, status="running", error="step_limit", ended_at=done),
-        ])
+        s.add_all(
+            [
+                Agent(
+                    id="k1",
+                    run_id="r1",
+                    parent_agent_id="a",
+                    role_name="Coder",
+                    name="Coder",
+                    tools=[],
+                    depth=1,
+                    status="running",
+                    report="coded",
+                    ended_at=done,
+                ),
+                Agent(
+                    id="k2",
+                    run_id="r1",
+                    parent_agent_id="a",
+                    role_name="Tester",
+                    name="Tester",
+                    tools=[],
+                    depth=1,
+                    status="running",
+                    error="step_limit",
+                    ended_at=done,
+                ),
+            ]
+        )
         s.commit()
     recover_interrupted(factory)
     with factory() as s:

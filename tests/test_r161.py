@@ -18,11 +18,22 @@ def made(client, cid):
 
 def test_a_document_a_command_makes_is_its_agents_output(make_client, wait_run, project_dir):
     (project_dir / "old.pdf").write_bytes(b"%PDF-1.4 before")
-    executor = ScriptedExecutor([Script(["ok\n"], writes={
-        "docs/note.docx": "PK docx", "docs/note.md": "# a note", ".koloni/tmp/out.docx": "PK",
-        "chart.png": "png"})])
-    client, _model = make_client([cmd("python make_docs.py"), text("Made them.")],
-                                 executor=executor)
+    executor = ScriptedExecutor(
+        [
+            Script(
+                ["ok\n"],
+                writes={
+                    "docs/note.docx": "PK docx",
+                    "docs/note.md": "# a note",
+                    ".koloni/tmp/out.docx": "PK",
+                    "chart.png": "png",
+                },
+            )
+        ]
+    )
+    client, _model = make_client(
+        [cmd("python make_docs.py"), text("Made them.")], executor=executor
+    )
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
@@ -39,12 +50,19 @@ def test_in_a_copy_only_what_the_command_made_there_is_listed(make_client, wait_
     # the one the command wrote is its.
     (project_dir / "old.pdf").write_bytes(b"%PDF-1.4 before")
     executor = ScriptedExecutor([Script(["ok\n"], writes={"report.pdf": "%PDF-1.4 new"})])
-    client, _model = make_client({
-        "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "make the report"}, "s")),
-                 text("done")],
-        "Coder": [step(call("run_command", {"command": "python report.py"}, "k")),
-                  text("made it")],
-    }, executor=executor)
+    client, _model = make_client(
+        {
+            "Lead": [
+                step(call("spawn_agent", {"role": "Coder", "task": "make the report"}, "s")),
+                text("done"),
+            ],
+            "Coder": [
+                step(call("run_command", {"command": "python report.py"}, "k")),
+                text("made it"),
+            ],
+        },
+        executor=executor,
+    )
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
     snap = wait_run(client, cid, run_id, timeout=15)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
@@ -57,10 +75,15 @@ def test_in_a_copy_only_what_the_command_made_there_is_listed(make_client, wait_
 def test_a_document_a_clis_command_makes_is_its_output(native_app, wait_run, project_dir):  # noqa: F811
     # (Too large to be kept as text: as a binary docx is, it gets no change record.)
     big = "x" * 300_000
-    client, provider, _ = native_app([
-        {"run": "python make_docx.py", "touches": {"docs/rea-note.docx": big,
-                                                   ".koloni/tmp/out.pdf": big}},
-        {"say": "Made it."}])
+    client, provider, _ = native_app(
+        [
+            {
+                "run": "python make_docx.py",
+                "touches": {"docs/rea-note.docx": big, ".koloni/tmp/out.pdf": big},
+            },
+            {"say": "Made it."},
+        ]
+    )
     cid, run_id = start_native(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
@@ -70,28 +93,38 @@ def test_a_document_a_clis_command_makes_is_its_output(native_app, wait_run, pro
 
 
 def test_an_agents_outputs_are_capped_and_a_coverage_report_is_not_looked_into(
-        make_client, wait_run, project_dir, monkeypatch):
+    make_client, wait_run, project_dir, monkeypatch
+):
     monkeypatch.setattr(views_module, "MOST_MADE", 2)
-    executor = ScriptedExecutor([
-        Script(["ok\n"], writes={"a.png": "a", "b.png": "b", "htmlcov/index.html": "<p>"}),
-        Script(["ok\n"], writes={"c.png": "c"})])
-    client, _model = make_client([cmd("pytest --cov-report=html", "k1"),
-                                  cmd("python plot.py", "k2"), text("done")], executor=executor)
+    executor = ScriptedExecutor(
+        [
+            Script(["ok\n"], writes={"a.png": "a", "b.png": "b", "htmlcov/index.html": "<p>"}),
+            Script(["ok\n"], writes={"c.png": "c"}),
+        ]
+    )
+    client, _model = make_client(
+        [cmd("pytest --cov-report=html", "k1"), cmd("python plot.py", "k2"), text("done")],
+        executor=executor,
+    )
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
     assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
     assert sorted(made(client, cid)) == ["a.png", "b.png"]  # (c.png: past the cap)
 
 
 def test_a_known_output_made_again_is_not_checked_again(
-        make_client, wait_run, project_dir, monkeypatch):
+    make_client, wait_run, project_dir, monkeypatch
+):
     checked = []
     real = views_module.check_shown
-    monkeypatch.setattr(views_module, "check_shown",
-                        lambda ws, path: checked.append(path) or real(ws, path))
-    executor = ScriptedExecutor([Script(["ok\n"], writes={"r.pdf": "one"}),
-                                 Script(["ok\n"], writes={"r.pdf": "two"})])
-    client, _model = make_client([cmd("python r.py", "k1"), cmd("python r.py", "k2"),
-                                  text("done")], executor=executor)
+    monkeypatch.setattr(
+        views_module, "check_shown", lambda ws, path: checked.append(path) or real(ws, path)
+    )
+    executor = ScriptedExecutor(
+        [Script(["ok\n"], writes={"r.pdf": "one"}), Script(["ok\n"], writes={"r.pdf": "two"})]
+    )
+    client, _model = make_client(
+        [cmd("python r.py", "k1"), cmd("python r.py", "k2"), text("done")], executor=executor
+    )
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
     assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
     assert list(made(client, cid)) == ["r.pdf"] and checked == ["r.pdf"]

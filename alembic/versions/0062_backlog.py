@@ -4,6 +4,7 @@ whether the backlog works itself, and why it stopped (slice 52)
 Revision ID: 0062
 Revises: 0061
 """
+
 import json
 
 import sqlalchemy as sa
@@ -55,8 +56,9 @@ def upgrade() -> None:
     )
     op.create_index("ix_backlog_tasks_project_id", "backlog_tasks", ["project_id"])
     with op.batch_alter_table("projects") as batch:
-        batch.add_column(sa.Column(
-            "backlog_auto", sa.Boolean(), nullable=False, server_default=sa.false()))
+        batch.add_column(
+            sa.Column("backlog_auto", sa.Boolean(), nullable=False, server_default=sa.false())
+        )
         batch.add_column(sa.Column("backlog_halt", sa.Text(), nullable=True))
     _retool(lambda tools: [*tools, *(tool for tool in TOOLS if tool not in tools)])
 

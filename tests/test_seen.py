@@ -20,7 +20,9 @@ from tests.test_usage_scenarios import began, turn, usage
 
 # (As the acceptance set's own, which skips as a whole until the code is there.)
 def listed(client, pid, cid):
-    return next(c for c in client.get(f"/api/projects/{pid}/conversations").json() if c["id"] == cid)
+    return next(
+        c for c in client.get(f"/api/projects/{pid}/conversations").json() if c["id"] == cid
+    )
 
 
 def archive(client, cid, archived=True):
@@ -51,7 +53,9 @@ def test_archiving_is_not_activity(make_client, project_dir):
 
 def test_a_room_the_user_opens_brings_its_conversation_back(make_client, wait_run, project_dir):
     client, _model, cid, run_id, _room = room_in(
-        make_client, project_dir, {"Coder": [text("ok")], "Reviewer": [text("ok")]},
+        make_client,
+        project_dir,
+        {"Coder": [text("ok")], "Reviewer": [text("ok")]},
         before=lambda client: archive(client, cid_of(client)),
     )
     wait_run(client, cid, run_id, timeout=20.0)
@@ -65,7 +69,7 @@ def cid_of(client):
 
 def test_the_board_says_each_conversations_last_turn(make_client, wait_run, project_dir):
     client, _model, pid, cid = began(make_client, project_dir, [text("a"), text("b")])
-    assert on_board(board(client, pid), cid)["turn"] is None          # none yet
+    assert on_board(board(client, pid), cid)["turn"] is None  # none yet
     turn(client, wait_run, cid)
     last = turn(client, wait_run, cid)
     told = on_board(board(client, pid), cid)["turn"]
@@ -74,12 +78,18 @@ def test_the_board_says_each_conversations_last_turn(make_client, wait_run, proj
 
 
 def test_one_turns_usage_and_cost(make_client, wait_run, project_dir):
-    client, _model, pid, cid = began(make_client, project_dir, [text("a", 1_000_000, 0),
-                                                                 text("b", 3_000_000, 0)])
+    client, _model, pid, cid = began(
+        make_client, project_dir, [text("a", 1_000_000, 0), text("b", 3_000_000, 0)]
+    )
     turn(client, wait_run, cid)
     second = turn(client, wait_run, cid)
-    assert client.put("/api/prices", json={
-        "model_id": "fake-model", "input": 2, "output": 2, "currency": "USD"}).status_code == 200
+    assert (
+        client.put(
+            "/api/prices",
+            json={"model_id": "fake-model", "input": 2, "output": 2, "currency": "USD"},
+        ).status_code
+        == 200
+    )
     (row,) = usage(client, run_id=second["id"])["by_model"]
     assert (row["runs"], row["input_tokens"]) == (1, 3_000_000)
     assert row["cost"] == {"amount": 6.0, "currency": "USD"}
@@ -91,8 +101,8 @@ def test_changes_that_wait_are_one_thing_on_the_board_with_nobody_asking_besides
 ):
     # (What the badge counts: an agent that asks, plus each set of changes - never one twice.)
     client, _model, cid, run_id = one(
-        make_client, project_dir, [step(write("a.txt", "A")), text("A done")],
-        permission_mode="ask")
+        make_client, project_dir, [step(write("a.txt", "A")), text("A done")], permission_mode="ask"
+    )
     snap = until(client, cid, lambda s: [m["status"] for m in s["merges"]] == ["pending"])
     told = on_board(board(client, snap["conversation"]["project_id"]), cid)
     assert told["merges_pending"] == 1

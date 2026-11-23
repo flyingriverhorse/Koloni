@@ -13,17 +13,21 @@ ORIGIN = {"Origin": "http://127.0.0.1:8790"}
 
 
 def test_fill_keeps_the_users_rows_fills_their_blanks_and_adds_the_rest_strongest_first():
-    saved = [{"name": "my-own", "note": "mine", "tier": None},
-             {"name": "gpt-6-luna", "note": None, "tier": None}]
+    saved = [
+        {"name": "my-own", "note": "mine", "tier": None},
+        {"name": "gpt-6-luna", "note": None, "tier": None},
+    ]
     proposed, left_out = catalog.fill(
-        "codex_cli", saved, ["gpt-6-astra", "served-extra", "bad\nname", " padded"])
+        "codex_cli", saved, ["gpt-6-astra", "served-extra", "bad\nname", " padded"]
+    )
     names = [row["name"] for row in proposed]
     assert names[:2] == ["my-own", "gpt-6-luna"] and left_out == 0
-    assert proposed[1]["tier"] == "fast" and proposed[1]["note"]       # its blanks filled
+    assert proposed[1]["tier"] == "fast" and proposed[1]["note"]  # its blanks filled
     assert proposed[0] == {"name": "my-own", "note": "mine", "tier": None}
     added = [row["tier"] for row in proposed[2:]]
-    assert added == sorted(added, key=lambda t: {"strongest": 0, "balanced": 1, "fast": 2,
-                                                 None: 3}[t])
+    assert added == sorted(
+        added, key=lambda t: {"strongest": 0, "balanced": 1, "fast": 2, None: 3}[t]
+    )
     # a name the server lists is offered once, blank; one that could not be saved is not
     assert names.count("gpt-6-astra") == 1 and "served-extra" in names
     assert "bad\nname" not in names and " padded" not in names
@@ -32,8 +36,9 @@ def test_fill_keeps_the_users_rows_fills_their_blanks_and_adds_the_rest_stronges
 CODEX_HELP = "Commands:\n  exec    Run Codex non-interactively\n  login   Manage login\n"
 
 
-def _status_cli(tmp_path, code: int, said: str, helped: str = CODEX_HELP,
-                hang: bool = False) -> str:
+def _status_cli(
+    tmp_path, code: int, said: str, helped: str = CODEX_HELP, hang: bool = False
+) -> str:
     """A stand-in Codex that notes how and where it was started, answers --help with
     `helped`, and says `said` on stderr as Codex's status does - with a misleading line on
     stdout, which is not where Codex says it. With `hang` its status never answers."""
@@ -49,7 +54,9 @@ def _status_cli(tmp_path, code: int, said: str, helped: str = CODEX_HELP,
         f"if {hang!r}:\n"
         "    time.sleep(60)\n"
         f"sys.stderr.write({said!r})\n"
-        f"sys.exit({code})\n", encoding="utf-8")
+        f"sys.exit({code})\n",
+        encoding="utf-8",
+    )
     if sys.platform == "win32":
         shim = tmp_path / "codex.cmd"
         shim.write_text(f'@"{sys.executable}" "{script}" %*\r\n', encoding="utf-8")
@@ -70,8 +77,11 @@ def test_a_signed_in_cli_is_asked_only_its_status_and_nothing_of_the_account_is_
     client, tmp_path
 ):
     cli = _status_cli(tmp_path, 0, "Logged in using ChatGPT (acct_9f8e, someone@example.com)")
-    made = client.post("/api/providers", headers=ORIGIN,
-                       json={"name": "Codex", "kind": "codex_cli", "executable": cli}).json()
+    made = client.post(
+        "/api/providers",
+        headers=ORIGIN,
+        json={"name": "Codex", "kind": "codex_cli", "executable": cli},
+    ).json()
     told = client.get(f"/api/providers/{made['id']}/availability")
     # read from stderr, where Codex says it: stdout's "Not logged in" is not taken
     assert told.json()["installed"] is True and told.json()["signed_in"] is True
@@ -84,8 +94,11 @@ def test_a_signed_in_cli_is_asked_only_its_status_and_nothing_of_the_account_is_
 
 def test_a_cli_that_is_not_signed_in_says_how_to_sign_in(client, tmp_path):
     cli = _status_cli(tmp_path, 1, "Not logged in\n")
-    made = client.post("/api/providers", headers=ORIGIN,
-                       json={"name": "Codex", "kind": "codex_cli", "executable": cli}).json()
+    made = client.post(
+        "/api/providers",
+        headers=ORIGIN,
+        json={"name": "Codex", "kind": "codex_cli", "executable": cli},
+    ).json()
     told = client.get(f"/api/providers/{made['id']}/availability").json()
     assert told["signed_in"] is False and told["sign_in"]["command"] == "codex login"
     assert told["sign_in"]["docs"].startswith("https://")
@@ -101,9 +114,7 @@ async def test_a_cli_whose_help_has_no_status_command_is_not_asked_it(tmp_path):
 
 
 @pytest.mark.anyio
-async def test_a_status_command_that_hangs_is_not_known_and_leaves_no_folder(
-    tmp_path, monkeypatch
-):
+async def test_a_status_command_that_hangs_is_not_known_and_leaves_no_folder(tmp_path, monkeypatch):
     # The limit is the --help's too, and each call is a Python started through a .cmd: under
     # load that alone took over half a second, and a call cut before its first line leaves
     # no record of its folder. shortcut: 3 s is a guess at a busy machine's start.
@@ -125,11 +136,14 @@ def test_claude_codes_status_is_read_from_its_json_and_its_exit_code():
 
 
 def test_what_is_told_is_for_the_apps_own_page_and_commands_not_another_site(client):
-    made = client.post("/api/providers", headers=ORIGIN,
-                       json={"name": "Codex", "kind": "codex_cli",
-                             "executable": "no-such-codex"}).json()
-    answer = client.get(f"/api/providers/{made['id']}/availability",
-                        headers={"Origin": "https://elsewhere.example"})
+    made = client.post(
+        "/api/providers",
+        headers=ORIGIN,
+        json={"name": "Codex", "kind": "codex_cli", "executable": "no-such-codex"},
+    ).json()
+    answer = client.get(
+        f"/api/providers/{made['id']}/availability", headers={"Origin": "https://elsewhere.example"}
+    )
     assert answer.status_code == 403
 
 
@@ -142,8 +156,11 @@ def test_copilot_on_a_model_server_of_ones_own_is_offered_that_servers_models_no
         return ["my-local-model"]
 
     monkeypatch.setattr(api, "served_models", served)
-    made = client.post("/api/providers", headers=ORIGIN, json={
-        "name": "Copilot", "kind": "copilot_cli", "base_url": "http://127.0.0.1:8080/v1"}).json()
+    made = client.post(
+        "/api/providers",
+        headers=ORIGIN,
+        json={"name": "Copilot", "kind": "copilot_cli", "base_url": "http://127.0.0.1:8080/v1"},
+    ).json()
     offer = client.post(f"/api/providers/{made['id']}/fill-from-catalogue", headers=ORIGIN).json()
     assert [m["name"] for m in offer["models"]] == ["my-local-model"]
 
@@ -161,15 +178,18 @@ def test_copilot_offers_its_own_auto_beside_models_devs_models_with_no_level():
     assert catalog.catalogue_of("copilot_cli", "http://127.0.0.1:8080/v1") is None
 
 
-@pytest.mark.parametrize("address,first", [
-    ("https://api.openai.com/v1", "gpt-6-astra"),
-    ("https://dashscope-intl.aliyuncs.com/compatible-mode/v1", "qwen3.8-max"),
-    # (the newest strongest: glm is strongest by Alibaba's rules since slice 81a)
-    ("https://dashscope.aliyuncs.com/compatible-mode/v1", "glm-5.3"),
-    ("https://ws1.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1", "qwen3.8-max"),
-    ("http://127.0.0.1:8080/v1", None),
-    ("https://api.openai.com.example.net/v1", None),
-])
+@pytest.mark.parametrize(
+    "address,first",
+    [
+        ("https://api.openai.com/v1", "gpt-6-astra"),
+        ("https://dashscope-intl.aliyuncs.com/compatible-mode/v1", "qwen3.8-max"),
+        # (the newest strongest: glm is strongest by Alibaba's rules since slice 81a)
+        ("https://dashscope.aliyuncs.com/compatible-mode/v1", "glm-5.3"),
+        ("https://ws1.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1", "qwen3.8-max"),
+        ("http://127.0.0.1:8080/v1", None),
+        ("https://api.openai.com.example.net/v1", None),
+    ],
+)
 def test_an_openai_compatible_server_gets_the_catalogue_of_the_service_at_its_address(
     client, monkeypatch, address, first
 ):
@@ -179,8 +199,11 @@ def test_an_openai_compatible_server_gets_the_catalogue_of_the_service_at_its_ad
         return [], None, False
 
     monkeypatch.setattr(api, "_own_list", nothing_listed)
-    made = client.post("/api/providers", headers=ORIGIN, json={
-        "name": "Server", "kind": "openai_compat", "base_url": address}).json()
+    made = client.post(
+        "/api/providers",
+        headers=ORIGIN,
+        json={"name": "Server", "kind": "openai_compat", "base_url": address},
+    ).json()
     offer = client.post(f"/api/providers/{made['id']}/fill-from-catalogue", headers=ORIGIN).json()
     assert [m["name"] for m in offer["models"]][:1] == ([first] if first else [])
 
@@ -193,15 +216,18 @@ def test_the_services_catalogues_have_a_name_a_tier_and_a_source_too(key):
 
 # Slice 40b: a provider not added yet is proposed its catalogue's models; nothing is listed
 # from a server, nothing is saved.
-@pytest.mark.parametrize("kind,address,first", [
-    ("codex_cli", None, "gpt-6-astra"),
-    ("claude_cli", None, "fable"),
-    ("openai_compat", "https://api.openai.com/v1", "gpt-6-astra"),
-    ("openai_compat", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1", "qwen3.8-max"),
-    ("openai_compat", "http://127.0.0.1:8080/v1", None),
-    ("openai_compat", "http://[not-an-address/v1", None),
-    ("copilot_cli", "http://127.0.0.1:8080/v1", None),
-])
+@pytest.mark.parametrize(
+    "kind,address,first",
+    [
+        ("codex_cli", None, "gpt-6-astra"),
+        ("claude_cli", None, "fable"),
+        ("openai_compat", "https://api.openai.com/v1", "gpt-6-astra"),
+        ("openai_compat", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1", "qwen3.8-max"),
+        ("openai_compat", "http://127.0.0.1:8080/v1", None),
+        ("openai_compat", "http://[not-an-address/v1", None),
+        ("copilot_cli", "http://127.0.0.1:8080/v1", None),
+    ],
+)
 def test_a_provider_not_added_yet_is_proposed_its_catalogue_and_nothing_is_saved(
     client, monkeypatch, kind, address, first
 ):
@@ -213,8 +239,11 @@ def test_a_provider_not_added_yet_is_proposed_its_catalogue_and_nothing_is_saved
     monkeypatch.setattr(api, "_own_list", never)
     monkeypatch.setattr(api, "served_models", never)
     before = client.get("/api/providers").json()
-    answer = client.post("/api/providers/fill-from-catalogue", headers=ORIGIN, json={
-        "kind": kind, "base_url": address, "models": [{"name": "mine", "note": "kept"}]})
+    answer = client.post(
+        "/api/providers/fill-from-catalogue",
+        headers=ORIGIN,
+        json={"kind": kind, "base_url": address, "models": [{"name": "mine", "note": "kept"}]},
+    )
     assert answer.status_code == 200
     names = [m["name"] for m in answer.json()["models"]]
     assert names[0] == "mine" and names[1:2] == ([first] if first else [])
@@ -224,20 +253,41 @@ def test_a_provider_not_added_yet_is_proposed_its_catalogue_and_nothing_is_saved
 def test_a_proposal_for_a_provider_not_added_yet_is_the_apps_own_page_and_a_known_kind(client):
     told = {"kind": "codex_cli", "models": []}
     assert client.post("/api/providers/fill-from-catalogue", json=told).status_code == 403
-    assert client.post("/api/providers/fill-from-catalogue", headers=ORIGIN,
-                       json={"kind": "no_such_kind"}).status_code == 422
+    assert (
+        client.post(
+            "/api/providers/fill-from-catalogue", headers=ORIGIN, json={"kind": "no_such_kind"}
+        ).status_code
+        == 422
+    )
 
 
 # What Alibaba's Token Plan lists (its page, 23 Oct 2026): text models, and models that cannot chat.
 TOKEN_PLAN_TEXT = [
-    "auto", "qwen3.8-max", "qwen3.8-flash", "qwen3.7-plus", "qwen3.7-max", "qwen3.6-flash",
-    "deepseek-v4.1-flash-1017", "deepseek-v4.1-flash", "deepseek-v4-pro-0813", "deepseek-v4-pro",
-    "deepseek-v4-flash-0731", "glm-5.3", "glm-5.2",
+    "auto",
+    "qwen3.8-max",
+    "qwen3.8-flash",
+    "qwen3.7-plus",
+    "qwen3.7-max",
+    "qwen3.6-flash",
+    "deepseek-v4.1-flash-1017",
+    "deepseek-v4.1-flash",
+    "deepseek-v4-pro-0813",
+    "deepseek-v4-pro",
+    "deepseek-v4-flash-0731",
+    "glm-5.3",
+    "glm-5.2",
 ]
 TOKEN_PLAN_OTHER = [
-    "qwen-audio-3.0-asr-flash", "qwen-audio-3.0-realtime-plus", "qwen-audio-3.0-tts-plus",
-    "qwen-image-3.0-pro", "wan2.7-image", "wan2.7-image-pro", "wan3.0-video",
-    "happyhorse-1.1-r2v", "happyhorse-1.1-t2v", "happyhorse-1.1-i2v",
+    "qwen-audio-3.0-asr-flash",
+    "qwen-audio-3.0-realtime-plus",
+    "qwen-audio-3.0-tts-plus",
+    "qwen-image-3.0-pro",
+    "wan2.7-image",
+    "wan2.7-image-pro",
+    "wan3.0-video",
+    "happyhorse-1.1-r2v",
+    "happyhorse-1.1-t2v",
+    "happyhorse-1.1-i2v",
 ]
 
 
@@ -248,11 +298,19 @@ def test_a_provider_that_lists_its_models_is_offered_only_those_that_chat_with_r
     assert set(tiers) <= set(TOKEN_PLAN_TEXT)
     assert "kimi-k3" in [m["name"] for m in catalog.models_for("alibaba")]
     # names the catalogue does not know get the service's rules, with the tier's note
-    assert {name: tiers[name] for name in (
-        "glm-5.3", "deepseek-v4-pro", "deepseek-v4.1-flash", "qwen3.8-max")} == {
-        "glm-5.3": "strongest", "deepseek-v4-pro": "strongest",
-        "deepseek-v4.1-flash": "fast", "qwen3.8-max": "strongest"}
-    assert next(row for row in proposed if row["name"] == "glm-5.3")["note"] == catalog.NOTES["strongest"]
+    assert {
+        name: tiers[name]
+        for name in ("glm-5.3", "deepseek-v4-pro", "deepseek-v4.1-flash", "qwen3.8-max")
+    } == {
+        "glm-5.3": "strongest",
+        "deepseek-v4-pro": "strongest",
+        "deepseek-v4.1-flash": "fast",
+        "qwen3.8-max": "strongest",
+    }
+    assert (
+        next(row for row in proposed if row["name"] == "glm-5.3")["note"]
+        == catalog.NOTES["strongest"]
+    )
     # nothing that cannot chat, and each of those counted as left out
     assert left_out >= len(TOKEN_PLAN_OTHER)
     # the user's own row stays, whatever it is
@@ -260,11 +318,22 @@ def test_a_provider_that_lists_its_models_is_offered_only_those_that_chat_with_r
     assert [row["name"] for row in mine] == ["wan2.7-image"]
 
 
-@pytest.mark.parametrize("name", [
-    "qwen-audio-3.0-asr-flash", "qwen-image-3.0-pro", "text-embedding-3-large", "gte-rerank-v2",
-    "whisper-1", "gpt-4o-transcribe", "omni-moderation-latest", "dall-e-3",
-])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "qwen-audio-3.0-asr-flash",
+        "qwen-image-3.0-pro",
+        "text-embedding-3-large",
+        "gte-rerank-v2",
+        "whisper-1",
+        "gpt-4o-transcribe",
+        "omni-moderation-latest",
+        "dall-e-3",
+    ],
+)
 def test_no_rule_gives_a_model_that_cannot_chat_a_tier(name):
     rules = {**catalog._rules("alibaba"), "large": "strongest", "latest": "fast", "e": "fast"}
     assert catalog._tier(rules, name, {}, [])[0] is None
-    assert catalog._tier(rules, "qwen3.8-flash", {}, [])[0] == "fast"  # a chat model still has its rule
+    assert (
+        catalog._tier(rules, "qwen3.8-flash", {}, [])[0] == "fast"
+    )  # a chat model still has its rule

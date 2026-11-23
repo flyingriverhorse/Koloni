@@ -8,6 +8,7 @@ Going back drops it.
 Revision ID: 0169
 Revises: 0170
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -20,8 +21,9 @@ depends_on = None
 
 def upgrade() -> None:
     with op.batch_alter_table("projects") as batch:
-        batch.add_column(sa.Column("stronger_model", sa.Boolean(), nullable=False,
-                                   server_default=sa.true()))
+        batch.add_column(
+            sa.Column("stronger_model", sa.Boolean(), nullable=False, server_default=sa.true())
+        )
 
 
 def downgrade() -> None:

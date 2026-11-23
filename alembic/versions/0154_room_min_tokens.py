@@ -7,6 +7,7 @@ given, 60000 for every one - none had any before; null is none. Going back drops
 Revision ID: 0154
 Revises: 0153
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -22,8 +23,9 @@ TABLES = ("projects", "conversations")
 def upgrade() -> None:
     for table in TABLES:
         with op.batch_alter_table(table) as batch:
-            batch.add_column(sa.Column("room_min_tokens", sa.Integer(), nullable=True,
-                                       server_default="60000"))
+            batch.add_column(
+                sa.Column("room_min_tokens", sa.Integer(), nullable=True, server_default="60000")
+            )
 
 
 def downgrade() -> None:

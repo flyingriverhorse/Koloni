@@ -89,16 +89,26 @@ def handed(agent_id: str, session: Session = Depends(get_session)):
     if agent is None:
         raise HTTPException(404, "agent not found")
     ids = agent.handed_from or []
-    found = {one.id: (one, chat) for one, chat in session.execute(
-        select(Agent, Conversation)
-        .join(Run, Run.id == Agent.run_id)
-        .join(Conversation, Conversation.id == Run.conversation_id)
-        .where(Agent.id.in_(ids))
-    ).tuples()}
-    return [{"agent_id": one.id, "agent_role": one.role_name, "agent_name": one.name,
-             "conversation_id": chat.id, "conversation_title": chat.title,
-             "at": one.ended_at or one.started_at or one.created_at}
-            for one, chat in (found[i] for i in ids if i in found)]
+    found = {
+        one.id: (one, chat)
+        for one, chat in session.execute(
+            select(Agent, Conversation)
+            .join(Run, Run.id == Agent.run_id)
+            .join(Conversation, Conversation.id == Run.conversation_id)
+            .where(Agent.id.in_(ids))
+        ).tuples()
+    }
+    return [
+        {
+            "agent_id": one.id,
+            "agent_role": one.role_name,
+            "agent_name": one.name,
+            "conversation_id": chat.id,
+            "conversation_title": chat.title,
+            "at": one.ended_at or one.started_at or one.created_at,
+        }
+        for one, chat in (found[i] for i in ids if i in found)
+    ]
 
 
 def _copy_of(session: Session, agent_id: str) -> Agent:
@@ -118,8 +128,11 @@ def working_copy(agent_id: str, request: Request, session: Session = Depends(get
     (slice 70): each file once, with its diff. Only read."""
     owner = _copy_of(session, agent_id)
     folder = request.app.state.runner.copy_folder(owner.id)
-    return {"agent_id": owner.id, "folder": str(folder) if folder else None,
-            "files": in_copy(session, _line_on_record(session, owner.id))}
+    return {
+        "agent_id": owner.id,
+        "folder": str(folder) if folder else None,
+        "files": in_copy(session, _line_on_record(session, owner.id)),
+    }
 
 
 def open_folder(folder) -> None:
@@ -127,13 +140,17 @@ def open_folder(folder) -> None:
     if sys.platform == "win32":
         os.startfile(folder, "explore")  # noqa: S606 (KOLONİ's own folder, in Explorer)
     else:
-        subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", str(folder)],
-                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                         stderr=subprocess.DEVNULL)
+        subprocess.Popen(
+            ["open" if sys.platform == "darwin" else "xdg-open", str(folder)],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
 
 
-@router.post("/agents/{agent_id}/copy/open", status_code=204,
-             dependencies=[Depends(require_own_origin)])
+@router.post(
+    "/agents/{agent_id}/copy/open", status_code=204, dependencies=[Depends(require_own_origin)]
+)
 def open_copy(agent_id: str, request: Request, session: Session = Depends(get_session)):
     """The user's Open folder, from the app's own page: the copy's folder in the system's
     file manager, while its work goes on."""
@@ -143,22 +160,26 @@ def open_copy(agent_id: str, request: Request, session: Session = Depends(get_se
     open_folder(folder)
 
 
-@router.post("/agents/{agent_id}/approve", response_model=AgentOut,
-             dependencies=[Depends(require_own_origin)])
+@router.post(
+    "/agents/{agent_id}/approve",
+    response_model=AgentOut,
+    dependencies=[Depends(require_own_origin)],
+)
 async def approve_agent(agent_id: str, request: Request, session: Session = Depends(get_session)):
     return await _decide_spawn(agent_id, "approve", request, session)
 
 
-@router.post("/agents/{agent_id}/reject", response_model=AgentOut,
-             dependencies=[Depends(require_own_origin)])
+@router.post(
+    "/agents/{agent_id}/reject", response_model=AgentOut, dependencies=[Depends(require_own_origin)]
+)
 async def reject_agent(agent_id: str, request: Request, session: Session = Depends(get_session)):
     return await _decide_spawn(agent_id, "reject", request, session)
 
 
-@router.post("/agents/{agent_id}/tell", status_code=204,
-             dependencies=[Depends(require_own_origin)])
-async def tell_agent(agent_id: str, body: TellIn, request: Request,
-                     session: Session = Depends(get_session)):
+@router.post("/agents/{agent_id}/tell", status_code=204, dependencies=[Depends(require_own_origin)])
+async def tell_agent(
+    agent_id: str, body: TellIn, request: Request, session: Session = Depends(get_session)
+):
     """The user's own word to an agent while it works, from its window on the app's own page
     (89d C): into its CLI's turn, or its next step; 409 with why it cannot hear it."""
     if session.get(Agent, agent_id) is None:
@@ -170,7 +191,8 @@ async def tell_agent(agent_id: str, body: TellIn, request: Request,
 
 
 @router.patch(
-    "/agents/{agent_id}/summary", response_model=AgentOut,
+    "/agents/{agent_id}/summary",
+    response_model=AgentOut,
     dependencies=[Depends(require_own_origin)],
 )
 async def correct_summary(
@@ -194,18 +216,23 @@ async def correct_summary(
         # Their words are of the older summary: in the place of the newer, what was summarised
         # in between would reach its model neither whole nor summarised.
         raise HTTPException(
-            409, "it was summarised again since you began: edit the new working state")
+            409, "it was summarised again since you began: edit the new working state"
+        )
     # (Never past the 40 000 that `SummaryIn` takes at all.)
-    most = min(agent.context_window * CHARS_PER_TOKEN // 4 if agent.context_window else 40_000,
-               40_000)
+    most = min(
+        agent.context_window * CHARS_PER_TOKEN // 4 if agent.context_window else 40_000, 40_000
+    )
     if len(body.summary) > most:
         raise HTTPException(
-            422, f"too long for this agent's window: a working state holds at most {most} "
-            "characters here")
+            422,
+            f"too long for this agent's window: a working state holds at most {most} "
+            "characters here",
+        )
     if session.scalar(select(Agent.id).where(Agent.continues_id == agent_id).limit(1)):
         # Its words would reach no model: the one that goes on from it has its own.
         raise HTTPException(
-            409, "a later agent goes on from this one: correct its working state there")
+            409, "a later agent goes on from this one: correct its working state there"
+        )
     cid = session.get_one(Run, agent.run_id).conversation_id
     await request.app.state.runner.correct_summary(cid, agent_id, body.summary)
     session.refresh(agent)
@@ -217,8 +244,7 @@ def compaction(session: Session = Depends(get_session)):
     return {"compact_at": compact_at(session)}
 
 
-@router.put(
-    "/compaction", response_model=Compaction, dependencies=[Depends(require_own_origin)])
+@router.put("/compaction", response_model=Compaction, dependencies=[Depends(require_own_origin)])
 def set_compaction(body: Compaction, session: Session = Depends(get_session)):
     """Past what % of its window an agent KOLONİ compacts is summarised, in every project:
     the user's to say, from the app's own page. (Not a CLI's that goes on in its own session:
@@ -303,7 +329,8 @@ def set_answer_in(body: AnswerLanguage, session: Session = Depends(get_session))
 
 
 @router.post(
-    "/agents/{agent_id}/compact", response_model=AgentOut,
+    "/agents/{agent_id}/compact",
+    response_model=AgentOut,
     dependencies=[Depends(require_own_origin)],
 )
 async def compact_agent(agent_id: str, request: Request, session: Session = Depends(get_session)):
@@ -316,18 +343,23 @@ async def compact_agent(agent_id: str, request: Request, session: Session = Depe
         raise HTTPException(404, "agent not found")
     runner = request.app.state.runner
     if agent.provider_mode == "step":  # (RunStatus says the same)
-        raise HTTPException(409, "run step by step: each step is sent a trimmed history; "
-                                 "not compacted")
+        raise HTTPException(
+            409, "run step by step: each step is sent a trimmed history; not compacted"
+        )
     if agent.compacts_itself:
-        raise HTTPException(409, "its CLI keeps what it is sent itself: KOLONİ does not "
-                                 "compact it")
+        raise HTTPException(409, "its CLI keeps what it is sent itself: KOLONİ does not compact it")
     if agent.depth > 0:
-        raise HTTPException(409, "a sub-agent is compacted at its steps: nothing goes on from "
-                                 "it once its work is over")
+        raise HTTPException(
+            409,
+            "a sub-agent is compacted at its steps: nothing goes on from it once its work is over",
+        )
     if agent.status not in AGENT_TERMINAL:
-        raise HTTPException(409, "at work: it is compacted at its next step past "
-                                 f"{compact_at(session)}% of its window; compact it once its "
-                                 "turn is over")
+        raise HTTPException(
+            409,
+            "at work: it is compacted at its next step past "
+            f"{compact_at(session)}% of its window; compact it once its "
+            "turn is over",
+        )
     if session.scalar(select(Agent.id).where(Agent.continues_id == agent_id).limit(1)):
         raise HTTPException(409, "a later agent goes on from this one: compact that one")
     if runner.compacting(agent_id):
@@ -363,23 +395,32 @@ async def _decide_role(call_id: str, decision: str, request: Request, session: S
     return tool_call_out(call)
 
 
-@router.post("/tool-calls/{call_id}/approve", response_model=ToolCallOut,
-             dependencies=[Depends(require_own_origin)])
+@router.post(
+    "/tool-calls/{call_id}/approve",
+    response_model=ToolCallOut,
+    dependencies=[Depends(require_own_origin)],
+)
 async def approve_call(
-    call_id: str, request: Request, body: ToolCallDecision | None = None,
+    call_id: str,
+    request: Request,
+    body: ToolCallDecision | None = None,
     session: Session = Depends(get_session),
 ):
     return await _decide_role(call_id, body.scope if body else "approve", request, session)
 
 
-@router.post("/tool-calls/{call_id}/reject", response_model=ToolCallOut,
-             dependencies=[Depends(require_own_origin)])
+@router.post(
+    "/tool-calls/{call_id}/reject",
+    response_model=ToolCallOut,
+    dependencies=[Depends(require_own_origin)],
+)
 async def reject_call(call_id: str, request: Request, session: Session = Depends(get_session)):
     return await _decide_role(call_id, "reject", request, session)
 
 
 @router.post(
-    "/tool-calls/{call_id}/secret", response_model=ToolCallOut,
+    "/tool-calls/{call_id}/secret",
+    response_model=ToolCallOut,
     dependencies=[Depends(require_own_origin)],
 )
 async def give_secret(

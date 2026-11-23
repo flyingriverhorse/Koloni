@@ -44,7 +44,12 @@ def test_a_providers_limits_are_set_from_the_apps_own_page(make_client, project_
     saved = client.patch(f"/api/providers/{pid}", json=body)
     assert saved.status_code == 200, saved.text
     assert {k: saved.json()[k] for k in body} == body
-    for wrong in ({"step_down_at": 30}, {"step_down_at": 101}, {"day_limit": 0}, {"month_limit": -1}):
+    for wrong in (
+        {"step_down_at": 30},
+        {"step_down_at": 101},
+        {"day_limit": 0},
+        {"month_limit": -1},
+    ):
         assert client.patch(f"/api/providers/{pid}", json=wrong).status_code == 422, wrong
     cleared = client.patch(f"/api/providers/{pid}", json={"day_limit": None, "step_down_at": None})
     assert (cleared.json()["day_limit"], cleared.json()["step_down_at"]) == (None, None)
@@ -53,7 +58,10 @@ def test_a_providers_limits_are_set_from_the_apps_own_page(make_client, project_
 def test_a_key_that_is_a_plan_counts_no_money(make_client, wait_run, project_dir):
     client, _model, pid, cid = began(make_client, project_dir, [text("a", 1_000_000, 500_000)])
     client.put("/api/prices", json=PRICE)
-    assert client.patch(f"/api/providers/{local(client)['id']}", json={"plan": True}).status_code == 200
+    assert (
+        client.patch(f"/api/providers/{local(client)['id']}", json={"plan": True}).status_code
+        == 200
+    )
     turn(client, wait_run, cid)
     (row,) = usage(client, project_id=pid)["by_model"]
     assert row.get("cost") is None
@@ -63,9 +71,12 @@ def test_a_key_that_is_a_plan_counts_no_money(make_client, wait_run, project_dir
 
 
 @pytest.mark.parametrize("limit", ["day_limit", "month_limit"])
-def test_a_provider_past_its_limit_asks_before_a_new_turn(make_client, wait_run, project_dir, limit):
-    client, _model, _pid, cid = began(make_client, project_dir,
-                                      [text("a", 1_000_000, 500_000), text("b", 10, 10)])
+def test_a_provider_past_its_limit_asks_before_a_new_turn(
+    make_client, wait_run, project_dir, limit
+):
+    client, _model, _pid, cid = began(
+        make_client, project_dir, [text("a", 1_000_000, 500_000), text("b", 10, 10)]
+    )
     client.put("/api/prices", json=PRICE)
     provider = local(client)
     assert client.patch(f"/api/providers/{provider['id']}", json={limit: 5}).status_code == 200
@@ -73,14 +84,23 @@ def test_a_provider_past_its_limit_asks_before_a_new_turn(make_client, wait_run,
     refused = client.post(f"/api/conversations/{cid}/messages", json={"content": "more"})
     assert refused.status_code == 409, refused.text
     assert provider["name"] in refused.text and ("today" in refused.text or "month" in refused.text)
-    went = client.post(f"/api/conversations/{cid}/messages", json={"content": "more", "over_budget": True})
+    went = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "more", "over_budget": True}
+    )
     assert went.status_code == 201, went.text
 
 
 def test_under_its_limit_a_provider_asks_nothing(make_client, wait_run, project_dir):
-    client, _model, _pid, cid = began(make_client, project_dir,
-                                      [text("a", 1_000, 500), text("b", 10, 10)])
+    client, _model, _pid, cid = began(
+        make_client, project_dir, [text("a", 1_000, 500), text("b", 10, 10)]
+    )
     client.put("/api/prices", json=PRICE)
-    assert client.patch(f"/api/providers/{local(client)['id']}", json={"day_limit": 5}).status_code == 200
+    assert (
+        client.patch(f"/api/providers/{local(client)['id']}", json={"day_limit": 5}).status_code
+        == 200
+    )
     turn(client, wait_run, cid)  # a cent
-    assert client.post(f"/api/conversations/{cid}/messages", json={"content": "more"}).status_code == 201
+    assert (
+        client.post(f"/api/conversations/{cid}/messages", json={"content": "more"}).status_code
+        == 201
+    )

@@ -24,14 +24,17 @@ def test_a_command_approved_in_a_continued_turn_runs(make_client, wait_run, proj
     # B-357: the turn its Lead's message_agent gave it holds its turn's lock; the yes to its
     # command waited for that very lock - "approved", never run, the Lead waiting for good.
     executor = ScriptedExecutor([Script(["ok\n"], exit_code=0)])
-    client, _model = make_client([
-        spawn("Coder", "Add a notes file"),
-        text("Nothing yet."),
-        message("coder", "Now run the tests"),
-        cmd("pytest -q"),
-        text("They pass."),
-        text("All done."),
-    ], executor=executor)
+    client, _model = make_client(
+        [
+            spawn("Coder", "Add a notes file"),
+            text("Nothing yet."),
+            message("coder", "Now run the tests"),
+            cmd("pytest -q"),
+            text("They pass."),
+            text("All done."),
+        ],
+        executor=executor,
+    )
     cid, run_id = begin(client, project_dir)
     snap = wait_status(client, cid, "waiting_approval")
     kid = snap["agents"][1]
@@ -52,11 +55,15 @@ def test_a_command_approved_in_a_continued_turn_runs(make_client, wait_run, proj
 
 
 def test_a_command_codex_was_let_run_and_never_heard_of_again_ends_its_turn(
-    native_app, wait_run, project_dir, monkeypatch  # noqa: F811
+    native_app,
+    wait_run,
+    project_dir,
+    monkeypatch,  # noqa: F811
 ):
     monkeypatch.setattr(model_native, "CALL_SECONDS", 1.0)
     client, provider, _ = native_app(
-        [{"run": "pytest -q", "no_start": True, "hold": 30}, {"say": "ok"}])
+        [{"run": "pytest -q", "no_start": True, "hold": 30}, {"say": "ok"}]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert "never started" in snap["runs"][0]["error"]
@@ -66,7 +73,10 @@ def test_a_command_codex_was_let_run_and_never_heard_of_again_ends_its_turn(
 
 
 def test_a_command_codex_said_it_started_and_then_nothing_ran_too_long(
-    native_app, wait_run, project_dir, monkeypatch  # noqa: F811
+    native_app,
+    wait_run,
+    project_dir,
+    monkeypatch,  # noqa: F811
 ):
     # (Review, 21 Nov: seen at work before it was allowed, it started - not "never started".)
     monkeypatch.setattr(model_native, "CALL_SECONDS", 1.0)
@@ -80,13 +90,17 @@ def test_a_command_codex_said_it_started_and_then_nothing_ran_too_long(
 
 
 def test_a_quiet_command_of_codexs_is_not_taken_for_one_that_never_started(
-    native_app, wait_run, project_dir, monkeypatch  # noqa: F811
+    native_app,
+    wait_run,
+    project_dir,
+    monkeypatch,  # noqa: F811
 ):
     # (Code review, 14 Nov: a command that printed nothing for 30 s ended Codex's turn.)
     monkeypatch.setattr(model_native, "NEVER_STARTED_SECONDS", 1.0, raising=False)
     monkeypatch.setattr(model_native, "CALL_SECONDS", scaled(6.0))  # (it is at work 2.5 s)
     client, provider, _ = native_app(
-        [{"run": "pytest -q", "hold": 2.5, "output": "3 passed\n"}, {"say": "ok"}])
+        [{"run": "pytest -q", "hold": 2.5, "output": "3 passed\n"}, {"say": "ok"}]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
@@ -94,11 +108,15 @@ def test_a_quiet_command_of_codexs_is_not_taken_for_one_that_never_started(
 
 
 def test_a_command_of_codexs_at_work_past_the_bound_ends_its_turn(
-    native_app, wait_run, project_dir, monkeypatch  # noqa: F811
+    native_app,
+    wait_run,
+    project_dir,
+    monkeypatch,  # noqa: F811
 ):
     monkeypatch.setattr(model_native, "CALL_SECONDS", 1.5)
     client, provider, _ = native_app(
-        [{"run": "pytest -q", "delta": "1 passed", "hold": 30}, {"say": "ok"}])
+        [{"run": "pytest -q", "delta": "1 passed", "hold": 30}, {"say": "ok"}]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert "still at work after 1.5 seconds" in snap["runs"][0]["error"]
@@ -107,7 +125,10 @@ def test_a_command_of_codexs_at_work_past_the_bound_ends_its_turn(
 
 
 def test_a_card_left_open_past_the_bound_does_not_end_codexs_turn(
-    native_app, wait_run, project_dir, monkeypatch  # noqa: F811
+    native_app,
+    wait_run,
+    project_dir,
+    monkeypatch,  # noqa: F811
 ):
     monkeypatch.setattr(model_native, "CALL_SECONDS", 1.0)
     client, provider, _ = native_app([{"run": "pytest -q", "output": "ok\n"}, {"say": "ok"}])
@@ -120,27 +141,34 @@ def test_a_card_left_open_past_the_bound_does_not_end_codexs_turn(
 
 
 def test_stop_on_a_command_of_codexs_own_ends_its_turn(
-    native_app, wait_run, project_dir  # noqa: F811
+    native_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, provider, _ = native_app(
-        [{"run": "pytest -q", "delta": "1 passed", "hold": 30}, {"say": "ok"}])
+        [{"run": "pytest -q", "delta": "1 passed", "hold": 30}, {"say": "ok"}]
+    )
     cid, run_id = start(client, project_dir, provider)
     for _ in range(250):
         commands = client.get(f"/api/conversations/{cid}").json()["commands"]
         if commands and commands[0]["status"] == "running":
             break
         time.sleep(0.02)
-    stop = client.post(f"/api/commands/{commands[0]['id']}/stop",
-                       headers={"Origin": "http://127.0.0.1:8790"})
+    stop = client.post(
+        f"/api/commands/{commands[0]['id']}/stop", headers={"Origin": "http://127.0.0.1:8790"}
+    )
     assert stop.status_code == 200, stop.text
     snap = wait_run(client, cid, run_id, timeout=10)
     assert "you stopped its command" in str(snap["agents"][0]["error"]) + str(
-        snap["runs"][0]["error"])
+        snap["runs"][0]["error"]
+    )
     assert snap["commands"][0]["status"] == "killed"
 
 
 def test_codexs_commands_keep_their_temporary_files_in_the_scratch(
-    native_app, wait_run, project_dir  # noqa: F811
+    native_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     # B-358: its sandbox writes only in the folder it works in; tempfile went to %TEMP%.
     client, provider, _ = native_app([{"say": "ok"}])
@@ -159,16 +187,29 @@ def test_codexs_commands_keep_their_temporary_files_in_the_scratch(
 def test_ready_for_you_offers_ask_for_changes_first_where_a_team_failed(
     make_client, wait_run, project_dir
 ):
-    client, _model = make_client({
-        "Lead": [step(spawn("Web app lead", "the page", "l1").tool_calls[0],
-                      spawn("Docs lead", "the words", "l2").tool_calls[0]), text("all done")],
-        **SCRIPTS,
-        "Web app lead": [spawn("Coder", "build a.py", "c"),
-                         ModelUnavailable("model server returned 500: down")],
-    })
+    client, _model = make_client(
+        {
+            "Lead": [
+                step(
+                    spawn("Web app lead", "the page", "l1").tool_calls[0],
+                    spawn("Docs lead", "the words", "l2").tool_calls[0],
+                ),
+                text("all done"),
+            ],
+            **SCRIPTS,
+            "Web app lead": [
+                spawn("Coder", "build a.py", "c"),
+                ModelUnavailable("model server returned 500: down"),
+            ],
+        }
+    )
     teams = teams_of(client)
-    cid, run_id = manual(client, project_dir, (teams["Web app"], build_then_test(client)),
-                         (teams["Docs"], one_step(client, "Just write", "Docs writer")))
+    cid, run_id = manual(
+        client,
+        project_dir,
+        (teams["Web app"], build_then_test(client)),
+        (teams["Docs"], one_step(client, "Just write", "Docs writer")),
+    )
     snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"])
     assert row(snap, 0)["status"] == "failed" and row(snap, 1)["status"] == "ready"
     card = asked(snap)
@@ -185,17 +226,28 @@ def test_ready_for_you_offers_ask_for_changes_first_where_a_team_failed(
 
 def test_a_team_lead_has_more_steps_for_each_step_of_its_recipe(make_client, wait_run, project_dir):
     looks = [step(call("list_dir", {"path": "."}, f"r{n}")) for n in range(4)]
-    client, _model = make_client({
-        "Lead": [step(spawn("Web app lead", "the page", "l1").tool_calls[0],
-                      spawn("Docs lead", "the words", "l2").tool_calls[0]), text("all done")],
-        **SCRIPTS,
-        "Web app lead": [*looks, spawn("Coder", "build a.py", "c"), text("web done")],
-    })
+    client, _model = make_client(
+        {
+            "Lead": [
+                step(
+                    spawn("Web app lead", "the page", "l1").tool_calls[0],
+                    spawn("Docs lead", "the words", "l2").tool_calls[0],
+                ),
+                text("all done"),
+            ],
+            **SCRIPTS,
+            "Web app lead": [*looks, spawn("Coder", "build a.py", "c"), text("web done")],
+        }
+    )
     runner = client.app.state.runner
     runner.settings = replace(runner.settings, max_steps=3)  # (six steps: past it, not past 3 + 4)
     teams = teams_of(client)
-    cid, run_id = manual(client, project_dir, (teams["Web app"], one_step(client, "Just build", "Coder")),
-                         (teams["Docs"], one_step(client, "Just write", "Docs writer")))
+    cid, run_id = manual(
+        client,
+        project_dir,
+        (teams["Web app"], one_step(client, "Just build", "Coder")),
+        (teams["Docs"], one_step(client, "Just write", "Docs writer")),
+    )
     snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"])
     lead = next(a for a in snap["agents"] if a["name"] == "Web app lead")
     assert lead["status"] == "completed", lead["error"]
@@ -203,21 +255,32 @@ def test_a_team_lead_has_more_steps_for_each_step_of_its_recipe(make_client, wai
     wait_run(client, cid, run_id)
 
 
-def test_an_agent_of_a_stopped_team_is_not_reachable_by_a_note(make_client, wait_run, project_dir, gate):
+def test_an_agent_of_a_stopped_team_is_not_reachable_by_a_note(
+    make_client, wait_run, project_dir, gate
+):
     # R143: "handed at its next step" to an agent that takes none.
-    client, _model = make_client({
-        "Lead": [step(call("spawn_agent", {"role": "Web app lead", "task": "the page"}, "l1"),
-                      call("spawn_agent", {"role": "Docs lead", "task": "the words"}, "l2")),
-                 text("one stopped")],
-        "Web app lead": [spawn("Coder", "build a.py", "c"), text("never said")],
-        "Docs lead": [spawn("Docs writer", "write b.md", "d"), text("docs done")],
-        "Coder": [gate.step(step(write("a.py", "a\n"))), text("never said")],
-        "Docs writer": [step(write("b.md", "b\n", id="w2")), text("written")],
-    })
+    client, _model = make_client(
+        {
+            "Lead": [
+                step(
+                    call("spawn_agent", {"role": "Web app lead", "task": "the page"}, "l1"),
+                    call("spawn_agent", {"role": "Docs lead", "task": "the words"}, "l2"),
+                ),
+                text("one stopped"),
+            ],
+            "Web app lead": [spawn("Coder", "build a.py", "c"), text("never said")],
+            "Docs lead": [spawn("Docs writer", "write b.md", "d"), text("docs done")],
+            "Coder": [gate.step(step(write("a.py", "a\n"))), text("never said")],
+            "Docs writer": [step(write("b.md", "b\n", id="w2")), text("written")],
+        }
+    )
     teams = teams_of(client)
-    cid, run_id = manual(client, project_dir,
-                         (teams["Web app"], one_step(client, "Just build", "Coder")),
-                         (teams["Docs"], one_step(client, "Just write", "Docs writer")))
+    cid, run_id = manual(
+        client,
+        project_dir,
+        (teams["Web app"], one_step(client, "Just build", "Coder")),
+        (teams["Docs"], one_step(client, "Just write", "Docs writer")),
+    )
     gate.wait_partial()
     runner = client.app.state.runner
     web_lead = next(c for c in runner._ctxs.values() if c.name == "Web app lead")
@@ -236,12 +299,19 @@ def test_an_agent_of_a_stopped_team_is_not_reachable_by_a_note(make_client, wait
 
 
 def test_codex_in_a_copy_gets_the_scratch_and_nothing_more_to_take_in(
-    native_app, wait_run, project_dir  # noqa: F811
+    native_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, provider, _default = native_app(
         [{"write": "made.txt", "content": "new\n"}, {"say": "Made it."}],
-        default_steps={"Lead": [step(call("spawn_agent", {"role": "Coder", "task": "make"}, "s")),
-                                text("done")]})
+        default_steps={
+            "Lead": [
+                step(call("spawn_agent", {"role": "Coder", "task": "make"}, "s")),
+                text("done"),
+            ]
+        },
+    )
     _roles_on(client, provider, "Coder")
     cid, run_id = start(client, project_dir, None)
     snap = wait_run(client, cid, run_id)
@@ -258,23 +328,41 @@ def test_a_recipes_take_in_at_auto_edit_runs_the_check_first_and_a_failing_one_i
     make_client, wait_run, project_dir
 ):
     # PLAN-E2E-07: "Take in" on Ready for you at Auto-edit took a red suite in, check "not_run".
-    client, _model = make_client({
-        "Lead": [spawn("Coder", "build a.py", "c"), text("all done")],
-        "Coder": [step(write("a.py", "a\n")), text("built")],
-    })
+    client, _model = make_client(
+        {
+            "Lead": [spawn("Coder", "build a.py", "c"), text("all done")],
+            "Coder": [step(write("a.py", "a\n")), text("built")],
+        }
+    )
     teams = teams_of(client)
     # (k-sira-016: After a change Nothing - KOLONİ's end checks, which run before Ready for you,
     # would stop a red suite there; here Take in's own check is what is tried. Set before the
     # turn starts: its end checks may come before a later change lands.)
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}, headers=OWN).json()["id"]
-    assert client.patch(f"/api/projects/{pid}", json={
-        "check_command": "python -c \"raise SystemExit(1)\"", "after_change": "nothing"},
-        headers=OWN).status_code == 200
-    cid, run_id = manual(client, project_dir, (teams["Web app"], one_step(client, "Just build", "Coder")))
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}, headers=OWN).json()[
+        "id"
+    ]
+    assert (
+        client.patch(
+            f"/api/projects/{pid}",
+            json={"check_command": 'python -c "raise SystemExit(1)"', "after_change": "nothing"},
+            headers=OWN,
+        ).status_code
+        == 200
+    )
+    cid, run_id = manual(
+        client, project_dir, (teams["Web app"], one_step(client, "Just build", "Coder"))
+    )
     snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"])
     answer(client, asked(snap), "Take in")
-    snap = until(client, cid, lambda s: [m["status"] for m in s["merges"]] == ["pending"]
-                 and s["merges"][0]["check"]["state"] == "failed", timeout=20)
+    snap = until(
+        client,
+        cid,
+        lambda s: (
+            [m["status"] for m in s["merges"]] == ["pending"]
+            and s["merges"][0]["check"]["state"] == "failed"
+        ),
+        timeout=20,
+    )
     assert not (project_dir / "a.py").exists()
     merge = snap["merges"][0]
     assert client.post(f"/api/merges/{merge['id']}/reject", headers=OWN).status_code == 200

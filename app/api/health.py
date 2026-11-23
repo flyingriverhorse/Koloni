@@ -44,7 +44,8 @@ async def health(
     docker = await docker_status()
     providers = list_providers(session)
     provider = next(
-        (p for p in providers if p.id == provider_id), providers[0] if providers else None)
+        (p for p in providers if p.id == provider_id), providers[0] if providers else None
+    )
     report = {
         # (shown on the page: no password or key that the address may carry)
         "model_base_url": safe_url((provider.base_url if provider else None) or ""),
@@ -68,13 +69,21 @@ async def health(
     except NotListed as exc:
         # Nothing was asked of it: it is not known to be out of reach.
         return HealthOut(
-            model_reachable=False, model_id=None, tools_supported=None, error=str(exc),
-            not_listed=True, **report,
+            model_reachable=False,
+            model_id=None,
+            tools_supported=None,
+            error=str(exc),
+            not_listed=True,
+            **report,
         )
     except ModelUnavailable as exc:
         return HealthOut(
-            model_reachable=False, model_id=None, tools_supported=None, error=str(exc),
-            not_listed=False, **report,
+            model_reachable=False,
+            model_id=None,
+            tools_supported=None,
+            error=str(exc),
+            not_listed=False,
+            **report,
         )
     return HealthOut(
         model_reachable=True,

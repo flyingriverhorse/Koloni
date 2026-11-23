@@ -9,6 +9,7 @@ column is kept (not dropped in 0.1.6). Going back drops the new one.
 Revision ID: 0162
 Revises: 0161
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -21,8 +22,9 @@ depends_on = None
 
 def upgrade() -> None:
     with op.batch_alter_table("projects") as batch:
-        batch.add_column(sa.Column("after_change", sa.String(7), nullable=False,
-                                   server_default="check"))
+        batch.add_column(
+            sa.Column("after_change", sa.String(7), nullable=False, server_default="check")
+        )
     op.execute("UPDATE projects SET after_change = 'nothing' WHERE finish_tests = 0")
 
 

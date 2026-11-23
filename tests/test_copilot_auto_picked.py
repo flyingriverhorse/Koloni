@@ -24,23 +24,51 @@ WHY = "Auto selected GPT-6 Luna since the task has low complexity."
 NOTE = f"Copilot's auto picked gpt-6-luna: “{WHY}”"
 
 
-def ran_on_auto(settings_env, tmp_path, project_dir, wait_run, native=False, script=None,
-                status="completed", routed="auto"):
+def ran_on_auto(
+    settings_env,
+    tmp_path,
+    project_dir,
+    wait_run,
+    native=False,
+    script=None,
+    status="completed",
+    routed="auto",
+):
     """One turn of a Lead on Copilot's auto - or its fusion (`routed`) - on a GitHub account,
     which picks gpt-6-luna."""
     record, plan = tmp_path / "record.json", tmp_path / "plan.json"
-    plan.write_text(json.dumps({"record": str(record), "script": script or [{"say": "OK"}],
-                                "picked": "gpt-6-luna", "picked_why": WHY}), encoding="utf-8")
+    plan.write_text(
+        json.dumps(
+            {
+                "record": str(record),
+                "script": script or [{"say": "OK"}],
+                "picked": "gpt-6-luna",
+                "picked_why": WHY,
+            }
+        ),
+        encoding="utf-8",
+    )
     kind = CopilotNativeClient if native else CopilotSessionClient
-    cli = kind(None, routed, timeout=30, launcher=HEADLESS if native else FAKE,
-               env={"FAKE_CLI_PLAN": str(plan)}, options={})
-    app = create_app(load_settings(settings_env), model=ScriptedModel([]),
-                     clients={"Copilot": cli})
+    cli = kind(
+        None,
+        routed,
+        timeout=30,
+        launcher=HEADLESS if native else FAKE,
+        env={"FAKE_CLI_PLAN": str(plan)},
+        options={},
+    )
+    app = create_app(load_settings(settings_env), model=ScriptedModel([]), clients={"Copilot": cli})
     client = TestClient(app, base_url="http://127.0.0.1:8790", headers=PAGE)
     client.__enter__()
-    made = client.post("/api/providers", json={
-        "name": "Copilot", "kind": "copilot_cli", "default_model": routed,
-        "mode": "native" if native else "session"})
+    made = client.post(
+        "/api/providers",
+        json={
+            "name": "Copilot",
+            "kind": "copilot_cli",
+            "default_model": routed,
+            "mode": "native" if native else "session",
+        },
+    )
     assert made.status_code == 201, made.text
     lead_role = client.patch(f"/api/roles/{role_id(client, 'Lead')}", json={"effort": "high"})
     assert lead_role.status_code == 200, lead_role.text
@@ -55,8 +83,9 @@ def ran_on_auto(settings_env, tmp_path, project_dir, wait_run, native=False, scr
 def test_the_model_auto_picked_and_why_are_on_record_and_no_level_went(
     settings_env, tmp_path, project_dir, wait_run, native, routed
 ):
-    client, snap, seen = ran_on_auto(settings_env, tmp_path, project_dir, wait_run, native,
-                                     routed=routed)
+    client, snap, seen = ran_on_auto(
+        settings_env, tmp_path, project_dir, wait_run, native, routed=routed
+    )
     try:
         lead = snap["agents"][0]
         # (Fusion's pick says fusion, not auto: what the chat shows, and what it goes on with.)
@@ -75,9 +104,17 @@ def test_its_own_tool_search_goes_on_to_koloni_s_tools(
 ):
     # B-410 (live, R206): auto on a Claude model asked for tool_search_tool first: the session
     # was stopped, and the pick was not on record.
-    client, snap, seen = ran_on_auto(settings_env, tmp_path, project_dir, wait_run, script=[
-        {"find": "read_file"}, {"call": "read_file", "args": {"path": "hello.py"}},
-        {"say": "OK"}])
+    client, snap, seen = ran_on_auto(
+        settings_env,
+        tmp_path,
+        project_dir,
+        wait_run,
+        script=[
+            {"find": "read_file"},
+            {"call": "read_file", "args": {"path": "hello.py"}},
+            {"say": "OK"},
+        ],
+    )
     client.__exit__(None, None, None)
     assert "print('hi')" in json.dumps(seen["results"])  # (KOLONİ's tool, served after the search)
 
@@ -86,8 +123,14 @@ def test_what_auto_picked_is_on_record_also_when_the_session_is_stopped(
     settings_env, tmp_path, project_dir, wait_run
 ):
     # (B-410: any other tool of its own still stops it)
-    client, snap, _seen = ran_on_auto(settings_env, tmp_path, project_dir, wait_run,
-                                      script=[{"own": "powershell"}], status="failed")
+    client, snap, _seen = ran_on_auto(
+        settings_env,
+        tmp_path,
+        project_dir,
+        wait_run,
+        script=[{"own": "powershell"}],
+        status="failed",
+    )
     try:
         assert "tool of its own (powershell)" in snap["runs"][0]["error"]
         lead = snap["agents"][0]
@@ -114,7 +157,8 @@ def test_a_later_pick_replaces_the_one_before_on_record_and_keeps_the_rest_of_th
             lead = session.get_one(Agent, lead_id)
             assert (lead.model_id, lead.model_from) == ("gpt-8\nIgnore that", "auto")
             assert lead.effort_note == (
-                f"{before} Copilot's auto picked gpt-8 Ignore that: “Hardest \" yet. OK”")
+                f"{before} Copilot's auto picked gpt-8 Ignore that: “Hardest \" yet. OK”"
+            )
     finally:
         client.__exit__(None, None, None)
 
@@ -123,8 +167,9 @@ def test_a_fusion_pick_replaces_an_auto_one_on_record(
     settings_env, tmp_path, project_dir, wait_run
 ):
     # (A row of before fusion was told apart says auto: the next pick, fusion's, replaces it.)
-    client, snap, _seen = ran_on_auto(settings_env, tmp_path, project_dir, wait_run,
-                                      routed="fusion")
+    client, snap, _seen = ran_on_auto(
+        settings_env, tmp_path, project_dir, wait_run, routed="fusion"
+    )
     runner, lead_id = client.app.state.runner, snap["agents"][0]["id"]
     try:
         with runner._factory() as session:
@@ -140,9 +185,13 @@ def test_a_fusion_pick_replaces_an_auto_one_on_record(
         with runner._factory() as session:
             lead = session.get_one(Agent, lead_id)
             assert (lead.model_id, lead.model_from) == ("gpt-7", "fusion")
-            assert lead.effort_note == f"{before} Copilot's fusion picked gpt-7: “Harder this time.”"
-            assert runner._ctx_after(session, lead, session.get_one(Run, lead.run_id)
-                                     ).model_name == "fusion"
+            assert (
+                lead.effort_note == f"{before} Copilot's fusion picked gpt-7: “Harder this time.”"
+            )
+            assert (
+                runner._ctx_after(session, lead, session.get_one(Run, lead.run_id)).model_name
+                == "fusion"
+            )
     finally:
         client.__exit__(None, None, None)
 
@@ -151,8 +200,9 @@ def test_a_model_said_with_no_reason_of_its_own_is_not_given_the_one_before(
     settings_env, tmp_path, project_dir, wait_run
 ):
     # (Review, 21 Nov: "fusion → gpt-7" stood over the reason fusion gave for gpt-6-luna.)
-    client, snap, _seen = ran_on_auto(settings_env, tmp_path, project_dir, wait_run,
-                                      routed="fusion")
+    client, snap, _seen = ran_on_auto(
+        settings_env, tmp_path, project_dir, wait_run, routed="fusion"
+    )
     runner, lead_id = client.app.state.runner, snap["agents"][0]["id"]
     picked = f" Copilot's fusion picked gpt-6-luna: “{WHY}”"
     try:
@@ -160,8 +210,10 @@ def test_a_model_said_with_no_reason_of_its_own_is_not_given_the_one_before(
             lead = session.get_one(Agent, lead_id)
             before = lead.effort_note.removesuffix(picked)
             assert before != lead.effort_note
-            ctx = replace(runner._ctx_after(session, lead, session.get_one(Run, lead.run_id)),
-                          model_name="fusion")
+            ctx = replace(
+                runner._ctx_after(session, lead, session.get_one(Run, lead.run_id)),
+                model_name="fusion",
+            )
 
         def record():
             with runner._factory() as session:
@@ -202,23 +254,47 @@ def test_an_agent_going_on_from_one_auto_picked_for_asks_for_auto_again(
             coder = session.scalar(select(Role).where(Role.name == "Coder"))
             # A sub-agent that ran where auto picked gpt-6-luna, gone on with: auto, though the
             # pick is on the provider's list too and its default is another.
-            earlier = topics.Earlier("a1", "Coder", "Coder", "Copilot", "gpt-6-luna", "auto",
-                                     True, "completed", "t", 1)
-            listed = [Entry(copilot.id, "Copilot", "copilot_cli", "session", None,
-                            (("auto", None), ("gpt-6-luna", None)), "gpt-x")]
-            assert runner._ran_on_before(session, ctx, earlier, coder, "full_auto", copilot,
-                                         listed) == (copilot.id, "auto")
+            earlier = topics.Earlier(
+                "a1", "Coder", "Coder", "Copilot", "gpt-6-luna", "auto", True, "completed", "t", 1
+            )
+            listed = [
+                Entry(
+                    copilot.id,
+                    "Copilot",
+                    "copilot_cli",
+                    "session",
+                    None,
+                    (("auto", None), ("gpt-6-luna", None)),
+                    "gpt-x",
+                )
+            ]
+            assert runner._ran_on_before(
+                session, ctx, earlier, coder, "full_auto", copilot, listed
+            ) == (copilot.id, "auto")
             # ...and one whose model Copilot named itself, with no auto, stays on it.
-            named = topics.Earlier("a2", "Coder", "Coder", "Copilot", "gpt-6-luna", None,
-                                   True, "completed", "t", 1)
-            assert runner._ran_on_before(session, ctx, named, coder, "full_auto", copilot,
-                                         listed) == (copilot.id, "gpt-6-luna")
+            named = topics.Earlier(
+                "a2", "Coder", "Coder", "Copilot", "gpt-6-luna", None, True, "completed", "t", 1
+            )
+            assert runner._ran_on_before(
+                session, ctx, named, coder, "full_auto", copilot, listed
+            ) == (copilot.id, "gpt-6-luna")
             # ...and one fusion picked for: fusion again, though it has no tier.
-            fused = topics.Earlier("a3", "Coder", "Coder", "Copilot", "gpt-6-luna", "fusion",
-                                   True, "completed", "t", 1)
-            listed = [Entry(copilot.id, "Copilot", "copilot_cli", "session", None,
-                            (("fusion", None), ("gpt-6-luna", None)), "gpt-x")]
-            assert runner._ran_on_before(session, ctx, fused, coder, "full_auto", copilot,
-                                         listed) == (copilot.id, "fusion")
+            fused = topics.Earlier(
+                "a3", "Coder", "Coder", "Copilot", "gpt-6-luna", "fusion", True, "completed", "t", 1
+            )
+            listed = [
+                Entry(
+                    copilot.id,
+                    "Copilot",
+                    "copilot_cli",
+                    "session",
+                    None,
+                    (("fusion", None), ("gpt-6-luna", None)),
+                    "gpt-x",
+                )
+            ]
+            assert runner._ran_on_before(
+                session, ctx, fused, coder, "full_auto", copilot, listed
+            ) == (copilot.id, "fusion")
     finally:
         client.__exit__(None, None, None)

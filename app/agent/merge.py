@@ -77,8 +77,9 @@ from app.workspace import (
 # any copy - whole or of one part - is the sign of such an install, so it is taken only on the
 # user's word (`_root_lock`). shortcut: a plain `npm install` at the root is not measured
 # through the junction; refuse the install itself if it is seen to prune the project's own.
-ROOT_LOCKS = frozenset({"package-lock.json", "pnpm-lock.yaml", "yarn.lock", "uv.lock",
-                        "poetry.lock"})
+ROOT_LOCKS = frozenset(
+    {"package-lock.json", "pnpm-lock.yaml", "yarn.lock", "uv.lock", "poetry.lock"}
+)
 ROOT_LOCK_ASKED = (
     "{path}: a lockfile at the project root changed from a working copy, where the dependency "
     "folders are the project's own, linked in: taken only on the user's word, at every "
@@ -109,7 +110,8 @@ MAX_LINES_COMPARED = 2000
 # A Python install, whose `.pth` files stand where nobody watches (`_command_names`).
 PIP_INSTALLS = re.compile(
     r"(?i)(?:^|[\s;&|(])(?:\S*[\\/])?(?:(?:python[\d.]*|py)(?:\.exe)?\s+-m\s+)?"
-    r"(?:pip3?|uv|poetry)(?:\.exe)?\s+(?:install|add|sync|pip\s+install)\b")
+    r"(?:pip3?|uv|poetry)(?:\.exe)?\s+(?:install|add|sync|pip\s+install)\b"
+)
 
 
 MAX_PLANNED_BYTES = 1024 * 1024  # larger files are asked about in words, not as a diff
@@ -183,8 +185,13 @@ def _side(place: Path | None) -> tuple[str | None, bool, str | None]:
 
 def _git_commit_on(session, cid: str) -> bool:
     """Whether the project of a conversation has what is taken from an agent committed."""
-    return bool(session.scalar(select(Project.git_commit).join(
-        Conversation, Conversation.project_id == Project.id).where(Conversation.id == cid)))
+    return bool(
+        session.scalar(
+            select(Project.git_commit)
+            .join(Conversation, Conversation.project_id == Project.id)
+            .where(Conversation.id == cid)
+        )
+    )
 
 
 def _held(place: Path | None) -> bytes | None | Literal[False]:
@@ -198,7 +205,9 @@ def _held(place: Path | None) -> bytes | None | Literal[False]:
 
 
 def _merge_file(
-    copy: copies.Copy, path: str, base: dict[str, str] | None = None,
+    copy: copies.Copy,
+    path: str,
+    base: dict[str, str] | None = None,
     recorded: dict[str, datetime] | None = None,
 ) -> dict | None:
     """One file a working copy changes, as its card shows it: how it stands against the
@@ -214,30 +223,46 @@ def _merge_file(
     stand against each other, and when each side last changed it (`recorded`: when the
     copy's agents last did, by path, as their records have it)."""
     (there, as_text, before), (here, is_text, after) = (
-        _side(copy.there(path)), _side(copy.here(path))
+        _side(copy.there(path)),
+        _side(copy.here(path)),
     )
     found = copy.state(path, base, (there, here))
     if found is None:
         return None
     kind, state = found
     # (Its text is not shown, nor taken: it would be on record whole - slice 91.)
-    held = path in copy.secret_held or is_text and after is not None and any(
-        secret in after for secret in copy.secrets())
+    held = (
+        path in copy.secret_held
+        or is_text
+        and after is not None
+        and any(secret in after for secret in copy.secrets())
+    )
     if held:
         state = "refused"
     diff = added = removed = None
     if state in ("ready", "conflict") and as_text and is_text:
         diff, added, removed = unified_diff(before, after or "", path)
-    why = {"refused": SECRET_IN_COPY if held else copies.OUTSIDE,
-           # (B-189 first: what git ignores is not kept, outside a part copy's part too.)
-           "left_out": copies.IGNORED if copy.ignored(path)
-           else copies.NOT_IN_PART if not copy.holds(path) else copies.NOT_OFFERED}
+    why = {
+        "refused": SECRET_IN_COPY if held else copies.OUTSIDE,
+        # (B-189 first: what git ignores is not kept, outside a part copy's part too.)
+        "left_out": copies.IGNORED
+        if copy.ignored(path)
+        else copies.NOT_IN_PART
+        if not copy.holds(path)
+        else copies.NOT_OFFERED,
+    }
     # Why such a file waits on the card at every level (nobody watching: refused instead).
     standing = stands_over_later_turns(Workspace(copy.project), path)
     one = {
-        "path": path, "kind": kind, "state": state, "diff": diff, "additions": added,
+        "path": path,
+        "kind": kind,
+        "state": state,
+        "diff": diff,
+        "additions": added,
         "deletions": removed,
-        "note": why.get(state) or standing and ASKED_AT_EVERY_LEVEL.format(name=standing)
+        "note": why.get(state)
+        or standing
+        and ASKED_AT_EVERY_LEVEL.format(name=standing)
         or _root_lock(copy, path),
         "shown": [there, here],
         # Compared with the project alone: the card says so, and does not say "meanwhile".
@@ -255,8 +280,13 @@ def _merge_file(
 
 
 def _both_changed(
-    copy: copies.Copy, path: str, base: dict[str, str] | None,
-    shown: tuple[str | None, str | None], new: bool, before: str | None, after: str | None,
+    copy: copies.Copy,
+    path: str,
+    base: dict[str, str] | None,
+    shown: tuple[str | None, str | None],
+    new: bool,
+    before: str | None,
+    after: str | None,
 ) -> dict:
     """What a card says of a file the project changed too, and differently: the two
     merged line by line with git's own merge, on what the copy was made from.
@@ -327,8 +357,10 @@ def _projects_lines(agents: str, together: str) -> str:
         return ""
     # (no autojunk: it would take the agent's own repeated lines for the project's)
     spans = [
-        (start + 1, end) for tag, _a, _b, start, end in difflib.SequenceMatcher(
-            None, mine, theirs, autojunk=False).get_opcodes()
+        (start + 1, end)
+        for tag, _a, _b, start, end in difflib.SequenceMatcher(
+            None, mine, theirs, autojunk=False
+        ).get_opcodes()
         if tag != "equal" and end > start
     ]
     if not spans:
@@ -359,11 +391,15 @@ def _sides(copy: copies.Copy, path: str, recorded: datetime | None) -> dict:
 def _last_changes(session, line: list[str]) -> dict[str, datetime]:
     """When the agents of a working copy last changed each file in it, by path, as their
     change records have it."""
-    found = session.execute(
-        select(FileChange.path, func.max(FileChange.created_at))
-        .where(FileChange.agent_id.in_(line), FileChange.status == "in_copy")
-        .group_by(FileChange.path)
-    ).all() if line else []
+    found = (
+        session.execute(
+            select(FileChange.path, func.max(FileChange.created_at))
+            .where(FileChange.agent_id.in_(line), FileChange.status == "in_copy")
+            .group_by(FileChange.path)
+        ).all()
+        if line
+        else []
+    )
     return {path: at if at.tzinfo else at.replace(tzinfo=UTC) for path, at in found}
 
 
@@ -372,7 +408,8 @@ def unchosen(files: list[dict], choices: dict[str, str]) -> list[str]:
     user has not said whose is taken: nothing is chosen for them. (A copy compared with
     the project alone is asked about as before: Apply takes what it holds.)"""
     return [
-        one["path"] for one in files
+        one["path"]
+        for one in files
         if one["state"] == "conflict" and not one.get("two_way") and one["path"] not in choices
     ]
 
@@ -384,12 +421,22 @@ def _files_on_record(changes: list[FileChange], state: str, note: str) -> list[d
     for change in changes:
         new = change.kind == "create" and change.path not in kinds
         kinds[change.path] = (
-            "deleted" if change.kind == "delete"
-            else "new" if new or kinds.get(change.path) == "new" else "changed"
+            "deleted"
+            if change.kind == "delete"
+            else "new"
+            if new or kinds.get(change.path) == "new"
+            else "changed"
         )
     return [
-        {"path": path, "kind": kind, "state": state, "diff": None, "additions": None,
-         "deletions": None, "note": note}
+        {
+            "path": path,
+            "kind": kind,
+            "state": state,
+            "diff": None,
+            "additions": None,
+            "deletions": None,
+            "note": note,
+        }
         for path, kind in sorted(kinds.items())
     ]
 
@@ -409,9 +456,12 @@ def _branch_files(
     listed = list(look["files"].items())
     try:
         # (W-1: from the snapshot it began from - the user's uncommitted work is not the branch's.)
-        diffs = git.branch_diffs(copy.project, copy.branch or "",
-                                 [path for path, _ in listed[:MOST_BRANCH_DIFFS]],
-                                 at=look.get("since") or copy.snapshot_sha)
+        diffs = git.branch_diffs(
+            copy.project,
+            copy.branch or "",
+            [path for path, _ in listed[:MOST_BRANCH_DIFFS]],
+            at=look.get("since") or copy.snapshot_sha,
+        )
     except git.Refused:
         diffs = {}
     ws, found = Workspace(copy.project), {}
@@ -421,24 +471,41 @@ def _branch_files(
         body = lines[hunk:] if hunk is not None and hunk >= 2 else []
         standing = stands_over_later_turns(ws, path)
         found[path] = {
-            "path": path, "kind": {"A": "new", "D": "deleted"}.get(letter, "changed"),
-            "state": "ready", "note": ASKED_AT_EVERY_LEVEL.format(name=standing) if (
-                standing_asks(standing, level)) else _root_lock(copy, path),
-            "diff": "\n".join(lines[hunk - 2:]) if body and hunk is not None else None,
+            "path": path,
+            "kind": {"A": "new", "D": "deleted"}.get(letter, "changed"),
+            "state": "ready",
+            "note": ASKED_AT_EVERY_LEVEL.format(name=standing)
+            if (standing_asks(standing, level))
+            else _root_lock(copy, path),
+            "diff": "\n".join(lines[hunk - 2 :]) if body and hunk is not None else None,
             "additions": sum(line.startswith("+") for line in body) if body else None,
             "deletions": sum(line.startswith("-") for line in body) if body else None,
         }
     for path, why in (held or {}).items():
-        found.setdefault(path, {"path": path, "kind": "changed", "state": "refused", "note": why,
-                                "diff": None, "additions": None, "deletions": None})
+        found.setdefault(
+            path,
+            {
+                "path": path,
+                "kind": "changed",
+                "state": "refused",
+                "note": why,
+                "diff": None,
+                "additions": None,
+                "deletions": None,
+            },
+        )
     return found
 
 
 def _secret_forms(copy: copies.Copy) -> list[bytes]:
     """K-dal-takim: the secrets given in a branch copy's turn (`Copy.secrets`) as they are looked
     for in bytes: UTF-8 and UTF-16-LE."""
-    return [form for one in copy.secrets() if one
-            for form in (one.encode("utf-8"), one.encode("utf-16-le"))]
+    return [
+        form
+        for one in copy.secrets()
+        if one
+        for form in (one.encode("utf-8"), one.encode("utf-16-le"))
+    ]
 
 
 def _secret_in(copy: copies.Copy, path: str) -> bool:
@@ -478,7 +545,11 @@ def _few(paths: list[str]) -> str:
 
 
 def kept_on_record(
-    session, folder: Path, line: list[str], why: str, always: bool = False,
+    session,
+    folder: Path,
+    line: list[str],
+    why: str,
+    always: bool = False,
     room_id: str | None = None,
 ) -> Merge | None:
     """Put a working copy that is left on disk on record as that: what of it was on its
@@ -491,25 +562,37 @@ def kept_on_record(
     shortcut: a room's copy kept at a restart, and every merge from before 0082, has no
     room on record (nothing is filled in): its card is the lead's, not the room's tab's -
     look for the room by its run if that is missed."""
-    changes = session.scalars(
-        select(FileChange).where(FileChange.agent_id.in_(line), FileChange.status == "in_copy")
-        .order_by(FileChange.created_at, literal_column("file_changes.rowid"))
-    ).all() if line else []
+    changes = (
+        session.scalars(
+            select(FileChange)
+            .where(FileChange.agent_id.in_(line), FileChange.status == "in_copy")
+            .order_by(FileChange.created_at, literal_column("file_changes.rowid"))
+        ).all()
+        if line
+        else []
+    )
     # The one of this folder; else the one that was asked about, or (before folders
     # were on record) the agent's interrupted one.
     merge = session.scalar(
-        select(Merge).where(Merge.agent_id.in_(line[:1]), or_(
-            Merge.kept_in == str(folder),
-            and_(Merge.kept_in.is_(None), Merge.status.in_(("pending", "interrupted"))),
-        )).order_by(Merge.kept_in.is_(None))
+        select(Merge)
+        .where(
+            Merge.agent_id.in_(line[:1]),
+            or_(
+                Merge.kept_in == str(folder),
+                and_(Merge.kept_in.is_(None), Merge.status.in_(("pending", "interrupted"))),
+            ),
+        )
+        .order_by(Merge.kept_in.is_(None))
     )
     if merge is None and not (changes or (always and line)):
         return None
     note = f"{why}: its files are kept in {folder}"
     if merge is None:
         merge = Merge(
-            run_id=session.get_one(Agent, line[0]).run_id, agent_id=line[0],
-            files=_files_on_record(changes, "refused", note), room_id=room_id,
+            run_id=session.get_one(Agent, line[0]).run_id,
+            agent_id=line[0],
+            files=_files_on_record(changes, "refused", note),
+            room_id=room_id,
         )
         session.add(merge)
     else:
@@ -545,8 +628,11 @@ def _no_diff_no_trust(one: dict) -> None:
 
 
 def _kept_files(
-    copy: copies.Copy, unattended: bool, recorded: dict[str, datetime] | None = None,
-    base: dict[str, str] | None = None, names: dict[str, str] | None = None,
+    copy: copies.Copy,
+    unattended: bool,
+    recorded: dict[str, datetime] | None = None,
+    base: dict[str, str] | None = None,
+    names: dict[str, str] | None = None,
 ) -> dict[str, dict]:
     """What a kept copy holds that the project lacks, as a card shows it: each file as
     it stands against the project now, with its diff - from one look at the copy.
@@ -572,7 +658,8 @@ def as_shown(files: dict[str, dict], how: bool = False) -> dict[str, list]:
     about another way with the same digests)."""
     return {
         path: [*(one.get("shown") or ()), *((one["state"], one.get("whole")) if how else ())]
-        for path, one in files.items() if one["state"] in OPEN
+        for path, one in files.items()
+        if one["state"] in OPEN
     }
 
 
@@ -580,32 +667,38 @@ def writes_nothing(one: dict, choices: Mapping[str, str]) -> bool:
     """A whole file of which the user keeps the project's own: taking that writes nothing,
     whatever the project holds now, so it is not held to how the card showed it - one the
     project rewrites all the time (a log, a database) does not hold up the rest."""
-    return one["state"] == "conflict" and bool(one.get("whole")) and (
-        choices.get(one["path"]) == "project")
+    return (
+        one["state"] == "conflict"
+        and bool(one.get("whole"))
+        and (choices.get(one["path"]) == "project")
+    )
 
 
 def _moved(copy: copies.Copy, files: dict[str, dict], choices: Mapping[str, str]) -> list[str]:
     """The files a card asks about of which a side is no longer as the card shows it."""
     return [
-        path for path, one in files.items()
-        if one["state"] in OPEN and not writes_nothing(one, choices)
+        path
+        for path, one in files.items()
+        if one["state"] in OPEN
+        and not writes_nothing(one, choices)
         and tuple(one.get("shown") or ()) != copy.sides(path)
     ]
 
 
 def not_as_seen(
-    files: list[dict], seen: Mapping[str, list | None], keep: Collection[str] = (),
+    files: list[dict],
+    seen: Mapping[str, list | None],
+    keep: Collection[str] = (),
     how: bool = False,
 ) -> list[str]:
     """The files of a card that are not as the user saw them (`seen`: by path, `as_shown`
     of each): asked about anew, shown again, refused or gone from the card - but for one
     taken since or of which the project's own was kept, and those of `keep`."""
     now = as_shown({one["path"]: one for one in files}, how)
-    done = {
-        one["path"] for one in files if one["state"] == "applied" or _kept_the_projects(one)
-    }
+    done = {one["path"] for one in files if one["state"] == "applied" or _kept_the_projects(one)}
     return sorted(
-        path for path in (seen.keys() | now.keys()) - done - set(keep)
+        path
+        for path in (seen.keys() | now.keys()) - done - set(keep)
         if list(seen.get(path) or ()) != now.get(path, [])
     )
 
@@ -629,7 +722,8 @@ def _root_changed(copy: copies.Copy, files: dict[str, dict]) -> bool:
     root - one every part reads, which a check run in that copy alone does not vouch for.
     (A whole copy's check vouches for them; a root lockfile waits from any copy: `_root_lock`.)"""
     return copy.part is not None and any(
-        "/" not in path for path, one in files.items() if one["state"] in OPEN)
+        "/" not in path for path, one in files.items() if one["state"] in OPEN
+    )
 
 
 def _root_lock(copy: copies.Copy, path: str) -> str | None:
@@ -639,7 +733,9 @@ def _root_lock(copy: copies.Copy, path: str) -> str | None:
 
 
 def _look_again(
-    copy: copies.Copy, files: dict[str, dict], recorded: dict[str, datetime] | None,
+    copy: copies.Copy,
+    files: dict[str, dict],
+    recorded: dict[str, datetime] | None,
     choices: Mapping[str, str],
 ) -> None:
     """Before a kept card is applied: each file of it that both sides changed is merged
@@ -649,9 +745,13 @@ def _look_again(
     moved - not one that `writes_nothing`. One that was written into the copy before
     (`_join`) is its file as it is."""
     for path, one in files.items():
-        if one["state"] not in OPEN or writes_nothing(one, choices) or (
-            (one["state"] == "ready" or one.get("two_way"))
-            and tuple(one.get("shown") or ()) == copy.sides(path)
+        if (
+            one["state"] not in OPEN
+            or writes_nothing(one, choices)
+            or (
+                (one["state"] == "ready" or one.get("two_way"))
+                and tuple(one.get("shown") or ()) == copy.sides(path)
+            )
         ):
             continue
         fresh = _merge_file(copy, path, recorded=recorded)
@@ -696,10 +796,14 @@ def _kept_as(session, agent_id: str, held: Path) -> tuple[Path | None, list[str]
     agent = session.get_one(Agent, agent_id)
     said = set(session.scalars(select(Merge.kept_in).where(Merge.agent_id == agent_id)))
     said.add((agent.copy or {}).get("tree"))
-    recorded = list(session.scalars(select(FileChange.path).where(
-        FileChange.agent_id.in_(_line_on_record(session, agent_id)),
-        FileChange.status == "in_copy",
-    )))
+    recorded = list(
+        session.scalars(
+            select(FileChange.path).where(
+                FileChange.agent_id.in_(_line_on_record(session, agent_id)),
+                FileChange.status == "in_copy",
+            )
+        )
+    )
     part = ((agent.copy or {}).get("parts") or {}).get(str(held / copies.TREE))
     if str(held / copies.TREE) in said:
         return held / copies.TREE, recorded, part
@@ -715,12 +819,21 @@ def _kept_branch(session, agent_id: str, held: Path) -> dict | None:
     of no branch, or one the record says nothing sure of."""
     record = session.get_one(Agent, agent_id).copy or {}
     branch, start, snapshot = record.get("on_branch"), record.get("start"), record.get("snapshot")
-    if record.get("tree") != str(held / copies.TREE) or not isinstance(branch, str) or (
-            not branch.startswith(git.BRANCH_PREFIX)) or not isinstance(start, list) or len(
-            start) != 2 or not all(isinstance(one, str) for one in start):
+    if (
+        record.get("tree") != str(held / copies.TREE)
+        or not isinstance(branch, str)
+        or (not branch.startswith(git.BRANCH_PREFIX))
+        or not isinstance(start, list)
+        or len(start) != 2
+        or not all(isinstance(one, str) for one in start)
+    ):
         return None
-    return {"branch": branch, "start": (start[0], start[1]), "tip": record.get("tip"),
-            "snapshot": snapshot if isinstance(snapshot, str) else None}
+    return {
+        "branch": branch,
+        "start": (start[0], start[1]),
+        "tip": record.get("tip"),
+        "snapshot": snapshot if isinstance(snapshot, str) else None,
+    }
 
 
 def _as_branch(copy: copies.Copy, record: dict | None) -> copies.Copy:
@@ -729,7 +842,10 @@ def _as_branch(copy: copies.Copy, record: dict | None) -> copies.Copy:
     (`Copy.started_from`)."""
     if record is not None:
         copy.branch, copy.start, copy.snapshot_sha = (
-            record["branch"], record["start"], record["snapshot"])
+            record["branch"],
+            record["start"],
+            record["snapshot"],
+        )
     return copy
 
 
@@ -761,8 +877,10 @@ def recover_copies(session_factory, runtime_root: Path) -> None:
             tree, recorded, part = _kept_as(session, line[0], held)
             copy = fresh = None
             try:
-                copy = _as_branch(copies.kept(Path(project.root_path), runtime_root, name, tree,
-                                              recorded, part), _kept_branch(session, line[0], held))
+                copy = _as_branch(
+                    copies.kept(Path(project.root_path), runtime_root, name, tree, recorded, part),
+                    _kept_branch(session, line[0], held),
+                )
                 # Looked at once: whether it holds anything, and what its card shows.
                 fresh = _kept_files(copy, run.unattended, _last_changes(session, line))
                 if not fresh:
@@ -776,9 +894,7 @@ def recover_copies(session_factory, runtime_root: Path) -> None:
             # with a tree ever said so.
             noted = os.path.lexists(held / copies.BASE_FILE)
             folder = copy.root if copy else tree or (held / copies.TREE if noted else held)
-            found = kept_on_record(
-                session, folder, line, "interrupted by a restart", always=noted
-            )
+            found = kept_on_record(session, folder, line, "interrupted by a restart", always=noted)
             if found is None:
                 return False
             if copy is not None and fresh is not None:
@@ -797,14 +913,19 @@ def recover_copies(session_factory, runtime_root: Path) -> None:
         # agent worked on a branch of: git keeps them, locked (`git.LOCK_REASON`).
         # shortcut: a crash between `git worktree add` and its agent's record leaves that one
         # record; look in every project in git if one is ever seen to stay.
-        for root in set(session.scalars(
-                select(Project.root_path).join(Conversation, Conversation.project_id == Project.id)
+        for root in set(
+            session.scalars(
+                select(Project.root_path)
+                .join(Conversation, Conversation.project_id == Project.id)
                 .join(Run, Run.conversation_id == Conversation.id)
                 .join(Agent, Agent.run_id == Run.id)
-                .where(Agent.copy["on_branch"].as_string().is_not(None)))):
+                .where(Agent.copy["on_branch"].as_string().is_not(None))
+            )
+        ):
             with contextlib.suppress(git.Refused, OSError):
-                git.forget_worktrees(Path(root), copies.folders(runtime_root),
-                                     runtime_root / "no-hooks")
+                git.forget_worktrees(
+                    Path(root), copies.folders(runtime_root), runtime_root / "no-hooks"
+                )
         for change in session.scalars(
             select(FileChange).where(
                 FileChange.status == "in_copy", FileChange.agent_id.not_in(kept)
@@ -881,8 +1002,12 @@ def _command_names(
 
 
 def _put_back(
-    root: Path, before: dict[str, bytes], paths: set[str], names: frozenset[str] = frozenset(),
-    since: float = 0.0, keep_in: Path | None = None,
+    root: Path,
+    before: dict[str, bytes],
+    paths: set[str],
+    names: frozenset[str] = frozenset(),
+    since: float = 0.0,
+    keep_in: Path | None = None,
     stand: "Mapping[str, Written] | None" = None,
 ) -> tuple[list[Taken], set[str]]:
     """K-yazma-denetimi: the project's standing files (`standing_files`) that differ from
@@ -912,15 +1037,19 @@ def _put_back(
         if was == theirs:
             continue
         wrote = koloni.WROTE.get((here, rel))
-        if rel.casefold() in paths or any(_name(part) in names for part in rel.split("/")) or (
-                "*.pth" in names and rel.endswith(".pth") and "/site-packages/" in rel.casefold()
-        ) or (wrote is not None and wrote[1] >= since and wrote[0] == theirs) or (
-                _left_there(stand, rel, theirs)):
+        if (
+            rel.casefold() in paths
+            or any(_name(part) in names for part in rel.split("/"))
+            or ("*.pth" in names and rel.endswith(".pth") and "/site-packages/" in rel.casefold())
+            or (wrote is not None and wrote[1] >= since and wrote[0] == theirs)
+            or (_left_there(stand, rel, theirs))
+        ):
             let.add(rel)
             failed: str | None = "named"
         else:
-            failed, said, back = _take_back(root, rel, was, theirs, keep_in,
-                                            (stand or {}).get(rel.casefold()))
+            failed, said, back = _take_back(
+                root, rel, was, theirs, keep_in, (stand or {}).get(rel.casefold())
+            )
             taken.append((rel, theirs, failed, said))
             if not failed:  # (what is on disk now)
                 if back is None:
@@ -939,6 +1068,7 @@ class Written(NamedTuple):
     """What others' recorded writes left at a path while a test run went on (S6, `_put_back`'s
     `stand`): the digest of each (None: no file); and what the last of them left - its bytes
     (None: no file) where `known`."""
+
     left: frozenset[str | None]
     last: bytes | None
     known: bool
@@ -954,22 +1084,32 @@ def _left_there(stand: Mapping[str, Written] | None, rel: str, theirs: bytes | N
     return found is not None and _digest(theirs) in found.left
 
 
-def _take_back(root: Path, rel: str, was: bytes | None, theirs: bytes | None,
-               keep_in: Path | None, other: Written | None
-               ) -> tuple[str | None, str | None, bytes | None]:
+def _take_back(
+    root: Path,
+    rel: str,
+    was: bytes | None,
+    theirs: bytes | None,
+    keep_in: Path | None,
+    other: Written | None,
+) -> tuple[str | None, str | None, bytes | None]:
     """Put `rel` back: to `was` (before the command) - or, written over a recorded write of
     another's (`other`), to what that left where known. Why it could not be (None: it is), what
     is said of it, and what it holds now."""
     said = [_keep_aside(keep_in, rel, theirs)] if theirs is not None and keep_in else []
     link = was is not None and was.startswith(STANDING_LINK)
     if link and was is not None:
-        said.append(f"this was a link to {os.fsdecode(was[len(STANDING_LINK):])}; KOLONİ "
-                    "does not make links: make it again yourself")
+        said.append(
+            f"this was a link to {os.fsdecode(was[len(STANDING_LINK) :])}; KOLONİ "
+            "does not make links: make it again yourself"
+        )
     back = None if link else was
     if other is not None:
         back = other.last if other.known else back
-        said.append("put back to what the last recorded change left there" if other.known
-                    else "put back to before the run")
+        said.append(
+            "put back to what the last recorded change left there"
+            if other.known
+            else "put back to before the run"
+        )
     return _restore(root, rel, back), "; ".join(said) or None, back
 
 
@@ -979,8 +1119,10 @@ def _keep_aside(keep_in: Path, rel: str, data: bytes) -> str:
     most TAKEN_BACK_BYTES a turn. What is said of it: where it is, or why there is none."""
     with _KEPT_LOCK:  # (room taken first, given back where the copy fails)
         if _KEPT.get(keep_in, 0) + len(data) > TAKEN_BACK_BYTES:
-            return (f"no copy of the agent's version was kept (this turn's copies are "
-                    f"{TAKEN_BACK_BYTES // 2**20} MiB already)")
+            return (
+                f"no copy of the agent's version was kept (this turn's copies are "
+                f"{TAKEN_BACK_BYTES // 2**20} MiB already)"
+            )
         _KEPT[keep_in] = _KEPT.get(keep_in, 0) + len(data)
     try:
         keep_in.mkdir(parents=True, exist_ok=True)
@@ -1112,9 +1254,7 @@ def running_docker_commands(session_factory) -> list[str]:
     with session_factory() as session:
         return list(
             session.scalars(
-                select(Command.id).where(
-                    Command.status == "running", Command.location == "docker"
-                )
+                select(Command.id).where(Command.status == "running", Command.location == "docker")
             )
         )
 
@@ -1153,8 +1293,12 @@ def recover_interrupted(session_factory, notes: list | None = None) -> int:
             # yes to and that was never made is "discarded", not their no - and when
             # they said it stays.
             change.status = (
-                "applied" if _is_on_disk(session, change)
-                else "discarded" if change.status == "approved" else "rejected")
+                "applied"
+                if _is_on_disk(session, change)
+                else "discarded"
+                if change.status == "approved"
+                else "rejected"
+            )
             change.decided_at = change.decided_at or now()
         # (What was changed in a working copy and never reached the project is looked
         # at with the copies themselves: `recover_copies`.)
@@ -1172,9 +1316,11 @@ def recover_interrupted(session_factory, notes: list | None = None) -> int:
         # is: "approved" is what one that went out is, and "rejected" the user's own no.
         for asked in session.scalars(select(WebRequest).where(WebRequest.status == "proposed")):
             asked.status, asked.decided_at = "rejected", now()
-        for asked in session.scalars(select(WebRequest).where(
-            WebRequest.status == "approved", WebRequest.tool_call_id.in_(cut_short)
-        )):
+        for asked in session.scalars(
+            select(WebRequest).where(
+                WebRequest.status == "approved", WebRequest.tool_call_id.in_(cut_short)
+            )
+        ):
             asked.status = "interrupted"
         _recover_agents(session)
         for question in session.scalars(select(Question).where(Question.status == "pending")):
@@ -1213,8 +1359,7 @@ def _recover_teams(session) -> None:
     # the next turn starts it again (what its copy held is a kept copy's card).
     for row in session.scalars(select(ConversationTeam)):
         if row.state and row.state.get("status") in recipe_run.OPEN:
-            row.state = {**row.state, "status": recipe_run.INTERRUPTED,
-                         "why": recipe_run.RESTARTED}
+            row.state = {**row.state, "status": recipe_run.INTERRUPTED, "why": recipe_run.RESTARTED}
             keep_turn(row)
 
 
@@ -1229,10 +1374,16 @@ def keep_turn(row: ConversationTeam) -> None:
     teams = [kept if one["team_id"] == row.team_id else one for one in run.teams or []]
     # In the chat's order: a row saved later (a team with no recipe, beside one) is not drawn last
     # for it. A row the chat has no more keeps its place after them.
-    order = {one.team_id: one.position for one in session.scalars(select(ConversationTeam).where(
-        ConversationTeam.conversation_id == row.conversation_id))}
-    run.teams = sorted(teams if kept in teams else [*teams, kept],
-                       key=lambda one: order.get(one["team_id"], len(order)))
+    order = {
+        one.team_id: one.position
+        for one in session.scalars(
+            select(ConversationTeam).where(ConversationTeam.conversation_id == row.conversation_id)
+        )
+    }
+    run.teams = sorted(
+        teams if kept in teams else [*teams, kept],
+        key=lambda one: order.get(one["team_id"], len(order)),
+    )
 
 
 def _is_on_disk(session, change: FileChange) -> bool:
@@ -1264,8 +1415,8 @@ def _forget_secrets(session, call: ToolCall) -> None:
         asked.target = _kept(web.kept_url, asked.target)
     told = select(Event).where(
         # By the conversation: that is what the events are indexed by.
-        Event.conversation_id == select(Run.conversation_id).where(
-            Run.id == call.run_id).scalar_subquery(),
+        Event.conversation_id
+        == select(Run.conversation_id).where(Run.id == call.run_id).scalar_subquery(),
         Event.run_id == call.run_id,
         Event.type.in_(("tool_call.created", "tool_call.updated", "web_request.updated")),
     )
@@ -1328,17 +1479,21 @@ def _went_in(changes: list[FileChange]) -> dict[str, tuple[int, int] | str | Non
 def _ran_in_project(session, run_id: str) -> bool:
     """Whether an agent of the turn ran a command in the project itself, not in a copy: what such
     a command wrote is on no record (B-143)."""
-    copies_of = session.scalars(select(Agent.copy).join(
-        Command, Command.agent_id == Agent.id).where(
-        Command.run_id == run_id, Command.started_at.is_not(None)))
+    copies_of = session.scalars(
+        select(Agent.copy)
+        .join(Command, Command.agent_id == Agent.id)
+        .where(Command.run_id == run_id, Command.started_at.is_not(None))
+    )
     return any(copy is None or copy.get("state") in ("too_big", "failed") for copy in copies_of)
 
 
 def _in_the_project(went: dict[str, tuple[int, int] | str | None]) -> str:
-    """"In the project: a.py, b.py (deleted) and c.py: +3 −1 in all.": three named, the rest
+    """ "In the project: a.py, b.py (deleted) and c.py: +3 −1 in all.": three named, the rest
     counted, and the lines of those whose count is known; one file, "a.py (+3 −1)"."""
-    names = [path if how is None or isinstance(how, tuple) else f"{path} ({how})"
-             for path, how in went.items()]
+    names = [
+        path if how is None or isinstance(how, tuple) else f"{path} ({how})"
+        for path, how in went.items()
+    ]
     counts = [how for how in went.values() if isinstance(how, tuple)]
     lines = f"+{sum(a for a, _ in counts)} −{sum(d for _, d in counts)}"
     if counts and len(went) == 1:
@@ -1352,11 +1507,15 @@ def landed(session, run_id: str) -> str | None:
     no file anywhere.
     shortcut: a kept copy's files are only those on record (`_show_kept`); a command's change in
     the project is on no record - said only as commands that ran in it, where nothing else is."""
-    records = session.scalars(select(FileChange).where(FileChange.run_id == run_id).order_by(
-        FileChange.created_at, literal_column("file_changes.rowid")))
+    records = session.scalars(
+        select(FileChange)
+        .where(FileChange.run_id == run_id)
+        .order_by(FileChange.created_at, literal_column("file_changes.rowid"))
+    )
     changes = [change for change in records if not in_scratch(change.path)]
-    merges = session.scalars(select(Merge).where(Merge.run_id == run_id).order_by(
-        Merge.created_at)).all()
+    merges = session.scalars(
+        select(Merge).where(Merge.run_id == run_id).order_by(Merge.created_at)
+    ).all()
     if not changes and not merges:
         return None
     went = _went_in(changes)
@@ -1370,20 +1529,34 @@ def landed(session, run_id: str) -> str | None:
         for one in merge.files:
             if one["state"] == "applied":  # (what went in, as its merge counted it)
                 # (No count is no sign of a binary: a branch's 31st file, a mode-only change...)
-                went[one["path"]] = "deleted" if one["kind"] == "deleted" else (
-                    (one["additions"], one["deletions"]) if one.get("additions") is not None
-                    and one.get("deletions") is not None else None)
+                went[one["path"]] = (
+                    "deleted"
+                    if one["kind"] == "deleted"
+                    else (
+                        (one["additions"], one["deletions"])
+                        if one.get("additions") is not None and one.get("deletions") is not None
+                        else None
+                    )
+                )
             # (Only what its card offers to take: not one refused, nor one left out of it.)
-            elif waits and one["state"] in ("ready", "merged", "conflict") and (
-                    one["path"] not in waiting):
+            elif (
+                waits
+                and one["state"] in ("ready", "merged", "conflict")
+                and (one["path"] not in waiting)
+            ):
                 waiting.append(one["path"])
     said = [_in_the_project(went)] if went else []
     said += sent
     if waiting:
         one = len(waiting) == 1
-        said.append(f"Not in the project yet: {_named(waiting)} wait{'s' if one else ''} in "
-                    f"Ready for you - Take in to apply {'it' if one else 'them'}.")
+        said.append(
+            f"Not in the project yet: {_named(waiting)} wait{'s' if one else ''} in "
+            f"Ready for you - Take in to apply {'it' if one else 'them'}."
+        )
     if said:
         return " ".join(said)
-    return ("No file change on record reached the project, but commands ran in it."
-            if _ran_in_project(session, run_id) else "Nothing reached the project.")
+    return (
+        "No file change on record reached the project, but commands ran in it."
+        if _ran_in_project(session, run_id)
+        else "Nothing reached the project."
+    )

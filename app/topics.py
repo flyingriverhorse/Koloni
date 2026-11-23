@@ -69,8 +69,11 @@ def first_line(text: str | None) -> str:
     fence's own line (```python, ``` python, ```{.py}) says nothing: the code under it does
     (slice 85a). Backticks after the opening ones make it inline code, which says something."""
     return next(
-        (shown for line in (text or "").splitlines()
-         if (shown := one_line(line)) and not re.fullmatch(r"`{3,}[^`]*|~{3,}.*", shown)),
+        (
+            shown
+            for line in (text or "").splitlines()
+            if (shown := one_line(line)) and not re.fullmatch(r"`{3,}[^`]*|~{3,}.*", shown)
+        ),
         "",
     )
 
@@ -138,7 +141,8 @@ def in_history(run_id: str):
     is the conversation's turn from then on. The two sides never see each other, and what was
     not chosen is never sent again."""
     return or_(
-        Run.compare_id.is_(None), Run.id == run_id,
+        Run.compare_id.is_(None),
+        Run.id == run_id,
         Run.id.in_(select(Compare.chosen_run_id).where(Compare.chosen_run_id.is_not(None))),
     )
 
@@ -160,7 +164,10 @@ def latest_of_user(session: Session, conversation_id: str) -> Topic | None:
 
 
 def for_message(
-    session: Session, conversation_id: str, content: str, topic_id: str | None = None,
+    session: Session,
+    conversation_id: str,
+    content: str,
+    topic_id: str | None = None,
     new_topic: bool = False,
 ) -> tuple[Topic, bool]:
     """The topic a message of the user's goes on with, and whether it was made just now
@@ -201,7 +208,8 @@ def for_trigger(
     if topic is not None:
         return topic, False
     topic = Topic(
-        conversation_id=conversation_id, trigger_id=trigger_id,
+        conversation_id=conversation_id,
+        trigger_id=trigger_id,
         title=title_of(content) or "Untitled",
     )
     session.add(topic)
@@ -214,11 +222,13 @@ def turns_before(session: Session, run: Run) -> list[str]:
     None for a run that is in no topic."""
     if run.topic_id is None:
         return []
-    rows = session.execute(_in_order(
-        select(Run.id, Run.started_at)
-        .where(Run.conversation_id == run.conversation_id, Run.topic_id == run.topic_id)
-        .where(in_history(run.id))
-    )).all()
+    rows = session.execute(
+        _in_order(
+            select(Run.id, Run.started_at)
+            .where(Run.conversation_id == run.conversation_id, Run.topic_id == run.topic_id)
+            .where(in_history(run.id))
+        )
+    ).all()
     ids = [run_id for run_id, _started in rows]
     if run.id not in ids:
         return []
@@ -229,8 +239,10 @@ def previous_lead(session: Session, run: Run) -> str | None:
     """The lead of the topic's turn before this one, which this turn's lead goes on from."""
     for run_id in reversed(turns_before(session, run)):
         lead = session.scalar(
-            select(Agent.id).where(Agent.run_id == run_id, Agent.depth == 0)
-            .order_by(Agent.created_at, literal_column("agents.rowid")).limit(1)
+            select(Agent.id)
+            .where(Agent.run_id == run_id, Agent.depth == 0)
+            .order_by(Agent.created_at, literal_column("agents.rowid"))
+            .limit(1)
         )
         if lead is not None:
             return lead
@@ -240,10 +252,13 @@ def previous_lead(session: Session, run: Run) -> str | None:
 def earlier_titles(session: Session, run: Run) -> list[str]:
     """The names of the conversation's other topics that had a turn before this one, in
     the order they began. Their names and nothing else: a lead sees its own topic."""
-    rows = session.execute(_in_order(
-        select(Run.id, Run.topic_id, Run.started_at)
-        .where(Run.conversation_id == run.conversation_id)
-    )).all()
+    rows = session.execute(
+        _in_order(
+            select(Run.id, Run.topic_id, Run.started_at).where(
+                Run.conversation_id == run.conversation_id
+            )
+        )
+    ).all()
     ids = [run_id for run_id, _topic, _started in rows]
     before = rows[: ids.index(run.id)] if run.id in ids else []
     others: list[str] = []
@@ -253,9 +268,9 @@ def earlier_titles(session: Session, run: Run) -> list[str]:
     if not others:
         return []
     titles = {
-        topic.id: topic.title for topic in session.scalars(
-            select(Topic)
-            .where(Topic.id.in_(others), Topic.conversation_id == run.conversation_id)
+        topic.id: topic.title
+        for topic in session.scalars(
+            select(Topic).where(Topic.id.in_(others), Topic.conversation_id == run.conversation_id)
         )
     }
     return [titles[topic_id] for topic_id in others if topic_id in titles]
@@ -308,7 +323,8 @@ def continuable(session: Session, run_id: str) -> list[Earlier]:
         return []
     number = {turn: index for index, turn in enumerate(earlier, 1)}
     agents = session.scalars(
-        select(Agent).where(Agent.run_id.in_([*earlier, run.id]))
+        select(Agent)
+        .where(Agent.run_id.in_([*earlier, run.id]))
         .order_by(Agent.created_at, literal_column("agents.rowid"))
     ).all()
     taken = {agent.name.casefold() for agent in agents if agent.run_id == run.id}
@@ -316,8 +332,7 @@ def continuable(session: Session, run_id: str) -> list[Earlier]:
     # One that was declined never ran: it took nothing up, and the link before it is
     # still the newest. Any other link that went on from an agent has taken its place.
     gone_on_from = {
-        agent.continues_id for agent in agents
-        if agent.continues_id and agent.status != "rejected"
+        agent.continues_id for agent in agents if agent.continues_id and agent.status != "rejected"
     }
     # (Not in a turn nobody watches - a trigger's, whose topic is its own: one the user stopped
     # goes on only where the user says so.)
@@ -326,17 +341,31 @@ def continuable(session: Session, run_id: str) -> list[Earlier]:
     for turn in earlier:
         for agent in agents:
             if (
-                agent.run_id == turn and agent.depth == 1 and agent.parent_agent_id in leads
-                and (agent.status in FINISHED or stopped_kept and agent.status == "cancelled"
-                     and "tip" in (agent.copy or {})) and agent.id not in gone_on_from
+                agent.run_id == turn
+                and agent.depth == 1
+                and agent.parent_agent_id in leads
+                and (
+                    agent.status in FINISHED
+                    or stopped_kept
+                    and agent.status == "cancelled"
+                    and "tip" in (agent.copy or {})
+                )
+                and agent.id not in gone_on_from
             ):
                 by_name[agent.name.casefold()] = agent
     found = [agent for key, agent in by_name.items() if key not in taken]
     found.sort(key=lambda agent: (number[agent.run_id], agents.index(agent)))
     return [
         Earlier(
-            agent.id, agent.name, agent.role_name, agent.provider_name, agent.model_id,
-            agent.model_from, bool(agent.chosen), agent.status, agent.task,
+            agent.id,
+            agent.name,
+            agent.role_name,
+            agent.provider_name,
+            agent.model_id,
+            agent.model_from,
+            bool(agent.chosen),
+            agent.status,
+            agent.task,
             number[agent.run_id],
         )
         for agent in found
@@ -396,7 +425,8 @@ def reduced(turn: int, task: str | None, report: str | None, share: int) -> str:
     """One link of a chain as it stands when the whole chain does not fit: its task and
     its report, both off the record - nothing here is a model's summary."""
     return REDUCED.format(
-        turn=turn, task=_cut((task or "").strip(), share),
+        turn=turn,
+        task=_cut((task or "").strip(), share),
         report=_cut((report or "").strip() or NO_REPORT, share),
     )
 
@@ -408,7 +438,9 @@ def share_of(budget: int, links: int) -> int:
 
 
 def fit(
-    links: list[tuple[list[dict], str]], rest: int, budget: int,
+    links: list[tuple[list[dict], str]],
+    rest: int,
+    budget: int,
     size: Callable[[dict], int],
 ) -> list[dict]:
     """The earlier links of a chain as one list of messages that fits.

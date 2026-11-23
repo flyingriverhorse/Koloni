@@ -59,7 +59,9 @@ def backlog(client, pid):
 
 
 def add(client, pid, title, **fields):
-    made = client.post(f"/api/projects/{pid}/backlog", json={"title": title, **fields}, headers=ORIGIN)
+    made = client.post(
+        f"/api/projects/{pid}/backlog", json={"title": title, **fields}, headers=ORIGIN
+    )
     assert made.status_code == 201, made.text
     return made.json()
 
@@ -78,8 +80,12 @@ def test_the_user_keeps_the_backlog_in_order_from_the_apps_own_page(make_client,
     assert [t["title"] for t in backlog(client, pid)] == ["fix the crash", "logout", "login page"]
     assert client.patch(f"/api/backlog/{first['id']}", json={"status": "done"}).status_code == 403
     assert client.delete(f"/api/backlog/{urgent['id']}", headers=ORIGIN).status_code in (200, 204)
-    assert client.patch(f"/api/backlog/{first['id']}", json={"priority": "soon"},
-                        headers=ORIGIN).status_code == 422
+    assert (
+        client.patch(
+            f"/api/backlog/{first['id']}", json={"priority": "soon"}, headers=ORIGIN
+        ).status_code
+        == 422
+    )
 
 
 def test_the_product_owners_are_roles_of_their_own(make_client):
@@ -96,37 +102,55 @@ def test_the_product_owners_are_roles_of_their_own(make_client):
 def owner_works(make_client, project_dir, wait_run, *calls, before=None):
     """The Lead hands a goal to a Product owner, which calls the tools given (made by `before`
     once the project exists, when they name a task of it)."""
-    client, model = make_client({"Lead": [spawn("Product owner", "plan the login work"), text("done")],
-                                 "Product owner": []})
+    client, model = make_client(
+        {"Lead": [spawn("Product owner", "plan the login work"), text("done")], "Product owner": []}
+    )
     client.headers.update(ORIGIN)
     pid = project(client, project_dir)
-    model.by_agent["Product owner"] += [step(*(before(client, pid) if before else calls)),
-                                        text("tasks proposed")]
+    model.by_agent["Product owner"] += [
+        step(*(before(client, pid) if before else calls)),
+        text("tasks proposed"),
+    ]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto",
-                                                     "spawn_approval": "never"})
-    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()["run"]["id"]
+    client.patch(
+        f"/api/conversations/{cid}",
+        json={"permission_mode": "full_auto", "spawn_approval": "never"},
+    )
+    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()[
+        "run"
+    ]["id"]
     wait_run(client, cid, run_id)
     return client, pid
 
 
 def test_a_role_of_the_users_given_add_task_is_offered_it_and_its_task_waits(
-        make_client, project_dir, wait_run):
+    make_client, project_dir, wait_run
+):
     # The role panel's Backlog tiles (25 Oct): a role made by the user, then given add_task.
-    client, model = make_client([spawn("Scout", "find work"),
-                                 step(call("add_task", {"title": "dark mode"}, "a1")),
-                                 text("proposed"), text("done")])
+    client, model = make_client(
+        [
+            spawn("Scout", "find work"),
+            step(call("add_task", {"title": "dark mode"}, "a1")),
+            text("proposed"),
+            text("done"),
+        ]
+    )
     client.headers.update(ORIGIN)
     pid = project(client, project_dir)
     made = client.post("/api/roles", json={"name": "Scout", "tools": ["read_file"]})
     assert made.status_code == 201, made.text
-    given = client.patch(f"/api/roles/{made.json()['id']}",
-                         json={"tools": ["read_file", "add_task"]})
+    given = client.patch(
+        f"/api/roles/{made.json()['id']}", json={"tools": ["read_file", "add_task"]}
+    )
     assert given.status_code == 200, given.text
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto",
-                                                     "spawn_approval": "never"})
-    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()["run"]["id"]
+    client.patch(
+        f"/api/conversations/{cid}",
+        json={"permission_mode": "full_auto", "spawn_approval": "never"},
+    )
+    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()[
+        "run"
+    ]["id"]
     wait_run(client, cid, run_id)
     assert "add_task" in [tool["function"]["name"] for tool in model.tool_args[1]]
     (task,) = backlog(client, pid)
@@ -134,37 +158,62 @@ def test_a_role_of_the_users_given_add_task_is_offered_it_and_its_task_waits(
 
 
 def test_a_task_an_agent_adds_waits_for_the_users_word(make_client, project_dir, wait_run):
-    client, pid = owner_works(make_client, project_dir, wait_run,
-                              call("add_task", {"title": "login form", "criteria": "shows errors"}, "a1"),
-                              call("add_task", {"title": "remember me"}, "a2"))
+    client, pid = owner_works(
+        make_client,
+        project_dir,
+        wait_run,
+        call("add_task", {"title": "login form", "criteria": "shows errors"}, "a1"),
+        call("add_task", {"title": "remember me"}, "a2"),
+    )
     form, remember = backlog(client, pid)
     assert (form["status"], form["created_by"]) == ("proposed", "agent")
     decide = f"/api/backlog/{form['id']}/decide"
-    assert client.post(decide, json={"decision": "approve"},
-                       headers={"Origin": "http://elsewhere.example"}).status_code == 403
+    assert (
+        client.post(
+            decide, json={"decision": "approve"}, headers={"Origin": "http://elsewhere.example"}
+        ).status_code
+        == 403
+    )
     assert client.post(decide, json={"decision": "approve"}).status_code == 200
-    assert client.post(f"/api/backlog/{remember['id']}/decide", json={"decision": "reject"}).status_code == 200
+    assert (
+        client.post(
+            f"/api/backlog/{remember['id']}/decide", json={"decision": "reject"}
+        ).status_code
+        == 200
+    )
     (kept,) = backlog(client, pid)
     assert (kept["title"], kept["status"]) == ("login form", "todo")
 
 
-def test_a_change_an_agent_proposes_waits_and_an_assessment_does_not(make_client, project_dir, wait_run):
+def test_a_change_an_agent_proposes_waits_and_an_assessment_does_not(
+    make_client, project_dir, wait_run
+):
     def change_and_assess(client, pid):
         task = add(client, pid, "login form", criteria="1. form 2. errors 3. tests")
-        return [call("change_task", {"task_id": task["id"], "priority": "high"}, "c1"),
-                call("assess_task", {"task_id": task["id"],
-                                     "text": "Criteria 1 and 2 met; no test for 3."}, "s1")]
+        return [
+            call("change_task", {"task_id": task["id"], "priority": "high"}, "c1"),
+            call(
+                "assess_task",
+                {"task_id": task["id"], "text": "Criteria 1 and 2 met; no test for 3."},
+                "s1",
+            ),
+        ]
 
     client, pid = owner_works(make_client, project_dir, wait_run, before=change_and_assess)
     (seen,) = backlog(client, pid)
     assert seen["priority"] == "normal" and seen["pending"] == {"priority": "high"}
     assert seen["assessment"] == "Criteria 1 and 2 met; no test for 3." and seen["status"] == "todo"
-    assert client.post(f"/api/backlog/{seen['id']}/decide", json={"decision": "approve"}).status_code == 200
+    assert (
+        client.post(f"/api/backlog/{seen['id']}/decide", json={"decision": "approve"}).status_code
+        == 200
+    )
     (after,) = backlog(client, pid)
     assert (after["priority"], after["pending"]) == ("high", None)
 
 
-def test_work_the_backlog_starts_the_next_task_and_its_end_waits_for_review(make_client, project_dir, wait_run):
+def test_work_the_backlog_starts_the_next_task_and_its_end_waits_for_review(
+    make_client, project_dir, wait_run
+):
     # (One reply for each task: both start at once (MAX_PARALLEL), and with one, the task that
     # asked second got none - "pop from empty list" on a CI runner, its turn and fix round failed.)
     client, _model = make_client([text("made the form"), text("made the form")])
@@ -184,7 +233,8 @@ def test_work_the_backlog_starts_the_next_task_and_its_end_waits_for_review(make
     # (With the turns: on a macOS runner it once came back "blocked", which only a failed or
     # unfinished first turn and its fix round give.)
     assert (doing["status"], doing["conversation_id"]) == ("review", cid), [
-        (r["status"], r["error"]) for r in client.get(f"/api/conversations/{cid}").json()["runs"]]
+        (r["status"], r["error"]) for r in client.get(f"/api/conversations/{cid}").json()["runs"]
+    ]
     assert client.patch(f"/api/backlog/{task['id']}", json={"status": "done"}).status_code == 200
     client.patch(f"/api/backlog/{backlog(client, pid)[-1]['id']}", json={"status": "done"})
     assert client.post(f"/api/projects/{pid}/backlog/next").status_code == 409  # nothing left to do
@@ -202,8 +252,13 @@ def test_a_task_whose_work_waits_outside_the_project_is_said_to(make_client, pro
     snap = wait_run(client, cid, client.get(f"/api/conversations/{cid}").json()["runs"][0]["id"])
     assert [(t["status"], t["not_in"]) for t in backlog(client, pid)] == [("review", False)]
     with client.app.state.session_factory() as session:  # its copy kept for the user's word
-        kept = Merge(run_id=snap["runs"][0]["id"], agent_id=snap["agents"][0]["id"], files=[],
-                     status="interrupted", kept_in="koloni-copy-x")
+        kept = Merge(
+            run_id=snap["runs"][0]["id"],
+            agent_id=snap["agents"][0]["id"],
+            files=[],
+            status="interrupted",
+            kept_in="koloni-copy-x",
+        )
         session.add(kept)
         session.commit()
         assert [t["not_in"] for t in backlog(client, pid)] == [True]
@@ -219,7 +274,10 @@ def test_the_backlog_works_itself_from_the_switch_on_its_page(make_client, proje
     add(client, pid, "logout")
     switch = f"/api/projects/{pid}/backlog/auto"
     assert client.put(switch, json={"on": True}).status_code == 403  # not from the app's page
-    assert client.put(switch, json={"on": True}, headers=ORIGIN).json().items() >= {"on": True, "halt": None}.items()
+    assert (
+        client.put(switch, json={"on": True}, headers=ORIGIN).json().items()
+        >= {"on": True, "halt": None}.items()
+    )
     for title in ("login form", "logout"):
         for _ in range(250):
             (task,) = [t for t in backlog(client, pid) if t["title"] == title]
@@ -232,10 +290,12 @@ def test_the_backlog_works_itself_from_the_switch_on_its_page(make_client, proje
 
 
 def test_an_agents_task_says_the_chat_it_was_proposed_in_and_the_users_none(
-        make_client, project_dir, wait_run):
+    make_client, project_dir, wait_run
+):
     # ☾ Away: the chat's Away panel ticks the tasks proposed in it.
-    client, pid = owner_works(make_client, project_dir, wait_run,
-                              call("add_task", {"title": "login form"}, "a1"))
+    client, pid = owner_works(
+        make_client, project_dir, wait_run, call("add_task", {"title": "login form"}, "a1")
+    )
     mine = add(client, pid, "logout")
     form, logout = backlog(client, pid)
     (cid,) = [c["id"] for c in client.get(f"/api/projects/{pid}/conversations").json()]

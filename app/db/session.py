@@ -142,15 +142,18 @@ def tidy_db(db_path: Path) -> None:
         with conn:
             for statement in (*STALE_VECTORS, OLD_EVENTS):
                 conn.execute(statement)
-        (pages,), (free,), (size,) = (conn.execute(f"PRAGMA {name}").fetchone()
-                                      for name in ("page_count", "freelist_count", "page_size"))
+        (pages,), (free,), (size,) = (
+            conn.execute(f"PRAGMA {name}").fetchone()
+            for name in ("page_count", "freelist_count", "page_size")
+        )
         if free * size <= VACUUM_FREE_BYTES or free <= pages * VACUUM_FREE_SHARE:
             return
         before = db_path.stat().st_size
         conn.execute("VACUUM")
         conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")  # (else the WAL holds the new pages)
-        log.info("database compacted: %.0f MB -> %.0f MB", before / 2**20,
-                 db_path.stat().st_size / 2**20)
+        log.info(
+            "database compacted: %.0f MB -> %.0f MB", before / 2**20, db_path.stat().st_size / 2**20
+        )
     except sqlite3.Error as exc:  # (busy, or no room for VACUUM's copy: KOLONİ starts all the same)
         log.warning("database not tidied: %s", exc)
     finally:

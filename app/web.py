@@ -73,7 +73,7 @@ DUCKDUCKGO = "https://html.duckduckgo.com/html/"
 # HTTP 202 page that asks whether one is a robot.
 BROWSER = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                  "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
     "Content-Type": "application/x-www-form-urlencoded",
@@ -186,8 +186,10 @@ def _send(method: str, url: str, headers: dict[str, str], body: bytes | None, ip
                 sock.do_handshake()
             connection.sock = sock
             connection.request(
-                method, _asked_path(parts), body=body,
-                headers={"Accept-Encoding": "identity", **headers}
+                method,
+                _asked_path(parts),
+                body=body,
+                headers={"Accept-Encoding": "identity", **headers},
             )
             answer = connection.getresponse()
             if late.is_set():  # its head was cut at the limit (on Linux the break reads as its end)
@@ -272,7 +274,8 @@ def literal(host: str) -> str | None:
         return None
     try:
         *first, last = [
-            int(part, 16) if part.startswith("0x")
+            int(part, 16)
+            if part.startswith("0x")
             else int(part, 8 if part.startswith("0") and len(part) > 1 else 10)
             for part in parts
         ]
@@ -283,9 +286,11 @@ def literal(host: str) -> str | None:
             raise ValueError
     except ValueError:
         raise NotReachable(f"{host} is not an address") from None
-    return str(ipaddress.IPv4Address(
-        last + sum(number << (8 * (3 - at)) for at, number in enumerate(first))
-    ))
+    return str(
+        ipaddress.IPv4Address(
+            last + sum(number << (8 * (3 - at)) for at, number in enumerate(first))
+        )
+    )
 
 
 def is_public(ip: str) -> bool:
@@ -301,15 +306,19 @@ def is_public(ip: str) -> bool:
     if address.version == 6 and address.ipv4_mapped is not None:
         address = address.ipv4_mapped
     return (
-        address.is_global and not address.is_multicast and not address.is_reserved
+        address.is_global
+        and not address.is_multicast
+        and not address.is_reserved
         and not getattr(address, "is_site_local", False)
     )
 
 
 def _parts(url: object) -> tuple[str, str, int]:
     """An address's scheme, host (lower case, no trailing dot) and port."""
-    if not isinstance(url, str) or not url or any(
-        ch <= " " or ch == "\\" or not ch.isprintable() for ch in url
+    if (
+        not isinstance(url, str)
+        or not url
+        or any(ch <= " " or ch == "\\" or not ch.isprintable() for ch in url)
     ):
         raise NotReachable("that is not an address")
     try:
@@ -385,8 +394,11 @@ async def check(url: object, trusted: bool = False, name: str | None = None) -> 
     except NotReachable:
         raise NotReachable(f"{name} is not an address") from None
     try:
-        found = [written] if written else list(
-            await asyncio.wait_for(asyncio.to_thread(resolve, host), TIMEOUT))
+        found = (
+            [written]
+            if written
+            else list(await asyncio.wait_for(asyncio.to_thread(resolve, host), TIMEOUT))
+        )
     except (OSError, UnicodeError):
         found = []
     if not found:
@@ -402,8 +414,12 @@ async def fetch(*args, **kwargs) -> tuple[Raw, str]:
 
 
 async def _fetch(
-    method: str, url: str, headers: dict[str, str], body: bytes | None,
-    may: Callable[[str], bool] | None = None, trusted: bool = False,
+    method: str,
+    url: str,
+    headers: dict[str, str],
+    body: bytes | None,
+    may: Callable[[str], bool] | None = None,
+    trusted: bool = False,
 ) -> tuple[Raw, str]:
     """Ask for `url` and follow what it redirects to by hand, each hop checked like the
     first; returns the answer and the address it came from. A hop to another origin
@@ -459,20 +475,27 @@ async def _fetch(
 
 def _line(text: object, limit: int) -> str:
     """Text as one printable line of at most `limit` characters."""
-    shown = " ".join("".join(
-        ch if ch.isprintable() else " " for ch in text if isinstance(text, str)
-    ).split()) if isinstance(text, str) else ""
+    shown = (
+        " ".join(
+            "".join(ch if ch.isprintable() else " " for ch in text if isinstance(text, str)).split()
+        )
+        if isinstance(text, str)
+        else ""
+    )
     return shown if len(shown) <= limit else shown[: limit - 1] + "…"
 
 
 # What has no width - Unicode's format characters: a soft hyphen, a zero-width space or joiner,
 # a word joiner, a byte order mark, a tag - a model reads past.
-_NO_WIDTH = "".join(one for one in map(chr, range(sys.maxunicode + 1))
-                    if unicodedata.category(one) == "Cf")
+_NO_WIDTH = "".join(
+    one for one in map(chr, range(sys.maxunicode + 1)) if unicodedata.category(one) == "Cf"
+)
 # ...and what is no format character but shows nothing all the same: a combining grapheme
 # joiner, the variation selectors, the Hangul fillers, the braille blank (character ranges).
-_BLANK = ("\N{COMBINING GRAPHEME JOINER}\ufe00-\ufe0f\U000e0100-\U000e01ef"
-          "\u115f\u1160\u3164\uffa0\N{BRAILLE PATTERN BLANK}")
+_BLANK = (
+    "\N{COMBINING GRAPHEME JOINER}\ufe00-\ufe0f\U000e0100-\U000e01ef"
+    "\u115f\u1160\u3164\uffa0\N{BRAILLE PATTERN BLANK}"
+)
 # Whatever is no letter between two letters: spaces of any kind (a tab, a no-break space) and
 # what has no width. Never given back once taken, so a long run of them is gone over once.
 _GAP = rf"[\s{_NO_WIDTH}{_BLANK}]*+"
@@ -503,7 +526,11 @@ def framed(text: str, what: str = FROM_THE_WEB) -> str:
     # (No mark is a gap too: each start inside a long gap would go over the rest of it again.)
     marker = re.compile(
         rf"[^\w\s{_NO_WIDTH}{_BLANK}]({_LINE_GAP}{ended})|({ended})"
-        r"|[\[" "\N{FULLWIDTH LEFT SQUARE BRACKET}" "]" rf"({_GAP}{_spaced(what)})", re.IGNORECASE,
+        r"|[\["
+        "\N{FULLWIDTH LEFT SQUARE BRACKET}"
+        "]"
+        rf"({_GAP}{_spaced(what)})",
+        re.IGNORECASE,
     )
     start, end = (frame.format(what=what) for frame in FRAMES)
     inside = marker.sub(lambda found: "(" + (found[1] or found[2] or found[3]), text)
@@ -515,7 +542,7 @@ def inside(text: str) -> str:
     "" for a text with no frame."""
     start = FRAMES[0].split("{what}")[1] + "\n"
     at, end = text.find(start), text.rfind("\n" + FRAMES[1].split("{what}")[0])
-    return text[at + len(start):end] if 0 <= at < end else ""
+    return text[at + len(start) : end] if 0 <= at < end else ""
 
 
 def _fed(reader: HTMLParser, page: str) -> bool:
@@ -528,7 +555,7 @@ def _fed(reader: HTMLParser, page: str) -> bool:
         for at in range(0, min(len(page), MAX_HTML), HTML_PIECE):
             if time.monotonic() > until:
                 return False
-            reader.feed(page[at:min(at + HTML_PIECE, MAX_HTML)])
+            reader.feed(page[at : min(at + HTML_PIECE, MAX_HTML)])
         if len(page) > MAX_HTML or len(reader.rawdata) > 1024:
             return False
         reader.close()
@@ -541,10 +568,32 @@ class _Text(HTMLParser):
     """A page's words, without what is not for reading."""
 
     SKIP = frozenset({"script", "style", "noscript", "template"})
-    BREAK = frozenset({
-        "p", "br", "div", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6", "title", "section",
-        "article", "table", "ul", "ol", "pre", "blockquote", "hr", "header", "footer",
-    })
+    BREAK = frozenset(
+        {
+            "p",
+            "br",
+            "div",
+            "li",
+            "tr",
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "h6",
+            "title",
+            "section",
+            "article",
+            "table",
+            "ul",
+            "ol",
+            "pre",
+            "blockquote",
+            "hr",
+            "header",
+            "footer",
+        }
+    )
 
     def __init__(self):
         super().__init__()
@@ -596,8 +645,9 @@ def _as_text(body: bytes, kind: str) -> str | None:
     # Only encodings read in one pass: some others (`punycode`) take minutes over a body.
     known = named is not None and _CHARSETS.fullmatch(named.group(1))
     try:
-        return body.decode(named.group(1) if named and known else "utf-8",
-                           "replace" if said_text else "strict")
+        return body.decode(
+            named.group(1) if named and known else "utf-8", "replace" if said_text else "strict"
+        )
     except (LookupError, ValueError):
         # A charset nobody knows, or one that is no text encoding (`undefined`, `idna`).
         return body.decode("utf-8", "replace") if said_text else None
@@ -621,10 +671,17 @@ def _shown(method: str, url: str, final: str, answer: Raw) -> str:
     if "html" in kind.lower():
         text, whole = to_text(text)
     if answer.cut or not whole or over or len(text) > MAX_CHARS:
-        why = ("the answer did not end within the time limit" if answer.cut
-               else "the page was not read to its end" if not whole else "")
-        head += (f"; {why + ': ' if why else ''}{'more than ' if over or why else ''}"
-                 f"{len(text)} characters of text, cut at {min(len(text), MAX_CHARS)}")
+        why = (
+            "the answer did not end within the time limit"
+            if answer.cut
+            else "the page was not read to its end"
+            if not whole
+            else ""
+        )
+        head += (
+            f"; {why + ': ' if why else ''}{'more than ' if over or why else ''}"
+            f"{len(text)} characters of text, cut at {min(len(text), MAX_CHARS)}"
+        )
     return head + "\n" + framed(told + "\n\n" + text[:MAX_CHARS])
 
 
@@ -640,7 +697,9 @@ def planned(
     if headers is None:
         headers = {}
     if not isinstance(headers, dict) or not all(
-        isinstance(name, str) and isinstance(value, str) and _TOKEN.fullmatch(name)
+        isinstance(name, str)
+        and isinstance(value, str)
+        and _TOKEN.fullmatch(name)
         and not re.search(r"[\r\n\x00]", value)
         for name, value in headers.items()
     ):
@@ -658,7 +717,10 @@ def planned(
 
 
 async def request(
-    method: object, url: object, headers: object, body: object,
+    method: object,
+    url: object,
+    headers: object,
+    body: object,
     may: Callable[[str], bool] | None = None,
 ) -> str:
     """An HTTP request for an agent; returns what it is told of the answer."""
@@ -701,8 +763,9 @@ class _Results(HTMLParser):
         named = dict(attrs)
         classes = (named.get("class") or "").split()
         if "result__a" in classes:
-            self.found.append({"title": "", "url": _unwrapped(named.get("href") or ""),
-                               "snippet": ""})
+            self.found.append(
+                {"title": "", "url": _unwrapped(named.get("href") or ""), "snippet": ""}
+            )
             self._into = "title"
         elif "result__snippet" in classes and self.found:
             self._into = "snippet"
@@ -744,10 +807,13 @@ def _tidy(found: object) -> list[dict]:
             _parts(url)  # http(s), and nothing in it that does not print or is a space
         except NotReachable:
             continue
-        results.append({
-            "title": _line(item.get("title"), 200) or url, "url": url,
-            "snippet": _line(item.get("snippet") or item.get("content"), 500),
-        })
+        results.append(
+            {
+                "title": _line(item.get("title"), 200) or url,
+                "url": url,
+                "snippet": _line(item.get("snippet") or item.get("content"), 500),
+            }
+        )
     return results[:MAX_RESULTS]
 
 
@@ -774,9 +840,7 @@ async def _duckduckgo(query: str) -> list[dict]:
 
 async def _searxng(search_url: str, query: str) -> object:
     asked = f"{search_url.rstrip('/')}/search?{urlencode({'q': query, 'format': 'json'})}"
-    answer, _final = await fetch(
-        "GET", asked, {"Accept": "application/json"}, None, trusted=True
-    )
+    answer, _final = await fetch("GET", asked, {"Accept": "application/json"}, None, trusted=True)
     if answer.status != 200:
         raise WebError(f"HTTP {answer.status}")
     try:
@@ -798,7 +862,11 @@ def query_of(query: object) -> str:
 
 
 async def search(
-    query: object, search_url: str | None, order: str, spent=None, agy: bool = False,
+    query: object,
+    search_url: str | None,
+    order: str,
+    spent=None,
+    agy: bool = False,
     paid: bool = True,
 ) -> str:
     """Search the web; returns what the agent is told: which way answered, and at most
@@ -815,7 +883,11 @@ async def search(
 
 
 async def results(
-    query: object, search_url: str | None, order: str, spent=None, agy: bool = False,
+    query: object,
+    search_url: str | None,
+    order: str,
+    spent=None,
+    agy: bool = False,
     paid: bool = True,
 ) -> tuple[str, list[dict], str]:
     """Search the web: which way answered, at most eight results, and what is said where the
@@ -934,16 +1006,25 @@ def desktop(title: str, text: str) -> None:
 
     # By its full path: a `powershell.exe` put in the folder the app runs from is not it.
     shell = os.path.join(
-        os.environ.get("SYSTEMROOT", r"C:\Windows"), "System32", "WindowsPowerShell", "v1.0",
+        os.environ.get("SYSTEMROOT", r"C:\Windows"),
+        "System32",
+        "WindowsPowerShell",
+        "v1.0",
         "powershell.exe",
     )
     try:
         done = subprocess.run(
             [shell, "-NoProfile", "-NonInteractive", "-Command", _TOAST],
-            env={**os.environ, "KOLONI_TOAST_TITLE": plain(title),
-                 "KOLONI_TOAST_TEXT": plain(text)},
-            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            timeout=TOAST_SECONDS, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            env={
+                **os.environ,
+                "KOLONI_TOAST_TITLE": plain(title),
+                "KOLONI_TOAST_TEXT": plain(text),
+            },
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=TOAST_SECONDS,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
     except subprocess.TimeoutExpired:
         raise WebError(
@@ -969,7 +1050,8 @@ async def show(title: str, message: object) -> str:
 # A field named like this holds a secret, as far as a name can tell.
 _SECRET = re.compile(
     "token|key|secret|password|passwd|pass|pwd|auth|signature|sig|credential|session|jwt"
-    "|bearer|cookie", re.IGNORECASE
+    "|bearer|cookie",
+    re.IGNORECASE,
 )
 
 
@@ -1005,8 +1087,7 @@ def kept_url(url: str) -> str:
 def _hidden(value: object) -> object:
     if isinstance(value, dict):
         return {
-            name: "***" if _SECRET.search(name) else _hidden(inner)
-            for name, inner in value.items()
+            name: "***" if _SECRET.search(name) else _hidden(inner) for name, inner in value.items()
         }
     return [_hidden(inner) for inner in value] if isinstance(value, list) else value
 

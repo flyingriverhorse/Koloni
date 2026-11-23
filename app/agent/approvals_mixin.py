@@ -60,8 +60,7 @@ if TYPE_CHECKING:
 
 # B-301: what a CLI started read-only for its role is told when it tries its own (and before:
 # `model_native.READ_ONLY_RULES`).
-READ_ONLY_READS = ("read files with the koloni server's read_file, list_dir and search "
-                   "instead")
+READ_ONLY_READS = "read files with the koloni server's read_file, list_dir and search instead"
 READ_ONLY_WRITE = (
     "{who} was started read-only for the {role} role: its own {tool} is refused. Write the "
     "file with the koloni server's write_file or edit_file instead, not in any other way."
@@ -70,14 +69,20 @@ READ_ONLY_WRITE = (
 # declined: each a no to that action, not to the task (B-321).
 NO_COMMANDS = "do not run it another way. " + CARRY_ON
 # Why a command of a CLI that reports no cwd is asked at every level (`_approve`, `cwd_from`).
-CWD_NOT_KNOWN = ("it names a folder to run in (cwd: {cwd}), which this CLI does not report and "
-                 "KOLONİ cannot check")
+CWD_NOT_KNOWN = (
+    "it names a folder to run in (cwd: {cwd}), which this CLI does not report and "
+    "KOLONİ cannot check"
+)
 NO_CHANGES = "the {role} role may not change files: do not change them another way. " + CARRY_ON
-ONLY_READS = ("the {role} role may only read here, and KOLONİ cannot tell what {tool} would "
-              "change: do not use it, or anything else, to do the same. " + CARRY_ON)
+ONLY_READS = (
+    "the {role} role may only read here, and KOLONİ cannot tell what {tool} would "
+    "change: do not use it, or anything else, to do the same. " + CARRY_ON
+)
 
-LEAVE_REJECTED = ("rejected: the user declined this. It is their decision on this step, not on "
-                  "the task: do not do it another way. " + CARRY_ON)
+LEAVE_REJECTED = (
+    "rejected: the user declined this. It is their decision on this step, not on "
+    "the task: do not do it another way. " + CARRY_ON
+)
 
 # As `READ_AGAIN` (after a wait), for a CLI that asks leave for its own write tool: what it
 # has read KOLONİ does not see, so it is told when the file changed while its request waited.
@@ -109,8 +114,11 @@ def _searched(tool: str, given: dict) -> str:
     if tool != "Glob" or not isinstance(given.get("pattern"), str):
         return start or "."
     base = re.split(r"[*?\[{]", given["pattern"])[0] or "."
-    return base if start is None or Path(base).is_absolute() or base.startswith("~") else str(
-        Path(start) / base)
+    return (
+        base
+        if start is None or Path(base).is_absolute() or base.startswith("~")
+        else str(Path(start) / base)
+    )
 
 
 class ApprovalsMixin:
@@ -135,7 +143,8 @@ class ApprovalsMixin:
         if not isinstance(command, str) or "run_command" not in ctx.tools or given.get("reason"):
             return False
         if (canary := self._canaries.get(ctx.run_id)) and sends_canary(
-                json.dumps(given), canary, True):
+            json.dumps(given), canary, True
+        ):
             return False
         root, copy, cwd = watch.view.root.resolve(), watch.copy, given.get("cwd")
         folder = root / cwd if isinstance(cwd, str) and cwd else root  # (a whole path stays one)
@@ -143,15 +152,20 @@ class ApprovalsMixin:
             where = folder.resolve().relative_to(root).as_posix()
         except (ValueError, OSError):
             return False
-        if self._nobody_to_ask(ctx, "command", f"run {quoted(command)}", command=command,
-                               cwd=where or ".") not in (None, ""):
+        if self._nobody_to_ask(
+            ctx, "command", f"run {quoted(command)}", command=command, cwd=where or "."
+        ) not in (None, ""):
             return False
         searched = await asyncio.to_thread(search_reason, command, root, str(folder))
-        return not (web_off_reason(command, self._off()) or searched or copy is not None and (
-            self._in_copy_asks(ctx, command, bool(copy.links), copy.root, where))
+        return not (
+            web_off_reason(command, self._off())
+            or searched
+            or copy is not None
+            and (self._in_copy_asks(ctx, command, bool(copy.links), copy.root, where))
             or self._branch_asks(ctx, command, copy is not None)
             or self._shared_install(ctx, command, copy is not None and bool(copy.links))
-            or self._night_asks(ctx, command, where))
+            or self._night_asks(ctx, command, where)
+        )
 
     async def _approve(  # noqa: C901
         self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch", arguments: str
@@ -190,10 +204,15 @@ class ApprovalsMixin:
         # shortcut: on any other card of theirs a "reason" key in the model's input is still
         # shown as the reason (`_approve_command`: asked all the same, in the model's words);
         # read it from Codex's protocol alone if a card is seen to say what the model wants.
-        if tool in CLAUDE_RUNS and "cwd" in given and getattr(
-                ctx.model, "cwd_from", "none") in ("root", "none"):
-            given = {**{key: value for key, value in given.items() if key != "cwd"},
-                     "reason": CWD_NOT_KNOWN.format(cwd=quoted(str(given["cwd"])[:80]))}
+        if (
+            tool in CLAUDE_RUNS
+            and "cwd" in given
+            and getattr(ctx.model, "cwd_from", "none") in ("root", "none")
+        ):
+            given = {
+                **{key: value for key, value in given.items() if key != "cwd"},
+                "reason": CWD_NOT_KNOWN.format(cwd=quoted(str(given["cwd"])[:80])),
+            }
 
         def deny(why: str, fixed: bool = False) -> dict:
             if use_id:
@@ -205,12 +224,22 @@ class ApprovalsMixin:
         # 89g: a role run inside the CLI has its role's tools only - none of KOLONİ's, which
         # would be its Lead's; one not offered by KOLONİ (a project's own) has none.
         kind = asked.get("agent_type")
-        if isinstance(kind, str) and kind.startswith(INSIDE) and (
-                tool not in watch.roles.get(kind, ("", []))[1]):
+        if (
+            isinstance(kind, str)
+            and kind.startswith(INSIDE)
+            and (tool not in watch.roles.get(kind, ("", []))[1])
+        ):
             role = watch.roles.get(kind, (kind, []))[0]
             why = f"{role} (inside {who}) may not use {tool}: its role does not give it that tool"
-            self._note(ctx, transcript, re.sub(r"[^A-Za-z0-9_-]", "_", f"claude__{tool}")[:64],
-                       given, "denied", why, parent=under)
+            self._note(
+                ctx,
+                transcript,
+                re.sub(r"[^A-Za-z0-9_-]", "_", f"claude__{tool}")[:64],
+                given,
+                "denied",
+                why,
+                parent=under,
+            )
             return deny(why)
         if tool.startswith(PREFIX):
             # KOLONİ's own tools: leave for them is not this tool's to give or withhold.
@@ -229,11 +258,22 @@ class ApprovalsMixin:
         # shortcut: only what reaches this hook - not a CLI's own web search with none (Codex's,
         # agy's), nor `env | curl -d @-` (it names nothing), nor the key encoded, or written to
         # a file and sent from there.
-        if (canary := self._canaries.get(ctx.run_id)) and tool not in CLAUDE_WRITES and (
-                sends_canary(json.dumps(given), canary, tool in CLAUDE_RUNS)):
-            self._note(ctx, transcript, "run_command" if tool in CLAUDE_RUNS else re.sub(
-                r"[^A-Za-z0-9_-]", "_", f"claude__{tool}")[:64], given, "denied", CANARY_REFUSED,
-                parent=under)
+        if (
+            (canary := self._canaries.get(ctx.run_id))
+            and tool not in CLAUDE_WRITES
+            and (sends_canary(json.dumps(given), canary, tool in CLAUDE_RUNS))
+        ):
+            self._note(
+                ctx,
+                transcript,
+                "run_command"
+                if tool in CLAUDE_RUNS
+                else re.sub(r"[^A-Za-z0-9_-]", "_", f"claude__{tool}")[:64],
+                given,
+                "denied",
+                CANARY_REFUSED,
+                parent=under,
+            )
             self._over_budget(ctx.run_id, CANARY_STOPPED)
             return deny(CANARY_REFUSED, fixed=True)
 
@@ -266,32 +306,81 @@ class ApprovalsMixin:
         relative = inside(named)[1] if tool in CLAUDE_WRITES and named else None
         # (and where it says the command runs: Codex's cwd)
         at = given.get("cwd") if runs and isinstance(given.get("cwd"), str) else None
-        if (runs or relative) and (kept := self._keeps_out(
-                ctx, path=relative, command=given["command"] if runs else None,
+        if (runs or relative) and (
+            kept := self._keeps_out(
+                ctx,
+                path=relative,
+                command=given["command"] if runs else None,
                 cwd=inside(at)[1] if at else None,
-                what=f"run {given['command']}" if runs else f"change {named}") or (
-                at and inside(at)[1] and self._keeps_out(
-                    ctx, path=inside(at)[1], what=f"run {given['command']} in {at}"))):
-            self._note(ctx, transcript, "run_command" if runs else "edit_file",
-                       {"command": given["command"]} if runs else {"path": named},
-                       "denied", kept, parent=under)
+                what=f"run {given['command']}" if runs else f"change {named}",
+            )
+            or (
+                at
+                and inside(at)[1]
+                and self._keeps_out(ctx, path=inside(at)[1], what=f"run {given['command']} in {at}")
+            )
+        ):
+            self._note(
+                ctx,
+                transcript,
+                "run_command" if runs else "edit_file",
+                {"command": given["command"]} if runs else {"path": named},
+                "denied",
+                kept,
+                parent=under,
+            )
             return deny(kept)
 
         if tool in CLAUDE_RUNS:
             return await self._approve_command(
-                ctx, transcript, watch, tool=tool, given=given, use_id=use_id, under=under,
-                allow=allow, deny=deny, level=level, root=root, copy=copy, inside=inside)
+                ctx,
+                transcript,
+                watch,
+                tool=tool,
+                given=given,
+                use_id=use_id,
+                under=under,
+                allow=allow,
+                deny=deny,
+                level=level,
+                root=root,
+                copy=copy,
+                inside=inside,
+            )
         if tool in CLAUDE_SHELL_OUTPUT and "run_command" in ctx.tools:
             return allow  # (what a command it was let run says, or its end: no new action)
 
         if tool in CLAUDE_WRITES:
             return await self._approve_write(
-                ctx, transcript, watch, tool=tool, given=given, use_id=use_id, under=under,
-                allow=allow, deny=deny, who=who, level=level, root=root, copy=copy,
-                inside=inside)
-        if (refused := await self._approve_read(
-                ctx, transcript, watch, tool=tool, given=given, under=under, deny=deny,
-                root=root, copy=copy, inside=inside)) is not None:
+                ctx,
+                transcript,
+                watch,
+                tool=tool,
+                given=given,
+                use_id=use_id,
+                under=under,
+                allow=allow,
+                deny=deny,
+                who=who,
+                level=level,
+                root=root,
+                copy=copy,
+                inside=inside,
+            )
+        if (
+            refused := await self._approve_read(
+                ctx,
+                transcript,
+                watch,
+                tool=tool,
+                given=given,
+                under=under,
+                deny=deny,
+                root=root,
+                copy=copy,
+                inside=inside,
+            )
+        ) is not None:
             return refused
         # Full auto is the conversation's level: in a turn nobody is watching it gives
         # nothing, and a tool KOLONİ cannot tell from a write or a command is one no
@@ -302,29 +391,51 @@ class ApprovalsMixin:
         # be a shell, a write or the network past every check. shortcut: allow by name once
         # Qoder's tool list is measured (K-fullauto-sorma 2 review).
         if not given.get("reason") and (
-                tool in CLAUDE_READS or level == "full_auto" and self._watched(ctx.run_id)
-                and ctx.run_id not in self._away_jobs  # (nor at night: the job waits for it)
-                and not self._hands_code(ctx)
-                and (tool in CLAUDE_KNOWN or getattr(ctx.model, "command", "") != "qodercli")):
+            tool in CLAUDE_READS
+            or level == "full_auto"
+            and self._watched(ctx.run_id)
+            and ctx.run_id not in self._away_jobs  # (nor at night: the job waits for it)
+            and not self._hands_code(ctx)
+            and (tool in CLAUDE_KNOWN or getattr(ctx.model, "command", "") != "qodercli")
+        ):
             return allow  # recorded when it reports it done
         shown = json.dumps(given, ensure_ascii=False)
         return await self._ask_leave(
-            ctx, transcript, watch, use_id, tool, given, allow, deny,
+            ctx,
+            transcript,
+            watch,
+            use_id,
+            tool,
+            given,
+            allow,
+            deny,
             f"{who} wants to use its own tool {tool}: {shown}",
             f"let {who} use its own tool {quoted(tool)}",
         )
 
     async def _approve_command(
-        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch", *,
-        tool: str, given: dict, use_id: str, under: str | None, allow: dict,
-        deny: Callable[..., dict], level: str, root: Path, copy: copies.Copy | None,
+        self: "AgentRunner",
+        ctx: Ctx,
+        transcript: "_Transcript",
+        watch: "_Watch",
+        *,
+        tool: str,
+        given: dict,
+        use_id: str,
+        under: str | None,
+        allow: dict,
+        deny: Callable[..., dict],
+        level: str,
+        root: Path,
+        copy: copies.Copy | None,
         inside: Callable[[str], tuple[Path, str | None]],
     ) -> dict:
         """`_approve`'s answer to a command of the CLI's own (`CLAUDE_RUNS`)."""
         if not isinstance(given.get("command"), str) or not given["command"]:
             # (Its Monitor can watch other things than a command: those are not judged.)
-            return deny(f"KOLONİ judges {tool} by the command it runs, and this one names none",
-                        fixed=True)
+            return deny(
+                f"KOLONİ judges {tool} by the command it runs, and this one names none", fixed=True
+            )
         command = given["command"]
         # Why it asks (Codex: to leave its sandbox, say) and where it says the command
         # runs are shown with it; either makes it a card at every level, and nothing a
@@ -337,14 +448,21 @@ class ApprovalsMixin:
         for one in [p for p in given.get("paths") or [] if isinstance(p, str) and p]:
             relative = inside(one)[1]
             reason = reason or (
-                f"it names {one}, outside the folder it works in" if relative is None
-                else f"it names {relative}, a secret file" if secret_named(one, relative)
+                f"it names {one}, outside the folder it works in"
+                if relative is None
+                else f"it names {relative}, a secret file"
+                if secret_named(one, relative)
                 else f"it may write {relative}, which tells later turns what they may do"
                 if given.get("writes") and stands_over_later_turns(Workspace(root), relative)
-                else None)
+                else None
+            )
         # (Its paths are read from where it says it runs: a part's folder, say.)
-        searched = await asyncio.to_thread(search_reason, command, root, str(
-            inside(cwd)[0]) if isinstance(cwd, str) and cwd else ".")
+        searched = await asyncio.to_thread(
+            search_reason,
+            command,
+            root,
+            str(inside(cwd)[0]) if isinstance(cwd, str) and cwd else ".",
+        )
         # Where it runs when it names no cwd: the root (Claude Code's Bash tool alone, measured;
         # not its PowerShell or Monitor, nor a sub-agent of its own - `under` -, which may
         # start elsewhere; and a Copilot command KOLONİ read to start a new shell in the project,
@@ -353,8 +471,11 @@ class ApprovalsMixin:
         # model wrote (agy's) is judged as not known as well.
         kind = getattr(ctx.model, "cwd_from", "none")
         new_shell = kind == "cli" and given.get("new_shell") is True
-        unnamed = "." if under is None and (kind == "root" and tool == "Bash" or (
-            new_shell and copy is None)) else None
+        unnamed = (
+            "."
+            if under is None and (kind == "root" and tool == "Bash" or (new_shell and copy is None))
+            else None
+        )
         claimed = kind == "model" and isinstance(cwd, str) and bool(cwd)
         if claimed and not searched:
             searched = await asyncio.to_thread(search_reason, command, root, ".")
@@ -371,8 +492,11 @@ class ApprovalsMixin:
         # the project's own root - not a copy's, nor a cwd the model wrote: `_night_asks`. Nor
         # Copilot's in a new shell, never put to the user: 1.0.67 has no sandbox, and a link a
         # script makes there after the ask is followed - `scratch_delete_only`.)
-        scratch_of = str(root) if at in ("", ".") and copy is None and not claimed and (
-            not new_shell) else None
+        scratch_of = (
+            str(root)
+            if at in ("", ".") and copy is None and not claimed and (not new_shell)
+            else None
+        )
         # One that names a folder to read in only by its full path is asked about, as
         # KOLONİ's own commands are.
         always = self._read_named(ctx, command) is not None or where is None
@@ -382,38 +506,73 @@ class ApprovalsMixin:
         # delete in the scratch from its new shell is not let go: `scratch_of`).
         cli = getattr(ctx.model, "command", "")
         found = await self._disposable(
-            ctx, command, root, None if claimed or cli == "copilot" else (
-                where if isinstance(cwd, str) and cwd else unnamed), copy is not None,
-            disposable.cli_shell(cli, tool))
+            ctx,
+            command,
+            root,
+            None
+            if claimed or cli == "copilot"
+            else (where if isinstance(cwd, str) and cwd else unnamed),
+            copy is not None,
+            disposable.cli_shell(cli, tool),
+        )
         free = bool(found and found["allowed"])
-        before = web_off or reason or searched or (
-            self._in_copy_asks(ctx, command, bool(copy.links), copy.root, where)
-            if copy is not None and not free else "") or self._branch_asks(
-            ctx, command, copy is not None) or (
-            self._shared_install(ctx, command, copy is not None and bool(copy.links)))
+        before = (
+            web_off
+            or reason
+            or searched
+            or (
+                self._in_copy_asks(ctx, command, bool(copy.links), copy.root, where)
+                if copy is not None and not free
+                else ""
+            )
+            or self._branch_asks(ctx, command, copy is not None)
+            or (self._shared_install(ctx, command, copy is not None and bool(copy.links)))
+        )
         # K-yargic: harm alone may first be checked against the user's own words (`_judged`) -
         # not for a role that runs no command (it is refused below whatever the check says), nor
         # where it runs is not known: no folder (`at` None), or one its model wrote (`claimed`).
-        night, judged = await self._judged(ctx, command, at, "" if before or free else (
-            self._night_asks(ctx, command, at, scratch_of)) or (
-            self._night_asks(ctx, command, None) if claimed else ""),
-            asked_anyway=always or claimed or at is None or "run_command" not in ctx.tools)
+        night, judged = await self._judged(
+            ctx,
+            command,
+            at,
+            ""
+            if before or free
+            else (self._night_asks(ctx, command, at, scratch_of))
+            or (self._night_asks(ctx, command, None) if claimed else ""),
+            asked_anyway=always or claimed or at is None or "run_command" not in ctx.tools,
+        )
         reason = before or night
         if not reason and given.get("urls") and level != "full_auto":
             reason = f"it may reach {given['urls'][0]}"  # (as KOLONİ's web tools are asked)
-        noted = {"command": command, **({"reason": reason} if reason else {}),
-                 **({"cwd": cwd} if cwd else {})}
+        noted = {
+            "command": command,
+            **({"reason": reason} if reason else {}),
+            **({"cwd": cwd} if cwd else {}),
+        }
         if "run_command" not in ctx.tools:
-            self._note(ctx, transcript, "run_command", noted, "denied",
-                       f"the {ctx.role} role may not run commands", parent=under)
+            self._note(
+                ctx,
+                transcript,
+                "run_command",
+                noted,
+                "denied",
+                f"the {ctx.role} role may not run commands",
+                parent=under,
+            )
             # B-301: one started read-only reads with KOLONİ's tools - Codex looks at files
             # only by running commands, and is not to stop at this no.
-            return deny(f"the {ctx.role} role may not run commands; " + (
-                READ_ONLY_READS if reads_only(ctx.model, ctx.tools)
-                else NO_COMMANDS), fixed=True)
+            return deny(
+                f"the {ctx.role} role may not run commands; "
+                + (READ_ONLY_READS if reads_only(ctx.model, ctx.tools) else NO_COMMANDS),
+                fixed=True,
+            )
         refused = self._nobody_to_ask(
-            ctx, "command", f"run {quoted(command)}", command=command,
-            cwd="." if where in ("", ".") else where or str(cwd))
+            ctx,
+            "command",
+            f"run {quoted(command)}",
+            command=command,
+            cwd="." if where in ("", ".") else where or str(cwd),
+        )
         if refused == "" and reason:
             refused = self._nobody_to_ask(ctx, "words", f"run {quoted(command)}: {reason}")
         if refused:
@@ -424,10 +583,19 @@ class ApprovalsMixin:
         if reason:  # (on its card)
             self._set_call(ctx.cid, call_id, why_asked=reason)
         allowed, command_id = await self.commands.ask_for(
-            ctx.run_id, ctx.cid, ctx.agent_id, call_id, command, ask=refused is None,
-            always=always or bool(reason), held=bool(searched), web_off=bool(web_off),
-            reads=not given.get("not_read_only") and await asyncio.to_thread(
-                reads_here, command, root, where in ("", "."), where or "."),
+            ctx.run_id,
+            ctx.cid,
+            ctx.agent_id,
+            call_id,
+            command,
+            ask=refused is None,
+            always=always or bool(reason),
+            held=bool(searched),
+            web_off=bool(web_off),
+            reads=not given.get("not_read_only")
+            and await asyncio.to_thread(
+                reads_here, command, root, where in ("", "."), where or "."
+            ),
             # (One out of the folder it works in: as the CLI gave it. Where it gave none:
             # `unnamed` - "." for Claude Code's Bash tool, whose every call starts in the project
             # (`ClaudeNativeClient.cwd_from`, measured), and Copilot's in a new shell; None for
@@ -438,12 +606,16 @@ class ApprovalsMixin:
             # shortcut: Qoder's shell is not measured; if it keeps a `cd`, a later relative
             # path is judged at the wrong place - a `cd` into a protected folder is a card
             # itself. Measure it, and read a cwd from the hook's payload if it carries one.
-            cwd=(where if where is not None else cwd)
-            if isinstance(cwd, str) and cwd else unnamed, judgement=judged, disposable=found,
+            cwd=(where if where is not None else cwd) if isinstance(cwd, str) and cwd else unnamed,
+            judgement=judged,
+            disposable=found,
         )
         if not allowed:
-            said = (refused_by_rule(judged)
-                    if judged and judged["verdict"] == "refuse" else rejected(command))
+            said = (
+                refused_by_rule(judged)
+                if judged and judged["verdict"] == "refuse"
+                else rejected(command)
+            )
             self._set_call(ctx.cid, call_id, status="denied", result=said, ended_at=now())
             return deny(said, fixed=True)
         if (earlier := watch.commands.get(use_id)) is not None:
@@ -468,19 +640,33 @@ class ApprovalsMixin:
                 session.commit()
             payload = command_event(row)
         self.bus.emit(ctx.cid, ctx.run_id, "command.updated", payload)
-        self._set_call(ctx.cid, call_id, status="succeeded", ended_at=now(),
-                       result=ASKED_AGAIN)
+        self._set_call(ctx.cid, call_id, status="succeeded", ended_at=now(), result=ASKED_AGAIN)
 
     async def _approve_write(  # noqa: C901
-        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch", *,
-        tool: str, given: dict, use_id: str, under: str | None, allow: dict,
-        deny: Callable[..., dict], who: str, level: str, root: Path,
-        copy: copies.Copy | None, inside: Callable[[str], tuple[Path, str | None]],
+        self: "AgentRunner",
+        ctx: Ctx,
+        transcript: "_Transcript",
+        watch: "_Watch",
+        *,
+        tool: str,
+        given: dict,
+        use_id: str,
+        under: str | None,
+        allow: dict,
+        deny: Callable[..., dict],
+        who: str,
+        level: str,
+        root: Path,
+        copy: copies.Copy | None,
+        inside: Callable[[str], tuple[Path, str | None]],
     ) -> dict:
         """`_approve`'s answer to a write of the CLI's own (`CLAUDE_WRITES`)."""
         named = str(given.get("file_path") or given.get("notebook_path") or "")
-        if (no := self._write_by_role(ctx, transcript, watch, tool=tool, under=under,
-                                      deny=deny, who=who, named=named)) is not None:
+        if (
+            no := self._write_by_role(
+                ctx, transcript, watch, tool=tool, under=under, deny=deny, who=who, named=named
+            )
+        ) is not None:
             return no
         target, relative = inside(named)
         if copy is not None:
@@ -493,25 +679,33 @@ class ApprovalsMixin:
             parts = (relative or "").split("/")
             left_out = copies.under(parts, copies.NOT_COPIED)
             why = (
-                NOT_IN_A_COPY.format(path=relative, name=left_out) if left_out
+                NOT_IN_A_COPY.format(path=relative, name=left_out)
+                if left_out
                 else SHARED_WITH_PROJECT.format(path=relative or named)
                 if _shared(copy, target) or copies.under(parts, copies.LINKED)
-                else OUTSIDE_THE_COPY.format(path=named, root=root) if relative is None
-                else NOT_IN_THE_PART.format(path=relative, part=copy.part,
-                                            project=copy.project)
-                if not copy.holds(relative) else None
+                else OUTSIDE_THE_COPY.format(path=named, root=root)
+                if relative is None
+                else NOT_IN_THE_PART.format(path=relative, part=copy.part, project=copy.project)
+                if not copy.holds(relative)
+                else None
             )
             if why:
-                self._note(ctx, transcript, "edit_file", {"path": relative or named},
-                           "denied", why, parent=under)
+                self._note(
+                    ctx,
+                    transcript,
+                    "edit_file",
+                    {"path": relative or named},
+                    "denied",
+                    why,
+                    parent=under,
+                )
                 return deny(why, fixed=True)
         outside = relative is None
         if outside:
             # (Not in a working copy: refused above.) In a folder the project also
             # works in, or one the user allows, it is a file like the project's: on
             # record by its full path, and asked about as the level says.
-            why = await self._native_outside(ctx, transcript, under, "edit_file", named,
-                                             target)
+            why = await self._native_outside(ctx, transcript, under, "edit_file", named, target)
             if why:
                 return deny(why)
             relative = str(target.resolve())
@@ -519,8 +713,15 @@ class ApprovalsMixin:
         if odd or has_other_names(target.resolve()):
             # As for KOLONİ's own write tools: refused at every level, nobody asked.
             why = f"{relative!r} is not written: {odd or HARD_LINK}"
-            self._note(ctx, transcript, "edit_file", {"path": relative}, "failed",
-                       f"error: {why}", parent=under)
+            self._note(
+                ctx,
+                transcript,
+                "edit_file",
+                {"path": relative},
+                "failed",
+                f"error: {why}",
+                parent=under,
+            )
             return deny(why)
         # As for KOLONİ's own write tools, at any depth and as Windows opens the name
         # (outside the project: wherever in that folder's path).
@@ -535,37 +736,53 @@ class ApprovalsMixin:
         if standing in (".claude", ".mcp.json", ".claude.json"):
             # What it is allowed to do next time is decided there: never without asking.
             whose = "its own" if who == "Claude Code" else "Claude Code's"
-            return stands(await self._ask_leave(
-                ctx, transcript, watch, use_id, tool, given, allow, deny,
-                f"{who} wants to change {whose} settings ({relative}), which decide "
-                f"what it may do without asking: {json.dumps(given, ensure_ascii=False)}",
-                f"let {who} change {whose} settings ({quoted(relative)})",
-            ))
+            return stands(
+                await self._ask_leave(
+                    ctx,
+                    transcript,
+                    watch,
+                    use_id,
+                    tool,
+                    given,
+                    allow,
+                    deny,
+                    f"{who} wants to change {whose} settings ({relative}), which decide "
+                    f"what it may do without asking: {json.dumps(given, ensure_ascii=False)}",
+                    f"let {who} change {whose} settings ({quoted(relative)})",
+                )
+            )
         # Why it asks (Codex: for more than its sandbox gives, say): shown with it, and
         # it makes the change one to ask about at every level, and one no trigger allows.
         reason = given.get("reason")
         refused = self._nobody_to_ask(ctx, "write", "change files")
         if refused == "" and standing:
             refused = self._nobody_to_ask(
-                ctx, "standing file",
+                ctx,
+                "standing file",
                 f"change {quoted(relative)}: such a file tells later turns what they may "
                 "do, or runs by itself, which no trigger allows",
             )
         if refused == "" and reason:
             refused = self._nobody_to_ask(ctx, "words", f"change {quoted(relative)}: {reason}")
         if refused:
-            self._note(ctx, transcript, "edit_file", {"path": relative}, "denied", refused,
-                       parent=under)
+            self._note(
+                ctx, transcript, "edit_file", {"path": relative}, "denied", refused, parent=under
+            )
             return deny(refused)
         # The file is this agent's from here on, as for KOLONİ's own write tools:
         # held by another agent, the request waits - and is refused afterwards if the
         # file is no longer what it was when the CLI asked.
-        if (no := await self._write_claim(
-                ctx, transcript, watch, under=under, deny=deny, target=target,
-                relative=relative)) is not None:
+        if (
+            no := await self._write_claim(
+                ctx, transcript, watch, under=under, deny=deny, target=target, relative=relative
+            )
+        ) is not None:
             return no
-        asks = (level == "ask" or self._standing_asks(ctx.run_id, standing, level)
-                or bool(reason)) and refused is None and (copy is None or bool(reason))
+        asks = (
+            (level == "ask" or self._standing_asks(ctx.run_id, standing, level) or bool(reason))
+            and refused is None
+            and (copy is None or bool(reason))
+        )
         if not asks and not outside:
             # Written by the CLI; recorded when it reports it done. In a working copy
             # at every level: the user is asked once, when the copy is taken in.
@@ -583,23 +800,42 @@ class ApprovalsMixin:
             )
             # shortcut: Codex's patch to a file that is there is asked here, in words
             # with its whole diff; apply the diff to show it as a change if that is wanted.
-            return stands(await self._ask_leave(
-                ctx, transcript, watch, use_id, tool, given, allow, deny,
-                f"{who} wants to use its {tool} tool on {relative} (KOLONİ cannot "
-                f"show this one as a diff): {shown}",
-                f"use {who}'s {tool} tool on {quoted(relative)}",
-            ))
+            return stands(
+                await self._ask_leave(
+                    ctx,
+                    transcript,
+                    watch,
+                    use_id,
+                    tool,
+                    given,
+                    allow,
+                    deny,
+                    f"{who} wants to use its {tool} tool on {relative} (KOLONİ cannot "
+                    f"show this one as a diff): {shown}",
+                    f"use {who}'s {tool} tool on {quoted(relative)}",
+                )
+            )
         before, after = planned
-        call_id = self._note(ctx, transcript, "edit_file" if before is not None
-                             else "write_file",
-                             {"path": relative, **({"reason": reason} if reason else {})},
-                             None, None, parent=under)
+        call_id = self._note(
+            ctx,
+            transcript,
+            "edit_file" if before is not None else "write_file",
+            {"path": relative, **({"reason": reason} if reason else {})},
+            None,
+            None,
+            parent=under,
+        )
         with self._factory() as session:
             change = FileChange(
-                run_id=ctx.run_id, agent_id=ctx.agent_id, tool_call_id=call_id,
-                path=relative, kind="create" if before is None else "modify",
-                before_content=before, after_content=after,
-                before_sha=sha256_text(before), after_sha=sha256_text(after),
+                run_id=ctx.run_id,
+                agent_id=ctx.agent_id,
+                tool_call_id=call_id,
+                path=relative,
+                kind="create" if before is None else "modify",
+                before_content=before,
+                after_content=after,
+                before_sha=sha256_text(before),
+                after_sha=sha256_text(after),
                 origin="cli",
             )
             session.add(change)
@@ -612,8 +848,7 @@ class ApprovalsMixin:
             self._decisions[change_id] = future
             self._update_run(ctx.run_id, ctx.cid, status="waiting_approval")
             try:
-                decision = await self._users_word(
-                    ctx, future, self._change_heard(ctx, change_id))
+                decision = await self._users_word(ctx, future, self._change_heard(ctx, change_id))
             finally:
                 self._decisions.pop(change_id, None)
                 self._update_run(ctx.run_id, ctx.cid, status="running")
@@ -629,31 +864,51 @@ class ApprovalsMixin:
         return stands(allow)
 
     def _write_by_role(
-        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch", *,
-        tool: str, under: str | None, deny: Callable[..., dict], who: str, named: str,
+        self: "AgentRunner",
+        ctx: Ctx,
+        transcript: "_Transcript",
+        watch: "_Watch",
+        *,
+        tool: str,
+        under: str | None,
+        deny: Callable[..., dict],
+        who: str,
+        named: str,
     ) -> dict | None:
         """`_approve_write`'s refusals by the role and the Lead's rule; None: none."""
         if not any(name in ctx.tools for name in WRITE_TOOLS):
-            self._note(ctx, transcript, "edit_file", {"path": named}, "denied",
-                       f"the {ctx.role} role may not change files", parent=under)
+            self._note(
+                ctx,
+                transcript,
+                "edit_file",
+                {"path": named},
+                "denied",
+                f"the {ctx.role} role may not change files",
+                parent=under,
+            )
             return deny(NO_CHANGES.format(role=ctx.role), fixed=True)
         if reads_only(ctx.model, ctx.tools):
             # B-301: started read-only, it writes with KOLONİ's write tools, not its own.
             why = READ_ONLY_WRITE.format(who=who, role=ctx.role, tool=tool)
-            self._note(ctx, transcript, "edit_file", {"path": named}, "denied", why,
-                       parent=under)
+            self._note(ctx, transcript, "edit_file", {"path": named}, "denied", why, parent=under)
             return deny(why, fixed=True)
         # A Lead that hands code on (slice 48), as for KOLONİ's own write tools.
         if self._own_writes_refused(ctx, watch):
             why = HANDS_CODE_REFUSED.format(tool=f"{tool} to {named}")
-            self._note(ctx, transcript, "edit_file", {"path": named}, "denied", why,
-                       parent=under)
+            self._note(ctx, transcript, "edit_file", {"path": named}, "denied", why, parent=under)
             return deny(why, fixed=True)
         return None
 
     async def _write_claim(
-        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch", *,
-        under: str | None, deny: Callable[..., dict], target: Path, relative: str,
+        self: "AgentRunner",
+        ctx: Ctx,
+        transcript: "_Transcript",
+        watch: "_Watch",
+        *,
+        under: str | None,
+        deny: Callable[..., dict],
+        target: Path,
+        relative: str,
     ) -> dict | None:
         """`_approve_write`'s claim on the file: the refusal where it cannot be had, or was
         changed while this request waited for it; None: claimed."""
@@ -661,38 +916,60 @@ class ApprovalsMixin:
         waiting: list[str] = []
         try:
             waited = await self._claim(
-                ctx, relative, hold=watch.hold,
-                began=lambda: waiting.append(self._note(
-                    ctx, transcript, "edit_file", {"path": relative}, None, None,
-                    parent=under)),
+                ctx,
+                relative,
+                hold=watch.hold,
+                began=lambda: waiting.append(
+                    self._note(
+                        ctx, transcript, "edit_file", {"path": relative}, None, None, parent=under
+                    )
+                ),
             )
         except ToolError as exc:
             # Waiting would never end: said at once, or when the file went on to
             # an agent that waits for this one.
             if waiting:
-                self._set_call(ctx.cid, waiting[0], status="failed",
-                               result=f"error: {exc}", ended_at=now())
+                self._set_call(
+                    ctx.cid, waiting[0], status="failed", result=f"error: {exc}", ended_at=now()
+                )
             else:
-                self._note(ctx, transcript, "edit_file", {"path": relative}, "failed",
-                           f"error: {exc}", parent=under)
+                self._note(
+                    ctx,
+                    transcript,
+                    "edit_file",
+                    {"path": relative},
+                    "failed",
+                    f"error: {exc}",
+                    parent=under,
+                )
             return deny(str(exc))
         if waited:
             changed = await asyncio.to_thread(copies.digest, target, follow=True) != asked_at
             why = READ_AGAIN_ASKED.format(name=waited, path=relative)
             self._set_call(
-                ctx.cid, waiting[0], ended_at=now(),
+                ctx.cid,
+                waiting[0],
+                ended_at=now(),
                 status="failed" if changed else "succeeded",
-                result=f"conflict: {why}" if changed
-                else WAITED.format(name=waited, path=relative),
+                result=f"conflict: {why}" if changed else WAITED.format(name=waited, path=relative),
             )
             if changed:
                 return deny(why)
         return None
 
     async def _approve_read(  # noqa: C901
-        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch", *,
-        tool: str, given: dict, under: str | None, deny: Callable[..., dict], root: Path,
-        copy: copies.Copy | None, inside: Callable[[str], tuple[Path, str | None]],
+        self: "AgentRunner",
+        ctx: Ctx,
+        transcript: "_Transcript",
+        watch: "_Watch",
+        *,
+        tool: str,
+        given: dict,
+        under: str | None,
+        deny: Callable[..., dict],
+        root: Path,
+        copy: copies.Copy | None,
+        inside: Callable[[str], tuple[Path, str | None]],
     ) -> dict | None:
         """`_approve`'s refusals of any other tool, a read's above all: None where none
         refuses it, and `_approve` goes on."""
@@ -701,16 +978,28 @@ class ApprovalsMixin:
         ):
             # A tool KOLONİ does not know - an MCP server of the user's, a sub-agent - may
             # write or run anything. A role that may not do both gets none of them.
-            self._note(ctx, transcript, re.sub(r"[^A-Za-z0-9_-]", "_", f"claude__{tool}")[:64],
-                       given, "denied", f"the {ctx.role} role may only use tools that read",
-                       parent=under)
+            self._note(
+                ctx,
+                transcript,
+                re.sub(r"[^A-Za-z0-9_-]", "_", f"claude__{tool}")[:64],
+                given,
+                "denied",
+                f"the {ctx.role} role may only use tools that read",
+                parent=under,
+            )
             return deny(ONLY_READS.format(role=ctx.role, tool=tool))
         if copy is not None and tool in CLAUDE_READS:
             # It asks about a read only where it leaves its own folders. Out of a working
             # copy that is the project itself, or anywhere: read in the copy, or in what
             # the copy shares with the project.
-            named = next((given[key] for key in ("file_path", "path", "notebook_path")
-                          if isinstance(given.get(key), str) and given[key]), None)
+            named = next(
+                (
+                    given[key]
+                    for key in ("file_path", "path", "notebook_path")
+                    if isinstance(given.get(key), str) and given[key]
+                ),
+                None,
+            )
             why = None
             # (A Glob's pattern is a path too: `../../**` or a full one looks outside.)
             glob_at = _searched(tool, given) if tool == "Glob" else None
@@ -718,20 +1007,35 @@ class ApprovalsMixin:
                 why = OUTSIDE_THE_COPY.format(path=named, root=root)
             elif glob_at and inside(glob_at)[1] is None and not _shared(copy, inside(glob_at)[0]):
                 why = OUTSIDE_THE_COPY.format(path=given.get("pattern"), root=root)
-            elif named and copy.part and (in_copy := inside(named)[1]) is not None and not (
-                    os.path.lexists(inside(named)[0])) and not copy.holds(in_copy):
+            elif (
+                named
+                and copy.part
+                and (in_copy := inside(named)[1]) is not None
+                and not (os.path.lexists(inside(named)[0]))
+                and not copy.holds(in_copy)
+            ):
                 # K-buyuk-proje: another part, by its path in a copy of one part - why it is
                 # not there, rather than "not found".
                 why = NOT_IN_THE_PART.format(path=in_copy, part=copy.part, project=copy.project)
             if why:
-                self._note(ctx, transcript, re.sub(r"[^A-Za-z0-9_-]", "_", f"claude__{tool}")[:64],
-                           given, "denied", why, parent=under)
+                self._note(
+                    ctx,
+                    transcript,
+                    re.sub(r"[^A-Za-z0-9_-]", "_", f"claude__{tool}")[:64],
+                    given,
+                    "denied",
+                    why,
+                    parent=under,
+                )
                 return deny(why)
         if copy is None and tool in CLAUDE_READS:
             # A look outside the project, as for KOLONİ's own tools: in a folder it also
             # works in, or one the user allows - never one KOLONİ never opens.
-            named = [given[key] for key in ("file_path", "path", "notebook_path")
-                     if isinstance(given.get(key), str) and given[key]]
+            named = [
+                given[key]
+                for key in ("file_path", "path", "notebook_path")
+                if isinstance(given.get(key), str) and given[key]
+            ]
             if tool == "Glob" and isinstance(given.get("pattern"), str):
                 named.append(_searched(tool, given))
             looks = {"Grep": "search", "Glob": "search", "LS": "list_dir"}
@@ -747,8 +1051,8 @@ class ApprovalsMixin:
             for one in sorted(named, key=opens):
                 if inside(one)[1] is None:
                     why = await self._native_outside(
-                        ctx, transcript, under, looks.get(tool, "read_file"), one,
-                        inside(one)[0])
+                        ctx, transcript, under, looks.get(tool, "read_file"), one, inside(one)[0]
+                    )
                     if why:
                         return deny(why)
         if tool in ("Grep", "Glob"):
@@ -767,12 +1071,20 @@ class ApprovalsMixin:
                 why = KOLONI_IN_SEARCH.format(place=held)
                 self._note(ctx, transcript, "search", given, "denied", why, parent=under)
                 return deny(why)
-        return await self._secret_reads(ctx, transcript, watch, tool=tool, given=given,
-                                         under=under, deny=deny, inside=inside)
+        return await self._secret_reads(
+            ctx, transcript, watch, tool=tool, given=given, under=under, deny=deny, inside=inside
+        )
 
     async def _secret_reads(
-        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch", *,
-        tool: str, given: dict, under: str | None, deny: Callable[..., dict],
+        self: "AgentRunner",
+        ctx: Ctx,
+        transcript: "_Transcript",
+        watch: "_Watch",
+        *,
+        tool: str,
+        given: dict,
+        under: str | None,
+        deny: Callable[..., dict],
         inside: Callable[[str], tuple[Path, str | None]],
     ) -> dict | None:
         """`_approve_read`'s secret files, each on the user's word: the refusal of the
@@ -786,35 +1098,59 @@ class ApprovalsMixin:
             # shortcut: a secret in a folder that look leaves out (dist, build) is not seen.
             # (A search over KOLONİ's own checkout or record in the project was refused:
             # `_approve_read`.)
-            secrets = [one for one in (given.get(key) for key in
-                                       ("file_path", "path", "notebook_path"))
-                       if isinstance(one, str) and one and inside(one)[1] is not None
-                       and secret_named(one, str(inside(one)[1]))]
-            searched, start = inside(str(given.get("path") or ".")) if tool == "Grep" else (
-                None, None)
+            secrets = [
+                one
+                for one in (given.get(key) for key in ("file_path", "path", "notebook_path"))
+                if isinstance(one, str)
+                and one
+                and inside(one)[1] is not None
+                and secret_named(one, str(inside(one)[1]))
+            ]
+            searched, start = (
+                inside(str(given.get("path") or ".")) if tool == "Grep" else (None, None)
+            )
             if searched is not None and start is not None and searched.is_dir():
                 async with watch.looking:
                     listed = watch.view.paths()
-                secrets += [rel for rel in sorted(listed) if secret_in_project(rel)
-                            and (start == "." or rel.startswith(f"{start}/"))
-                            and _glob_could_take(given.get("glob"), rel)]
+                secrets += [
+                    rel
+                    for rel in sorted(listed)
+                    if secret_in_project(rel)
+                    and (start == "." or rel.startswith(f"{start}/"))
+                    and _glob_could_take(given.get("glob"), rel)
+                ]
             for one in secrets:
-                call_id = self._note(ctx, transcript, "read_file", {"path": one}, None, None,
-                                     parent=under)
+                call_id = self._note(
+                    ctx, transcript, "read_file", {"path": one}, None, None, parent=under
+                )
                 try:
                     await self._ask_outside(ctx, call_id, one, None)
                 except _NobodyToAsk as exc:
-                    self._set_call(ctx.cid, call_id, status="denied", result=str(exc),
-                                   ended_at=now())
+                    self._set_call(
+                        ctx.cid, call_id, status="denied", result=str(exc), ended_at=now()
+                    )
                     return deny(str(exc))
-                self._set_call(ctx.cid, call_id, status="succeeded", ended_at=now(),
-                               result=f"allowed: {one}, a secret file, this once")
+                self._set_call(
+                    ctx.cid,
+                    call_id,
+                    status="succeeded",
+                    ended_at=now(),
+                    result=f"allowed: {one}, a secret file, this once",
+                )
         return None
 
     async def _ask_leave(
-        self: "AgentRunner", ctx: Ctx, transcript: "_Transcript", watch: "_Watch", use_id: str,
+        self: "AgentRunner",
+        ctx: Ctx,
+        transcript: "_Transcript",
+        watch: "_Watch",
+        use_id: str,
         tool: str,
-        given: dict, allow: dict, deny, question: str, wanted: str,
+        given: dict,
+        allow: dict,
+        deny,
+        question: str,
+        wanted: str,
     ) -> dict:
         """Ask the user in words about a tool KOLONİ cannot show as a diff or a command.
         `wanted` says the same for a turn nobody is watching, where it is refused before
@@ -825,18 +1161,22 @@ class ApprovalsMixin:
         name = re.sub(r"[^A-Za-z0-9_-]", "_", f"{cli}__{tool}")[:64]
         refused = self._nobody_to_ask(ctx, "words", wanted)
         if refused is None and len(question) > CARD_CHARS:
-            refused = (f"too long to show on a card whole ({len(question)} characters): make "
-                       "it in smaller parts")
+            refused = (
+                f"too long to show on a card whole ({len(question)} characters): make "
+                "it in smaller parts"
+            )
         if refused is not None:
-            self._note(ctx, transcript, name, given, "denied", refused,
-                       parent=watch.under(use_id))
+            self._note(ctx, transcript, name, given, "denied", refused, parent=watch.under(use_id))
             return deny(refused)
-        call_id = self._note(ctx, transcript, name, given, None, None,
-                             parent=watch.under(use_id))
+        call_id = self._note(ctx, transcript, name, given, None, None, parent=watch.under(use_id))
         # Headed as KOLONİ's own: what does not show in it (the CLI's words: a path, the
         # tool's inputs) is written out, as where a call of an MCP server's tool is asked about.
-        _status, answer = await self._ask_user(ctx, call_id, {
-            "question": mcp_client.visible(question), "options": ["Allow", "Deny"]}, leave=True)
+        _status, answer = await self._ask_user(
+            ctx,
+            call_id,
+            {"question": mcp_client.visible(question), "options": ["Allow", "Deny"]},
+            leave=True,
+        )
         if answer.removeprefix(ANSWER_PREFIX).strip().casefold() == "allow":
             watch.asked_other[use_id] = call_id
             return allow

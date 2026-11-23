@@ -7,6 +7,7 @@ empty, and the roles' provider, model, skills and knowledge are cleared. It keep
 migrations made of the tools - 0097 put `propose_trigger` at the end of the Lead's list, an
 order no fresh install has - which is what a later migration comparing whole lists missed
 (0122, B-335: the Lead was left without the browser tools on every upgraded install)."""
+
 import json
 import shutil
 import sqlite3
@@ -27,8 +28,10 @@ KNOWN_MISSING: dict[str, tuple[set[str], str]] = {}
 
 def _tools(db: Path) -> dict[str, set[str]]:
     with sqlite3.connect(db) as conn:
-        return {name: set(json.loads(tools)) for name, tools in conn.execute(
-            "SELECT name, tools FROM roles WHERE builtin = 1")}
+        return {
+            name: set(json.loads(tools))
+            for name, tools in conn.execute("SELECT name, tools FROM roles WHERE builtin = 1")
+        }
 
 
 def _at_head(db: Path) -> None:
@@ -42,7 +45,14 @@ def test_the_fixture_is_an_upgraded_install_with_nothing_of_the_users():
     with sqlite3.connect(FIXTURE) as conn:
         assert conn.execute("SELECT version_num FROM alembic_version").fetchall() == [("0111",)]
         assert conn.execute("SELECT count(*) FROM roles WHERE builtin != 1").fetchone() == (0,)
-        for table in ("providers", "projects", "conversations", "messages", "memories", "attachments"):
+        for table in (
+            "providers",
+            "projects",
+            "conversations",
+            "messages",
+            "memories",
+            "attachments",
+        ):
             assert conn.execute(f"SELECT count(*) FROM {table}").fetchone() == (0,), table
         lead = json.loads(conn.execute("SELECT tools FROM roles WHERE name = 'Lead'").fetchone()[0])
     assert lead[-1] == "propose_trigger"  # (0097's order: what a fresh install never has)

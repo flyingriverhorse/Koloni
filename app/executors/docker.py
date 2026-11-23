@@ -73,9 +73,16 @@ def container_name(command_id: str) -> str:
 
 
 def docker_argv(
-    name: str, image: str, root: Path, cwd: Path, network: bool, command: str,
-    links: dict[str, Path] | None = None, hidden: tuple[Path, ...] = (),
-    empty: Path | None = None, named: tuple[str, ...] = (),
+    name: str,
+    image: str,
+    root: Path,
+    cwd: Path,
+    network: bool,
+    command: str,
+    links: dict[str, Path] | None = None,
+    hidden: tuple[Path, ...] = (),
+    empty: Path | None = None,
+    named: tuple[str, ...] = (),
     env: Mapping[str, str] | None = None,
 ) -> list[str]:
     """`root`: what the container gets as its /workspace - the project folder, or an
@@ -90,23 +97,28 @@ def docker_argv(
     places = {"": root, **{f"/{at}": target for at, target in (links or {}).items()}}
 
     def inside(path: Path) -> str | None:
-        return next((
-            f"/workspace{at}/{path.relative_to(top).as_posix()}".removesuffix("/.")
-            for at, top in places.items() if path == top or path.is_relative_to(top)
-        ), None)
+        return next(
+            (
+                f"/workspace{at}/{path.relative_to(top).as_posix()}".removesuffix("/.")
+                for at, top in places.items()
+                if path == top or path.is_relative_to(top)
+            ),
+            None,
+        )
 
     workdir = inside(cwd)
     if workdir is None:
         raise StartError(f"{cwd} is not in the folder the container gets")
     shared = [
-        part for at, target in (links or {}).items()
-        for part in ("-v", f"{target}:/workspace/{at}")
+        part for at, target in (links or {}).items() for part in ("-v", f"{target}:/workspace/{at}")
     ]
     # shortcut: one mount for each, uncounted - a folder of hundreds of keys and certificates
     # may pass Windows' longest command line - and the project's own CA bundle (*.pem) is
     # emptied too; cover a folder by one mount, or pass a named file, if either is met.
     covered = [
-        part for path in hidden if empty is not None and (at := inside(path))
+        part
+        for path in hidden
+        if empty is not None and (at := inside(path))
         for part in ("-v", f"{empty / ('folder' if path.is_dir() else 'file')}:{at}:ro")
     ]
     # Linux and macOS: what a command makes is the user's, not root's - with a home it can write,
@@ -114,17 +126,34 @@ def docker_argv(
     # shortcut: a command that needs root in the container (apt-get install) now fails, and under
     # rootless Docker (container root is the user there) its files go to a subuid instead; give
     # the project an "as root" switch if a user asks for one, or asks Docker which it is.
-    user = (["--user", f"{os.getuid()}:{os.getgid()}", "--env", "HOME=/tmp"]
-            if hasattr(os, "getuid") else [])
+    user = (
+        ["--user", f"{os.getuid()}:{os.getgid()}", "--env", "HOME=/tmp"]
+        if hasattr(os, "getuid")
+        else []
+    )
     return [
-        "docker", "run", "--rm", "--name", name,
-        "-v", f"{root}:/workspace", *shared, *covered,
-        "-w", workdir, "--env", "PYTHONDONTWRITEBYTECODE=1",  # (no __pycache__/ left in it)
+        "docker",
+        "run",
+        "--rm",
+        "--name",
+        name,
+        "-v",
+        f"{root}:/workspace",
+        *shared,
+        *covered,
+        "-w",
+        workdir,
+        "--env",
+        "PYTHONDONTWRITEBYTECODE=1",  # (no __pycache__/ left in it)
         *user,
         *(part for name in named for part in ("-e", name)),
         *(part for name, value in (env or {}).items() for part in ("-e", f"{name}={value}")),
-        "--network", "bridge" if network else "none",
-        image, "sh", "-c", command,
+        "--network",
+        "bridge" if network else "none",
+        image,
+        "sh",
+        "-c",
+        command,
     ]
 
 
@@ -173,8 +202,13 @@ class DockerExecutor:
         self._root, self._image, self._network, self._empty = root, image, network, empty
 
     async def start(
-        self, command_id: str, command: str, cwd: Path, copy: Path | None = None,
-        links: dict[str, Path] | None = None, secrets: Mapping[str, str] | None = None,
+        self,
+        command_id: str,
+        command: str,
+        cwd: Path,
+        copy: Path | None = None,
+        links: dict[str, Path] | None = None,
+        secrets: Mapping[str, str] | None = None,
         env: Mapping[str, str] | None = None,
     ) -> DockerCommand:
         # Nothing here falls back to the host: if Docker cannot run it, nothing runs.
@@ -206,8 +240,17 @@ class DockerExecutor:
             # secret of the project's, `secret_in_project`.)
             hidden = tuple(top / rel for rel in await asyncio.to_thread(secret_files, top))
         argv = docker_argv(
-            name, self._image, top, cwd, self._network, command, links if copy else None,
-            hidden, self._empty, tuple(secrets or ()), env,
+            name,
+            self._image,
+            top,
+            cwd,
+            self._network,
+            command,
+            links if copy else None,
+            hidden,
+            self._empty,
+            tuple(secrets or ()),
+            env,
         )
         try:
             process = await asyncio.create_subprocess_exec(

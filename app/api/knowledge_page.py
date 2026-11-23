@@ -66,8 +66,12 @@ def row_in(session: Session, knowledge_id: str, project_id: str) -> ProjectKnowl
 
 def users(session: Session, row: ProjectKnowledge) -> list[tuple[Role, str]]:
     """The roles that use it, and how, by their names."""
-    return [(role, one["mode"]) for role in session.scalars(select(Role).order_by(Role.name))
-            for one in role.knows or [] if one["knowledge_id"] == row.id]
+    return [
+        (role, one["mode"])
+        for role in session.scalars(select(Role).order_by(Role.name))
+        for one in role.knows or []
+        if one["knowledge_id"] == row.id
+    ]
 
 
 def state(root: str, known: dict) -> KnowledgeStateOut:
@@ -77,11 +81,15 @@ def state(root: str, known: dict) -> KnowledgeStateOut:
     except ValidationError:  # (none, or one written by hand that is not its shape)
         record = None
     return KnowledgeStateOut(
-        learning=knowledge.learning(root, known), stale=knowledge.stale(root, known, raw),
-        failed=knowledge.failed(root, known), learned=record,
+        learning=knowledge.learning(root, known),
+        stale=knowledge.stale(root, known, raw),
+        failed=knowledge.failed(root, known),
+        learned=record,
         guide=knowledge.guide(root, known),
         folder=f"{koloni.FOLDER}/{knowledge.folder_of(known)}/",
-        version_warning=knowledge.version_warning(raw), requests=knowledge.requests(raw))
+        version_warning=knowledge.version_warning(raw),
+        requests=knowledge.requests(raw),
+    )
 
 
 def priced(session: Session, row: ProjectKnowledge, root: str) -> KnowledgeStateOut:
@@ -100,8 +108,9 @@ def priced(session: Session, row: ProjectKnowledge, root: str) -> KnowledgeState
         found.answers_refused = str(exc.detail)
         return found
     found.answers_on = f"{provider.name} · {model or 'its own default model'}"
-    found.per_token = (provider.kind not in CLI_KINDS and not is_local(provider.base_url)
-                       and not provider.plan)
+    found.per_token = (
+        provider.kind not in CLI_KINDS and not is_local(provider.base_url) and not provider.plan
+    )
     # (Learn has no fallback: a knowledge no role uses and with no learn-with has no price.)
     if knowledge.is_notes(known) or not (row.learn_with or users(session, row)):
         return found
@@ -114,9 +123,15 @@ def priced(session: Session, row: ProjectKnowledge, root: str) -> KnowledgeState
 def out(session: Session, row: ProjectKnowledge, root: str) -> KnowledgeOut:
     known = knows.knowledge_of(row)
     return KnowledgeOut(
-        id=row.id, project_id=row.project_id, knowledge=Knowledge.model_validate(known),
-        used_by=[KnowledgeUser.model_validate({"role_id": role.id, "name": role.name, "mode": mode})
-                 for role, mode in users(session, row)], state=priced(session, row, root))
+        id=row.id,
+        project_id=row.project_id,
+        knowledge=Knowledge.model_validate(known),
+        used_by=[
+            KnowledgeUser.model_validate({"role_id": role.id, "name": role.name, "mode": mode})
+            for role, mode in users(session, row)
+        ],
+        state=priced(session, row, root),
+    )
 
 
 def checked(session: Session, sent: Knowledge, root: str) -> dict:
@@ -134,14 +149,26 @@ def checked(session: Session, sent: Knowledge, root: str) -> dict:
 def list_knowledge(project_id: str, session: Session = Depends(get_session)):
     """The project's knowledge and every project's, oldest first."""
     project = project_of(session, project_id)
-    return [out(session, row, project.root_path) for row in session.scalars(
-        select(ProjectKnowledge).where(or_(ProjectKnowledge.project_id.is_(None),
-                                           ProjectKnowledge.project_id == project_id))
-        .order_by(ProjectKnowledge.created_at, ProjectKnowledge.id))]
+    return [
+        out(session, row, project.root_path)
+        for row in session.scalars(
+            select(ProjectKnowledge)
+            .where(
+                or_(
+                    ProjectKnowledge.project_id.is_(None), ProjectKnowledge.project_id == project_id
+                )
+            )
+            .order_by(ProjectKnowledge.created_at, ProjectKnowledge.id)
+        )
+    ]
 
 
-@router.post("/projects/{project_id}/knowledge", response_model=KnowledgeOut, status_code=201,
-             dependencies=OWN)
+@router.post(
+    "/projects/{project_id}/knowledge",
+    response_model=KnowledgeOut,
+    status_code=201,
+    dependencies=OWN,
+)
 def add_knowledge(project_id: str, body: Knowledge, session: Session = Depends(get_session)):
     project = project_of(session, project_id)
     row = added(session, project_id, body)
@@ -193,8 +220,9 @@ def change(session: Session, row: ProjectKnowledge, body: Knowledge, root: str) 
 
 
 @router.put("/knowledge/{knowledge_id}", response_model=KnowledgeOut, dependencies=OWN)
-def put_knowledge(knowledge_id: str, project_id: str, body: Knowledge,
-                  session: Session = Depends(get_session)):
+def put_knowledge(
+    knowledge_id: str, project_id: str, body: Knowledge, session: Session = Depends(get_session)
+):
     """Its sources and how it is learned - in every project, for every project's; not while it
     learns (its learning reads what it was). A repository's code kept here goes where it is a
     repository's no more."""
@@ -215,8 +243,9 @@ def forgotten(root: str, known: dict) -> None:
     try:
         knowledge.forget(root, known)
     except OSError as exc:
-        raise HTTPException(409, f"its kept code could not all be deleted ({exc.strerror or exc})"
-                            ) from None
+        raise HTTPException(
+            409, f"its kept code could not all be deleted ({exc.strerror or exc})"
+        ) from None
 
 
 @router.delete("/knowledge/{knowledge_id}", status_code=204, dependencies=OWN)
@@ -254,8 +283,9 @@ def use(session: Session, role: Role, row: ProjectKnowledge, mode: str | None) -
     if mode is None:
         role.knows = [one for one in was if one["knowledge_id"] != row.id]
     elif any(one["knowledge_id"] == row.id for one in was):  # (in its place)
-        role.knows = [{**one, "mode": mode} if one["knowledge_id"] == row.id else one
-                      for one in was]
+        role.knows = [
+            {**one, "mode": mode} if one["knowledge_id"] == row.id else one for one in was
+        ]
     else:
         role.knows = [*was, {"knowledge_id": row.id, "mode": mode}]
     role.updated_at = now()
@@ -268,18 +298,19 @@ def _role(session: Session, role_id: str) -> Role:
     return role
 
 
-@router.put("/knowledge/{knowledge_id}/roles/{role_id}", response_model=RoleOut,
-            dependencies=OWN)
-def use_knowledge(knowledge_id: str, role_id: str, body: KnowsIn,
-                  session: Session = Depends(get_session)):
+@router.put("/knowledge/{knowledge_id}/roles/{role_id}", response_model=RoleOut, dependencies=OWN)
+def use_knowledge(
+    knowledge_id: str, role_id: str, body: KnowsIn, session: Session = Depends(get_session)
+):
     role = _role(session, role_id)
     use(session, role, _any_row(session, knowledge_id), body.mode)
     session.commit()
     return role
 
 
-@router.delete("/knowledge/{knowledge_id}/roles/{role_id}", response_model=RoleOut,
-               dependencies=OWN)
+@router.delete(
+    "/knowledge/{knowledge_id}/roles/{role_id}", response_model=RoleOut, dependencies=OWN
+)
 def stop_using(knowledge_id: str, role_id: str, session: Session = Depends(get_session)):
     role = _role(session, role_id)
     use(session, role, _any_row(session, knowledge_id), None)
@@ -294,8 +325,9 @@ def _any_row(session: Session, knowledge_id: str) -> ProjectKnowledge:
     return row
 
 
-def learner(session: Session, row: ProjectKnowledge,
-            answering: bool = False) -> tuple[Provider, str | None]:
+def learner(
+    session: Session, row: ProjectKnowledge, answering: bool = False
+) -> tuple[Provider, str | None]:
     """The model it learns (and answers Try it) with: its "learn with", else the model of a role
     that uses it - in full first - as an agent of it would run, with nobody's turn
     (`would_run`), else (`answering`: Try it, one question the user clicked for - B-372) what a
@@ -326,8 +358,9 @@ def learner(session: Session, row: ProjectKnowledge,
     return provider, model
 
 
-def start_learning(request: Request, session: Session, row: ProjectKnowledge,
-                   project: Project) -> KnowledgeStateOut:
+def start_learning(
+    request: Request, session: Session, row: ProjectKnowledge, project: Project
+) -> KnowledgeStateOut:
     """Learn (again): its sources read and its guide written in the project, in the background -
     the page reads how it went. What its requests spend is on Usage as "KOLONİ itself", in the
     project's budget (K-56)."""
@@ -335,12 +368,18 @@ def start_learning(request: Request, session: Session, row: ProjectKnowledge,
     if knowledge.is_code(known):
         return scanning(root, known)
     if knowledge.is_notes(known):
-        raise HTTPException(409, "Project notes are written from what you accept at a turn's "
-                                 "end: nothing to learn")
-    if project.exec_location == "docker" and not project.docker_network and (
-            knowledge.reads_web(known)):
-        raise HTTPException(409, "this project's network access is off: its commands run in "
-                                 "Docker without a network")
+        raise HTTPException(
+            409, "Project notes are written from what you accept at a turn's end: nothing to learn"
+        )
+    if (
+        project.exec_location == "docker"
+        and not project.docker_network
+        and (knowledge.reads_web(known))
+    ):
+        raise HTTPException(
+            409,
+            "this project's network access is off: its commands run in Docker without a network",
+        )
     provider, model = learner(session, row)
     client = request.app.state.providers.client(provider, model)
     name, key, pid = provider.name, provider.api_key, provider.id
@@ -358,8 +397,9 @@ def start_learning(request: Request, session: Session, row: ProjectKnowledge,
     async def ask(messages: list[dict]):
         nonlocal made
         made += 1
-        return await ask_own(factory, asked, client, model_id, messages, project_id,
-                             **knowledge.most_written(client))
+        return await ask_own(
+            factory, asked, client, model_id, messages, project_id, **knowledge.most_written(client)
+        )
 
     async def run() -> None:
         nonlocal model_id
@@ -368,8 +408,16 @@ def start_learning(request: Request, session: Session, row: ProjectKnowledge,
             # (Priced by the model that answers: a provider's default is known only now.)
             with factory() as priced:
                 price = knowledge.price_of(priced, priced.get_one(Provider, pid), model_id)
-            record = await knowledge.learn(root, known, ask, price, f"{name} · {model_id}",
-                                           search, write_in=write_in, tree=tree)
+            record = await knowledge.learn(
+                root,
+                known,
+                ask,
+                price,
+                f"{name} · {model_id}",
+                search,
+                write_in=write_in,
+                tree=tree,
+            )
             # K-bilgi 7: a click's learning asks its guide what it does not know yet. (Its guide
             # stands whatever comes of that: nothing of it fails the learning, and `unknown` is
             # written only by a measure that ran to its end.)
@@ -418,10 +466,15 @@ def scanning(root: str, known: dict) -> KnowledgeStateOut:
     return state(root, known)
 
 
-@router.post("/knowledge/{knowledge_id}/learn", response_model=KnowledgeOut, status_code=202,
-             dependencies=OWN)  # (a request the user pays for)
-async def learn(knowledge_id: str, body: LearnIn, request: Request,
-                session: Session = Depends(get_session)):
+@router.post(
+    "/knowledge/{knowledge_id}/learn",
+    response_model=KnowledgeOut,
+    status_code=202,
+    dependencies=OWN,
+)  # (a request the user pays for)
+async def learn(
+    knowledge_id: str, body: LearnIn, request: Request, session: Session = Depends(get_session)
+):
     project = project_of(session, body.project_id)
     row = row_in(session, knowledge_id, body.project_id)
     start_learning(request, session, row, project)
@@ -429,8 +482,9 @@ async def learn(knowledge_id: str, body: LearnIn, request: Request,
 
 
 @router.post("/knowledge/{knowledge_id}/try", response_model=TryOut, dependencies=OWN)
-async def try_it(knowledge_id: str, body: TryIn, request: Request,
-                 session: Session = Depends(get_session)):
+async def try_it(
+    knowledge_id: str, body: TryIn, request: Request, session: Session = Depends(get_session)
+):
     """A question answered as an expert in it would, from its guide in the project and the parts
     of its pages a search for the question's words finds (`knowledge.looked_up`: no tool, nothing
     outside its folder), on the model it learns with (Usage: "KOLONİ itself")."""
@@ -441,20 +495,21 @@ async def try_it(knowledge_id: str, body: TryIn, request: Request,
         if await asyncio.to_thread(code_map.graph, project.root_path) is None:
             raise HTTPException(409, "its code is not scanned in this project yet: Scan first")
         found = await asyncio.to_thread(code_map.lookup, project.root_path, body.question)
-        return TryOut(answer="\n\n".join(f"**{where}**\n\n```\n{part}\n```"
-                                         for where, part in found)
-                      or "The scan has nothing of it: name a function, a class or a file.")
+        return TryOut(
+            answer="\n\n".join(f"**{where}**\n\n```\n{part}\n```" for where, part in found)
+            or "The scan has nothing of it: name a function, a class or a file."
+        )
     if knowledge.guide(project.root_path, known) is None:
         raise HTTPException(409, "it has learned nothing in this project yet: Learn first")
     provider, model = learner(session, row, answering=True)
     client = request.app.state.providers.client(provider, model)
     asked = (provider.name, mode_of(provider))
-    messages = await asyncio.to_thread(knowledge.asked_of, project.root_path, known,
-                                       body.question)
+    messages = await asyncio.to_thread(knowledge.asked_of, project.root_path, known, body.question)
     try:
         model = model or (await client.info()).model_id
-        said, _answer = await ask_own(request.app.state.session_factory, asked, client, model,
-                                      messages, project.id)
+        said, _answer = await ask_own(
+            request.app.state.session_factory, asked, client, model, messages, project.id
+        )
     except ModelUnavailable as exc:
         reason = str(exc).replace(provider.api_key, "[key]") if provider.api_key else str(exc)
         raise HTTPException(502, f"{provider.name} isn't answering ({reason})") from None
@@ -466,32 +521,36 @@ async def try_it(knowledge_id: str, body: TryIn, request: Request,
 GUIDE_THERE = "there is a guide there already"  # (the page asks, and sends replace)
 
 
-@router.post("/knowledge/{knowledge_id}/copy", response_model=KnowledgeStateOut,
-             dependencies=OWN)  # (it writes into a project)
-def copy_knowledge(knowledge_id: str, body: KnowledgeCopyIn,
-                   session: Session = Depends(get_session)):
+@router.post(
+    "/knowledge/{knowledge_id}/copy", response_model=KnowledgeStateOut, dependencies=OWN
+)  # (it writes into a project)
+def copy_knowledge(
+    knowledge_id: str, body: KnowledgeCopyIn, session: Session = Depends(get_session)
+):
     """Its guide into another of the user's projects (`copy`)."""
     project = project_of(session, body.project_id)
     to = project_of(session, body.to_project_id)
-    there = copy(session, row_in(session, knowledge_id, body.project_id), project, to,
-                 body.replace)
+    there = copy(session, row_in(session, knowledge_id, body.project_id), project, to, body.replace)
     return state(to.root_path, knows.knowledge_of(there))
 
 
-def _roles_follow(session: Session, row: ProjectKnowledge, target: ProjectKnowledge,
-                  to: Project) -> None:
+def _roles_follow(
+    session: Session, row: ProjectKnowledge, target: ProjectKnowledge, to: Project
+) -> None:
     if target is not row:  # (its roles know it there too, as an expert's guide followed it)
         there_already = {role.id for role, _mode in users(session, target)}
         for role, mode in users(session, row):
             if role.id not in there_already:
                 # (A copy does not change what a role is an expert in there: Map where it is one.)
                 full_there = mode == knows.FULL and knows.used_here(
-                    session, role, to.id, knows.FULL)
+                    session, role, to.id, knows.FULL
+                )
                 use(session, role, target, knows.MAP_MODE if full_there else mode)
 
 
-def copy(session: Session, row: ProjectKnowledge, project: Project, to: Project,
-         replace: bool) -> ProjectKnowledge:
+def copy(
+    session: Session, row: ProjectKnowledge, project: Project, to: Project, replace: bool
+) -> ProjectKnowledge:
     """Its guide, and what its learning says of it - not the pages read, other people's - into
     another of the user's projects, deleting the pages its learning there kept. A project's
     knowledge is added there too (same topic, sources and users), where that project has none of
@@ -506,8 +565,9 @@ def copy(session: Session, row: ProjectKnowledge, project: Project, to: Project,
     if knowledge.is_notes(known):
         raise HTTPException(422, "Project notes are of their own project's work")
     if knowledge.is_repo(known):  # (its guide names files of its clone, which stays here)
-        raise HTTPException(422, "a repository or a folder is read in its own project: learn it "
-                                 "there")
+        raise HTTPException(
+            422, "a repository or a folder is read in its own project: learn it there"
+        )
     # (A learning at work in either would write its own over the copy, or copy half of one.)
     if knowledge.learning(root, known) or knowledge.learning(there, known):
         raise HTTPException(409, "it is learning in one of the two projects: copy once it is done")
@@ -515,10 +575,25 @@ def copy(session: Session, row: ProjectKnowledge, project: Project, to: Project,
         raise HTTPException(409, "it has no guide in this project to copy")
     if knowledge.guide(there, known) is not None and not replace:
         raise HTTPException(409, f"{GUIDE_THERE}: replace it, and the pages read there?")
-    target = row if row.project_id is None else next((
-        one for one in session.scalars(select(ProjectKnowledge).where(or_(
-            ProjectKnowledge.project_id.is_(None), ProjectKnowledge.project_id == to.id)))
-        if knowledge.folder_of(knows.knowledge_of(one)) == knowledge.folder_of(known)), None)
+    target = (
+        row
+        if row.project_id is None
+        else next(
+            (
+                one
+                for one in session.scalars(
+                    select(ProjectKnowledge).where(
+                        or_(
+                            ProjectKnowledge.project_id.is_(None),
+                            ProjectKnowledge.project_id == to.id,
+                        )
+                    )
+                )
+                if knowledge.folder_of(knows.knowledge_of(one)) == knowledge.folder_of(known)
+            ),
+            None,
+        )
+    )
     if target is None:
         target = ProjectKnowledge(project_id=to.id, **knows.columns_of(known))
         session.add(target)
@@ -539,10 +614,12 @@ def notes_offers(cid: str, session: Session = Depends(get_session)):
     return project_notes.offers_of(session, cid)
 
 
-@router.post("/notes-offers/{offer_id}/answer", response_model=NotesOfferOut,
-             dependencies=OWN)  # (it writes into the project's knowledge)
-async def answer_notes_offer(offer_id: str, body: NotesAnswerIn, request: Request,
-                             session: Session = Depends(get_session)):
+@router.post(
+    "/notes-offers/{offer_id}/answer", response_model=NotesOfferOut, dependencies=OWN
+)  # (it writes into the project's knowledge)
+async def answer_notes_offer(
+    offer_id: str, body: NotesAnswerIn, request: Request, session: Session = Depends(get_session)
+):
     """The user's word on an offer, whenever they give it: the lines it ticks (`add`) written as
     notes, none ticked is Not now - and the offer is decided either way. `lines`: what its card
     showed; 409 where the offer has others now (the card reads it again), 422 for a tick that is
@@ -556,6 +633,7 @@ async def answer_notes_offer(offer_id: str, body: NotesAnswerIn, request: Reques
     except Refused as exc:
         raise HTTPException(exc.status, str(exc)) from None
     session.commit()
-    announce(request.app.state.session_factory, request.app.state.bus, project.id,
-             project_notes.OFFERED)
+    announce(
+        request.app.state.session_factory, request.app.state.bus, project.id, project_notes.OFFERED
+    )
     return project_notes.out(offer)

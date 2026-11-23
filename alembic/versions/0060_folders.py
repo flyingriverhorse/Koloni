@@ -6,6 +6,7 @@ Numbered after main's newest (0059); renumbered when it is merged after another 
 Revision ID: 0060
 Revises: 0059
 """
+
 import json
 
 import sqlalchemy as sa
@@ -44,8 +45,7 @@ def upgrade() -> None:
     )
     for table in ("projects", "conversations"):
         with op.batch_alter_table(table) as batch:
-            batch.add_column(
-                sa.Column("read_in", sa.JSON(), nullable=False, server_default="[]"))
+            batch.add_column(sa.Column("read_in", sa.JSON(), nullable=False, server_default="[]"))
     _retool(lambda tools: tools if TOOL in tools else [*tools, TOOL])
 
 

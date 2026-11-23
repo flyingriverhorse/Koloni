@@ -30,8 +30,7 @@ def _in_a_never_place(path: Path) -> str | None:
     shortcut: but the one folder KOLONİ's e2e works in (frontend/e2e/paths.mjs) and the folder
     it is in, as `not_a_project` lets the one be opened; take this out with that one's."""
     cased = _cased(path)
-    why = next((why for place, why in _never_places() if cased.is_relative_to(_cased(place))),
-               None)
+    why = next((why for place, why in _never_places() if cased.is_relative_to(_cased(place))), None)
     e2e = REPO_ROOT / "runtime" / "e2e" / "project"
     if why in (OWN_RECORD, OWN_CODE) and cased in (_cased(e2e), _cased(e2e.parent)):
         return None
@@ -46,7 +45,8 @@ def _entry(child: Path, attributes: int, link: bool) -> dict:
     except (OSError, ValueError):
         blocked = True
     return {
-        "name": child.name, "path": str(child),
+        "name": child.name,
+        "path": str(child),
         # (Nothing in one that is not opened is looked at; lexists follows no link.)
         "koloni": not blocked and os.path.lexists(child / ".koloni"),
         "git": not blocked and os.path.lexists(child / ".git"),
@@ -59,9 +59,15 @@ def _shortcuts() -> list[dict]:
     home = Path.home()
     # shortcut: Desktop and Documents as folders of home; one Windows moved elsewhere (OneDrive)
     # is not found - read the known folders from the shell if that is missed.
-    places = [(name, place) for name, place in (
-        ("Home", home), ("Desktop", home / "Desktop"), ("Documents", home / "Documents"))
-        if place.is_dir()]
+    places = [
+        (name, place)
+        for name, place in (
+            ("Home", home),
+            ("Desktop", home / "Desktop"),
+            ("Documents", home / "Documents"),
+        )
+        if place.is_dir()
+    ]
     # The drives by their letters only: a network drive or an empty one would stall a look.
     drives = getattr(os, "listdrives", None)  # (Windows only)
     places += [(drive, Path(drive)) for drive in (drives() if drives else ["/"])]
@@ -71,12 +77,17 @@ def _shortcuts() -> list[dict]:
 def _link_on_the_way(path: Path) -> Path | None:
     """The first link (or junction) from the drive's root down to `path`, each part looked at
     without following it; None: there is none."""
-    return next((part for part in [*reversed(path.parents), path]
-                 if part.is_symlink() or part.is_junction()), None)
+    return next(
+        (
+            part
+            for part in [*reversed(path.parents), path]
+            if part.is_symlink() or part.is_junction()
+        ),
+        None,
+    )
 
 
-@router.post("/browse", response_model=FolderBrowseOut,
-             dependencies=[Depends(require_own_origin)])
+@router.post("/browse", response_model=FolderBrowseOut, dependencies=[Depends(require_own_origin)])
 def browse(body: FolderBrowseIn):
     """The folders in one folder, for the user to pick one from the app's own page (the
     browser does not give a folder's path): names only, never a file's, and at most
@@ -101,12 +112,14 @@ def browse(body: FolderBrowseIn):
         with os.scandir(folder) as listing:
             for entry in listing:
                 try:  # (one that cannot be looked at is left out; no link is followed)
-                    attributes = getattr(
-                        entry.stat(follow_symlinks=False), "st_file_attributes", 0)
+                    attributes = getattr(entry.stat(follow_symlinks=False), "st_file_attributes", 0)
                     link = entry.is_symlink() or entry.is_junction()
                     # A link is a folder's where it says so itself (Windows); else left out.
-                    if (not attributes & stat.FILE_ATTRIBUTE_DIRECTORY if link
-                            else not entry.is_dir(follow_symlinks=False)):
+                    if (
+                        not attributes & stat.FILE_ATTRIBUTE_DIRECTORY
+                        if link
+                        else not entry.is_dir(follow_symlinks=False)
+                    ):
                         continue
                     found.append((entry.name, attributes, link))
                 except OSError:
@@ -119,7 +132,8 @@ def browse(body: FolderBrowseIn):
         "path": str(folder),
         "parts": [{"name": part.name or part.anchor, "path": str(part)} for part in parts],
         "shortcuts": _shortcuts(),
-        "entries": [_entry(folder / name, attributes, link)
-                    for name, attributes, link in found[:MAX_LISTED]],
+        "entries": [
+            _entry(folder / name, attributes, link) for name, attributes, link in found[:MAX_LISTED]
+        ],
         "more": len(found) > MAX_LISTED,
     }

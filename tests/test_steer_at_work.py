@@ -33,29 +33,43 @@ LEADS = AGENT_STEERED.format(message='Message from Lead (the agent you work for)
 def at_work(client, cid, name="Coder"):
     """The agent's id once its CLI's turn is open (its door is there)."""
     runner = client.app.state.runner
-    return until(lambda: next((a["id"] for a in client.get(f"/api/conversations/{cid}").json()[
-        "agents"] if a["name"] == name and a["id"] in runner._doors), None), seconds=20)
+    return until(
+        lambda: next(
+            (
+                a["id"]
+                for a in client.get(f"/api/conversations/{cid}").json()["agents"]
+                if a["name"] == name and a["id"] in runner._doors
+            ),
+            None,
+        ),
+        seconds=20,
+    )
 
 
 def message(client, run_id, to="Coder", words="use blue", by=None):
     """The Lead's message_agent (or `by`'s), as it runs it."""
     runner = client.app.state.runner
-    return client.portal.call(runner._message, by or runner._lead_of(run_id), "c1",
-                              {"to": to, "message": words})
+    return client.portal.call(
+        runner._message, by or runner._lead_of(run_id), "c1", {"to": to, "message": words}
+    )
 
 
 def handing(runner, monkeypatch):
     """The files a message hands on, as `_hand_files` is called: one named file each time."""
     handed = []
     monkeypatch.setattr(runner, "_named_files", lambda _ctx, _names: ["notes.md"])
-    monkeypatch.setattr(runner, "_hand_files", lambda _ctx, files, to: handed.extend(
-        (to, one) for one in files))
+    monkeypatch.setattr(
+        runner, "_hand_files", lambda _ctx, files, to: handed.extend((to, one) for one in files)
+    )
     return handed
 
 
 def on_record(client, cid, agent_id):
-    return [m for m in client.get(f"/api/conversations/{cid}").json()["messages"]
-            if m["agent_id"] == agent_id and m["role"] == "agent"]
+    return [
+        m
+        for m in client.get(f"/api/conversations/{cid}").json()["messages"]
+        if m["agent_id"] == agent_id and m["role"] == "agent"
+    ]
 
 
 def started(client, provider, project_dir):
@@ -67,10 +81,12 @@ def started(client, provider, project_dir):
 
 
 def test_the_leads_message_goes_into_claude_codes_turn_as_its_word_not_the_users(
-        claude_app, wait_run, project_dir):  # noqa: F811
+    claude_app, wait_run, project_dir
+):  # noqa: F811
     client, provider, _model = claude_app(
         [{"say": "working"}, {"await_steer": 10}, {"say": "done"}],
-        default_steps={"Lead": [spawn("Coder", "sort the list"), text("done")]})
+        default_steps={"Lead": [spawn("Coder", "sort the list"), text("done")]},
+    )
     cid, run_id = started(client, provider, project_dir)
     coder = at_work(client, cid)
     assert message(client, run_id) == ("succeeded", SENT_WHILE_IT_WORKS.format(name="Coder"))
@@ -85,13 +101,16 @@ def test_the_leads_message_goes_into_claude_codes_turn_as_its_word_not_the_users
 
 @pytest.mark.parametrize("answers", [None, "late"])
 def test_the_leads_message_goes_into_codexs_turn_also_where_codex_answers_late(
-        native_app, wait_run, project_dir, monkeypatch, answers):  # noqa: F811
+    native_app, wait_run, project_dir, monkeypatch, answers
+):  # noqa: F811
     from app import model_native
+
     monkeypatch.setattr(model_native, "STEER_SECONDS", 0.5)
     client, provider, _model = native_app(
         [{"say": "working"}, {"await_steer": True}, {"say": "done"}],
         default_steps={"Lead": [spawn("Coder", "sort the list"), text("done")]},
-        **({"steer": answers} if answers else {}))
+        **({"steer": answers} if answers else {}),
+    )
     cid, run_id = started(client, provider, project_dir)
     coder = at_work(client, cid)
     # (no answer within STEER_SECONDS: it may have reached its turn - sent, and on record)
@@ -104,17 +123,25 @@ def test_the_leads_message_goes_into_codexs_turn_also_where_codex_answers_late(
 
 
 def test_the_lead_is_told_where_claude_code_finished_before_it_read_its_message(
-        claude_app, wait_run, project_dir, monkeypatch):  # noqa: F811
+    claude_app, wait_run, project_dir, monkeypatch
+):  # noqa: F811
     from app import model_native
+
     monkeypatch.setattr(model_native, "LATE_SECONDS", 0.5)
     client, provider, model = claude_app(
         [{"say": "sorted by name"}, {"await_steer": 10}],
-        default_steps={"Lead": [spawn("Coder", "sort the list"), text("done")]}, linger=True)
+        default_steps={"Lead": [spawn("Coder", "sort the list"), text("done")]},
+        linger=True,
+    )
     cid, run_id = started(client, provider, project_dir)
     at_work(client, cid)
     # (once it has said its last word: what it wrote before cannot pass for having read it)
-    until(lambda: any(m["content"] == "sorted by name"
-                      for m in client.get(f"/api/conversations/{cid}").json()["messages"]))
+    until(
+        lambda: any(
+            m["content"] == "sorted by name"
+            for m in client.get(f"/api/conversations/{cid}").json()["messages"]
+        )
+    )
     assert message(client, run_id, words="leave tests/ alone")[0] == "succeeded"
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
@@ -123,11 +150,14 @@ def test_the_lead_is_told_where_claude_code_finished_before_it_read_its_message(
 
 
 def test_a_cli_at_work_without_a_door_is_refused_as_before_and_one_that_does_not_take_it_too(
-        make_client, wait_run, project_dir, gate, monkeypatch):
-    client, _model = make_client({
-        "Lead": [spawn("Coder", "sort the list"), text("done")],
-        "Coder": [gate.step(text("sorted"))],
-    })
+    make_client, wait_run, project_dir, gate, monkeypatch
+):
+    client, _model = make_client(
+        {
+            "Lead": [spawn("Coder", "sort the list"), text("done")],
+            "Coder": [gate.step(text("sorted"))],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
     gate.wait_partial()
     runner = client.app.state.runner
@@ -145,7 +175,8 @@ def test_a_cli_at_work_without_a_door_is_refused_as_before_and_one_that_does_not
     with pytest.raises(ToolError) as refused:
         message(client, run_id)
     assert str(refused.value) == (
-        f"Coder cannot be messaged by you now: {TURN_ENDING.format(name='Coder')}")
+        f"Coder cannot be messaged by you now: {TURN_ENDING.format(name='Coder')}"
+    )
     assert handed == []  # no file handed with a message it never took
     assert on_record(client, cid, coder.agent_id) == []  # nothing on record that it never heard
     runner._doors.pop(coder.agent_id)
@@ -158,10 +189,12 @@ def test_a_cli_at_work_without_a_door_is_refused_as_before_and_one_that_does_not
 
 
 def test_the_users_word_goes_into_claude_codes_turn_as_theirs_and_not_once_it_finished(
-        claude_app, wait_run, project_dir):  # noqa: F811
+    claude_app, wait_run, project_dir
+):  # noqa: F811
     client, provider, _model = claude_app(
         [{"say": "working"}, {"await_steer": 10}, {"say": "done"}],
-        default_steps={"Lead": [spawn("Coder", "sort the list"), text("done")]})
+        default_steps={"Lead": [spawn("Coder", "sort the list"), text("done")]},
+    )
     cid, run_id = started(client, provider, project_dir)
     coder = at_work(client, cid)
     path = f"/api/agents/{coder}/tell"
@@ -182,11 +215,14 @@ def test_the_users_word_goes_into_claude_codes_turn_as_theirs_and_not_once_it_fi
 
 
 def test_the_users_word_one_at_a_time_and_never_into_a_cli_that_hears_nothing(
-        make_client, wait_run, project_dir, gate):
-    client, model = make_client({
-        "Lead": [spawn("Coder", "sort the list"), text("done")],
-        "Coder": [gate.step(step(call("read_file", {"path": "hello.py"}))), text("sorted")],
-    })
+    make_client, wait_run, project_dir, gate
+):
+    client, model = make_client(
+        {
+            "Lead": [spawn("Coder", "sort the list"), text("done")],
+            "Coder": [gate.step(step(call("read_file", {"path": "hello.py"}))), text("sorted")],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
     gate.wait_partial()
     runner = client.app.state.runner
@@ -195,7 +231,9 @@ def test_the_users_word_one_at_a_time_and_never_into_a_cli_that_hears_nothing(
     runner._ctxs[coder.agent_id] = replace(coder, model=SimpleNamespace(native=True))
     said = client.post(path, json={"words": "use blue"}, headers=OWN)
     assert (said.status_code, said.json()["detail"]) == (
-        409, "Coder works on in its CLI, which hears nothing more")
+        409,
+        "Coder works on in its CLI, which hears nothing more",
+    )
     heard = []
 
     async def slow(words):  # (a pipe that takes its time)
@@ -205,11 +243,12 @@ def test_the_users_word_one_at_a_time_and_never_into_a_cli_that_hears_nothing(
 
     runner._doors[coder.agent_id] = slow
     with ThreadPoolExecutor(2) as pool:
-        both = list(pool.map(lambda _: client.post(path, json={"words": "use blue"},
-                                                   headers=OWN), range(2)))
-    assert sorted((one.status_code, one.json().get("detail") if one.content else None)
-                  for one in both) == [
-        (204, None), (409, "can't be sent now: another message to Coder is on its way")]
+        both = list(
+            pool.map(lambda _: client.post(path, json={"words": "use blue"}, headers=OWN), range(2))
+        )
+    assert sorted(
+        (one.status_code, one.json().get("detail") if one.content else None) for one in both
+    ) == [(204, None), (409, "can't be sent now: another message to Coder is on its way")]
     assert len(heard) == 1
 
     async def no(_words):
@@ -229,17 +268,21 @@ def test_the_users_word_one_at_a_time_and_never_into_a_cli_that_hears_nothing(
 
 
 def test_the_lead_reads_what_the_user_told_a_sub_agent_as_the_users_word(
-        make_client, wait_run, project_dir, gate):
+    make_client, wait_run, project_dir, gate
+):
     # B-302: else its report calls the line the user asked for one nobody asked for.
-    client, model = make_client({
-        "Lead": [spawn("Coder", "sort the list"), text("done")],
-        "Coder": [gate.step(step(call("read_file", {"path": "hello.py"}))), text("sorted")],
-    })
+    client, model = make_client(
+        {
+            "Lead": [spawn("Coder", "sort the list"), text("done")],
+            "Coder": [gate.step(step(call("read_file", {"path": "hello.py"}))), text("sorted")],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
     gate.wait_partial()
     coder = next(c for c in client.app.state.runner._ctxs.values() if c.name == "Coder")
-    told = client.post(f"/api/agents/{coder.agent_id}/tell", json={"words": "add a footer"},
-                       headers=OWN)
+    told = client.post(
+        f"/api/agents/{coder.agent_id}/tell", json={"words": "add a footer"}, headers=OWN
+    )
     assert told.status_code == 204, told.text
     gate.release()
     assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
@@ -248,19 +291,32 @@ def test_the_lead_reads_what_the_user_told_a_sub_agent_as_the_users_word(
 
 
 def test_only_the_agent_it_works_for_writes_into_its_turn_and_each_counts_to_the_limit(
-        make_client, wait_run, project_dir, gate, monkeypatch):
+    make_client, wait_run, project_dir, gate, monkeypatch
+):
     from app.agent import talk_mixin
-    client, _model = make_client({
-        "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "sort the list"}, "s1"),
-                      call("spawn_agent", {"role": "Reviewer", "task": "look"}, "s2")),
-                 text("done")],
-        "Coder": [gate.step(text("sorted"))],
-        "Reviewer": [gate.step(text("looked"))],
-    })
+
+    client, _model = make_client(
+        {
+            "Lead": [
+                step(
+                    call("spawn_agent", {"role": "Coder", "task": "sort the list"}, "s1"),
+                    call("spawn_agent", {"role": "Reviewer", "task": "look"}, "s2"),
+                ),
+                text("done"),
+            ],
+            "Coder": [gate.step(text("sorted"))],
+            "Reviewer": [gate.step(text("looked"))],
+        }
+    )
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
     runner = client.app.state.runner
-    ctxs = until(lambda: (found := {c.name: c for c in runner._ctxs.values()}).keys() >= {
-        "Lead", "Coder", "Reviewer"} and found)
+    ctxs = until(
+        lambda: (
+            (found := {c.name: c for c in runner._ctxs.values()}).keys()
+            >= {"Lead", "Coder", "Reviewer"}
+            and found
+        )
+    )
     gate.wait_partial()
 
     async def took(_words):

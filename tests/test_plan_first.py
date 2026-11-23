@@ -18,13 +18,20 @@ def lead_of(snap, run_id):
 
 
 def test_the_plan_is_written_by_the_teams_strongest_model_and_the_work_by_the_conversations(
-    team, wait_run, project_dir  # noqa: F811
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, _default, _fast = team([text("done")], [text(PLAN)])
     client.headers["Origin"] = ORIGIN
     fast = team.providers["Fast"]["id"]
-    assert client.patch(f"/api/providers/{fast}", json={
-        "models": [{"name": "quick"}, {"name": "deep", "tier": "strongest"}]}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/providers/{fast}",
+            json={"models": [{"name": "quick"}, {"name": "deep", "tier": "strongest"}]},
+        ).status_code
+        == 200
+    )
     cid, run_id = begin(client, project_dir, plan_first=True)
     snap = wait_run(client, cid, run_id)
     plan = next(r for r in snap["runs"] if r["id"] == run_id)["plan"]
@@ -38,7 +45,9 @@ def test_the_plan_is_written_by_the_teams_strongest_model_and_the_work_by_the_co
 
 
 def test_with_no_strongest_model_the_conversations_own_writes_the_plan(
-    team, wait_run, project_dir  # noqa: F811
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, _default, _fast = team([text(PLAN)])
     cid, run_id = begin(client, project_dir, plan_first=True)
@@ -49,7 +58,10 @@ def test_with_no_strongest_model_the_conversations_own_writes_the_plan(
     # turned off only from the app's own page; on, from anywhere
     off = {"plan_first": False}
     assert client.patch(f"/api/conversations/{cid}", json=off).status_code == 403
-    assert client.patch(f"/api/conversations/{cid}", json=off, headers={"Origin": ORIGIN}).status_code == 200
+    assert (
+        client.patch(f"/api/conversations/{cid}", json=off, headers={"Origin": ORIGIN}).status_code
+        == 200
+    )
     assert client.patch(f"/api/conversations/{cid}", json={"plan_first": True}).status_code == 200
 
 
@@ -66,7 +78,9 @@ def test_a_triggers_turn_never_plans(team, wait_run, project_dir):  # noqa: F811
 
 
 def test_an_older_plan_is_not_approved_once_a_later_turn_has_started_but_may_be_turned_down(
-    team, wait_run, project_dir  # noqa: F811
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, _default, _fast = team([text(PLAN), text("PLAN B"), text("done")])
     client.headers["Origin"] = ORIGIN
@@ -85,14 +99,17 @@ def test_an_older_plan_is_not_approved_once_a_later_turn_has_started_but_may_be_
 
 
 def test_a_plan_turn_notes_nothing_in_the_projects_memory(
-    team, wait_run, project_dir  # noqa: F811
+    team,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, _default, fast = team([text(PLAN)], [text("[]")])
     pid = on(team, client, project_dir)
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     client.patch(f"/api/conversations/{cid}", json={"plan_first": True})
-    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "a"}).json()[
-        "run"]["id"]
+    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "a"}).json()["run"][
+        "id"
+    ]
     assert wait_run(client, cid, run_id)["runs"][0]["plan"]["text"] == PLAN
     assert fast.calls == [] and memory(client, pid)["last_auto"] is None
 
@@ -108,7 +125,8 @@ def test_a_cli_with_tools_of_its_own_plans_with_them_off(team, wait_run, project
     run = wait_run(client, cid, run_id)["runs"][0]
     assert (run["status"], run["plan"]["text"]) == ("completed", PLAN), run["error"]
     assert team.stubs["Codex"].started == 0 and not {"write_file", "run_command"} & {
-        t["function"]["name"] for t in talker.tool_args[0]}
+        t["function"]["name"] for t in talker.tool_args[0]
+    }
     # one that cannot be had so says why, and starts nothing
     team.stubs["Codex"].talker = lambda: team.stubs["Codex"]
     again = client.post(f"/api/conversations/{cid}/messages", json={"content": "b"}).json()
@@ -118,11 +136,14 @@ def test_a_cli_with_tools_of_its_own_plans_with_them_off(team, wait_run, project
 
 
 def test_claude_code_plans_with_its_writing_and_running_tools_disallowed_and_no_mcp(
-    claude_app, wait_run, project_dir  # noqa: F811
+    claude_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
     client, provider, _ = claude_app([WRITE, BASH, {"say": PLAN}])
-    cid, run_id = begin(client, project_dir, "full_auto", plan_first=True,
-                        provider_id=provider["id"])
+    cid, run_id = begin(
+        client, project_dir, "full_auto", plan_first=True, provider_id=provider["id"]
+    )
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["plan"]["text"] == PLAN, snap["runs"][0]["error"]
     argv = claude_app.record()["argv"]

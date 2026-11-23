@@ -29,10 +29,17 @@ class _BasicLimits(ctypes.Structure):
 
 
 class _IoCounters(ctypes.Structure):
-    _fields_ = [(name, ctypes.c_uint64) for name in (
-        "ReadOperationCount", "WriteOperationCount", "OtherOperationCount",
-        "ReadTransferCount", "WriteTransferCount", "OtherTransferCount",
-    )]
+    _fields_ = [
+        (name, ctypes.c_uint64)
+        for name in (
+            "ReadOperationCount",
+            "WriteOperationCount",
+            "OtherOperationCount",
+            "ReadTransferCount",
+            "WriteTransferCount",
+            "OtherTransferCount",
+        )
+    ]
 
 
 class _ExtendedLimits(ctypes.Structure):
@@ -61,7 +68,11 @@ class Job:
         kernel32.CreateJobObjectW.restype = wintypes.HANDLE
         kernel32.CreateJobObjectW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
         kernel32.SetInformationJobObject.argtypes = [
-            wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
+            wintypes.HANDLE,
+            ctypes.c_int,
+            ctypes.c_void_p,
+            wintypes.DWORD,
+        ]
         kernel32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
         kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
         handle = kernel32.CreateJobObjectW(None, None)
@@ -70,8 +81,11 @@ class Job:
         limits = _ExtendedLimits()
         limits.BasicLimitInformation.LimitFlags = _KILL_ON_JOB_CLOSE
         configured = kernel32.SetInformationJobObject(
-            handle, _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION,
-            ctypes.byref(limits), ctypes.sizeof(limits))
+            handle,
+            _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION,
+            ctypes.byref(limits),
+            ctypes.sizeof(limits),
+        )
         if not configured or not kernel32.AssignProcessToJobObject(handle, process_handle):
             kernel32.CloseHandle(handle)
             return None

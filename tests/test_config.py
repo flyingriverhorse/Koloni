@@ -19,12 +19,14 @@ def test_defaults(tmp_path):
 
 
 def test_overrides(tmp_path):
-    s = load_settings({
-        "KOLONI_RUNTIME_ROOT": str(tmp_path),
-        "KOLONI_MODEL_BASE_URL": "http://127.0.0.1:9999/v1/",
-        "KOLONI_MODEL_ID": "m",
-        "KOLONI_HOST": "0.0.0.0",
-    })
+    s = load_settings(
+        {
+            "KOLONI_RUNTIME_ROOT": str(tmp_path),
+            "KOLONI_MODEL_BASE_URL": "http://127.0.0.1:9999/v1/",
+            "KOLONI_MODEL_ID": "m",
+            "KOLONI_HOST": "0.0.0.0",
+        }
+    )
     assert s.model_base_url == "http://127.0.0.1:9999/v1"
     assert s.model_id == "m"
     assert s.host == "0.0.0.0"

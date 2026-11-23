@@ -113,8 +113,7 @@ Steer = Callable[[str], Awaitable[bool]]
 OnLive = Callable[[Steer | None], None]
 STEER_SECONDS = 5.0
 # B-197: why KOLONİ declined a request of Codex's, steered into its turn (as `AGENT_STEERED`).
-DECLINED_WHY = ("KOLONİ declined that request of yours: {why}\n\n"
-                "(KOLONİ's words - not the user's.)")
+DECLINED_WHY = "KOLONİ declined that request of yours: {why}\n\n(KOLONİ's words - not the user's.)"
 # B-204: its own way to ask the user, by its schema's name. Declined, with the way to KOLONİ's
 # card said in its turn (`DECLINED_WHY`) and in the no's message.
 # shortcut: not measured - whether Codex sends it inside KOLONİ, and what it does with the note;
@@ -125,19 +124,25 @@ DECLINED_WHY = ("KOLONİ declined that request of yours: {why}\n\n"
 ASKS_USER = "item/tool/requestUserInput"
 # (Where ask_user refuses too - a trigger's turn, the user's message waiting - it decides: else
 # it would go back to its own tool, and a session stop on it.)
-ASK_WITH_KOLONI = ("ask the user only with the koloni server's ask_user tool, which waits for "
-                   "their answer; where that tool is not offered or refuses, decide yourself "
-                   "and say what you decided.")
+ASK_WITH_KOLONI = (
+    "ask the user only with the koloni server's ask_user tool, which waits for "
+    "their answer; where that tool is not offered or refuses, decide yourself "
+    "and say what you decided."
+)
 # ...and its row in the chat, native (a session keeps no row of a CLI's own requests). A tool's
 # result, replayed to models later: "the user", not "you".
-ASKED_ON_CARD = ("KOLONİ declined {label}'s own way to ask the user and told it to ask with "
-                 "ask_user, on KOLONİ's card")
+ASKED_ON_CARD = (
+    "KOLONİ declined {label}'s own way to ask the user and told it to ask with "
+    "ask_user, on KOLONİ's card"
+)
 
 
 def _pointed_to_card() -> dict:
     """KOLONİ's no to `ASKS_USER`: an error, with the way said in it and in `why`."""
     no = f"KOLONİ declines this request: {ASK_WITH_KOLONI}"
     return {"error": {"code": -32601, "message": no}, "why": ASK_WITH_KOLONI}
+
+
 # K-48: a write its read-only sandbox refused, by what PowerShell says of it - Codex calls the
 # command completed, exit code 0 (a non-terminating error), so it is told by its output.
 # Matched on its words with their spaces made one (PowerShell wraps its error to the console's
@@ -161,8 +166,10 @@ RAN_TOO_LONG = "ended by KOLONİ: still at work after {seconds:g} seconds"
 TOOL_WAIT_SECONDS = 24 * 60 * 60
 # 93-B6: a report that did not keep to its schema is asked for once more, with what was
 # wrong - the schema itself is not written out again (it is on its command line).
-REPORT_AGAIN = ("Your report did not keep to its schema: {errors}. Hand it in again with "
-                "StructuredOutput, corrected; do no other work.")
+REPORT_AGAIN = (
+    "Your report did not keep to its schema: {errors}. Hand it in again with "
+    "StructuredOutput, corrected; do no other work."
+)
 # shortcut: Claude Code's result subtype for "its own schema retries ran out", as the Agent
 # SDK names it, not measured; a report is then its text, as without a schema.
 SCHEMA_GAVE_UP = "error_max_structured_output_retries"
@@ -175,14 +182,19 @@ PATCH_ASKED = "item/fileChange/requestApproval"
 # shortcut: how Codex takes an error answer (does its turn go on?) is not measured; measure
 # item/tool/requestUserInput and item/permissions/requestApproval live and answer as typed.
 DECLINED = {
-    RUN_ASKED: {"decision": "decline"}, PATCH_ASKED: {"decision": "decline"},
+    RUN_ASKED: {"decision": "decline"},
+    PATCH_ASKED: {"decision": "decline"},
     "mcpServer/elicitation/request": {"action": "decline"},
-    "execCommandApproval": {"decision": "denied"}, "applyPatchApproval": {"decision": "denied"},
+    "execCommandApproval": {"decision": "denied"},
+    "applyPatchApproval": {"decision": "denied"},
 }
 # Its own item types, as `codex exec --json` named them: what `_work` and the agent read.
 EXEC_ITEMS = {
-    "agentMessage": "agent_message", "commandExecution": "command_execution",
-    "fileChange": "file_change", "mcpToolCall": "mcp_tool_call", "webSearch": "web_search",
+    "agentMessage": "agent_message",
+    "commandExecution": "command_execution",
+    "fileChange": "file_change",
+    "mcpToolCall": "mcp_tool_call",
+    "webSearch": "web_search",
 }
 
 
@@ -193,7 +205,9 @@ EXEC_ITEMS = {
 # rule covers it, every check sees all of it); read PowerShell's escapes if Codex sends one.
 POWERSHELL_LINE = re.compile(
     r'"?[A-Za-z]:\\[^"]*\\(?:powershell|pwsh)\.exe"? -Command '
-    r'(?:\'(.*)\'|"((?:[^"`]|"")*)")', re.S | re.I)
+    r'(?:\'(.*)\'|"((?:[^"`]|"")*)")',
+    re.S | re.I,
+)
 # B-307 (seen live, 29 Oct): the same argv joined as a POSIX shell's words instead - the path's
 # `\` written `\\`, a `!` or `$` in single quotes (`-g '"'!.git'"'`) - with `-NoProfile` too.
 POSIX_JOINED = re.compile(r'"[A-Za-z]:\\\\')
@@ -206,10 +220,14 @@ def _unwrapped(command: str) -> str:
     if POSIX_JOINED.match(command):
         with contextlib.suppress(ValueError):  # (unbalanced quotes: the whole line)
             words = shlex.split(command)
-            if (len(words) >= 3 and SHELL_EXE.fullmatch(words[0])
-                    and words[-2].lower() == "-command"
-                    and all(w.lower() in ("-noprofile", "-nologo", "-noninteractive")
-                            for w in words[1:-2])):
+            if (
+                len(words) >= 3
+                and SHELL_EXE.fullmatch(words[0])
+                and words[-2].lower() == "-command"
+                and all(
+                    w.lower() in ("-noprofile", "-nologo", "-noninteractive") for w in words[1:-2]
+                )
+            ):
                 return words[-1]
         return command
     found = POWERSHELL_LINE.fullmatch(command)
@@ -246,18 +264,23 @@ def _files(changes: object) -> list[tuple[str, str, object]]:
 # run what follows - and only ASCII blanks: what a shell might read as one is not judged here.)
 HEREDOC_PATCH = re.compile(
     r"apply_patch <<(['\"])([A-Za-z_]\w*)\1\n(\*\*\* Begin Patch\n.*\n\*\*\* End Patch)\n\2"
-    r"[ \t\n]*", re.S | re.A)
+    r"[ \t\n]*",
+    re.S | re.A,
+)
 # (`@'`, not `@"`: a double-quoted one expands `$(...)`. It ends at `'@` starting a line.)
 # shortcut: only where its shell is said to be PowerShell (Copilot's shellType) - Codex says no
 # shell with a command, so one of its here-strings stays a command card; judge it so too where
 # `_unwrapped` took off a `powershell -Command`, once Codex is seen sending one.
 HERE_STRING_PATCH = re.compile(
     r"@'\n(\*\*\* Begin Patch\n.*\n\*\*\* End Patch)\n'@[ \t]*\|[ \t]*apply_patch[ \t\n]*",
-    re.S | re.A)
+    re.S | re.A,
+)
 # A line PowerShell might end the here-string at: it reads U+2018-U+201B as single quotes too;
 # (review) any other non-ASCII mark before an @, after blanks or invisible marks, is held so too.
-HERE_STRING_END = re.compile(r"[\s\u200b-\u200f\u2028-\u202e\u2060-\u2064\ufeff]*"
-                             r"(?:'|[^\x00-\x7f])[@\ufe6b\uff20]")
+HERE_STRING_END = re.compile(
+    r"[\s\u200b-\u200f\u2028-\u202e\u2060-\u2064\ufeff]*"
+    r"(?:'|[^\x00-\x7f])[@\ufe6b\uff20]"
+)
 PATCH_FILE = re.compile(r"\*\*\* (Add|Update|Delete) File: (.+)")
 # (Review) A control character a console would act on - Ctrl+C ending the line it is in, Esc -
 # never reaches a shell as a patch: CR, NUL and the rest of C0, and DEL.
@@ -276,9 +299,20 @@ def _odd_path(text: str) -> bool:
     last dots and blanks go); a home (`~`). Read as Windows reads it on every system: off
     Windows a backslash is a name's own character, and a name holding one is no plain one there."""
     named = PureWindowsPath(text.strip(" \t"))
-    return text.strip() != text.strip(" \t") or bool(named.anchor) or not named.parts or any(
-        part == ".." or ":" in part or part.startswith("~") or part[-1] == "."
-        or part[-1].isspace() or DEVICES.fullmatch(part) is not None for part in named.parts)
+    return (
+        text.strip() != text.strip(" \t")
+        or bool(named.anchor)
+        or not named.parts
+        or any(
+            part == ".."
+            or ":" in part
+            or part.startswith("~")
+            or part[-1] == "."
+            or part[-1].isspace()
+            or DEVICES.fullmatch(part) is not None
+            for part in named.parts
+        )
+    )
 
 
 def _heredoc_patch(command: str, cwd: str, powershell: bool = False) -> list[dict] | None:
@@ -290,16 +324,19 @@ def _heredoc_patch(command: str, cwd: str, powershell: bool = False) -> list[dic
         # B-389: PowerShell reads CRLF as one line break, as LF, so the lines judged here are
         # those it parses; a CR left, or a break only Python's splitlines knows, is refused.
         command = command.replace("\r\n", "\n")
-        found = None if CONTROL.search(command) else HERE_STRING_PATCH.fullmatch(
-            command.strip(" \t\n"))
+        found = (
+            None if CONTROL.search(command) else HERE_STRING_PATCH.fullmatch(command.strip(" \t\n"))
+        )
         body = found[1] if found else ""
         lines = body.split("\n")[1:-1]
-        if found is None or body.splitlines() != body.split("\n") or any(
-                HERE_STRING_END.match(line) for line in lines):
+        if (
+            found is None
+            or body.splitlines() != body.split("\n")
+            or any(HERE_STRING_END.match(line) for line in lines)
+        ):
             return None  # (the here-string would end there, and what follows run as commands)
     else:
-        found = None if CONTROL.search(command) else HEREDOC_PATCH.fullmatch(
-            command.strip(" \t\n"))
+        found = None if CONTROL.search(command) else HEREDOC_PATCH.fullmatch(command.strip(" \t\n"))
         if found is None:
             return None
         lines = found[3].split("\n")[1:-1]
@@ -316,8 +353,11 @@ def _tool_patch(text: str, cwd: str) -> list[dict] | None:
     lines = text.split("\n")
     if lines[-1] == "":
         lines.pop()  # (its grammar's last LF is its own)
-    if CONTROL.search(text) or len(lines) < 2 or (lines[0], lines[-1]) != (
-            "*** Begin Patch", "*** End Patch"):
+    if (
+        CONTROL.search(text)
+        or len(lines) < 2
+        or (lines[0], lines[-1]) != ("*** Begin Patch", "*** End Patch")
+    ):
         return None
     return _patch_lines(lines[1:-1], cwd)
 
@@ -328,21 +368,32 @@ def _patch_lines(lines: list[str], cwd: str) -> list[dict] | None:
     changes: list[dict] = []
     for line in lines:
         header = PATCH_FILE.fullmatch(line)
-        moved = line.startswith("*** Move to: ") and bool(changes) and (
-            changes[-1]["kind"]["type"] == "update")
+        moved = (
+            line.startswith("*** Move to: ")
+            and bool(changes)
+            and (changes[-1]["kind"]["type"] == "update")
+        )
         text = header[2] if header else line[13:] if moved else ""
         named = Path(text.strip(" \t"))
         if (header or moved) and _odd_path(text):
             return None  # (a path out of the folder it runs in stays a command's)
         if header:
-            changes.append({"path": str(Path(cwd) / named),
-                            "kind": {"type": header[1].lower(), "move_path": None}, "diff": ""})
+            changes.append(
+                {
+                    "path": str(Path(cwd) / named),
+                    "kind": {"type": header[1].lower(), "move_path": None},
+                    "diff": "",
+                }
+            )
         elif not changes:
             return None
         elif moved:
             changes[-1]["kind"]["move_path"] = str(Path(cwd) / named)
-        elif line.lstrip().startswith("***") or changes[-1]["kind"]["type"] == "delete" or (
-                changes[-1]["kind"]["type"] == "add" and not line.startswith("+")):
+        elif (
+            line.lstrip().startswith("***")
+            or changes[-1]["kind"]["type"] == "delete"
+            or (changes[-1]["kind"]["type"] == "add" and not line.startswith("+"))
+        ):
             return None
         else:  # (a new file's lines without their "+": what it will hold, as Codex says it)
             new = changes[-1]["kind"]["type"] == "add"
@@ -360,23 +411,32 @@ def _edits_patch(edits: list[dict], given: dict) -> list[tuple[str, dict]]:
     for edit in edits:
         before, after = _dict(edit.get("before")), _dict(edit.get("after"))
         path = after.get("path") if after else before.get("path")
-        if not isinstance(path, str) or not path or os.path.normcase(path) in seen or (
-                before and before.get("path") != path) or (
-                after and not isinstance(after.get("content"), str)):
+        if (
+            not isinstance(path, str)
+            or not path
+            or os.path.normcase(path) in seen
+            or (before and before.get("path") != path)
+            or (after and not isinstance(after.get("content"), str))
+        ):
             return []
         seen.add(os.path.normcase(path))
-        questions.append(("Write", {"file_path": path, "content": after["content"], **given})
-                         if after else ("Edit", {"file_path": path, "kind": "delete", **given}))
+        questions.append(
+            ("Write", {"file_path": path, "content": after["content"], **given})
+            if after
+            else ("Edit", {"file_path": path, "kind": "delete", **given})
+        )
     return questions
 
 
 def _patch_questions(changes: object, given: dict) -> list[tuple[str, dict]]:
     """Each file of a patch asked as Claude Code's prompts are: a new one as its Write (its
     diff is what it will hold), any other as its Edit."""
-    return [("Write", {"file_path": path, "content": diff, "kind": how, **given})
-            if how == "add" and isinstance(diff, str)
-            else ("Edit", {"file_path": path, "kind": how, "diff": diff, **given})
-            for path, how, diff in _files(changes)]
+    return [
+        ("Write", {"file_path": path, "content": diff, "kind": how, **given})
+        if how == "add" and isinstance(diff, str)
+        else ("Edit", {"file_path": path, "kind": how, "diff": diff, **given})
+        for path, how, diff in _files(changes)
+    ]
 
 
 class _Asked:
@@ -407,30 +467,34 @@ def _note_patch(method: object, params: dict, item: dict, asked: _Asked) -> None
         asked.patches[str(params.get("itemId"))] = params.get("changes")
 
 
-def _note_reply(request: dict, params: dict, reply: dict, busy: set[str],
-                allowed: dict[str, float]) -> None:
+def _note_reply(
+    request: dict, params: dict, reply: dict, busy: set[str], allowed: dict[str, float]
+) -> None:
     # KOLONİ's answer to a request of Codex's, kept before it is sent
     # (`CodexNativeClient._converse`).
     item = str(params.get("itemId"))
     if _dict(reply.get("result")).get("decision") == "decline":
         busy.discard(item)  # it may never say it is done
     # One said at work already (`item/started`) has started: only its time at work is bounded.
-    if request.get("method") == RUN_ASKED and item not in busy and _dict(
-            reply.get("result")).get("decision") == "accept":
+    if (
+        request.get("method") == RUN_ASKED
+        and item not in busy
+        and _dict(reply.get("result")).get("decision") == "accept"
+    ):
         # (Before it is sent: its end may be read before this call goes on.)
         allowed[item] = time.monotonic()
 
 
-def _overdue(busy: set[str], asking: set[str], since: dict[str, float],
-             allowed: dict[str, float], at: float) -> tuple[str | None, str | None]:
+def _overdue(
+    busy: set[str], asking: set[str], since: dict[str, float], allowed: dict[str, float], at: float
+) -> tuple[str | None, str | None]:
     # B-357 (`CodexNativeClient._converse`): a command let run that never started, and the
     # first of its own at work for too long.
     at_work = [key for key in busy - asking if not key.startswith("asked ")]
     for key in at_work:
         since.setdefault(key, at)
     late = next((key for key, yes in allowed.items() if at - yes > CALL_SECONDS), None)
-    over = late or next((key for key in at_work if at - since[key] > CALL_SECONDS),
-                        None)
+    over = late or next((key for key in at_work if at - since[key] > CALL_SECONDS), None)
     return late, over
 
 
@@ -447,9 +511,19 @@ def _as_exec(method: str, params: dict, asked: _Asked, read_only: bool = False) 
         # B-347: an image it looked at with its own tool (R128: {"type":"imageView","path":…}),
         # on record as a tool of its own (`AgentRunner._own_look`). shortcut: only its end is
         # read, and its id as any item's - neither was seen; read its start if one comes.
-        return [{"type": "item.completed", "item": {
-            "type": "mcp_tool_call", "id": str(item.get("id") or ""), "server": "codex",
-            "tool": "imageView", "arguments": {"path": item.get("path")}, "status": "completed"}}]
+        return [
+            {
+                "type": "item.completed",
+                "item": {
+                    "type": "mcp_tool_call",
+                    "id": str(item.get("id") or ""),
+                    "server": "codex",
+                    "tool": "imageView",
+                    "arguments": {"path": item.get("path")},
+                    "status": "completed",
+                },
+            }
+        ]
     what = EXEC_ITEMS.get(str(item.get("type")))
     if phase is None or what is None:
         return []  # its reasoning, deltas and the rest: as `codex exec` was read, nothing
@@ -462,29 +536,46 @@ def _as_exec(method: str, params: dict, asked: _Asked, read_only: bool = False) 
         return [{"type": "busy", "id": item_id, "on": True}]
     # What was declined did not happen; it is on record as KOLONİ's no.
     status = {"inProgress": "in_progress", "declined": "failed"}.get(
-        str(item.get("status")), item.get("status"))
+        str(item.get("status")), item.get("status")
+    )
     if heredoc is not None and item.get("exitCode") not in (0, None):
         status = "failed"
     told = {**item, "type": what, "id": item_id, "status": status}
     if what == "command_execution":
-        told |= {"command": _unwrapped(str(item.get("command") or "")),
-                 "aggregated_output": item.get("aggregatedOutput"),
-                 "exit_code": item.get("exitCode"), "unasked": item_id not in asked.items}
+        told |= {
+            "command": _unwrapped(str(item.get("command") or "")),
+            "aggregated_output": item.get("aggregatedOutput"),
+            "exit_code": item.get("exitCode"),
+            "unasked": item_id not in asked.items,
+        }
         command = told["command"]
-        if read_only and WRITE_REFUSED.search(" ".join(str(
-                item.get("aggregatedOutput") or "").split())) and not (
-                only_looks(command) or TESTS.search(command)):
+        if (
+            read_only
+            and WRITE_REFUSED.search(" ".join(str(item.get("aggregatedOutput") or "").split()))
+            and not (only_looks(command) or TESTS.search(command))
+        ):
             told["blocked"] = WRITE_BLOCKED
     if what == "file_change":
         files = _files(item.get("changes") if heredoc is None else heredoc)
         ids = asked.paths.get(item_id, {})
         declined = item.get("status") == "declined"  # (then nothing of it was written)
-        return [{"type": "busy", "id": item_id, "on": False}, {"type": "item.completed", "item": {
-            "type": what, "id": item_id, "status": status, "declined": declined,
-            "changes": [{"path": path, "kind": how} for path, how, _diff in files],
-            "parts": [ids[path] for path, _how, _diff in files if path in ids],
-            "unasked": [] if declined else [
-                path for path, _how, _diff in files if path not in ids]}}]
+        return [
+            {"type": "busy", "id": item_id, "on": False},
+            {
+                "type": "item.completed",
+                "item": {
+                    "type": what,
+                    "id": item_id,
+                    "status": status,
+                    "declined": declined,
+                    "changes": [{"path": path, "kind": how} for path, how, _diff in files],
+                    "parts": [ids[path] for path, _how, _diff in files if path in ids],
+                    "unasked": []
+                    if declined
+                    else [path for path, _how, _diff in files if path not in ids],
+                },
+            },
+        ]
     return [{"type": f"item.{phase}", "item": told}]
 
 
@@ -494,18 +585,23 @@ def _no_shell(withheld: tuple[str, ...]) -> bool:
     return {"read_only", "run"} <= set(withheld)
 
 
-NO_SHELL_RAN = ("Codex ran a command of its own though it was started without its shell (its "
-                "role may not run commands), so the run is stopped")
+NO_SHELL_RAN = (
+    "Codex ran a command of its own though it was started without its shell (its "
+    "role may not run commands), so the run is stopped"
+)
 
 
-def _not_as_asked(thread: dict, root: Path, also: tuple[str, ...],
-                  read_only: bool = False) -> str | None:
+def _not_as_asked(
+    thread: dict, root: Path, also: tuple[str, ...], read_only: bool = False
+) -> str | None:
     """Why the thread Codex started is not the one KOLONİ asked for (the user's own
     config.toml can make more of it), or None. `read_only`: one in its read-only sandbox."""
     reviewer, sandbox = thread.get("approvalsReviewer"), _dict(thread.get("sandbox"))
     if thread.get("approvalPolicy") != "untrusted":
-        return (f"its thread would ask {json.dumps(thread.get('approvalPolicy'))}, not "
-                "before every command and patch")
+        return (
+            f"its thread would ask {json.dumps(thread.get('approvalPolicy'))}, not "
+            "before every command and patch"
+        )
     if reviewer != "user":
         return f"its requests would go to {json.dumps(reviewer)}, not to KOLONİ"
     # shortcut: "readOnly" is the app-server's tag as its protocol names it, not seen from the
@@ -516,8 +612,11 @@ def _not_as_asked(thread: dict, root: Path, also: tuple[str, ...],
     if sandbox.get("networkAccess"):
         return "its sandbox would let its commands use the network"
     given = {Path(one).resolve() for one in (root, *also)}
-    wider = [str(one) for one in sandbox.get("writableRoots") or []
-             if Path(str(one)).resolve() not in given]
+    wider = [
+        str(one)
+        for one in sandbox.get("writableRoots") or []
+        if Path(str(one)).resolve() not in given
+    ]
     return f"its sandbox would also make {wider[0]} writable" if wider else None
 
 
@@ -540,10 +639,16 @@ def _plan(steps: object) -> dict:
     # shortcut: its fields are read off 0.164.0's binary, never seen live (its model did not
     # plan in the measured turn); check them when a turn with a plan is seen.
     told = [_dict(one) for one in steps][:PLAN_STEPS] if isinstance(steps, list) else []
-    return {"type": "live", "plan": [{
-        "step": str(one.get("step") or "")[:PLAN_WORDS],
-        "status": one["status"] if one.get("status") in PLAN_STATUSES else "pending",
-    } for one in told]}
+    return {
+        "type": "live",
+        "plan": [
+            {
+                "step": str(one.get("step") or "")[:PLAN_WORDS],
+                "status": one["status"] if one.get("status") in PLAN_STATUSES else "pending",
+            }
+            for one in told
+        ],
+    }
 
 
 def schema_errors(value: object, schema: dict, at: str = "report") -> list[str]:
@@ -551,8 +656,9 @@ def schema_errors(value: object, schema: dict, at: str = "report") -> list[str]:
     shortcut: only the words a report schema uses (type object / array / string / boolean,
     enum, required; no property beyond those named); widen it for a schema that uses more."""
     if "enum" in schema:
-        return [] if value in schema["enum"] else [
-            f"{at} is not one of {', '.join(schema['enum'])}"]
+        return (
+            [] if value in schema["enum"] else [f"{at} is not one of {', '.join(schema['enum'])}"]
+        )
     kind = schema.get("type")
     if kind == "string":
         return [] if isinstance(value, str) else [f"{at} is not a string"]
@@ -561,26 +667,40 @@ def schema_errors(value: object, schema: dict, at: str = "report") -> list[str]:
     if kind == "array":
         if not isinstance(value, list):
             return [f"{at} is not a list"]
-        return [error for number, one in enumerate(value)
-                for error in schema_errors(one, schema["items"], f"{at}[{number}]")]
+        return [
+            error
+            for number, one in enumerate(value)
+            for error in schema_errors(one, schema["items"], f"{at}[{number}]")
+        ]
     if not isinstance(value, dict):
         return [f"{at} is not an object"]
     known = schema.get("properties", {})
-    return [*(f"{at}.{name} is missing" for name in schema.get("required", ())
-              if name not in value),
-            *(f"{at}.{name} is not in the schema" for name in value if name not in known),
-            *(error for name, one in value.items() if name in known
-              for error in schema_errors(one, known[name], f"{at}.{name}"))]
+    return [
+        *(f"{at}.{name} is missing" for name in schema.get("required", ()) if name not in value),
+        *(f"{at}.{name} is not in the schema" for name in value if name not in known),
+        *(
+            error
+            for name, one in value.items()
+            if name in known
+            for error in schema_errors(one, known[name], f"{at}.{name}")
+        ),
+    ]
 
 
 def how_it_ended(label: str, code: int | None, reason: str) -> str:
     """What is said of a CLI that ended without finishing its turn. An exit code nobody
     knows (it could not be waited for) is not called 0."""
     if code is None:
-        return (f"{label} ended, exit code not known: {reason}" if reason
-                else f"{label} ended without finishing (exit code not known)")
-    return (f"{label} exited with code {code}: {reason}" if reason
-            else f"{label} ended without finishing (exit code {code})")
+        return (
+            f"{label} ended, exit code not known: {reason}"
+            if reason
+            else f"{label} ended without finishing (exit code not known)"
+        )
+    return (
+        f"{label} exited with code {code}: {reason}"
+        if reason
+        else f"{label} ended without finishing (exit code {code})"
+    )
 
 
 class CodexNativeClient(CliStepClient):
@@ -628,8 +748,9 @@ class CodexNativeClient(CliStepClient):
     # Its own sign-in's secret variables (codex-rs/login/src/auth/manager.rs, Apache-2.0).
     # shortcut: a model provider of the user's config.toml signs in by a variable it names
     # (env_key), Bedrock by AWS's: those are held back; keep them once one is used.
-    logins: frozenset[str] | None = frozenset({
-        "OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"})
+    logins: frozenset[str] | None = frozenset(
+        {"OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"}
+    )
     _offered: list[str] = []
 
     def _translator(self) -> Callable[[dict], list[dict]]:
@@ -649,7 +770,9 @@ class CodexNativeClient(CliStepClient):
         # it will work in is not known yet: a longer path there is said at its start.)
         if self.command == "codex":
             await asyncio.to_thread(
-                self._would_start, command, shim,
+                self._would_start,
+                command,
+                shim,
                 lambda folder: self._native_arguments(folder, folder / "b.json"),
             )
 
@@ -658,21 +781,31 @@ class CodexNativeClient(CliStepClient):
         Applied to the whole text, before it is cut short for an error message."""
         return text
 
-    async def stream_step(self, model_id, messages, tools, on_delta, on_thinking=None,
-                          effort=None):
+    async def stream_step(self, model_id, messages, tools, on_delta, on_thinking=None, effort=None):
         raise OwnStop("Codex runs here with its own tools, not step by step")
 
     def talker(self) -> CliStepClient:
         """The same Codex, one step at a time with its own tools off: how it speaks in
         a discussion, where nobody may change anything."""
         return CodexCliClient(
-            self._executable, self._model, self._timeout, self._which, self._launcher,
-            self._env, self.server, self._homes, self.home,
+            self._executable,
+            self._model,
+            self._timeout,
+            self._which,
+            self._launcher,
+            self._env,
+            self.server,
+            self._homes,
+            self.home,
         )
 
     def _native_arguments(
-        self, root: Path, bridge_config: Path, withheld: tuple[str, ...] = (),
-        linked: tuple[str, ...] = (), also: tuple[str, ...] = (),
+        self,
+        root: Path,
+        bridge_config: Path,
+        withheld: tuple[str, ...] = (),
+        linked: tuple[str, ...] = (),
+        also: tuple[str, ...] = (),
     ) -> list[str]:
         # (Not `linked`: a copy's dependency folders, which would be made writable.)
         for path in (sys.executable, mcp_bridge.__file__, str(bridge_config)):
@@ -683,28 +816,37 @@ class CodexNativeClient(CliStepClient):
         # Its folder, model and the folders it also works in go in thread/start and
         # turn/start (`_converse`). The user's own MCP servers are off: a tool of theirs is
         # not one Codex asks KOLONİ about (as `limits._AppServer` has them).
-        theirs = [name for name in CodexCliClient(env=self._env, server=self.server)
-                  ._own_mcp_servers()
-                  if name != SERVER]
+        theirs = [
+            name
+            for name in CodexCliClient(env=self._env, server=self.server)._own_mcp_servers()
+            if name != SERVER
+        ]
         return [
             *(one for name in theirs for one in ("-c", f"mcp_servers.{name}.enabled=false")),
             # One more MCP server: KOLONİ's collaboration tools.
-            "-c", f"mcp_servers.{SERVER}.command='{sys.executable}'",
-            "-c", f"mcp_servers.{SERVER}.args=['{mcp_bridge.__file__}','{bridge_config}']",
+            "-c",
+            f"mcp_servers.{SERVER}.command='{sys.executable}'",
+            "-c",
+            f"mcp_servers.{SERVER}.args=['{mcp_bridge.__file__}','{bridge_config}']",
             # Whatever the user's own config says about a server of this name.
-            "-c", f"mcp_servers.{SERVER}.enabled=true",
+            "-c",
+            f"mcp_servers.{SERVER}.enabled=true",
             # An answer from the user, or a whole sub-agent, can take a long time.
-            "-c", f"mcp_servers.{SERVER}.tool_timeout_sec={TOOL_WAIT_SECONDS}",
+            "-c",
+            f"mcp_servers.{SERVER}.tool_timeout_sec={TOOL_WAIT_SECONDS}",
             # B-304: none of its own sub-agents, as step by step (`CodexCliClient.DISABLED`): they
             # work past KOLONİ's records, and each would start a bridge of its own, which the
             # tool server turns away. shortcut: the key as `features.apps` below, not measured
             # live; measure it (K-cli-surface).
-            "-c", "features.multi_agent=false",
+            "-c",
+            "features.multi_agent=false",
             # The user's own skills are not an agent of KOLONİ's to use - nor its plugins' (B-312:
             # a Debugger read a plugin's SKILL.md), as Claude Code's `--setting-sources` and
             # step by step (`DISABLED`). shortcut: `plugins` among Codex 0.164's feature names,
             # not measured natively; measure it (K-cli-surface).
-            *codex_skills_off(self._env), "-c", "features.plugins=false",
+            *codex_skills_off(self._env),
+            "-c",
+            "features.plugins=false",
             # Slice 61: web_search switched off on the Tools page, its own search is too.
             # shortcut: the config key as Codex documents it, not measured with the real CLI;
             # measure it (K-cli-surface) before relying on it.
@@ -721,8 +863,11 @@ class CodexNativeClient(CliStepClient):
             # shortcut: Codex 0.164 takes both names (`--disable shell_tool` / `unified_exec`
             # measured), but that they take its shell away is not; a command that comes all
             # the same ends the turn (`_converse`). Measure it live (K-cli-surface).
-            *(("-c", "features.shell_tool=false", "-c", "features.unified_exec=false")
-              if _no_shell(withheld) else ()),
+            *(
+                ("-c", "features.shell_tool=false", "-c", "features.unified_exec=false")
+                if _no_shell(withheld)
+                else ()
+            ),
             *self._server_settings(),
             # Before the subcommand: it takes the settings given to `codex` (`limits`).
             "app-server",
@@ -800,17 +945,28 @@ class CodexNativeClient(CliStepClient):
         # goes with each turn's workdir; whether availableTools / requestPermission / sandbox
         # are given anew). Measure those and resume them. Nor does any CLI as a session or step
         # by step (`ClaudeSessionClient`, the default mode).
-        under = self._under(model_id, root, withheld, linked, also, level) \
-            if keep and isinstance(self, ClaudeNativeClient) and self.resumes else None
-        resume = session["id"] if under and session and session.get("under") == under \
-            and SESSION_ID.fullmatch(str(session.get("id"))) else None
+        under = (
+            self._under(model_id, root, withheld, linked, also, level)
+            if keep and isinstance(self, ClaudeNativeClient) and self.resumes
+            else None
+        )
+        resume = (
+            session["id"]
+            if under
+            and session
+            and session.get("under") == under
+            and SESSION_ID.fullmatch(str(session.get("id")))
+            else None
+        )
         acted = False  # (whether anything of a resumed run was said or done: then no new one)
         if resume:
+
             def noted(act):
                 async def then(*args):
                     nonlocal acted
                     acted = True
                     return await act(*args)
+
                 return then
 
             call_tool, on_text, on_item = noted(call_tool), noted(on_text), noted(on_item)
@@ -825,26 +981,34 @@ class CodexNativeClient(CliStepClient):
             command, shim = self._command()
             # (In a thread: Codex's line is built from a walk of the user's skills.)
             arguments = await asyncio.to_thread(
-                self._native_arguments, Path(root), bridge_config, withheld, linked, also)
+                self._native_arguments, Path(root), bridge_config, withheld, linked, also
+            )
             if under:  # (27: kept, in KOLONİ's own sign-in folder, where its next turn resumes it)
                 arguments.remove("--no-session-persistence")
             # (Not with the user's own setup, which goes as it is: their commands are on.)
-            if skills and isinstance(self, ClaudeNativeClient) \
-                    and "--disable-slash-commands" in arguments \
-                    and (given := await self._skills_given(
-                        workdir / "plugin", skills, Path(root))) is not None:
+            if (
+                skills
+                and isinstance(self, ClaudeNativeClient)
+                and "--disable-slash-commands" in arguments
+                and (given := await self._skills_given(workdir / "plugin", skills, Path(root)))
+                is not None
+            ):
                 held, left = given
                 if held:
-                    arguments = [*(one for one in arguments
-                                   if one != "--disable-slash-commands"),
-                                 "--plugin-dir", str(workdir / "plugin")]
+                    arguments = [
+                        *(one for one in arguments if one != "--disable-slash-commands"),
+                        "--plugin-dir",
+                        str(workdir / "plugin"),
+                    ]
                 # B-151: those it has as its own only named, nothing of one it was not given
                 # (its text in the instructions would be there to run) - and that said once.
-                skills_told = SKILLS_OWN + "".join(
-                    f"\n- {PLUGIN}:{name}" for name in held) if held else ""
+                skills_told = (
+                    SKILLS_OWN + "".join(f"\n- {PLUGIN}:{name}" for name in held) if held else ""
+                )
                 for name, why in left.items():
-                    await on_item("completed", {"type": "skill_not_given", "name": name,
-                                                "why": why})
+                    await on_item(
+                        "completed", {"type": "skill_not_given", "name": name, "why": why}
+                    )
             # (Qoder over the same protocol, B-306: none of Claude Code's extras below.)
             claude = isinstance(self, ClaudeNativeClient) and self.command == "claude"
             if claude and report_schema:
@@ -856,16 +1020,19 @@ class CodexNativeClient(CliStepClient):
                     # Before it, a tool of one is not known to name its role to the hook: it
                     # would be held to its Lead's rights only.
                     if not await self._from(INSIDE_FROM):
-                        raise OwnStop(f"{self.label} is older than "
-                                      f"{'.'.join(map(str, INSIDE_FROM))}")
+                        raise OwnStop(
+                            f"{self.label} is older than {'.'.join(map(str, INSIDE_FROM))}"
+                        )
                     self._fits([*command, *self._leveled([*arguments, *agents], effort)], shim)
                     arguments = [*arguments, *agents]
                 except OwnStop as exc:
                     # shortcut: a line too long for Windows, or one its .cmd cannot take,
                     # offers none of them (they are opened as KOLONİ's agents); pass them in
                     # a file if Claude Code is measured to take one.
-                    await on_item("completed", {"type": "inside_not_given",
-                                                "names": list(inside), "why": str(exc)})
+                    await on_item(
+                        "completed",
+                        {"type": "inside_not_given", "names": list(inside), "why": str(exc)},
+                    )
             # (Codex's level goes in turn/start.)
             argv = [*command, *(arguments if codex else self._leveled(arguments, effort))]
             # (With the secret variables the user passes: `_start` gives it the rest.)
@@ -882,30 +1049,57 @@ class CodexNativeClient(CliStepClient):
                 # shortcut: that its commands are given these and its sandbox lets them write
                 # there is not measured live; measure it (K-cli-surface).
                 env = {**env, "TMP": str(temp), "TEMP": str(temp), "TMPDIR": str(temp)}
-            instructions = "\n\n".join(
-                m["content"] for m in messages if m["role"] == "system") + skills_told
+            instructions = (
+                "\n\n".join(m["content"] for m in messages if m["role"] == "system") + skills_told
+            )
             document = {"instructions": instructions, "conversation": conversation(messages)}
             rules = f"{self.rules}\n\n{READ_ONLY_RULES}" if "read_only" in withheld else self.rules
-            prompt = (
-                f"{rules}\n\n{WHERE.format(root=root)}\n\n"
-                + json.dumps(document, ensure_ascii=False)
+            prompt = f"{rules}\n\n{WHERE.format(root=root)}\n\n" + json.dumps(
+                document, ensure_ascii=False
             )
             if conversing:
                 # Codex's turn takes the prompt, and each picture as it is (slice 85c).
                 copies = await asyncio.to_thread(image_copies, messages, workdir) if codex else []
-                given = [{"type": "text", "text": prompt, "text_elements": []}, *(
-                    {"type": "localImage", "path": copy} for copy in copies)] if codex else prompt
+                given = (
+                    [
+                        {"type": "text", "text": prompt, "text_elements": []},
+                        *({"type": "localImage", "path": copy} for copy in copies),
+                    ]
+                    if codex
+                    else prompt
+                )
                 return await self._converse(
-                    argv, shim, given, Path(root), server, on_text, on_item, env, call_tool,
-                    also, effort, bridge_config, denied, on_live,
-                    read_only="read_only" in withheld, no_shell=_no_shell(withheld))
+                    argv,
+                    shim,
+                    given,
+                    Path(root),
+                    server,
+                    on_text,
+                    on_item,
+                    env,
+                    call_tool,
+                    also,
+                    effort,
+                    bridge_config,
+                    denied,
+                    on_live,
+                    read_only="read_only" in withheld,
+                    no_shell=_no_shell(withheld),
+                )
             if isinstance(self, ClaudeNativeClient):  # over its control protocol (slice 89b)
+
                 def with_session(result: SessionResult) -> SessionResult:
                     kept = under and result.session and SESSION_ID.fullmatch(result.session["id"])
-                    return replace(result, session={
-                        **result.session, "under": under,
-                        **({"home": str(self.home)} if self.home else {})}
-                        if kept and result.session else None)
+                    return replace(
+                        result,
+                        session={
+                            **result.session,
+                            "under": under,
+                            **({"home": str(self.home)} if self.home else {}),
+                        }
+                        if kept and result.session
+                        else None,
+                    )
 
                 new = since_its_last_word(messages) if resume else []
                 off = self._plugins_off
@@ -914,14 +1108,27 @@ class CodexNativeClient(CliStepClient):
                     # as they stand now (they say this run's leave): the rest is in its session.
                     told = f"{rules}\n\n{RESUMED}\n\n{WHERE.format(root=root)}\n\n" + json.dumps(
                         {"instructions": instructions, "conversation": conversation(new)},
-                        ensure_ascii=False)
+                        ensure_ascii=False,
+                    )
                     acted = False  # (what was said above - a skill not given - is not its doing)
                     try:
-                        return with_session(await self._control(
-                            [*argv, self.resume_flag, str(resume)], shim,
-                            await asyncio.to_thread(claude_content, told, new) if claude
-                            else told, Path(root),
-                            server, on_text, on_item, env, call_tool, on_live, report_schema))
+                        return with_session(
+                            await self._control(
+                                [*argv, self.resume_flag, str(resume)],
+                                shim,
+                                await asyncio.to_thread(claude_content, told, new)
+                                if claude
+                                else told,
+                                Path(root),
+                                server,
+                                on_text,
+                                on_item,
+                                env,
+                                call_tool,
+                                on_live,
+                                report_schema,
+                            )
+                        )
                     except (OwnStop, ModelUnavailable) as exc:
                         # It could not go on in that session (gone, another sign-in): anew, once.
                         # Never where it said or did anything (that would be done twice), was
@@ -930,8 +1137,12 @@ class CodexNativeClient(CliStepClient):
                         # on any other failure.
                         # shortcut: Claude Code's are not measured; any failure before a word or
                         # a tool is taken for that.
-                        if acted or server.ended or self._plugins_off != off or (
-                                self.NO_SESSION and not self.NO_SESSION.search(str(exc))):
+                        if (
+                            acted
+                            or server.ended
+                            or self._plugins_off != off
+                            or (self.NO_SESSION and not self.NO_SESSION.search(str(exc)))
+                        ):
                             raise
                     # A new tool server for it: the one before may have served its bridge (its
                     # file gone, its key taken).
@@ -941,22 +1152,41 @@ class CodexNativeClient(CliStepClient):
                         on_end(server._end)
                     await server.start()
                     bridge_file(server, workdir)
-                content = await asyncio.to_thread(claude_content, prompt, messages) \
-                    if claude else prompt  # (no picture is sent to Qoder: IMAGE_CLIS)
-                return with_session(await self._control(
-                    argv, shim, content, Path(root), server, on_text, on_item, env, call_tool,
-                    on_live, report_schema))
-            return await self._work(
-                argv, shim, prompt, Path(root), server, on_text, on_item, env
-            )
+                content = (
+                    await asyncio.to_thread(claude_content, prompt, messages) if claude else prompt
+                )  # (no picture is sent to Qoder: IMAGE_CLIS)
+                return with_session(
+                    await self._control(
+                        argv,
+                        shim,
+                        content,
+                        Path(root),
+                        server,
+                        on_text,
+                        on_item,
+                        env,
+                        call_tool,
+                        on_live,
+                        report_schema,
+                    )
+                )
+            return await self._work(argv, shim, prompt, Path(root), server, on_text, on_item, env)
         finally:
             await server.close()
             if workdir:
                 shutil.rmtree(workdir, ignore_errors=True)
 
     async def _work(  # noqa: C901
-        self, argv, shim, prompt, root: Path, server: ToolServer, on_text, on_item: OnItem,
-        env: dict[str, str] | None = None, *,
+        self,
+        argv,
+        shim,
+        prompt,
+        root: Path,
+        server: ToolServer,
+        on_text,
+        on_item: OnItem,
+        env: dict[str, str] | None = None,
+        *,
         ready: Callable[[], Awaitable[str | None]] | None = None,
         translate: Callable[[dict], list[dict]] | None = None,
     ) -> SessionResult:
@@ -1002,11 +1232,7 @@ class CodexNativeClient(CliStepClient):
                 heard = time.monotonic()
                 written = raw.decode("utf-8", errors="replace")
                 feed("stdout", written, (server.key,))
-                for event in (
-                    told
-                    for line in _events(written)
-                    for told in translating(line)
-                ):
+                for event in (told for line in _events(written) for told in translating(line)):
                     kind = event.get("type")
                     item = _dict(event.get("item"))
                     if kind == "model":
@@ -1027,8 +1253,10 @@ class CodexNativeClient(CliStepClient):
                         (busy.add if event.get("on") else busy.discard)(str(event.get("id")))
                         if event.get("on"):
                             # It has said it wants this tool: leave may now be asked for it.
-                            await on_item("announced", {
-                                "id": str(event.get("id")), "parent": event.get("parent")})
+                            await on_item(
+                                "announced",
+                                {"id": str(event.get("id")), "parent": event.get("parent")},
+                            )
                         continue
                     if kind in ("error", "turn.failed"):
                         error = _dict(event.get("error")) or event
@@ -1064,8 +1292,7 @@ class CodexNativeClient(CliStepClient):
                 try:
                     talking.result()
                 except ValueError:
-                    raise ModelUnavailable(
-                        f"{self.label} sent a line too long to read") from None
+                    raise ModelUnavailable(f"{self.label} sent a line too long to read") from None
         finally:
             talking.cancel()
             with contextlib.suppress(BaseException):
@@ -1080,14 +1307,16 @@ class CodexNativeClient(CliStepClient):
         if usage is None:
             reason = _brief(self._hide(complaint.decode("utf-8", errors="replace")))
             failed = ModelUnavailable(
-                f"{self.label} reported an error: {failure}" if failure
+                f"{self.label} reported an error: {failure}"
+                if failure
                 else how_it_ended(self.label, process.returncode, reason)
             )
             failed.failure = classed(limited, own_word)
             raise failed
         sent, made = usage.get("input_tokens"), usage.get("output_tokens")
         return SessionResult(
-            sent if isinstance(sent, int) else None, made if isinstance(made, int) else None,
+            sent if isinstance(sent, int) else None,
+            made if isinstance(made, int) else None,
             reported,
             # Codex's own name for what of its input came from the cache. Of what it wrote
             # there it says nothing: that is told for a CLI whose stream is translated.
@@ -1096,7 +1325,13 @@ class CodexNativeClient(CliStepClient):
         )
 
     async def _heard(
-        self, kind: str, item: dict, said: bool, busy: set[str], on_text, on_item: OnItem,
+        self,
+        kind: str,
+        item: dict,
+        said: bool,
+        busy: set[str],
+        on_text,
+        on_item: OnItem,
     ) -> bool:
         """One thing it began or ended (exec's "item.started" / "item.completed"): what it
         says goes to `on_text`, what it does to `on_item`. Returns whether the last thing it
@@ -1115,8 +1350,7 @@ class CodexNativeClient(CliStepClient):
             return said
         if what == "mcp_tool_call" and item.get("server") == SERVER:
             return False  # KOLONİ's own tool: recorded where it is run
-        if what in ("command_execution", "file_change", "mcp_tool_call", "web_search",
-                    "sub_agent"):
+        if what in ("command_execution", "file_change", "mcp_tool_call", "web_search", "sub_agent"):
             if what == "command_execution" and item.get("id") is not None:
                 (busy.add if phase == "started" else busy.discard)(str(item["id"]))
             await on_item(phase, item)
@@ -1124,10 +1358,23 @@ class CodexNativeClient(CliStepClient):
         return said
 
     async def _converse(  # noqa: C901
-        self, argv, shim, prompt, root: Path, server: ToolServer, on_text, on_item: OnItem,
-        env: dict[str, str], call_tool: CallTool, also: tuple[str, ...], effort: str | None,
-        bridge_config: Path | None = None, denied: tuple[str, ...] | None = None,
-        on_live: OnLive | None = None, read_only: bool = False, no_shell: bool = False,
+        self,
+        argv,
+        shim,
+        prompt,
+        root: Path,
+        server: ToolServer,
+        on_text,
+        on_item: OnItem,
+        env: dict[str, str],
+        call_tool: CallTool,
+        also: tuple[str, ...],
+        effort: str | None,
+        bridge_config: Path | None = None,
+        denied: tuple[str, ...] | None = None,
+        on_live: OnLive | None = None,
+        read_only: bool = False,
+        no_shell: bool = False,
     ) -> SessionResult:
         """Codex's app-server for one turn, started and ended as `_work` starts and ends
         `codex exec`: a thread that asks before every command and patch ("untrusted"; in its
@@ -1207,10 +1454,18 @@ class CodexNativeClient(CliStepClient):
             # shortcut: one Codex refuses after STEER_SECONDS is called taken (and kept on
             # record); wait longer if a slow answer is seen live.
             try:
-                _, no = await asyncio.wait_for(ask(next(numbers), "turn/steer", {
-                    "threadId": thread_id, "expectedTurnId": turn_id,
-                    "input": [{"type": "text", "text": text, "text_elements": []}]}),
-                    STEER_SECONDS)
+                _, no = await asyncio.wait_for(
+                    ask(
+                        next(numbers),
+                        "turn/steer",
+                        {
+                            "threadId": thread_id,
+                            "expectedTurnId": turn_id,
+                            "input": [{"type": "text", "text": text, "text_elements": []}],
+                        },
+                    ),
+                    STEER_SECONDS,
+                )
             except TimeoutError:
                 return True
             except Exception:
@@ -1225,8 +1480,9 @@ class CodexNativeClient(CliStepClient):
             asking.add(item)
             try:
                 params = _dict(request.get("params"))
-                reply = await self._decide(str(request.get("method")), params, asked,
-                                           call_tool, on_item)
+                reply = await self._decide(
+                    str(request.get("method")), params, asked, call_tool, on_item
+                )
                 why = reply.pop("why", "")
                 if why and params.get("threadId") == thread_id:
                     # B-197: told only "rejected", a Lead put its own refused patch down to a
@@ -1279,8 +1535,10 @@ class CodexNativeClient(CliStepClient):
                             usage = _dict(told.get("total"))
                             # 89j: its last request's input (cached included) is what its
                             # context holds; not a thread of its own agents'.
-                            filled = _filled(_dict(told.get("last")).get("inputTokens"),
-                                             told.get("modelContextWindow"))
+                            filled = _filled(
+                                _dict(told.get("last")).get("inputTokens"),
+                                told.get("modelContextWindow"),
+                            )
                             if filled and params.get("threadId") == thread_id:
                                 await on_item("live", filled)
                         elif method == "turn/plan/updated":
@@ -1300,8 +1558,9 @@ class CodexNativeClient(CliStepClient):
                                 usage = {} if usage is None else usage
                             else:
                                 error = _dict(turn.get("error")).get("message")
-                                failure = failure or _brief(self._hide(
-                                    str(error or f"its turn ended {turn.get('status')}")))
+                                failure = failure or _brief(
+                                    self._hide(str(error or f"its turn ended {turn.get('status')}"))
+                                )
                                 usage = None
                             return  # it has finished; whatever lingers is ended below
                         else:
@@ -1316,11 +1575,14 @@ class CodexNativeClient(CliStepClient):
                                     (busy.add if event["on"] else busy.discard)(event["id"])
                                 else:
                                     one = event["item"]
-                                    if one.get("type") == "agent_message" and one.get(
-                                            "phase") == "commentary":
+                                    if (
+                                        one.get("type") == "agent_message"
+                                        and one.get("phase") == "commentary"
+                                    ):
                                         commentary = str(one.get("text") or "") or commentary
-                                    said = await self._heard(event["type"], one, said, busy,
-                                                             on_text, on_item)
+                                    said = await self._heard(
+                                        event["type"], one, said, busy, on_text, on_item
+                                    )
                                     spoke = spoke or said
                     if server.ended:
                         return
@@ -1335,20 +1597,30 @@ class CodexNativeClient(CliStepClient):
             reading = asyncio.ensure_future(read())
             thread: dict = {}
             try:
-                _, no = await ask(1, "initialize", {"clientInfo": {"name": "koloni",
-                                                                   "version": "0"}})
+                _, no = await ask(
+                    1, "initialize", {"clientInfo": {"name": "koloni", "version": "0"}}
+                )
                 if no is None:
                     await send({"method": "initialized"})
-                    thread, no = await ask(2, "thread/start", {
-                        "cwd": str(root), "approvalPolicy": "untrusted",
-                        # Every request is KOLONİ's to answer: none goes to Codex's own reviewer.
-                        "approvalsReviewer": "user",
-                        # shortcut: in "read-only" a test's own cache (.pytest_cache) or a build's
-                        # output is refused too, and a test command that must write fails; give a
-                        # role that runs tests a writable temp folder if that is seen live.
-                        "sandbox": "read-only" if read_only else "workspace-write",
-                        "ephemeral": True,
-                        **({"model": self._model} if self._model else {})})
+                    thread, no = await ask(
+                        2,
+                        "thread/start",
+                        {
+                            "cwd": str(root),
+                            "approvalPolicy": "untrusted",
+                            # Every request is KOLONİ's to answer: none goes to Codex's own
+                            # reviewer.
+                            "approvalsReviewer": "user",
+                            # shortcut: in "read-only" a test's own cache (.pytest_cache) or a
+                            # build's
+                            # output is refused too, and a test command that must write fails; give
+                            # a
+                            # role that runs tests a writable temp folder if that is seen live.
+                            "sandbox": "read-only" if read_only else "workspace-write",
+                            "ephemeral": True,
+                            **({"model": self._model} if self._model else {}),
+                        },
+                    )
                     no = no or _not_as_asked(thread, root, also, read_only)
                 if no is not None:
                     if not reading.done():  # (one that ended says so below, as exec's did)
@@ -1362,13 +1634,15 @@ class CodexNativeClient(CliStepClient):
                     # The folders outside the project it also works in.
                     # shortcut: as --add-dir was, not measured with the real CLI; check
                     # that a command writing there is not refused by its sandbox.
-                    **({"sandboxPolicy": {"type": "workspaceWrite",
-                                          "writableRoots": list(also)}}
-                       if also and not read_only else {})}
+                    **(
+                        {"sandboxPolicy": {"type": "workspaceWrite", "writableRoots": list(also)}}
+                        if also and not read_only
+                        else {}
+                    ),
+                }
                 # B-343: the level sent is seen in its raw stream beside what it answers (the
                 # prompt left out: it is the turn's own, and long).
-                feed("stdin", json.dumps({"method": "turn/start", "params": asking}),
-                     (server.key,))
+                feed("stdin", json.dumps({"method": "turn/start", "params": asking}), (server.key,))
                 turn, no = await ask(3, "turn/start", {**asking, "input": prompt})
                 if no is not None:
                     failure = failure or no
@@ -1406,12 +1680,20 @@ class CodexNativeClient(CliStepClient):
                     why = (NEVER_STARTED if late else RAN_TOO_LONG).format(seconds=CALL_SECONDS)
                     command = bool(late) or over in commands
                     if command:  # (on record as failed, with why; a patch is closed below)
-                        await on_item("completed", {
-                            "type": "command_execution", "id": over, "status": "failed",
-                            "exit_code": None, "aggregated_output": why,
-                            "never_started": bool(late)})
-                    raise ModelUnavailable(f"{self.label}'s own "
-                                           f"{'command' if command else 'patch'} {why}")
+                        await on_item(
+                            "completed",
+                            {
+                                "type": "command_execution",
+                                "id": over,
+                                "status": "failed",
+                                "exit_code": None,
+                                "aggregated_output": why,
+                                "never_started": bool(late),
+                            },
+                        )
+                    raise ModelUnavailable(
+                        f"{self.label}'s own {'command' if command else 'patch'} {why}"
+                    )
                 if not talking.done() and not working and quiet > self._timeout:
                     if not started:
                         unasked = f"it did not answer for {self._timeout:g} seconds"
@@ -1423,8 +1705,7 @@ class CodexNativeClient(CliStepClient):
                 try:
                     talking.result()
                 except ValueError:
-                    raise ModelUnavailable(
-                        f"{self.label} sent a line too long to read") from None
+                    raise ModelUnavailable(f"{self.label} sent a line too long to read") from None
         finally:
             if on_live:
                 on_live(None)
@@ -1439,8 +1720,7 @@ class CodexNativeClient(CliStepClient):
             stderr.cancel()
         if commentary and not spoke:
             await on_text(commentary)
-        return await self._turn_outcome(broke, server, unasked, usage, failure, complaint,
-                                       process)
+        return await self._turn_outcome(broke, server, unasked, usage, failure, complaint, process)
 
     def _unwanted(self, item: dict, no_shell: bool) -> str | None:
         """Why an item it began or ended ends its turn at once (`_converse`), or None: a
@@ -1448,8 +1728,14 @@ class CodexNativeClient(CliStepClient):
         return self.no_shell_ran if no_shell and item.get("type") == "commandExecution" else None
 
     async def _turn_outcome(
-        self, broke: BaseException | None, server: ToolServer, unasked: str | None,
-        usage: dict | None, failure: str | None, complaint: bytes, process,
+        self,
+        broke: BaseException | None,
+        server: ToolServer,
+        unasked: str | None,
+        usage: dict | None,
+        failure: str | None,
+        complaint: bytes,
+        process,
     ) -> SessionResult:
         # What `_converse`'s turn came to, once it is over.
         if broke is not None:
@@ -1457,18 +1743,26 @@ class CodexNativeClient(CliStepClient):
         if server.ended:
             raise server.ended
         if unasked is not None:
-            raise OwnStop(f"{self.label} {await self._version()} could not be asked before it "
-                          f"acts ({unasked}); run it as a step instead")
+            raise OwnStop(
+                f"{self.label} {await self._version()} could not be asked before it "
+                f"acts ({unasked}); run it as a step instead"
+            )
         if usage is None:
             reason = _brief(self._hide(complaint.decode("utf-8", errors="replace")))
             raise ModelUnavailable(
-                f"{self.label} reported an error: {failure}" if failure
-                else how_it_ended(self.label, process.returncode, reason))
+                f"{self.label} reported an error: {failure}"
+                if failure
+                else how_it_ended(self.label, process.returncode, reason)
+            )
         # (The whole thread's: it is this turn's alone. Of what it wrote to its cache it says
         # nothing that exec said, so nothing is said.)
-        return SessionResult(count_of(usage.get("inputTokens")),
-                             count_of(usage.get("outputTokens")), None,
-                             count_of(usage.get("cachedInputTokens")), None)
+        return SessionResult(
+            count_of(usage.get("inputTokens")),
+            count_of(usage.get("outputTokens")),
+            None,
+            count_of(usage.get("cachedInputTokens")),
+            None,
+        )
 
     async def _version(self) -> str:
         """Its version, as `--version` says it; that it is not known, if it does not."""
@@ -1482,7 +1776,12 @@ class CodexNativeClient(CliStepClient):
         return "(version not known)"
 
     async def _decide(
-        self, method: str, params: dict, asked: _Asked, call_tool: CallTool, on_item: OnItem,
+        self,
+        method: str,
+        params: dict,
+        asked: _Asked,
+        call_tool: CallTool,
+        on_item: OnItem,
     ) -> dict:
         """KOLONİ's answer to a request of Codex's: what `AgentRunner._approve` says, asked
         as Claude Code's prompts are - a command as its Bash; each file of a patch as its
@@ -1493,24 +1792,35 @@ class CodexNativeClient(CliStepClient):
         item_id = str(params.get("itemId") or "")
         meta = _dict(params.get("_meta"))
         if method == "mcpServer/elicitation/request" and (
-                meta.get("codex_approval_kind") == "mcp_tool_call"):
+            meta.get("codex_approval_kind") == "mcp_tool_call"
+        ):
             # (Measured on 0.164.0: every MCP tool call, at "untrusted". Nothing is kept
             # for later: no `persist`. A server's of its own fails, and is on record so.)
-            return {"result": {"action": "accept", "content": {}}
-                    if params.get("serverName") == SERVER else DECLINED[method]}
-        why = (f"KOLONİ declined this request of {self.label}'s: only a command or a patch "
-               "it said it was making is answered")
+            return {
+                "result": {"action": "accept", "content": {}}
+                if params.get("serverName") == SERVER
+                else DECLINED[method]
+            }
+        why = (
+            f"KOLONİ declined this request of {self.label}'s: only a command or a patch "
+            "it said it was making is answered"
+        )
         questions: list[tuple[str, dict]] = []
         # (These two alone: never a "new_shell", KOLONİ's own word for Copilot's - `_permit`.)
         given = {key: params[key] for key in ("reason", "cwd") if params.get(key)}
         again = (item_id, params.get("approvalId")) in asked.answered
         command = _unwrapped(str(params.get("command") or ""))
-        runs = (not again and method == RUN_ASKED and params.get("kind") in (None, "command")
-                and not params.get("networkApprovalContext"))
+        runs = (
+            not again
+            and method == RUN_ASKED
+            and params.get("kind") in (None, "command")
+            and not params.get("networkApprovalContext")
+        )
         # (A patch it runs as a command is asked file by file as the patch it is; its end is
         # that patch's: `_as_exec`.)
-        heredoc = _heredoc_patch(command, str(params.get("cwd") or asked.root or "")) if (
-            runs) else None
+        heredoc = (
+            _heredoc_patch(command, str(params.get("cwd") or asked.root or "")) if (runs) else None
+        )
         if heredoc is not None:
             # Review: it still starts a shell - only where every rule of a command that is not
             # the user's word lets it run is it a patch (`AgentRunner._runs_as_patch`).
@@ -1518,28 +1828,45 @@ class CodexNativeClient(CliStepClient):
             heredoc = heredoc if may == "true" else None
         patch = heredoc is not None or method == PATCH_ASKED
         if again:
-            why = (f"KOLONİ declined this request of {self.label}'s: it asked again for "
-                   "what was answered")
+            why = (
+                f"KOLONİ declined this request of {self.label}'s: it asked again for "
+                "what was answered"
+            )
         elif runs and heredoc is None:
             questions = [("Bash", {"command": command, **given})]
         elif heredoc is not None or (method == PATCH_ASKED and not params.get("grantRoot")):
             if heredoc is not None:
                 asked.heredocs[item_id] = heredoc
             questions = _patch_questions(
-                heredoc if heredoc is not None else asked.patches.pop(item_id, None), given)
+                heredoc if heredoc is not None else asked.patches.pop(item_id, None), given
+            )
         if not item_id or not questions:
             # Input to a terminal, network or a whole folder for good, a patch it never said
             # it was making, a question of its own: none of it is answered yes. (Of one
             # about whose account it is, only its name is kept.)
             whose = method.startswith(("account/", "attestation/"))
-            await on_item("completed", {
-                "type": "mcp_tool_call", "server": "codex", "tool": method,
-                "arguments": {} if whose else params, "status": "declined",
-                "error": {"message": ASKED_ON_CARD.format(label=self.label)
-                          if method == ASKS_USER else why}})
-            return ({"result": DECLINED[method]} if method in DECLINED
-                    else _pointed_to_card() if method == ASKS_USER
-                    else {"error": {"code": -32601, "message": "KOLONİ declines this request"}})
+            await on_item(
+                "completed",
+                {
+                    "type": "mcp_tool_call",
+                    "server": "codex",
+                    "tool": method,
+                    "arguments": {} if whose else params,
+                    "status": "declined",
+                    "error": {
+                        "message": ASKED_ON_CARD.format(label=self.label)
+                        if method == ASKS_USER
+                        else why
+                    },
+                },
+            )
+            return (
+                {"result": DECLINED[method]}
+                if method in DECLINED
+                else _pointed_to_card()
+                if method == ASKS_USER
+                else {"error": {"code": -32601, "message": "KOLONİ declines this request"}}
+            )
         asked.items.add(item_id)
         asked.answered.add((item_id, params.get("approvalId")))
         for number, (tool, question) in enumerate(questions):
@@ -1550,21 +1877,26 @@ class CodexNativeClient(CliStepClient):
             if patch:
                 asked.paths.setdefault(item_id, {})[question["file_path"]] = use_id
             await on_item("announced", {"id": use_id})
-            _ok, verdict = await call_tool("approve", json.dumps(
-                {"tool_name": tool, "input": question, "tool_use_id": use_id}))
+            _ok, verdict = await call_tool(
+                "approve", json.dumps({"tool_name": tool, "input": question, "tool_use_id": use_id})
+            )
             said = _dict(json.loads(verdict))
             if said.get("behavior") != "allow":
                 # Its decision has no room for a reason (0.164.0): KOLONİ's own words go into
                 # its turn - never what it or anything else wrote (`deny(fixed=True)`).
-                return {"result": DECLINED[method],
-                        "why": str(said.get("message") or "") if said.get("koloni") else ""}
+                return {
+                    "result": DECLINED[method],
+                    "why": str(said.get("message") or "") if said.get("koloni") else "",
+                }
         return {"result": {"decision": "accept"}}
 
 
 # What Codex as a session is told (`CodexSessionClient`): as `SESSION_RULES`, but without how
 # its MCP tools are named (not measured for Codex) and with its patch tool's refusal.
-PATCH_REFUSED = ("Your own apply_patch is refused by KOLONİ: write and edit files only with "
-                 "the koloni server's write_file and edit_file.")
+PATCH_REFUSED = (
+    "Your own apply_patch is refused by KOLONİ: write and edit files only with "
+    "the koloni server's write_file and edit_file."
+)
 CODEX_SESSION_RULES = f"""You are an agent that another program, KOLONİ, runs. The input is a JSON
 document with "instructions" (who you are and how to work) and "conversation" (everything so
 far, oldest first). Carry on from the end of the conversation: do what the last user message
@@ -1603,8 +1935,10 @@ class CodexSessionClient(CodexNativeClient):
     session = True
     asks = False
     looks_by_running = False
-    no_shell_ran = ("Codex ran a command of its own though its shell was switched off, so the "
-                    "session was stopped")
+    no_shell_ran = (
+        "Codex ran a command of its own though its shell was switched off, so the "
+        "session was stopped"
+    )
     # Its own tools, off as step by step does (`CodexCliClient.DISABLED`) - but its code-mode
     # host: without it no MCP tool is reached at all (measured: "Code Mode is unavailable
     # because code-mode host is disabled", R181/B-387). Code mode itself reaches no file,
@@ -1614,9 +1948,17 @@ class CodexSessionClient(CodexNativeClient):
     # project through Node).
     # shortcut: those names are read off 0.164's binary, what each adds is not measured; an
     # unknown one would make Codex refuse to start, said at once - drop it then.
-    OFF = (*(one for one in CodexCliClient.DISABLED if one != "code_mode_host"),
-           "js_repl", "js_repl_tools_only", "request_permissions_tool", "standalone_web_search",
-           "web_search_request", "search_tool", "codex_git_commit", "artifact")
+    OFF = (
+        *(one for one in CodexCliClient.DISABLED if one != "code_mode_host"),
+        "js_repl",
+        "js_repl_tools_only",
+        "request_permissions_tool",
+        "standalone_web_search",
+        "web_search_request",
+        "search_tool",
+        "codex_git_commit",
+        "artifact",
+    )
     # The items it may begin in a session: its words, thoughts, plan and compaction; a patch
     # (asked about, and declined, before it is applied); an MCP call (another server's is asked
     # about and declined). Any other item - a tool of its own, whatever turned it on - ends the
@@ -1628,8 +1970,17 @@ class CodexSessionClient(CodexNativeClient):
     # shortcut: B-415 (live, 8 Nov, gpt-6-luna): a lead began collabAgentToolCall with
     # multi_agent off - an item, not a request, so nothing to decline: the session still stops
     # (its agents at work end its row, `_lead_ended`); measure which flag turns it off.
-    ITEMS = frozenset({"userMessage", "agentMessage", "reasoning", "plan", "contextCompaction",
-                       "fileChange", "mcpToolCall"})
+    ITEMS = frozenset(
+        {
+            "userMessage",
+            "agentMessage",
+            "reasoning",
+            "plan",
+            "contextCompaction",
+            "fileChange",
+            "mcpToolCall",
+        }
+    )
     # Requests declined in one turn before it is ended: a model that keeps trying its patch tool
     # counts no step, keeps the silence limit off and spends tokens all the while.
     # shortcut: a guess (the measured turn asked once, then used write_file); tune it live.
@@ -1640,35 +1991,52 @@ class CodexSessionClient(CodexNativeClient):
         if kind is None or (isinstance(kind, str) and kind in self.ITEMS):
             return None
         return super()._unwanted(item, no_shell) or (
-            f"{self.label} began a tool of its own ({str(kind)[:40]}); the session was stopped")
+            f"{self.label} began a tool of its own ({str(kind)[:40]}); the session was stopped"
+        )
 
     # (Said of a line too long for Windows: `_fits`.)
-    line_also = (f". As a session its line also switches {len(OFF)} tools of Codex's own off: "
-                 "One run per model step or Native has a shorter one")
+    line_also = (
+        f". As a session its line also switches {len(OFF)} tools of Codex's own off: "
+        "One run per model step or Native has a shorter one"
+    )
 
-    async def stream_step(self, model_id, messages, tools, on_delta, on_thinking=None,
-                          effort=None):
+    async def stream_step(self, model_id, messages, tools, on_delta, on_thinking=None, effort=None):
         raise OwnStop(f"{self.label} runs as a session, not step by step")
 
     def _native_arguments(
-        self, root: Path, bridge_config: Path, withheld: tuple[str, ...] = (),
-        linked: tuple[str, ...] = (), also: tuple[str, ...] = (),
+        self,
+        root: Path,
+        bridge_config: Path,
+        withheld: tuple[str, ...] = (),
+        linked: tuple[str, ...] = (),
+        also: tuple[str, ...] = (),
     ) -> list[str]:
         # Native's line (the user's MCP servers, skills and plugins off, KOLONİ's server, its web
         # search and apps off), then the rest of its own tools off, before "app-server".
         line = super()._native_arguments(root, bridge_config, ("search", "fetch"))
-        return [*line[:-1], *(one for name in self.OFF for one in ("-c", f"features.{name}=false")),
-                line[-1]]
+        return [
+            *line[:-1],
+            *(one for name in self.OFF for one in ("-c", f"features.{name}=false")),
+            line[-1],
+        ]
 
     async def _decide(
-        self, method: str, params: dict, asked: _Asked, call_tool: CallTool, on_item: OnItem,
+        self,
+        method: str,
+        params: dict,
+        asked: _Asked,
+        call_tool: CallTool,
+        on_item: OnItem,
     ) -> dict:
         """A call of KOLONİ's own tools is let through (held to KOLONİ's rules where it runs);
         everything else is declined - a patch with why, and its own question with the way to
         KOLONİ's card, steered into its turn (`_converse`).
         Never `call_tool`: here that is the agent's, and would put a call on its record."""
-        if method == "mcpServer/elicitation/request" and params.get("serverName") == SERVER \
-                and _dict(params.get("_meta")).get("codex_approval_kind") == "mcp_tool_call":
+        if (
+            method == "mcpServer/elicitation/request"
+            and params.get("serverName") == SERVER
+            and _dict(params.get("_meta")).get("codex_approval_kind") == "mcp_tool_call"
+        ):
             # (It went to KOLONİ's tools - ask_user, as told, or other work: each a counted step.)
             asked.own_asks = 0
             return {"result": {"action": "accept", "content": {}}}
@@ -1681,25 +2049,38 @@ class CodexSessionClient(CodexNativeClient):
             # (no step is counted, and each answer is no silence): a limit of its own.
             asked.own_asks += 1
             if asked.own_asks >= self.DECLINES_AT_MOST:
-                raise OwnStop(f"{self.label} used its own tool to ask the user {asked.own_asks} "
-                              "times in a row, though told to ask with ask_user, so the session "
-                              "was stopped")
+                raise OwnStop(
+                    f"{self.label} used its own tool to ask the user {asked.own_asks} "
+                    "times in a row, though told to ask with ask_user, so the session "
+                    "was stopped"
+                )
             return _pointed_to_card()
         asked.declined += 1
         if asked.declined >= self.DECLINES_AT_MOST:
-            raise OwnStop(f"{self.label} asked {asked.declined} times for what KOLONİ declines "
-                          "(its own patch tool, or another tool of its own), so the session was "
-                          "stopped")
+            raise OwnStop(
+                f"{self.label} asked {asked.declined} times for what KOLONİ declines "
+                "(its own patch tool, or another tool of its own), so the session was "
+                "stopped"
+            )
         if method == PATCH_ASKED:
             return {"result": DECLINED[method], "why": PATCH_REFUSED}
-        return ({"result": DECLINED[method]} if method in DECLINED
-                else {"error": {"code": -32601, "message": "KOLONİ declines this request"}})
+        return (
+            {"result": DECLINED[method]}
+            if method in DECLINED
+            else {"error": {"code": -32601, "message": "KOLONİ declines this request"}}
+        )
 
     async def run_session(
-        self, model_id: str, messages: list[dict], tools: list[dict] | None,
-        call_tool: CallTool, on_text: Callable[[str], Awaitable[None]],
-        on_message: Callable[[object], None] | None = None, effort: str | None = None,
-        on_live: Callable[[dict], None] | None = None, queue_wait: float | None = None,
+        self,
+        model_id: str,
+        messages: list[dict],
+        tools: list[dict] | None,
+        call_tool: CallTool,
+        on_text: Callable[[str], Awaitable[None]],
+        on_message: Callable[[object], None] | None = None,
+        effort: str | None = None,
+        on_live: Callable[[dict], None] | None = None,
+        queue_wait: float | None = None,
     ) -> SessionResult:
         """As `CliSessionClient.run_session`. Each tool call is a step of its own (it names no
         message: `on_message` is not told); nothing of a queue (`queue_wait`)."""
@@ -1713,9 +2094,13 @@ class CodexSessionClient(CodexNativeClient):
                 if on_live:
                     on_live(item)
             elif phase == "completed" and item.get("status") not in ("failed", "declined"):
-                server._end(OwnStop(f"{self.label} used a tool of its own "
-                                    f"({item.get('tool') or item.get('type')}); the session "
-                                    "was stopped"))
+                server._end(
+                    OwnStop(
+                        f"{self.label} used a tool of its own "
+                        f"({item.get('tool') or item.get('type')}); the session "
+                        "was stopped"
+                    )
+                )
 
         try:
             workdir = Path(tempfile.mkdtemp(prefix="koloni-cli-"))
@@ -1724,12 +2109,29 @@ class CodexSessionClient(CodexNativeClient):
             command, shim = self._command()
             arguments = await asyncio.to_thread(self._native_arguments, workdir, bridge_config)
             copies = await asyncio.to_thread(image_copies, messages, workdir)
-            given = [{"type": "text", "text": build_session_prompt(messages, CODEX_SESSION_RULES),
-                      "text_elements": []}, *({"type": "localImage", "path": copy}
-                                              for copy in copies)]
+            given = [
+                {
+                    "type": "text",
+                    "text": build_session_prompt(messages, CODEX_SESSION_RULES),
+                    "text_elements": [],
+                },
+                *({"type": "localImage", "path": copy} for copy in copies),
+            ]
             return await self._converse(
-                [*command, *arguments], shim, given, workdir, server, on_text, on_item, {},
-                call_tool, (), effort, bridge_config, no_shell=True)
+                [*command, *arguments],
+                shim,
+                given,
+                workdir,
+                server,
+                on_text,
+                on_item,
+                {},
+                call_tool,
+                (),
+                effort,
+                bridge_config,
+                no_shell=True,
+            )
         finally:
             await server.close()
             if workdir:
@@ -1791,11 +2193,12 @@ def since_its_last_word(messages: list[dict]) -> list[dict]:
     results of that answer's tool calls, which it was handed then). [] where it has none, or
     nothing came since: then it starts anew."""
     talk = [m for m in messages if m["role"] != "system"]
-    last = next((at for at in range(len(talk) - 1, -1, -1) if talk[at]["role"] == "assistant"),
-                None)
+    last = next(
+        (at for at in range(len(talk) - 1, -1, -1) if talk[at]["role"] == "assistant"), None
+    )
     if last is None:
         return []
-    new = talk[last + 1:]
+    new = talk[last + 1 :]
     while new and new[0]["role"] == "tool":
         new = new[1:]
     return new
@@ -1825,9 +2228,20 @@ CLAUDE_AGENTS = ("Agent", "Task")
 # trigger, a push), ask the user themselves (KOLONİ's ask_user does), or run a workflow of
 # its own whose steps are not known (2.1.310's init `tools`); nor those that reach its other
 # sessions or designs (2.1.311's: measured 27 Oct 2026).
-CLAUDE_NEVER = ("EnterWorktree", "ExitWorktree", "CronCreate", "CronDelete", "ScheduleWakeup",
-                "RemoteTrigger", "PushNotification", "AskUserQuestion", "Workflow",
-                "DesignSync", "SendMessage", "ListAgents")
+CLAUDE_NEVER = (
+    "EnterWorktree",
+    "ExitWorktree",
+    "CronCreate",
+    "CronDelete",
+    "ScheduleWakeup",
+    "RemoteTrigger",
+    "PushNotification",
+    "AskUserQuestion",
+    "Workflow",
+    "DesignSync",
+    "SendMessage",
+    "ListAgents",
+)
 # How long it may stay silent before it has taken the hook (`_control`).
 START_SECONDS = 30.0
 # How long it may stay silent after a turn's end that came before it read a steer (`_control`).
@@ -1836,12 +2250,29 @@ LATE_SECONDS = 30.0
 # kept nowhere.
 CLAUDE_OWN = frozenset({"memory_paths", "messaging_socket_path", "session_id"})
 # Its tools that only look: the only ones a role limited to reading may use.
-CLAUDE_READS = frozenset({
-    "Read", "Glob", "Grep", "LS", "NotebookRead", "TodoWrite", "TodoRead", "ToolSearch",
-})
+CLAUDE_READS = frozenset(
+    {
+        "Read",
+        "Glob",
+        "Grep",
+        "LS",
+        "NotebookRead",
+        "TodoWrite",
+        "TodoRead",
+        "ToolSearch",
+    }
+)
 # B-306: the names KOLONİ knows Claude Code's tools by; a Qoder tool named otherwise is a card.
-CLAUDE_KNOWN = frozenset({*CLAUDE_READS, *CLAUDE_RUNS, *CLAUDE_WRITES, *CLAUDE_SHELL_OUTPUT,
-                          *CLAUDE_AGENTS, *CLAUDE_REACHES})
+CLAUDE_KNOWN = frozenset(
+    {
+        *CLAUDE_READS,
+        *CLAUDE_RUNS,
+        *CLAUDE_WRITES,
+        *CLAUDE_SHELL_OUTPUT,
+        *CLAUDE_AGENTS,
+        *CLAUDE_REACHES,
+    }
+)
 # The first version whose setting sources alone keep the user's own plugins and skills out
 # (measured on 2.1.311, 27 Oct 2026: 2.1.310 let them in), so KOLONİ's can be given.
 SKILLS_FROM = (2, 1, 311)
@@ -1850,8 +2281,10 @@ SKILLS_FROM = (2, 1, 311)
 # would pass `_control`'s look as KOLONİ's; none can load under KOLONİ's setting sources.
 PLUGIN = "koloni"
 # What the instructions of a Claude Code given its skills as its own say of them (B-151).
-SKILLS_OWN = ("\n\nYour skills - ready instructions for kinds of work - are skills of your own "
-              "here: load the one a job is for with your Skill tool.")
+SKILLS_OWN = (
+    "\n\nYour skills - ready instructions for kinds of work - are skills of your own "
+    "here: load the one a job is for with your Skill tool."
+)
 # 89g: a role offered to Claude Code as one of its own sub-agents (`--agents`) is named so; its
 # tools reach KOLONİ's hook with that name as their `agent_type` (measured on 2.1.311, 27 Oct).
 INSIDE = "koloni-"
@@ -1862,10 +2295,16 @@ INSIDE_FROM = (2, 1, 311)
 # list (LS and NotebookRead may be gone from 2.1.311); and a role run so gets none of its skills,
 # MCP servers or expert's knowledge. Measure and give them once a live run shows the need.
 # Copilot's `customAgents`, agy's `--agent` and a Lead on an API model offer no role so (89g).
-CLAUDE_OF = {"read_file": ("Read", "NotebookRead"), "list_dir": ("LS", "Glob"),
-             "search": ("Grep", "Glob"), "write_file": ("Write",),
-             "edit_file": ("Edit", "MultiEdit", "NotebookEdit"), "run_command": CLAUDE_SHELLS,
-             "web_search": ("WebSearch",), "http_request": ("WebFetch",)}
+CLAUDE_OF = {
+    "read_file": ("Read", "NotebookRead"),
+    "list_dir": ("LS", "Glob"),
+    "search": ("Grep", "Glob"),
+    "write_file": ("Write",),
+    "edit_file": ("Edit", "MultiEdit", "NotebookEdit"),
+    "run_command": CLAUDE_SHELLS,
+    "web_search": ("WebSearch",),
+    "http_request": ("WebFetch",),
+}
 
 
 def claude_without(withheld: tuple[str, ...]) -> list[str]:
@@ -1882,15 +2321,19 @@ def claude_without(withheld: tuple[str, ...]) -> list[str]:
         # out.
         without += CLAUDE_REACHES
     # Slice 61: KOLONİ's web_search or http_request switched off on the Tools page.
-    return without + [tool for tool, what in zip(CLAUDE_REACHES, ("fetch", "search"), strict=True)
-                      if what in withheld and tool not in without]
+    return without + [
+        tool
+        for tool, what in zip(CLAUDE_REACHES, ("fetch", "search"), strict=True)
+        if what in withheld and tool not in without
+    ]
 
 
 def claude_tools(tools: list[str], withheld: tuple[str, ...] = ()) -> list[str]:
     """89g: a role's tools as Claude Code's own, less what its Lead's run is started without."""
     off = set(claude_without(withheld))
-    return list(dict.fromkeys(
-        one for tool in tools for one in CLAUDE_OF.get(tool, ()) if one not in off))
+    return list(
+        dict.fromkeys(one for tool in tools for one in CLAUDE_OF.get(tool, ()) if one not in off)
+    )
 
 
 def inside_name(role: str) -> str:
@@ -1916,11 +2359,16 @@ def claude_plugin(folder: Path, given: dict[str, str]) -> tuple[list[str], dict[
                 left[name] = "it runs a command when it loads"
                 continue
             meta, body = front(text)
-            shutil.copytree(kept, target, ignore=lambda at, _names, top=Path(kept): (
-                ["SKILL.md"] if Path(at) == top else []))
+            shutil.copytree(
+                kept,
+                target,
+                ignore=lambda at, _names, top=Path(kept): ["SKILL.md"] if Path(at) == top else [],
+            )
             (target / "SKILL.md").write_text(
                 f"---\nname: {name}\ndescription: {json.dumps(meta.get('description', ''))}"
-                f"\n---\n\n{body}\n", encoding="utf-8")
+                f"\n---\n\n{body}\n",
+                encoding="utf-8",
+            )
             held.append(name)
         except OSError as exc:  # (a name Windows takes for a device, say: con, nul)
             log.warning("the skill %s is not given to Claude Code as its own: %s", name, exc)
@@ -1928,9 +2376,12 @@ def claude_plugin(folder: Path, given: dict[str, str]) -> tuple[list[str], dict[
             shutil.rmtree(target, ignore_errors=True)
     if held:
         (folder / ".claude-plugin").mkdir(parents=True)
-        (folder / ".claude-plugin" / "plugin.json").write_text(json.dumps({
-            "name": PLUGIN, "description": "The skills KOLONİ gives this agent's role"}),
-            encoding="utf-8")
+        (folder / ".claude-plugin" / "plugin.json").write_text(
+            json.dumps(
+                {"name": PLUGIN, "description": "The skills KOLONİ gives this agent's role"}
+            ),
+            encoding="utf-8",
+        )
     return held, left
 
 
@@ -1948,17 +2399,21 @@ def own_names(env: dict[str, str]) -> set[str]:
     CLAUDE_CONFIG_DIR's).
     shortcut: one named as a built-in is taken for the user's (no list of built-ins is
     kept); rename it, or keep the list, if a user is stopped so."""
-    home = Path(env.get("CLAUDE_CONFIG_DIR") or os.environ.get("CLAUDE_CONFIG_DIR")
-                or Path.home() / ".claude")
+    home = Path(
+        env.get("CLAUDE_CONFIG_DIR")
+        or os.environ.get("CLAUDE_CONFIG_DIR")
+        or Path.home() / ".claude"
+    )
     try:
         return claude_names(home)
     except OSError:
-        raise OwnStop("your own Claude Code skills and commands could not be listed, so "
-                      "KOLONİ cannot tell them from its own") from None
+        raise OwnStop(
+            "your own Claude Code skills and commands could not be listed, so "
+            "KOLONİ cannot tell them from its own"
+        ) from None
 
 
-def only_given(tool: str, given_input: dict, skills_given: set[str],
-               plugin: str | None) -> bool:
+def only_given(tool: str, given_input: dict, skills_given: set[str], plugin: str | None) -> bool:
     """A use that only reads what KOLONİ gave this run - one of its skills, as KOLONİ's own
     use_skill reads one, or a file of one by its full path - and so takes no card.
     shortcut: Skill's `skill` field is the Agent SDK's name for it; one named otherwise goes
@@ -1973,9 +2428,12 @@ def only_given(tool: str, given_input: dict, skills_given: set[str],
     return Path(plugin, "skills").resolve() in Path(path).resolve().parents
 
 
-def _control_line(line: dict, replies: dict[str, asyncio.Future],
-                  answering: dict[object, asyncio.Future],
-                  answer: Callable[[object, dict], Awaitable[None]]) -> bool:
+def _control_line(
+    line: dict,
+    replies: dict[str, asyncio.Future],
+    answering: dict[object, asyncio.Future],
+    answer: Callable[[object, dict], Awaitable[None]],
+) -> bool:
     # `_control`'s read of a control line of the protocol's; False: the line is none.
     if line.get("type") == "control_response":
         response = _dict(line.get("response"))
@@ -1992,8 +2450,7 @@ def _control_line(line: dict, replies: dict[str, asyncio.Future],
         return True
     if line.get("type") == "control_request":
         number = line.get("request_id")
-        answering[number] = asyncio.ensure_future(
-            answer(number, _dict(line.get("request"))))
+        answering[number] = asyncio.ensure_future(answer(number, _dict(line.get("request"))))
         return True
     return False
 
@@ -2061,17 +2518,37 @@ class ClaudeNativeClient(CodexNativeClient):
     # one (`run_native`); None: any failure before it said or did anything.
     NO_SESSION: re.Pattern | None = None
 
-    def _under(self, model_id: str, root: str, withheld: tuple[str, ...],
-               linked: tuple[str, ...], also: tuple[str, ...], level: str | None) -> str:
+    def _under(
+        self,
+        model_id: str,
+        root: str,
+        withheld: tuple[str, ...],
+        linked: tuple[str, ...],
+        also: tuple[str, ...],
+        level: str | None,
+    ) -> str:
         """What a session of it is started under - its sign-in folder, model, setup, folders,
         permission level and what is withheld: another of any of these starts a new session,
         so that none goes on with more leave, elsewhere or as another account than it began."""
-        return hashlib.sha256(json.dumps([
-            str(self.home), self._model, model_id, self._own_setup, root, sorted(withheld),
-            list(linked), list(also), level]).encode()).hexdigest()
+        return hashlib.sha256(
+            json.dumps(
+                [
+                    str(self.home),
+                    self._model,
+                    model_id,
+                    self._own_setup,
+                    root,
+                    sorted(withheld),
+                    list(linked),
+                    list(also),
+                    level,
+                ]
+            ).encode()
+        ).hexdigest()
 
-    async def _skills_given(self, folder: Path, given: dict[str, str],
-                            root: Path) -> tuple[list[str], dict[str, str]] | None:
+    async def _skills_given(
+        self, folder: Path, given: dict[str, str], root: Path
+    ) -> tuple[list[str], dict[str, str]] | None:
         """The role's skills as a plugin in `folder` (`claude_plugin`: those it holds, and why
         each other is not given), for a version that keeps the user's own out by its setting
         sources alone (asked each run), in a project with no skills or commands of its own -
@@ -2097,8 +2574,15 @@ class ClaudeNativeClient(CodexNativeClient):
         """The same Claude Code as a session with its own tools off: how it speaks where
         nobody may change anything (a discussion, an answer to another agent)."""
         session = ClaudeSessionClient(
-            self._executable, self._model, self._timeout, self._which, self._launcher,
-            self._env, self.server, self._homes, self.home,
+            self._executable,
+            self._model,
+            self._timeout,
+            self._which,
+            self._launcher,
+            self._env,
+            self.server,
+            self._homes,
+            self.home,
         )
         session.on_limits = self.on_limits  # it says its plan's limits that way too
         return session
@@ -2106,30 +2590,47 @@ class ClaudeNativeClient(CodexNativeClient):
     def _native_env(self, workdir: Path) -> dict[str, str]:
         # An approval, or a whole sub-agent, can take a long time. And each Bash call starts in
         # the project (`cwd_from`): KOLONİ's value, over the user's own.
-        return {"MCP_TOOL_TIMEOUT": TOOL_WAIT_MS,
-                "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR": "1"}
+        return {"MCP_TOOL_TIMEOUT": TOOL_WAIT_MS, "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR": "1"}
 
     def _native_arguments(
-        self, root: Path, bridge_config: Path, withheld: tuple[str, ...] = (),
-        linked: tuple[str, ...] = (), also: tuple[str, ...] = (),
+        self,
+        root: Path,
+        bridge_config: Path,
+        withheld: tuple[str, ...] = (),
+        linked: tuple[str, ...] = (),
+        also: tuple[str, ...] = (),
     ) -> list[str]:
         config = bridge_config.parent / "mcp.json"
-        config.write_text(json.dumps({"mcpServers": {SERVER: {
-            "command": sys.executable,
-            "args": [mcp_bridge.__file__, str(bridge_config)],
-        }}}), encoding="utf-8")
+        config.write_text(
+            json.dumps(
+                {
+                    "mcpServers": {
+                        SERVER: {
+                            "command": sys.executable,
+                            "args": [mcp_bridge.__file__, str(bridge_config)],
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
         arguments = [
             "-p",
             # Its control protocol (`_control`): KOLONİ's hook before every tool, and its
             # permission prompts on stdin and stdout.
-            "--input-format", "stream-json",
-            "--output-format", "stream-json",
+            "--input-format",
+            "stream-json",
+            "--output-format",
+            "stream-json",
             "--verbose",
             # Whatever would prompt is asked of KOLONİ, at every permission level. (Its
             # --help no longer lists "default"; 2.1.310's init says permissionMode "default".)
-            "--permission-mode", "default",
-            "--permission-prompt-tool", "stdio",
-            "--mcp-config", str(config),
+            "--permission-mode",
+            "default",
+            "--permission-prompt-tool",
+            "stdio",
+            "--mcp-config",
+            str(config),
             # (Taken off by `run_native` for a run whose session is kept: 27.)
             "--no-session-persistence",
         ]
@@ -2174,8 +2675,17 @@ class ClaudeNativeClient(CodexNativeClient):
         return arguments  # the prompt comes on stdin
 
     async def _control(  # noqa: C901
-        self, argv, shim, prompt, root: Path, server: ToolServer, on_text, on_item: OnItem,
-        env: dict[str, str], call_tool: CallTool, on_live: OnLive | None = None,
+        self,
+        argv,
+        shim,
+        prompt,
+        root: Path,
+        server: ToolServer,
+        on_text,
+        on_item: OnItem,
+        env: dict[str, str],
+        call_tool: CallTool,
+        on_live: OnLive | None = None,
         report_schema: dict | None = None,
     ) -> SessionResult:
         """Claude Code over its stream-json control protocol (slice 89b; the names are those
@@ -2191,8 +2701,9 @@ class ClaudeNativeClient(CodexNativeClient):
         # Where it was given KOLONİ's skills (`_skills_given`), its commands are on: those
         # skills, and the names of the user's own it must not have loaded (`own_names`).
         plugin = argv[argv.index("--plugin-dir") + 1] if "--plugin-dir" in argv else None
-        ours_skills = {f"{PLUGIN}:{p.name}" for p in Path(plugin, "skills").iterdir()} \
-            if plugin else set()
+        ours_skills = (
+            {f"{PLUGIN}:{p.name}" for p in Path(plugin, "skills").iterdir()} if plugin else set()
+        )
         own = await asyncio.to_thread(own_names, self._env) if plugin else set()
         try:
             process, job = await self._start(argv, shim, root, env)
@@ -2266,15 +2777,27 @@ class ClaudeNativeClient(CodexNativeClient):
                 await on_item("completed", {"type": "structured_report", "asked_again": errors})
                 return True
             settled = True
-            await on_item("completed", {"type": "structured_report", **(
-                {"report": handed} if handed is not None and not errors
-                else {"errors": errors or []})})
+            await on_item(
+                "completed",
+                {
+                    "type": "structured_report",
+                    **(
+                        {"report": handed}
+                        if handed is not None and not errors
+                        else {"errors": errors or []}
+                    ),
+                },
+            )
             return False
 
         def prompt_line(content: object) -> dict:
             # shortcut: as the Agent SDK's client sends a prompt; check the session id live.
-            return {"type": "user", "message": {"role": "user", "content": content},
-                    "parent_tool_use_id": None, "session_id": "default"}
+            return {
+                "type": "user",
+                "message": {"role": "user", "content": content},
+                "parent_tool_use_id": None,
+                "session_id": "default",
+            }
 
         async def steer(text: str) -> bool:
             """89d: `text` as a user line while its turn runs - measured 25 Oct: read and obeyed
@@ -2304,18 +2827,41 @@ class ClaudeNativeClient(CodexNativeClient):
             key = f"asked {number}"
             busy.add(key)
             try:
-                reply = await self._control_reply(request, call_tool, on_item, ours,
-                                                  ours_skills, plugin, roles_of, asked,
-                                                  report_schema)
+                reply = await self._control_reply(
+                    request,
+                    call_tool,
+                    on_item,
+                    ours,
+                    ours_skills,
+                    plugin,
+                    roles_of,
+                    asked,
+                    report_schema,
+                )
                 if reply is None:
                     with contextlib.suppress(BrokenPipeError, ConnectionResetError):
-                        await send({"type": "control_response", "response": {
-                            "subtype": "error", "request_id": number,
-                            "error": f"KOLONİ does not answer {request.get('subtype')}"}})
+                        await send(
+                            {
+                                "type": "control_response",
+                                "response": {
+                                    "subtype": "error",
+                                    "request_id": number,
+                                    "error": f"KOLONİ does not answer {request.get('subtype')}",
+                                },
+                            }
+                        )
                     return
                 with contextlib.suppress(BrokenPipeError, ConnectionResetError):
-                    await send({"type": "control_response", "response": {
-                        "subtype": "success", "request_id": number, "response": reply}})
+                    await send(
+                        {
+                            "type": "control_response",
+                            "response": {
+                                "subtype": "success",
+                                "request_id": number,
+                                "response": reply,
+                            },
+                        }
+                    )
             except Exception as exc:  # a stop of KOLONİ's own, or a bug: its work ends here
                 broke = broke or exc
                 end_now()
@@ -2325,8 +2871,22 @@ class ClaudeNativeClient(CodexNativeClient):
                 heard = time.monotonic()
 
         async def read() -> None:  # noqa: C901
-            nonlocal heard, said, usage, earlier, failure, reported, limited, own_word, live, \
-                steered, after, late, measured, handed, session_id
+            nonlocal \
+                heard, \
+                said, \
+                usage, \
+                earlier, \
+                failure, \
+                reported, \
+                limited, \
+                own_word, \
+                live, \
+                steered, \
+                after, \
+                late, \
+                measured, \
+                handed, \
+                session_id
             try:
                 async for raw in stdout:
                     heard = time.monotonic()
@@ -2336,27 +2896,43 @@ class ClaudeNativeClient(CodexNativeClient):
                     # `initialize` can say whose account it is, a hook where its transcripts are.
                     # Nor where its own memory, socket and session are (its init line).
                     if not [m for m in lines if str(m.get("type")).startswith("control_")]:
-                        feed("stdout", "\n".join(json.dumps(
-                            {k: v for k, v in m.items() if k not in CLAUDE_OWN},
-                            ensure_ascii=False) for m in lines)
-                            if any(CLAUDE_OWN & m.keys() for m in lines) else written,
-                            (server.key,))
+                        feed(
+                            "stdout",
+                            "\n".join(
+                                json.dumps(
+                                    {k: v for k, v in m.items() if k not in CLAUDE_OWN},
+                                    ensure_ascii=False,
+                                )
+                                for m in lines
+                            )
+                            if any(CLAUDE_OWN & m.keys() for m in lines)
+                            else written,
+                            (server.key,),
+                        )
                     for line in lines:
-                        if line.get("type") in ("system", "result") \
-                                and isinstance(line.get("session_id"), str):
+                        if line.get("type") in ("system", "result") and isinstance(
+                            line.get("session_id"), str
+                        ):
                             session_id = line["session_id"]
                         if _control_line(line, replies, answering, answer):
                             continue
-                        if line.get("type") == "assistant" and not measures \
-                                and not line.get("parent_tool_use_id") \
-                                and _dict(line.get("message")).get("id") != measured:
+                        if (
+                            line.get("type") == "assistant"
+                            and not measures
+                            and not line.get("parent_tool_use_id")
+                            and _dict(line.get("message")).get("id") != measured
+                        ):
                             measured = _dict(line.get("message")).get("id")  # once a step
                             task = asyncio.ensure_future(
-                                self._measure(send, replies, loop, measuring, on_item))
+                                self._measure(send, replies, loop, measuring, on_item)
+                            )
                             measures.add(task)
                             task.add_done_callback(measures.discard)
-                        if line.get("type") == "assistant" and steered is not None \
-                                and not line.get("parent_tool_use_id"):
+                        if (
+                            line.get("type") == "assistant"
+                            and steered is not None
+                            and not line.get("parent_tool_use_id")
+                        ):
                             if late:
                                 steered = None  # it took a turn on them
                             else:
@@ -2372,8 +2948,10 @@ class ClaudeNativeClient(CodexNativeClient):
                             elif kind == "busy":
                                 (busy.add if event.get("on") else busy.discard)(str(event["id"]))
                                 if event.get("on"):
-                                    await on_item("announced", {
-                                        "id": str(event["id"]), "parent": event.get("parent")})
+                                    await on_item(
+                                        "announced",
+                                        {"id": str(event["id"]), "parent": event.get("parent")},
+                                    )
                             elif kind == "error":
                                 failure = _brief(self._hide(str(event.get("message"))))
                                 if event.get("result_text"):
@@ -2381,8 +2959,12 @@ class ClaudeNativeClient(CodexNativeClient):
                             elif kind == "turn.completed":
                                 # Each result's usage is per turn, measured on 2.1.311 (27 Oct).
                                 told = _dict(event.get("usage"))
-                                told = {key: told.get(key) if earlier is None else
-                                        _sum(earlier.get(key), told.get(key)) for key in told}
+                                told = {
+                                    key: told.get(key)
+                                    if earlier is None
+                                    else _sum(earlier.get(key), told.get(key))
+                                    for key in told
+                                }
                                 live = False  # (a steer now could start a turn nobody reads)
                                 if event.get("more"):
                                     # Its sub-agent works on in the background, and it will
@@ -2408,9 +2990,9 @@ class ClaudeNativeClient(CodexNativeClient):
                                     continue
                                 return  # it has finished; whatever lingers is ended below
                             elif kind in ("item.started", "item.completed"):
-                                said = await self._control_item(kind, item, said, asked,
-                                                                asked_again, busy, on_text,
-                                                                on_item)
+                                said = await self._control_item(
+                                    kind, item, said, asked, asked_again, busy, on_text, on_item
+                                )
                     if server.ended:
                         return
                 await process.wait()
@@ -2424,21 +3006,38 @@ class ClaudeNativeClient(CodexNativeClient):
             reading = asyncio.ensure_future(read())
             try:
                 replies["init"] = loop.create_future()
-                await send({"type": "control_request", "request_id": "init", "request": {
-                    "subtype": "initialize",
-                    "hooks": {"PreToolUse": [{"matcher": None, "hookCallbackIds": [HOOK]}]}}})
+                await send(
+                    {
+                        "type": "control_request",
+                        "request_id": "init",
+                        "request": {
+                            "subtype": "initialize",
+                            "hooks": {"PreToolUse": [{"matcher": None, "hookCallbackIds": [HOOK]}]},
+                        },
+                    }
+                )
                 told = await replies["init"]
-                if told.get("subtype") != "success" or _dict(
-                        told.get("response")).get("hooks_applied") is not True:
+                if (
+                    told.get("subtype") != "success"
+                    or _dict(told.get("response")).get("hooks_applied") is not True
+                ):
                     if not reading.done():  # (one that ended says so below, in its words)
-                        unhooked = _brief(self._hide(str(told.get("error") or (
-                            "it did not apply KOLONİ's hook"))))
+                        unhooked = _brief(
+                            self._hide(str(told.get("error") or ("it did not apply KOLONİ's hook")))
+                        )
                     return
                 listed = _dict(told.get("response")).get("commands")
-                names = [one if isinstance(one, str) else str(_dict(one).get("name") or "")
-                         for one in (listed if isinstance(listed, list) else ())]
-                theirs = sorted({name for name in names
-                                 if name in own or ":" in name and name not in ours_skills})
+                names = [
+                    one if isinstance(one, str) else str(_dict(one).get("name") or "")
+                    for one in (listed if isinstance(listed, list) else ())
+                ]
+                theirs = sorted(
+                    {
+                        name
+                        for name in names
+                        if name in own or ":" in name and name not in ours_skills
+                    }
+                )
                 if theirs and plugin:
                     # A plugin's command or skill (`plugin:name`) KOLONİ did not give, or one
                     # named as the user's own: what KOLONİ neither shows nor approves (none
@@ -2479,15 +3078,20 @@ class ClaudeNativeClient(CodexNativeClient):
                         unhooked = f"it did not answer for {limit:g} seconds"
                         break
                     raise ModelUnavailable(
-                        f"{self.label} sent nothing for {self._timeout:g} seconds")
+                        f"{self.label} sent nothing for {self._timeout:g} seconds"
+                    )
             if talking.done():
                 try:
                     talking.result()
                 except ValueError:
-                    raise ModelUnavailable(
-                        f"{self.label} sent a line too long to read") from None
-            if report_schema is not None and usage is not None and not settled \
-                    and broke is None and not server.ended:
+                    raise ModelUnavailable(f"{self.label} sent a line too long to read") from None
+            if (
+                report_schema is not None
+                and usage is not None
+                and not settled
+                and broke is None
+                and not server.ended
+            ):
                 await hand_back(False)  # (no turn came after its last result: it stands)
         finally:
             if on_live:
@@ -2495,9 +3099,18 @@ class ClaudeNativeClient(CodexNativeClient):
             if opened and usage is None:
                 # A turn not finished (Stop, say) is asked to stop first; ended below if not.
                 with contextlib.suppress(Exception):
-                    await asyncio.wait_for(asyncio.shield(send({
-                        "type": "control_request", "request_id": "stop",
-                        "request": {"subtype": "interrupt"}})), 2)
+                    await asyncio.wait_for(
+                        asyncio.shield(
+                            send(
+                                {
+                                    "type": "control_request",
+                                    "request_id": "stop",
+                                    "request": {"subtype": "interrupt"},
+                                }
+                            )
+                        ),
+                        2,
+                    )
                     stdin.close()
                     await asyncio.wait_for(asyncio.shield(process.wait()), 2)
             left = {talking, *answering.values(), *measures}
@@ -2516,34 +3129,50 @@ class ClaudeNativeClient(CodexNativeClient):
             raise server.ended
         reason = _brief(self._hide(complaint.decode("utf-8", errors="replace")))
         if leaked:
-            raise OwnStop(f"{self.label} {await self._version()} loaded commands or skills "
-                          f"KOLONİ did not give ({leaked}): it was stopped before it acted. Its "
-                          "next run has its commands and skills off")
+            raise OwnStop(
+                f"{self.label} {await self._version()} loaded commands or skills "
+                f"KOLONİ did not give ({leaked}): it was stopped before it acted. Its "
+                "next run has its commands and skills off"
+            )
         if not opened:
             why = unhooked or how_it_ended("it", process.returncode, reason)
-            raise OwnStop(f"{self.label} {await self._version()} could not be asked before it "
-                          f"acts ({why}); run it as a session instead")
+            raise OwnStop(
+                f"{self.label} {await self._version()} could not be asked before it "
+                f"acts ({why}); run it as a session instead"
+            )
         if usage is None:
             failed = ModelUnavailable(
-                f"{self.label} reported an error: {failure}" if failure
+                f"{self.label} reported an error: {failure}"
+                if failure
                 else f"{self.label} ended while its sub-agent was still at work in the "
-                     "background: that work and its report were cut off" if earlier is not None
-                else how_it_ended(self.label, process.returncode, reason))
+                "background: that work and its report were cut off"
+                if earlier is not None
+                else how_it_ended(self.label, process.returncode, reason)
+            )
             failed.failure = classed(limited, own_word)
             raise failed
         if steered is not None and not after:  # (no error: its work is done; it is on record)
             await on_item("completed", {"type": "steer_unread", "text": steered})
         sent, made = usage.get("input_tokens"), usage.get("output_tokens")
         return SessionResult(
-            sent if isinstance(sent, int) else None, made if isinstance(made, int) else None,
-            reported, count_of(usage.get("cached_input_tokens")),
+            sent if isinstance(sent, int) else None,
+            made if isinstance(made, int) else None,
+            reported,
+            count_of(usage.get("cached_input_tokens")),
             count_of(usage.get("cache_creation_input_tokens")),
             {"id": session_id} if session_id else None,
         )
 
     async def _control_reply(
-        self, request: dict, call_tool: CallTool, on_item: OnItem, ours: set[str],
-        ours_skills: set[str], plugin: str | None, roles_of: dict[str, str], asked: set[str],
+        self,
+        request: dict,
+        call_tool: CallTool,
+        on_item: OnItem,
+        ours: set[str],
+        ours_skills: set[str],
+        plugin: str | None,
+        roles_of: dict[str, str],
+        asked: set[str],
         report_schema: dict | None,
     ) -> dict | None:
         # `_control`'s answer to a control request of its own; None: one it does not answer.
@@ -2557,16 +3186,27 @@ class ClaudeNativeClient(CodexNativeClient):
             if kind.startswith(INSIDE):
                 roles_of[use_id] = kind
             elif kind and tool in ours:
-                await call_tool(USED_INSIDE, json.dumps({
-                    "tool": tool.removeprefix(PREFIX), "input": given.get("tool_input"),
-                    "id": use_id}))
+                await call_tool(
+                    USED_INSIDE,
+                    json.dumps(
+                        {
+                            "tool": tool.removeprefix(PREFIX),
+                            "input": given.get("tool_input"),
+                            "id": use_id,
+                        }
+                    ),
+                )
             # Its StructuredOutput only hands back the report (89p): no card.
             # shortcut: let through by its name, not measured under KOLONİ's hook.
             handing = bool(report_schema) and tool == ClaudeCliClient.OWN_TOOL
-            reply = {"hookSpecificOutput": {
-                "hookEventName": "PreToolUse",
-                "permissionDecision": "allow" if (tool in ours or handing)
-                and not kind.startswith(INSIDE) else "ask"}}
+            reply = {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "allow"
+                    if (tool in ours or handing) and not kind.startswith(INSIDE)
+                    else "ask",
+                }
+            }
         elif request.get("subtype") == "can_use_tool":
             tool = request.get("tool_name")
             # (Measured on 2.1.310: it names the tool use, as its hook did. One that
@@ -2576,30 +3216,48 @@ class ClaudeNativeClient(CodexNativeClient):
             if use_id:  # (only it writes here: no model can make such a request up)
                 await on_item("announced", {"id": use_id})
             if use_id not in roles_of and only_given(
-                    str(tool), _dict(request.get("input")), ours_skills, plugin):
+                str(tool), _dict(request.get("input")), ours_skills, plugin
+            ):
                 reply = {"behavior": "allow", "updatedInput": request.get("input")}
             else:
-                _ok, verdict = await call_tool("approve", json.dumps({
-                    "tool_name": tool, "input": request.get("input"),
-                    "tool_use_id": use_id,
-                    **({"agent_type": roles_of[use_id]} if use_id in roles_of else {})}))
+                _ok, verdict = await call_tool(
+                    "approve",
+                    json.dumps(
+                        {
+                            "tool_name": tool,
+                            "input": request.get("input"),
+                            "tool_use_id": use_id,
+                            **({"agent_type": roles_of[use_id]} if use_id in roles_of else {}),
+                        }
+                    ),
+                )
                 reply = _dict(json.loads(verdict))
                 reply.pop("koloni", None)  # (KOLONİ's mark, for Codex: not its answer)
         else:
             return None
         return reply
 
-    async def _measure(self, send: Callable[[dict], Awaitable[None]],
-                       replies: dict[str, asyncio.Future], loop: asyncio.AbstractEventLoop,
-                       measuring: Iterator[int], on_item: OnItem) -> None:
+    async def _measure(
+        self,
+        send: Callable[[dict], Awaitable[None]],
+        replies: dict[str, asyncio.Future],
+        loop: asyncio.AbstractEventLoop,
+        measuring: Iterator[int],
+        on_item: OnItem,
+    ) -> None:
         """89j: how full its context is, by its own count (`get_context_usage`). "summary"
         answers from its last response's usage, with no token-count call; never awaited
         where its lines are read, and nothing is said where it does not answer."""
         number = f"context_{next(measuring)}"
         replies[number] = loop.create_future()
         try:
-            await send({"type": "control_request", "request_id": number, "request": {
-                "subtype": "get_context_usage", "detail": "summary"}})
+            await send(
+                {
+                    "type": "control_request",
+                    "request_id": number,
+                    "request": {"subtype": "get_context_usage", "detail": "summary"},
+                }
+            )
             told = _dict((await asyncio.wait_for(replies[number], 10)).get("response"))
         except Exception:
             return
@@ -2610,23 +3268,36 @@ class ClaudeNativeClient(CodexNativeClient):
         # live CLI: one that refuses `detail` shows nothing - measure live. And a step
         # asked about while the last ask is open is skipped, "summary" counting its last
         # finished response: the fill can be a step behind.
-        filled =_filled(told.get("totalTokens"), told.get("maxTokens"))
+        filled = _filled(told.get("totalTokens"), told.get("maxTokens"))
         if filled:
             await on_item("live", filled)
 
-    async def _control_item(self, kind: str, item: dict, said: bool, asked: set[str],
-                            asked_again: bool, busy: set[str], on_text,
-                            on_item: OnItem) -> bool:
+    async def _control_item(
+        self,
+        kind: str,
+        item: dict,
+        said: bool,
+        asked: set[str],
+        asked_again: bool,
+        busy: set[str],
+        on_text,
+        on_item: OnItem,
+    ) -> bool:
         # `_control`'s read of one of its tool uses, or words; what `_heard` makes of `said`.
         use_id = str(item.get("id") or "")
-        if kind == "item.completed" and use_id and use_id not in asked \
-                and (self.failed_unasked
-                     or item.get("status") != "failed"):
+        if (
+            kind == "item.completed"
+            and use_id
+            and use_id not in asked
+            and (self.failed_unasked or item.get("status") != "failed")
+        ):
             # It ran this without asking KOLONİ: past its hook. (One
             # that failed, or its own rules refused, did not run.)
-            item["unasked"] = [
-                change.get("path") for change in item.get("changes") or []
-            ] if item.get("type") == "file_change" else True
+            item["unasked"] = (
+                [change.get("path") for change in item.get("changes") or []]
+                if item.get("type") == "file_change"
+                else True
+            )
         if asked_again and item.get("type") == "agent_message":
             return said  # (93-B6: its words on handing it again are not
             # its report - those of its answer before stand)
@@ -2672,26 +3343,52 @@ def _sub_begin(use_id: str, subs: dict[str, dict], inside: dict[str, str]) -> li
     if sub["started"]:
         return []
     sub["started"] = True
-    return [{"type": "item.started", "item": {
-        "type": "sub_agent", "id": use_id, "server": "claude", "tool": sub["tool"],
-        "arguments": sub["given"], "parent": inside.get(use_id)}}]
+    return [
+        {
+            "type": "item.started",
+            "item": {
+                "type": "sub_agent",
+                "id": use_id,
+                "server": "claude",
+                "tool": sub["tool"],
+                "arguments": sub["given"],
+                "parent": inside.get(use_id),
+            },
+        }
+    ]
 
 
-def _sub_end(use_id: str, status: str, said: str, subs: dict[str, dict],
-             inside: dict[str, str], ended: set[str]) -> list[dict]:
+def _sub_end(
+    use_id: str,
+    status: str,
+    said: str,
+    subs: dict[str, dict],
+    inside: dict[str, str],
+    ended: set[str],
+) -> list[dict]:
     """The sub-agent is done. What the CLI gives as its report (or the reason it
     failed) is what is kept; only without one, the last thing it was heard saying."""
     told = _sub_begin(use_id, subs, inside)
     sub = subs.pop(use_id)
     ended.add(use_id)
-    return [*told, {"type": "busy", "id": use_id, "on": False},
-            {"type": "item.completed", "item": {
-        "type": "sub_agent", "id": use_id, "status": status,
-        "text": said or sub["words"]}}]
+    return [
+        *told,
+        {"type": "busy", "id": use_id, "on": False},
+        {
+            "type": "item.completed",
+            "item": {
+                "type": "sub_agent",
+                "id": use_id,
+                "status": status,
+                "text": said or sub["words"],
+            },
+        },
+    ]
 
 
-def _sub_within(event: dict, subs: dict[str, dict], inside: dict[str, str],
-                ended: set[str]) -> tuple[str | None, list[dict]]:
+def _sub_within(
+    event: dict, subs: dict[str, dict], inside: dict[str, str], ended: set[str]
+) -> tuple[str | None, list[dict]]:
     """The sub-agent an event comes from, if it is one KOLONİ knows."""
     parent = str(event.get("parent_tool_use_id") or "")
     if parent in ended:
@@ -2707,14 +3404,13 @@ def _sub_within(event: dict, subs: dict[str, dict], inside: dict[str, str],
 
 def _result_text(content: object) -> str:
     if isinstance(content, list):
-        return "".join(
-            str(block.get("text") or "") for block in content if isinstance(block, dict)
-        )
+        return "".join(str(block.get("text") or "") for block in content if isinstance(block, dict))
     return "" if content is None else str(content)
 
 
-def _tool_done(use: dict, block: dict, subs: dict[str, dict], inside: dict[str, str],
-               ended: set[str]) -> list[dict]:
+def _tool_done(
+    use: dict, block: dict, subs: dict[str, dict], inside: dict[str, str], ended: set[str]
+) -> list[dict]:
     """One of its own tools has finished: the item KOLONİ records for it."""
     name, given, use_id = str(use.get("name")), _dict(use.get("input")), str(use["id"])
     failed = bool(block.get("is_error"))
@@ -2734,35 +3430,46 @@ def _tool_done(use: dict, block: dict, subs: dict[str, dict], inside: dict[str, 
             return [*off, *_sub_end(use_id, "completed", said, subs, inside, ended)]
         # One the CLI says is in the background is at work, not silent, until it is
         # said to be done (B-136), as one in the foreground is until its tool returns.
-        return _sub_begin(use_id, subs, inside) if sub["background"] else [
-            *off, *_sub_begin(use_id, subs, inside)]
+        return (
+            _sub_begin(use_id, subs, inside)
+            if sub["background"]
+            else [*off, *_sub_begin(use_id, subs, inside)]
+        )
     subs.pop(use_id, None)  # refused, or it never started: a tool like any other
     item: dict
     if name in CLAUDE_RUNS:
         # A failed one starts "Exit code N" (Bash and PowerShell alike); one that did
         # not fail says none - nothing is made up for it.
         code = CLAUDE_EXIT.match(said) if failed else None
-        item = {"type": "command_execution", "id": use_id,
-                "command": str(given.get("command") or ""),
-                "aggregated_output": said,
-                "exit_code": int(code.group(1)) if code else None,
-                "status": "failed" if failed else "completed"}
+        item = {
+            "type": "command_execution",
+            "id": use_id,
+            "command": str(given.get("command") or ""),
+            "aggregated_output": said,
+            "exit_code": int(code.group(1)) if code else None,
+            "status": "failed" if failed else "completed",
+        }
     elif name in CLAUDE_WRITES and not failed:
         path = given.get("file_path") or given.get("notebook_path")
-        item = {"type": "file_change", "id": use_id,
-                "changes": [{"path": path, "kind": "update"}]}
+        item = {"type": "file_change", "id": use_id, "changes": [{"path": path, "kind": "update"}]}
     else:
-        item = {"type": "mcp_tool_call", "id": use_id, "server": "claude", "tool": name,
-                "arguments": given, "status": "failed" if failed else "completed",
-                "error": {"message": said} if failed else None,
-                "result": {"content": [{"type": "text", "text": said}]}}
+        item = {
+            "type": "mcp_tool_call",
+            "id": use_id,
+            "server": "claude",
+            "tool": name,
+            "arguments": given,
+            "status": "failed" if failed else "completed",
+            "error": {"message": said} if failed else None,
+            "result": {"content": [{"type": "text", "text": said}]},
+        }
     item["parent"] = inside.pop(use_id, None)
-    return [{"type": "busy", "id": use_id, "on": False},
-            {"type": "item.completed", "item": item}]
+    return [{"type": "busy", "id": use_id, "on": False}, {"type": "item.completed", "item": item}]
 
 
-def _task_started(event: dict, using: dict[str, dict], subs: dict[str, dict],
-                  inside: dict[str, str]) -> list[dict]:
+def _task_started(
+    event: dict, using: dict[str, dict], subs: dict[str, dict], inside: dict[str, str]
+) -> list[dict]:
     # Leave was given and its sub-agent is at work; it says whether in the
     # background. (Measured 6 Oct 2026: tool_use_id, is_backgrounded.)
     named = str(event.get("tool_use_id") or "")
@@ -2776,8 +3483,9 @@ def _task_started(event: dict, using: dict[str, dict], subs: dict[str, dict],
     return _sub_begin(named, subs, inside)
 
 
-def _task_notified(event: dict, subs: dict[str, dict], inside: dict[str, str],
-                   ended: set[str]) -> list[dict]:
+def _task_notified(
+    event: dict, subs: dict[str, dict], inside: dict[str, str], ended: set[str]
+) -> list[dict]:
     # A sub-agent is done: named by the tool use that started it, with its
     # report as "summary". One that names no sub-agent of ours ends none: a
     # notice about something else must not close one still at work.
@@ -2788,12 +3496,18 @@ def _task_notified(event: dict, subs: dict[str, dict], inside: dict[str, str],
     # is not called a success.
     status = str(event.get("status") or "")
     known = {"completed": "completed", "failed": "failed", "stopped": "failed"}
-    return _sub_end(named, known.get(status, "unknown"), str(event.get("summary") or ""),
-                    subs, inside, ended)
+    return _sub_end(
+        named, known.get(status, "unknown"), str(event.get("summary") or ""), subs, inside, ended
+    )
 
 
-def _assistant(event: dict, using: dict[str, dict], subs: dict[str, dict],
-               inside: dict[str, str], ended: set[str]) -> list[dict]:
+def _assistant(
+    event: dict,
+    using: dict[str, dict],
+    subs: dict[str, dict],
+    inside: dict[str, str],
+    ended: set[str],
+) -> list[dict]:
     # One of Claude Code's own sub-agents speaking: not this agent's words.
     inner = bool(event.get("parent_tool_use_id"))
     parent, told = _sub_within(event, subs, inside, ended)
@@ -2807,31 +3521,42 @@ def _assistant(event: dict, using: dict[str, dict], subs: dict[str, dict],
                 if parent in subs:
                     subs[parent]["words"] = str(block["text"])
                 continue
-            told.append({"type": "item.completed",
-                         "item": {"type": "agent_message", "text": block["text"]}})
+            told.append(
+                {"type": "item.completed", "item": {"type": "agent_message", "text": block["text"]}}
+            )
         elif block.get("type") == "tool_use" and block.get("id"):
             if block.get("name") == ClaudeCliClient.OWN_TOOL and not inner:
                 continue  # its report, handed back (89p): read off its result
             if str(block.get("name", "")).startswith(PREFIX):
                 # KOLONİ's own tool: recorded where it is run.
-                told.append({"type": "item.completed", "item": {
-                    "type": "mcp_tool_call", "server": SERVER}})
+                told.append(
+                    {"type": "item.completed", "item": {"type": "mcp_tool_call", "server": SERVER}}
+                )
                 continue
             use_id = str(block["id"])
             using[use_id] = block
             if parent:
                 inside[use_id] = parent
             if block.get("name") in CLAUDE_AGENTS:
-                subs[use_id] = {"given": _dict(block.get("input")), "words": "",
-                                "started": False, "worked": False,
-                                "background": None, "tool": block["name"]}
-            told.append({"type": "busy", "id": use_id, "on": True,
-                         "parent": parent})
+                subs[use_id] = {
+                    "given": _dict(block.get("input")),
+                    "words": "",
+                    "started": False,
+                    "worked": False,
+                    "background": None,
+                    "tool": block["name"],
+                }
+            told.append({"type": "busy", "id": use_id, "on": True, "parent": parent})
     return told
 
 
-def _tool_results(event: dict, using: dict[str, dict], subs: dict[str, dict],
-                  inside: dict[str, str], ended: set[str]) -> list[dict]:
+def _tool_results(
+    event: dict,
+    using: dict[str, dict],
+    subs: dict[str, dict],
+    inside: dict[str, str],
+    ended: set[str],
+) -> list[dict]:
     _parent, told = _sub_within(event, subs, inside, ended)
     for block in _dict(event.get("message")).get("content") or []:
         if isinstance(block, dict) and block.get("type") == "tool_result":
@@ -2852,11 +3577,19 @@ def _turn_result(event: dict, subs: dict[str, dict]) -> list[dict]:
     read, written = _cache_tokens(usage) if sent else (None, None)
     # A sub-agent the CLI said is in the background and not yet done: this
     # result ends only the turn that launched it (measured on 2.1.311, B-136).
-    return [{"type": "turn.completed", "usage": {
-        "input_tokens": sent or None, "output_tokens": usage.get("output_tokens"),
-        "cached_input_tokens": read, "cache_creation_input_tokens": written},
-        "more": any(sub["background"] is True for sub in subs.values()),
-        "structured": event.get("structured_output")}]
+    return [
+        {
+            "type": "turn.completed",
+            "usage": {
+                "input_tokens": sent or None,
+                "output_tokens": usage.get("output_tokens"),
+                "cached_input_tokens": read,
+                "cache_creation_input_tokens": written,
+            },
+            "more": any(sub["background"] is True for sub in subs.values()),
+            "structured": event.get("structured_output"),
+        }
+    ]
 
 
 class QoderNativeClient(ClaudeNativeClient):
@@ -2883,7 +3616,8 @@ class QoderNativeClient(ClaudeNativeClient):
     # session; an id it does not have - another folder's too - exits 42 at once, unanswered.
     resume_flag = "-r"
     NO_SESSION = re.compile(
-        r"exited with code 42: .*Error resuming session: Invalid session identifier")
+        r"exited with code 42: .*Error resuming session: Invalid session identifier"
+    )
 
     @property
     def resumes(self) -> bool:
@@ -2896,26 +3630,47 @@ class QoderNativeClient(ClaudeNativeClient):
 
     def talker(self) -> CliStepClient:
         return QoderSessionClient(
-            self._executable, self._model, self._timeout, self._which, self._launcher,
-            self._env, self.server, self._homes,
+            self._executable,
+            self._model,
+            self._timeout,
+            self._which,
+            self._launcher,
+            self._env,
+            self.server,
+            self._homes,
         )
 
     def _native_arguments(
-        self, root: Path, bridge_config: Path, withheld: tuple[str, ...] = (),
-        linked: tuple[str, ...] = (), also: tuple[str, ...] = (),
+        self,
+        root: Path,
+        bridge_config: Path,
+        withheld: tuple[str, ...] = (),
+        linked: tuple[str, ...] = (),
+        also: tuple[str, ...] = (),
     ) -> list[str]:
         # shortcut: a project's own .qoder settings could allow its tools past KOLONİ, and
         # whether `--setting-sources ""` keeps them out is not measured: no native run there.
         # Drop this once measured live.
         if any((root / ".qoder").glob("settings*.json")):
-            raise OwnStop("Qoder cannot run natively in this project: it has Qoder settings of "
-                          "its own (.qoder), which could let Qoder's tools run without asking "
-                          "KOLONİ, and that is not yet measured. Run it as a session instead")
+            raise OwnStop(
+                "Qoder cannot run natively in this project: it has Qoder settings of "
+                "its own (.qoder), which could let Qoder's tools run without asking "
+                "KOLONİ, and that is not yet measured. Run it as a session instead"
+            )
         config = bridge_config.parent / "mcp.json"
-        config.write_text(json.dumps({"mcpServers": {SERVER: {
-            "command": sys.executable,
-            "args": [mcp_bridge.__file__, str(bridge_config)],
-        }}}), encoding="utf-8")
+        config.write_text(
+            json.dumps(
+                {
+                    "mcpServers": {
+                        SERVER: {
+                            "command": sys.executable,
+                            "args": [mcp_bridge.__file__, str(bridge_config)],
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
         # Its session's line (measured live) with the control protocol's flags.
         # shortcut: --permission-prompt-tool is not in its --help; nor --add-dir, so a working
         # copy's linked folders are not given (its reads there fail), nor Claude Code's
@@ -2924,14 +3679,20 @@ class QoderNativeClient(ClaudeNativeClient):
         # before `initialize` is answered: stopped, never run unasked. Measure live.
         arguments = [
             "-p",
-            "--input-format", "stream-json",
-            "-o", "stream-json",
-            "--permission-mode", "default",
-            "--permission-prompt-tool", "stdio",
+            "--input-format",
+            "stream-json",
+            "-o",
+            "stream-json",
+            "--permission-mode",
+            "default",
+            "--permission-prompt-tool",
+            "stdio",
             "--strict-mcp-config",
-            "--mcp-config", str(config),
+            "--mcp-config",
+            str(config),
             "--no-session-persistence",
-            "--setting-sources", "",
+            "--setting-sources",
+            "",
         ]
         for name in claude_without(withheld):
             arguments += ["--disallowed-tools", name]
@@ -2942,7 +3703,13 @@ class QoderNativeClient(ClaudeNativeClient):
         return arguments  # the prompt comes on stdin
 
     async def _heard(
-        self, kind: str, item: dict, said: bool, busy: set[str], on_text, on_item: OnItem,
+        self,
+        kind: str,
+        item: dict,
+        said: bool,
+        busy: set[str],
+        on_text,
+        on_item: OnItem,
     ) -> bool:
         said = await super()._heard(kind, item, said, busy, on_text, on_item)
         if "unasked" in item:
@@ -2950,14 +3717,20 @@ class QoderNativeClient(ClaudeNativeClient):
             # nothing more runs, as native agy's (`AgyClient._heard`).
             # (Never the command's own words: they could hold a token.)
             what, paths = item.get("type"), item["unasked"]
-            name = ("a command" if what == "command_execution"
-                    else "a write to " + ", ".join(map(str, paths))[:120]
-                    if isinstance(paths, list) and paths
-                    else f"its {str(item.get('tool'))[:60]} tool" if item.get("tool")
-                    else "one of its own tools")
-            raise OwnStop(f"Qoder ran {name} without KOLONİ being asked, so the run is "
-                          "stopped: Qoder natively is not yet measured to ask before its tools; "
-                          "run it as a session instead")
+            name = (
+                "a command"
+                if what == "command_execution"
+                else "a write to " + ", ".join(map(str, paths))[:120]
+                if isinstance(paths, list) and paths
+                else f"its {str(item.get('tool'))[:60]} tool"
+                if item.get("tool")
+                else "one of its own tools"
+            )
+            raise OwnStop(
+                f"Qoder ran {name} without KOLONİ being asked, so the run is "
+                "stopped: Qoder natively is not yet measured to ask before its tools; "
+                "run it as a session instead"
+            )
         return said
 
 
@@ -2975,8 +3748,10 @@ COPILOT_FOLLOWS = ("read_powershell", "stop_powershell", "list_powershell")
 # sandboxed PowerShell may fail Set-Location on some Windows versions, and the command was judged
 # as run in the project. `exit 1`, not a stopping error: a `trap` in the command would pass that
 # one (the review's probe); the module-qualified name, not an alias or function of that name.
-ROOT_PREFIX = ("if (-not (Microsoft.PowerShell.Management\\Set-Location -LiteralPath '{}' "
-               "-PassThru -ErrorAction Ignore)) {{ exit 1 }}; ")
+ROOT_PREFIX = (
+    "if (-not (Microsoft.PowerShell.Management\\Set-Location -LiteralPath '{}' "
+    "-PassThru -ErrorAction Ignore)) {{ exit 1 }}; "
+)
 COPILOT_RUNS = ("powershell", "bash", "shell")
 # Its tool that only says what it is about to do: not one that ran unasked.
 # shortcut: by its name as remembered, not measured; add any other that never acts.
@@ -2991,20 +3766,27 @@ STILL_RUNNING_SHELL = re.compile(r"<shellId: \d+(?!\d| completed with exit code)
 # shortcut: this one message, measured once on Windows (REA, Copilot as Orchestrator); a
 # command that only prints it is blocked too, and other sandboxes' words are not known.
 NO_PYTHON = re.compile(r"uv trampoline failed to spawn Python child process")
-NO_PYTHON_BLOCKED = ("blocked: Copilot's sandbox could not start Python: run tests with a "
-                     "sub-agent or in session mode")
+NO_PYTHON_BLOCKED = (
+    "blocked: Copilot's sandbox could not start Python: run tests with a "
+    "sub-agent or in session mode"
+)
 # The protocols of Copilot headless KOLONİ speaks (3: measured on 1.0.91, 24 Oct 2026; 4: 1.0.114,
 # 20 Nov 2026, only through KOLONİ's preToolUse hook; `ping` and `status.get` say it). Any other
 # runs the old way (`cli_surface.checked`).
 PROTOCOLS = frozenset({3, 4})
 # session.create's flat fields as protocol 4 groups them (Copilot 1.0.114's SDK, index.js); the
 # rest (workingDirectory, model, enableConfigDiscovery) stay where they are.
-GROUPED = {"requestPermission": ("permissions", "request"),
-           "sandboxConfig": ("permissions", "sandbox"), "hooks": ("hooks", "hasHandlers"),
-           "enableFileHooks": ("hooks", "enableRepositoryHooks"),
-           "mcpServers": ("mcp", "servers"), "availableTools": ("tools", "availableTools"),
-           "enableSkills": ("skills", "enabled"), "capi": ("github", "capi"),
-           "enableHostGitOperations": ("git", "enableHostGitOperations")}
+GROUPED = {
+    "requestPermission": ("permissions", "request"),
+    "sandboxConfig": ("permissions", "sandbox"),
+    "hooks": ("hooks", "hasHandlers"),
+    "enableFileHooks": ("hooks", "enableRepositoryHooks"),
+    "mcpServers": ("mcp", "servers"),
+    "availableTools": ("tools", "availableTools"),
+    "enableSkills": ("skills", "enabled"),
+    "capi": ("github", "capi"),
+    "enableHostGitOperations": ("git", "enableHostGitOperations"),
+}
 # How long its turn's end waits for `account.getQuota` (89l), in seconds.
 QUOTA_SECONDS = 5.0
 # How long its version is waited for (`CopilotNativeClient._version`), as `--version` was.
@@ -3013,8 +3795,9 @@ VERSION_SECONDS = 10.0
 # fails saying so - a look over a large project takes seconds, never minutes.
 RECORD_SECONDS = 300.0
 # The run's first word where its commands cannot be kept from the secret files (slice 105).
-NO_SANDBOX = ("Copilot cannot sandbox commands on this machine: secret files are not hidden "
-              "from them")
+NO_SANDBOX = (
+    "Copilot cannot sandbox commands on this machine: secret files are not hidden from them"
+)
 # KOLONİ's answers to a permission request: this once, never for the session or for good.
 APPROVE_ONCE = {"kind": "approve-once"}
 # (Review) A command that may change what a later one in Copilot's one shell session means: where
@@ -3026,7 +3809,8 @@ SHELL_STATE = re.compile(
     _CLIMBS.pattern + r"|(?<![\w-])(?i:function|filter|set-alias|new-alias|sal|nal|"
     r"import-module|ipmo|iex|invoke-expression|activate(?:\.ps1|\.bat)?|source|alias|export)"
     r"(?![\w-])|(?i:env:|function:|alias:|variable:|\]::|\.psm?1\b|using\s+module)"
-    r"|(?:^|[\s;&|({])\.[ \t]+\S")
+    r"|(?:^|[\s;&|({])\.[ \t]+\S"
+)
 
 
 # k-copilot-cd: where a command of its shell runs when it says none. Read in Copilot 1.0.67's
@@ -3053,8 +3837,17 @@ SHELL_STATE = re.compile(
 # one its own `status.get` answers when KOLONİ runs it natively - HEADLESS has --no-auto-update,
 # so copilot.exe runs its own built-in package, which may not be what a plain `copilot
 # --version` says - and the code read must be that version's.
-SHELL_ARGUMENTS = frozenset({"command", "description", "mode", "detach", "initialwait",
-                             "requestsandboxbypass", "requestsandboxbypassreason"})
+SHELL_ARGUMENTS = frozenset(
+    {
+        "command",
+        "description",
+        "mode",
+        "detach",
+        "initialwait",
+        "requestsandboxbypass",
+        "requestsandboxbypassreason",
+    }
+)
 SHELL_READ = frozenset({"1.0.67", "1.0.105"})
 
 
@@ -3083,14 +3876,21 @@ class _ShellPatches(dict):
         if data.get("toolName") not in COPILOT_RUNS:
             return
         given = data.get("arguments")
-        self.unknown |= bool(data.get("parentToolCallId")) or not isinstance(given, dict) or not {
-            re.sub(r"[\W_]", "", str(key)).casefold() for key in given} <= SHELL_ARGUMENTS
+        self.unknown |= (
+            bool(data.get("parentToolCallId"))
+            or not isinstance(given, dict)
+            or not {re.sub(r"[\W_]", "", str(key)).casefold() for key in given} <= SHELL_ARGUMENTS
+        )
         self.started.add(call_id)
 
     def new_shell(self, call_id: str) -> bool:
         """Whether this call, as read so far, runs in a new shell at the project."""
-        return (bool(call_id) and call_id in self.started and not self.unknown
-                and self.version in SHELL_READ)
+        return (
+            bool(call_id)
+            and call_id in self.started
+            and not self.unknown
+            and self.version in SHELL_READ
+        )
 
 
 HEADLESS = ["--headless", "--no-auto-update", "--log-level", "error", "--stdio"]
@@ -3103,8 +3903,16 @@ HEADLESS = ["--headless", "--no-auto-update", "--log-level", "error", "--stdio"]
 # own, whose events are not read here).
 # shortcut: the tools Copilot 1.0.91 reports (measured 24 Oct 2026; no write_powershell
 # then); check the list again after an update of Copilot's (K-cli-surface).
-COPILOT_TOOLS = ["powershell", "read_powershell", "stop_powershell", "list_powershell", "view",
-                 "create", "edit", COPILOT_PATCH]
+COPILOT_TOOLS = [
+    "powershell",
+    "read_powershell",
+    "stop_powershell",
+    "list_powershell",
+    "view",
+    "create",
+    "edit",
+    COPILOT_PATCH,
+]
 COPILOT_READS = ["view"]
 MAX_MESSAGE = 2**26
 
@@ -3122,8 +3930,9 @@ async def _framed(stream: asyncio.StreamReader) -> dict | None:
             try:
                 length = int(value)
             except ValueError:
-                raise ValueError(f"a Content-Length that is not a number ({value.strip()[:20]})"
-                                 ) from None
+                raise ValueError(
+                    f"a Content-Length that is not a number ({value.strip()[:20]})"
+                ) from None
         elif not line.strip() and length is not None:
             break
     if length is None or length <= 0:
@@ -3143,8 +3952,9 @@ async def _framed(stream: asyncio.StreamReader) -> dict | None:
 def _kolonis(ours: dict[str, str], call_id: str, name: object) -> bool:
     """Whether a call is one of KOLONİ's own tools: its start said so (`_ShellPatches.ours`) under
     this very name, and no tool of Copilot's own has that name."""
-    return bool(call_id) and ours.get(call_id) == name and name not in (
-        *COPILOT_TOOLS, *COPILOT_RUNS)
+    return (
+        bool(call_id) and ours.get(call_id) == name and name not in (*COPILOT_TOOLS, *COPILOT_RUNS)
+    )
 
 
 def _grouped(flat: dict) -> dict:
@@ -3181,8 +3991,12 @@ def _hook_answer(params: dict, root: Path) -> dict:
     given = _dict(params.get("input"))
     args, prefix = given.get("toolArgs"), _at_root(root)
     output: dict = {"permissionDecision": "ask"}
-    if given.get("toolName") == "powershell" and isinstance(args, dict) and isinstance(
-            args.get("command"), str) and prefix:
+    if (
+        given.get("toolName") == "powershell"
+        and isinstance(args, dict)
+        and isinstance(args.get("command"), str)
+        and prefix
+    ):
         output["modifiedArgs"] = {**args, "command": prefix + args["command"]}
     return {"output": output}
 
@@ -3195,9 +4009,12 @@ def _tool_path(text: object, root: Path) -> str | None:
     if not isinstance(text, str) or text != text.strip() or CONTROL.search(text):
         return None
     anchor = PureWindowsPath(text).anchor
-    whole = bool(re.fullmatch(r"[A-Za-z]:\\", anchor)) if sys.platform == "win32" else (
-        anchor == "\\" and text.startswith("/"))
-    if (anchor and not whole) or _odd_path(text[len(anchor):]):
+    whole = (
+        bool(re.fullmatch(r"[A-Za-z]:\\", anchor))
+        if sys.platform == "win32"
+        else (anchor == "\\" and text.startswith("/"))
+    )
+    if (anchor and not whole) or _odd_path(text[len(anchor) :]):
         return None
     return str(Path(root, text))
 
@@ -3206,11 +4023,16 @@ def _bypass(given: dict) -> dict:
     """A shell call's asking to go outside its sandbox (`requestSandboxBypass`, by any spelling
     of it), as its permission request says it: a card at every level (`_permit`)."""
     said = {re.sub(r"[\W_]", "", str(key)).casefold(): value for key, value in given.items()}
-    if not any(value for key, value in said.items()
-               if "sandbox" in key and not key.endswith("reason")):
+    if not any(
+        value for key, value in said.items() if "sandbox" in key and not key.endswith("reason")
+    ):
         return {}
-    return {"requestSandboxBypass": True, "requestSandboxBypassReason": str(
-        said.get("requestsandboxbypassreason") or "to go outside its sandbox")}
+    return {
+        "requestSandboxBypass": True,
+        "requestSandboxBypassReason": str(
+            said.get("requestsandboxbypassreason") or "to go outside its sandbox"
+        ),
+    }
 
 
 def _subjects(request: dict, root: Path) -> list[str]:
@@ -3224,20 +4046,33 @@ def _subjects(request: dict, root: Path) -> list[str]:
     if kind == "read":
         paths: list[object] = [request.get("path")]
     elif kind == "write":
-        paths = [request.get("fileName"), *([request["resolvedPath"]] if request.get(
-            "resolvedPath") else []), *_diff_paths(request.get("diff")), *(
-            _dict(side).get("path") for edit in request.get("fileEdits") or []
-            for side in (_dict(edit).get("before"), _dict(edit).get("after")) if side)]
+        paths = [
+            request.get("fileName"),
+            *([request["resolvedPath"]] if request.get("resolvedPath") else []),
+            *_diff_paths(request.get("diff")),
+            *(
+                _dict(side).get("path")
+                for edit in request.get("fileEdits") or []
+                for side in (_dict(edit).get("before"), _dict(edit).get("after"))
+                if side
+            ),
+        ]
     elif kind == "patch":
         changes = _tool_patch(str(request.get("patch")), str(root))
         paths = [path for path, _how, _diff in _files(changes)] if changes else []
     else:
         return []
     try:
-        return [f"{'read' if kind == 'read' else 'write'} "
+        return (
+            [
+                f"{'read' if kind == 'read' else 'write'} "
                 + os.path.normcase(str(Path(root, path).resolve()))
-                for path in paths if isinstance(path, str) and path] if all(
-            isinstance(path, str) and path for path in paths) else []
+                for path in paths
+                if isinstance(path, str) and path
+            ]
+            if all(isinstance(path, str) and path for path in paths)
+            else []
+        )
     except (OSError, ValueError):
         return []
 
@@ -3247,9 +4082,15 @@ def _says_more(request: dict) -> bool:
     asks to leave its sandbox, or, of a command, what it may reach or write to - then it is judged
     again, whatever was answered at the hook. (Its word that a part is not read-only is not more:
     KOLONİ's own read of a command, `reads_here`, is stricter.)"""
-    return bool(request.get("requestSandboxBypass")) or request.get("kind") == "shell" and bool(
-        request.get("possibleUrls") or request.get("possiblePaths")
-        or request.get("hasWriteFileRedirection"))
+    return (
+        bool(request.get("requestSandboxBypass"))
+        or request.get("kind") == "shell"
+        and bool(
+            request.get("possibleUrls")
+            or request.get("possiblePaths")
+            or request.get("hasWriteFileRedirection")
+        )
+    )
 
 
 def _exit_code(said: str, data: dict) -> int | None:
@@ -3267,24 +4108,41 @@ def _written(name: str, call_id: str, given: object, failed: bool, unasked: bool
     closed."""
     if name in COPILOT_WRITES and not failed:
         path = _dict(given).get("path")
-        return {"type": "item.completed", "item": {
-            "type": "file_change", "id": call_id,
-            "changes": [{"path": path, "kind": "add" if name == "create" else "update"}],
-            "unasked": [str(path)] if unasked and path else []}}
+        return {
+            "type": "item.completed",
+            "item": {
+                "type": "file_change",
+                "id": call_id,
+                "changes": [{"path": path, "kind": "add" if name == "create" else "update"}],
+                "unasked": [str(path)] if unasked and path else [],
+            },
+        }
     if name != COPILOT_PATCH or not isinstance(given, str):
         return {}
     # By the read its files were asked by (`_tool_patch`: a moved file's two ids too); one not
     # read so was asked by its fileEdits (protocol 3), and is named by its headers' lines.
     changes = _tool_patch(given, ".")
-    named = [(path, how) for path, how, _diff in _files(changes)] if changes else [
-        (header[2].strip(), header[1].lower()) for header in (
-            PATCH_FILE.fullmatch(line) for line in given.split("\n")) if header]
-    return {"type": "item.completed", "item": {
-        "type": "file_change", "id": call_id, "declined": failed,
-        "status": "failed" if failed else "completed",
-        "changes": [{"path": path, "kind": how} for path, how in named],
-        "parts": [f"{call_id}:{n}" for n in range(len(named))],
-        "unasked": [path for path, _how in named] if unasked else []}}
+    named = (
+        [(path, how) for path, how, _diff in _files(changes)]
+        if changes
+        else [
+            (header[2].strip(), header[1].lower())
+            for header in (PATCH_FILE.fullmatch(line) for line in given.split("\n"))
+            if header
+        ]
+    )
+    return {
+        "type": "item.completed",
+        "item": {
+            "type": "file_change",
+            "id": call_id,
+            "declined": failed,
+            "status": "failed" if failed else "completed",
+            "changes": [{"path": path, "kind": how} for path, how in named],
+            "parts": [f"{call_id}:{n}" for n in range(len(named))],
+            "unasked": [path for path, _how in named] if unasked else [],
+        },
+    }
 
 
 def _diff_paths(diff: object) -> list[str]:
@@ -3303,9 +4161,11 @@ def _all_named(root: Path, named: str, paths: list[str]) -> bool:
     from the folder it works in) one its path ends with."""
     target = Path(root, named).resolve()
     whole = "/" + target.as_posix().casefold()
-    return all(Path(root, one).resolve() == target
-               or whole.endswith("/" + one.replace("\\", "/").casefold().lstrip("/"))
-               for one in paths)
+    return all(
+        Path(root, one).resolve() == target
+        or whole.endswith("/" + one.replace("\\", "/").casefold().lstrip("/"))
+        for one in paths
+    )
 
 
 class CopilotNativeClient(CodexNativeClient):
@@ -3338,17 +4198,35 @@ class CopilotNativeClient(CodexNativeClient):
         "\n\nTo change a file, use your own file tool: create and edit, or apply_patch where that "
         "is yours (KOLONİ's write_file / edit_file where you have them). A patch run as a shell "
         "command (git apply, a patch piped into apply_patch in the shell) is asked about as a "
-        "command, and may be refused.")
+        "command, and may be refused."
+    )
 
-    def __init__(self, executable=None, model=None, timeout: float = 900.0, *,
-                 base_url=None, api_key=None, options=None, context=None, routing=None,
-                 **more):
+    def __init__(
+        self,
+        executable=None,
+        model=None,
+        timeout: float = 900.0,
+        *,
+        base_url=None,
+        api_key=None,
+        options=None,
+        context=None,
+        routing=None,
+        **more,
+    ):
         super().__init__(executable, model, timeout, **more)
         # The session client knows how Copilot is started and what it is told about
         # the model server; natively only its tools differ.
         self._session = CopilotSessionClient(
-            executable, model, timeout, base_url=base_url, api_key=api_key, options=options,
-            context=context, routing=routing, **more,
+            executable,
+            model,
+            timeout,
+            base_url=base_url,
+            api_key=api_key,
+            options=options,
+            context=context,
+            routing=routing,
+            **more,
         )
         # Its `auto` takes no level, as the session's (`level_in_name`).
         self.efforts, self.level_named = self._session.efforts, self._session.level_named
@@ -3366,8 +4244,7 @@ class CopilotNativeClient(CodexNativeClient):
         from app.limits import _copilot_asked  # (it imports this module)
 
         with contextlib.suppress(Exception):
-            return _dict(await _copilot_asked(self, "status.get", "its version",
-                                              VERSION_SECONDS))
+            return _dict(await _copilot_asked(self, "status.get", "its version", VERSION_SECONDS))
         return {}
 
     async def _version(self) -> str:
@@ -3394,25 +4271,39 @@ class CopilotNativeClient(CodexNativeClient):
         return self._session._session_env(workdir)
 
     def _native_arguments(
-        self, root: Path, bridge_config: Path, withheld: tuple[str, ...] = (),
-        linked: tuple[str, ...] = (), also: tuple[str, ...] = (),
+        self,
+        root: Path,
+        bridge_config: Path,
+        withheld: tuple[str, ...] = (),
+        linked: tuple[str, ...] = (),
+        also: tuple[str, ...] = (),
     ) -> list[str]:
         # Before --headless what holds for the whole server, as the SDK starts it; its
         # folder, model, KOLONİ's MCP server and the folders it also works in go in
         # session.create (`_converse`). No --allow-all-tools: it asks about each one.
         # shortcut: that these flags still hold headless is not measured; check that no
         # builtin MCP server and no custom instructions are loaded.
-        secret = [one for one in self._session._account_arguments()
-                  if one.startswith("--secret-env-vars=")]
+        secret = [
+            one
+            for one in self._session._account_arguments()
+            if one.startswith("--secret-env-vars=")
+        ]
         # shortcut: that a headless server takes --context for the sessions it makes (its
         # model goes in session.create) is not measured, nor whether session.create has a
         # field of its own for it; measure it live before trusting the long tier natively.
-        return ["--disable-builtin-mcps", "--no-custom-instructions", *secret,
-                *self._session.context_arguments(), *HEADLESS]
+        return [
+            "--disable-builtin-mcps",
+            "--no-custom-instructions",
+            *secret,
+            *self._session.context_arguments(),
+            *HEADLESS,
+        ]
 
-    def _translator(self, asked: set[str] | frozenset[str] = frozenset(),  # noqa: C901
-                    heredocs: "_ShellPatches | None" = None,
-                    ) -> Callable[[dict], list[dict]]:
+    def _translator(  # noqa: C901
+        self,
+        asked: set[str] | frozenset[str] = frozenset(),
+        heredocs: "_ShellPatches | None" = None,
+    ) -> Callable[[dict], list[dict]]:
         """Its events as `-p` printed them, as the events read by `_heard`. `asked`: the
         tool calls it asked KOLONİ about; one of the rest that ran is `unasked`. `heredocs`:
         the commands that were patches, asked file by file (`_permit`), by tool call id; and
@@ -3426,14 +4317,21 @@ class CopilotNativeClient(CodexNativeClient):
                 return self._session._translate(event)  # (the model it picks under auto, and why)
             if kind == "assistant.message":
                 text = str(data.get("content") or "")
-                return [{"type": "item.completed",
-                         "item": {"type": "agent_message", "text": text}}] if text else []
+                return (
+                    [{"type": "item.completed", "item": {"type": "agent_message", "text": text}}]
+                    if text
+                    else []
+                )
             if kind == "tool.execution_start":
                 call_id = str(data.get("toolCallId") or "")
                 if data.get("mcpServerName") == SERVER:
                     heredocs.ours[call_id] = str(data.get("toolName"))  # (`_kolonis`)
-                    return [{"type": "item.completed",
-                             "item": {"type": "mcp_tool_call", "server": SERVER}}]
+                    return [
+                        {
+                            "type": "item.completed",
+                            "item": {"type": "mcp_tool_call", "server": SERVER},
+                        }
+                    ]
                 heredocs.start(call_id, data)
                 using[call_id] = data
                 # A command is on record from when it is asked about (`_approve`), as Codex's.
@@ -3455,13 +4353,25 @@ class CopilotNativeClient(CodexNativeClient):
                     # B-389: a patch it ran as a command, on record as the patch it was asked
                     # as - each file by the id it was asked under (as Codex's: `_as_exec`).
                     files = _files(patch)
-                    return [*done, {"type": "item.completed", "item": {
-                        "type": "file_change", "id": call_id, "declined": failed,
-                        "status": "failed" if failed or _exit_code(said, data) != 0
-                        else "completed",
-                        "changes": [{"path": path, "kind": how} for path, how, _diff in files],
-                        "parts": [f"{call_id}:{n}" for n in range(len(files))],
-                        "unasked": []}}]
+                    return [
+                        *done,
+                        {
+                            "type": "item.completed",
+                            "item": {
+                                "type": "file_change",
+                                "id": call_id,
+                                "declined": failed,
+                                "status": "failed"
+                                if failed or _exit_code(said, data) != 0
+                                else "completed",
+                                "changes": [
+                                    {"path": path, "kind": how} for path, how, _diff in files
+                                ],
+                                "parts": [f"{call_id}:{n}" for n in range(len(files))],
+                                "unasked": [],
+                            },
+                        },
+                    ]
                 if name in COPILOT_RUNS:
                     # (Review: its shell is one session - after a command that may have moved
                     # it or named commands anew, a patch's paths or apply_patch may mean else.
@@ -3471,43 +4381,86 @@ class CopilotNativeClient(CodexNativeClient):
                     code = _exit_code(said, data)
                     # shortcut: REA saw toolTelemetry's sandboxApplied on 1.0.103; the MIT
                     # SDK names a `sandboxed` - either counts, until one is seen live.
-                    boxed = data.get("sandboxed") is True or _dict(
-                        data.get("toolTelemetry")).get("sandboxApplied") in (True, "true")
+                    boxed = data.get("sandboxed") is True or _dict(data.get("toolTelemetry")).get(
+                        "sandboxApplied"
+                    ) in (True, "true")
                     # B-377: its shell ends what it ran with the code (EXIT_CODE): one it ran
                     # to its end with none did not end as it should, and is no success on
                     # record. One still running - started async, or past its first wait, its
                     # shell id said without "completed" - is not known yet, so not failed.
                     # shortcut: async and "still running" are read off the SDK's `mode` and a
                     # bare `<shellId: N` trailer, not measured; measure them live.
-                    running = given.get("mode") == "async" or bool(given.get("detach")) or (
-                        code is None and STILL_RUNNING_SHELL.search(said) is not None)
-                    return [*done, {"type": "item.completed", "item": {
-                        "type": "command_execution", "id": call_id,
-                        "command": str(given.get("command") or ""),
-                        "aggregated_output": EXIT_CODE.sub("", said),
-                        "exit_code": code,
-                        "status": "failed" if failed or (code is None and not running)
-                        else "completed",
-                        "unasked": unasked, "sandboxed": boxed,
-                        **({"blocked": NO_PYTHON_BLOCKED} if NO_PYTHON.search(said) else {})}}]
+                    running = (
+                        given.get("mode") == "async"
+                        or bool(given.get("detach"))
+                        or (code is None and STILL_RUNNING_SHELL.search(said) is not None)
+                    )
+                    return [
+                        *done,
+                        {
+                            "type": "item.completed",
+                            "item": {
+                                "type": "command_execution",
+                                "id": call_id,
+                                "command": str(given.get("command") or ""),
+                                "aggregated_output": EXIT_CODE.sub("", said),
+                                "exit_code": code,
+                                "status": "failed"
+                                if failed or (code is None and not running)
+                                else "completed",
+                                "unasked": unasked,
+                                "sandboxed": boxed,
+                                **(
+                                    {"blocked": NO_PYTHON_BLOCKED} if NO_PYTHON.search(said) else {}
+                                ),
+                            },
+                        },
+                    ]
                 if wrote := _written(name, call_id, started.get("arguments"), failed, unasked):
                     return [*done, wrote]
-                return [*done, {"type": "item.completed", "item": {
-                    "type": "mcp_tool_call", "id": call_id, "server": "copilot", "tool": name,
-                    "arguments": given, "status": "failed" if failed else "completed",
-                    "error": {"message": said} if failed else None, "unasked": unasked,
-                    "result": {"content": [{"type": "text", "text": said}]}}}]
+                return [
+                    *done,
+                    {
+                        "type": "item.completed",
+                        "item": {
+                            "type": "mcp_tool_call",
+                            "id": call_id,
+                            "server": "copilot",
+                            "tool": name,
+                            "arguments": given,
+                            "status": "failed" if failed else "completed",
+                            "error": {"message": said} if failed else None,
+                            "unasked": unasked,
+                            "result": {"content": [{"type": "text", "text": said}]},
+                        },
+                    },
+                ]
             if kind == "session.error":
-                return [{"type": "error", "message": self._hide(
-                    str(copilot_error(data) or "it failed"))}]
+                return [
+                    {
+                        "type": "error",
+                        "message": self._hide(str(copilot_error(data) or "it failed")),
+                    }
+                ]
             return []
 
         return translate
 
     async def _converse(  # noqa: C901
-        self, argv, shim, prompt, root: Path, server: ToolServer, on_text, on_item: OnItem,
-        env: dict[str, str], call_tool: CallTool, also: tuple[str, ...], effort: str | None,
-        bridge_config: Path | None = None, denied: tuple[str, ...] | None = None,
+        self,
+        argv,
+        shim,
+        prompt,
+        root: Path,
+        server: ToolServer,
+        on_text,
+        on_item: OnItem,
+        env: dict[str, str],
+        call_tool: CallTool,
+        also: tuple[str, ...],
+        effort: str | None,
+        bridge_config: Path | None = None,
+        denied: tuple[str, ...] | None = None,
         on_live: OnLive | None = None,  # (never called: its session.send while busy waits, 89d)
         read_only: bool = False,
         no_shell: bool = False,  # (read-only its shell is not among availableTools at all)
@@ -3591,18 +4544,26 @@ class CopilotNativeClient(CodexNativeClient):
             busy.add(key)
             try:
                 await kept  # (what it did before it asked is on record first, as it was heard)
-                result = await self._permit(request, use_id, root, asked, answered, on_item,
-                                            call_tool, heredocs, new_shell)
+                result = await self._permit(
+                    request, use_id, root, asked, answered, on_item, call_tool, heredocs, new_shell
+                )
                 if result["kind"] == "reject":
                     busy.discard(use_id)  # it may never say a rejected tool is done
                 # (Its answer is not waited for: one that refuses KOLONİ's ends the run, `read`.)
                 number = next(numbers)
                 permits.add(number)
                 with contextlib.suppress(BrokenPipeError, ConnectionResetError):
-                    await send({"id": number,
-                                "method": "session.permissions.handlePendingPermissionRequest",
-                                "params": {"sessionId": session, "requestId": request_id,
-                                           "result": result}})
+                    await send(
+                        {
+                            "id": number,
+                            "method": "session.permissions.handlePendingPermissionRequest",
+                            "params": {
+                                "sessionId": session,
+                                "requestId": request_id,
+                                "result": result,
+                            },
+                        }
+                    )
             except Exception as exc:  # a stop of KOLONİ's own, or a bug: its work ends here
                 broke = broke or exc
                 end_now()
@@ -3640,12 +4601,15 @@ class CopilotNativeClient(CodexNativeClient):
                         future = replies.get(number) if isinstance(number, int) else None
                         if future is not None and not future.done():
                             future.set_result(message)
-                        elif "error" in message or (number in permits and _dict(
-                                message.get("result")).get("success") is False):
+                        elif "error" in message or (
+                            number in permits
+                            and _dict(message.get("result")).get("success") is False
+                        ):
                             # It did not take KOLONİ's answer: what it does next is not known.
                             error = _dict(message.get("error")).get("message") or "success false"
-                            failure = failure or _brief(self._hide(
-                                f"it did not take KOLONİ's answer: {error}"))
+                            failure = failure or _brief(
+                                self._hide(f"it did not take KOLONİ's answer: {error}")
+                            )
                             end_now()
                         continue
                     if "id" in message and method == "hooks.invoke":
@@ -3655,13 +4619,33 @@ class CopilotNativeClient(CodexNativeClient):
                             await send({"id": message["id"], "result": _hook_answer(params, root)})
                         continue
                     if "id" in message:  # a request of its own: declined, never left waiting
-                        records.put_nowait(("item.completed", {
-                            "type": "mcp_tool_call", "server": "copilot", "tool": str(method),
-                            "arguments": {}, "status": "declined", "error": {"message": (
-                                f"KOLONİ declined this request of {self.label}'s")}}))
+                        records.put_nowait(
+                            (
+                                "item.completed",
+                                {
+                                    "type": "mcp_tool_call",
+                                    "server": "copilot",
+                                    "tool": str(method),
+                                    "arguments": {},
+                                    "status": "declined",
+                                    "error": {
+                                        "message": (
+                                            f"KOLONİ declined this request of {self.label}'s"
+                                        )
+                                    },
+                                },
+                            )
+                        )
                         with contextlib.suppress(BrokenPipeError, ConnectionResetError):
-                            await send({"id": message["id"], "error": {
-                                "code": -32601, "message": "KOLONİ declines this request"}})
+                            await send(
+                                {
+                                    "id": message["id"],
+                                    "error": {
+                                        "code": -32601,
+                                        "message": "KOLONİ declines this request",
+                                    },
+                                }
+                            )
                         continue
                     # Only its session's events are kept (never an answer: session.create's
                     # names where its home is).
@@ -3669,7 +4653,8 @@ class CopilotNativeClient(CodexNativeClient):
                     # expected while its task and agent tools are left out (COPILOT_TOOLS).
                     # Read them if those tools are ever given.
                     if method != "session.event" or (
-                            session and params.get("sessionId") != session):
+                        session and params.get("sessionId") != session
+                    ):
                         continue
                     event = _dict(params.get("event"))
                     feed("stdout", json.dumps(event, ensure_ascii=False), (server.key,))
@@ -3689,16 +4674,26 @@ class CopilotNativeClient(CodexNativeClient):
                             # KOLONİ gives it no hooks: one of its own decided, unasked.
                             broke = broke or OwnStop(
                                 f"a hook of Copilot's own answered a permission request of "
-                                f"{self.label}'s, not KOLONİ: the run was stopped")
+                                f"{self.label}'s, not KOLONİ: the run was stopped"
+                            )
                             end_now()
                             return
                         # (By what was read before this request, not after: `_ShellPatches`.
                         # Protocol 4: only KOLONİ's own prefix says it, `_from_hook`.)
                         kept = loop.create_future()
                         records.put_nowait(kept)
-                        task = asyncio.ensure_future(answer(data, not hooked and heredocs.new_shell(
-                            str(_dict(data.get("permissionRequest")).get("toolCallId") or "")),
-                            kept))
+                        task = asyncio.ensure_future(
+                            answer(
+                                data,
+                                not hooked
+                                and heredocs.new_shell(
+                                    str(
+                                        _dict(data.get("permissionRequest")).get("toolCallId") or ""
+                                    )
+                                ),
+                                kept,
+                            )
+                        )
                         answering.add(task)
                         task.add_done_callback(answering.discard)
                         continue
@@ -3714,11 +4709,19 @@ class CopilotNativeClient(CodexNativeClient):
                     # Protocol 4 fails closed: a tool of its own that ran, KOLONİ not asked past
                     # its hook (a shell that said its exit code ran, whatever its success says),
                     # is on record so - and stops the turn.
-                    past = hooked and kind == "tool.execution_complete" and (
-                        call not in asked and not _kolonis(heredocs.ours, call, names.get(call))
-                        and names.get(call) not in COPILOT_QUIET) and (
-                        data.get("success") is not False
-                        or isinstance(data.get("shellExecution"), dict))
+                    past = (
+                        hooked
+                        and kind == "tool.execution_complete"
+                        and (
+                            call not in asked
+                            and not _kolonis(heredocs.ours, call, names.get(call))
+                            and names.get(call) not in COPILOT_QUIET
+                        )
+                        and (
+                            data.get("success") is not False
+                            or isinstance(data.get("shellExecution"), dict)
+                        )
+                    )
                     for told in translate(event):
                         if told["type"] == "model":
                             picked_why = why_picked(told, reported, picked_why)
@@ -3732,7 +4735,8 @@ class CopilotNativeClient(CodexNativeClient):
                     if past:
                         broke = broke or OwnStop(
                             f"{self.label} ran a tool of its own without KOLONİ being asked, "
-                            "past KOLONİ's hook; the run was stopped")
+                            "past KOLONİ's hook; the run was stopped"
+                        )
                         end_now()
                         return
                     if server.ended:
@@ -3756,8 +4760,9 @@ class CopilotNativeClient(CodexNativeClient):
                     while (told := await _framed(stdout)) is not None:
                         if told.get("id") == number and "method" not in told:
                             if "result" in told and self.on_limits:
-                                self.on_limits({"quotaSnapshots": _dict(
-                                    told["result"]).get("quotaSnapshots")})
+                                self.on_limits(
+                                    {"quotaSnapshots": _dict(told["result"]).get("quotaSnapshots")}
+                                )
                             return
             except Exception as exc:  # (TimeoutError among them) keeping it never breaks the run
                 log.warning("Copilot's quota was not read: %s", type(exc).__name__)
@@ -3777,8 +4782,11 @@ class CopilotNativeClient(CodexNativeClient):
             heredocs.version = said.strip()[:40] if isinstance(said, str) and said.strip() else None
             if not heredocs.version:
                 return "it did not say its version"
-            return None if measured("copilot", heredocs.version) else (
-                f"its version {heredocs.version} is not measured with KOLONİ")
+            return (
+                None
+                if measured("copilot", heredocs.version)
+                else (f"its version {heredocs.version} is not measured with KOLONİ")
+            )
 
         async def talk() -> None:
             nonlocal unasked, started, failure, session, sent, hooked
@@ -3799,29 +4807,40 @@ class CopilotNativeClient(CodexNativeClient):
                         **sandbox,
                         "workingDirectory": str(root),
                         "requestPermission": True,  # every tool of its own is asked about
-                        "mcpServers": {SERVER: {
-                            "type": "local", "command": sys.executable,
-                            "args": [mcp_bridge.__file__, str(bridge_config)], "tools": ["*"]}},
+                        "mcpServers": {
+                            SERVER: {
+                                "type": "local",
+                                "command": sys.executable,
+                                "args": [mcp_bridge.__file__, str(bridge_config)],
+                                "tools": ["*"],
+                            }
+                        },
                         **({"model": self._model} if self._model else {}),
                         # Only the tools KOLONİ judges: its own, and KOLONİ's by the names
                         # Copilot gives an MCP server's tools (`CopilotSessionClient`). Read-only
                         # (B-301): of its own only view - no shell, no edit (`_approve` refuses
                         # them too).
-                        "availableTools": [*(COPILOT_READS if read_only else COPILOT_TOOLS),
-                                           *(COPILOT_PREFIX + name for name in self._offered)],
+                        "availableTools": [
+                            *(COPILOT_READS if read_only else COPILOT_TOOLS),
+                            *(COPILOT_PREFIX + name for name in self._offered),
+                        ],
                         # None of a repository's own hooks (they act unasked), config or
                         # skills. No additionalDirectories: it would give it those folders,
                         # with their hooks; a path outside is asked about (`_approve`).
-                        "enableFileHooks": False, "enableConfigDiscovery": False,
-                        "enableSkills": False, **self._session.capi(),
+                        "enableFileHooks": False,
+                        "enableConfigDiscovery": False,
+                        "enableSkills": False,
+                        **self._session.capi(),
                         # Nor the project's git context put in its prompt by Copilot itself (its
                         # SDK has it from 1.0.91 on, flat; grouped under `git` at protocol 4).
                         "enableHostGitOperations": False,
                         # Protocol 4: KOLONİ's preToolUse hook asks of every tool of its own.
-                        **({"hooks": True} if hooked else {})}
+                        **({"hooks": True} if hooked else {}),
+                    }
                     made, no = await ask("session.create", _grouped(flat) if hooked else flat)
-                    session = made.get("sessionId") if isinstance(
-                        made.get("sessionId"), str) else None
+                    session = (
+                        made.get("sessionId") if isinstance(made.get("sessionId"), str) else None
+                    )
                     no = no or (None if session else "it named no session")
                 if no is not None:
                     if not reading.done():  # (one that ended says so below)
@@ -3861,13 +4880,15 @@ class CopilotNativeClient(CodexNativeClient):
                         unasked = f"it did not answer for {self._timeout:g} seconds"
                         break
                     raise ModelUnavailable(
-                        f"{self.label} sent nothing for {self._timeout:g} seconds")
+                        f"{self.label} sent nothing for {self._timeout:g} seconds"
+                    )
             if talking.done():
                 try:
                     talking.result()
                 except ValueError as exc:  # (`_framed`: what was wrong with the frame)
                     raise ModelUnavailable(
-                        f"{self.label} sent what KOLONİ cannot read: {exc}") from None
+                        f"{self.label} sent what KOLONİ cannot read: {exc}"
+                    ) from None
         finally:
             for task in (talking, *answering):
                 task.cancel()
@@ -3881,17 +4902,23 @@ class CopilotNativeClient(CodexNativeClient):
                 keeping.cancel()
                 broke = broke or ModelUnavailable(
                     f"{self.label}'s turn ended, but KOLONİ could not put all it did on record "
-                    f"in {RECORD_SECONDS:g} seconds")
+                    f"in {RECORD_SECONDS:g} seconds"
+                )
             complaint = b""
             with contextlib.suppress(Exception):
                 complaint = await asyncio.wait_for(asyncio.shield(stderr), 2)
             stderr.cancel()
-        return await self._session_result(broke, server, unasked, failure, idle, complaint,
-                                          process, reported, usage, picked_why)
+        return await self._session_result(
+            broke, server, unasked, failure, idle, complaint, process, reported, usage, picked_why
+        )
 
-    async def _sandbox(self, ask: Callable[[str, dict], Awaitable[tuple[dict, str | None]]],
-                       denied: tuple[str, ...], also: tuple[str, ...],
-                       on_item: OnItem) -> dict:
+    async def _sandbox(
+        self,
+        ask: Callable[[str, dict], Awaitable[tuple[dict, str | None]]],
+        denied: tuple[str, ...],
+        also: tuple[str, ...],
+        on_item: OnItem,
+    ) -> dict:
         # The sandbox `_converse` asks for its session, where this Copilot has one.
         sandbox: dict = {}
         # Where it cannot (a Copilot older than 1.0.101 has no such method) it
@@ -3900,33 +4927,61 @@ class CopilotNativeClient(CodexNativeClient):
         # seen here; REA saw denied_paths supported on 1.0.103.
         host, refused = await ask("sandbox.getHostSupport", {})
         able = host.get("capabilities")
-        if refused is None and host.get("supported") is True and any(
+        if (
+            refused is None
+            and host.get("supported") is True
+            and any(
                 one.get("name") == "denied_paths" and one.get("supported") is True
                 for one in (able if isinstance(able, list) else [])
-                if isinstance(one, dict)):
-            sandbox = {"sandboxConfig": {
-                "enabled": True, "allowBypass": False,
-                # KOLONİ's bridge reaches 127.0.0.1: it is not sandboxed. No
-                # network policy: Copilot's default stays (a closed one breaks
-                # npm install).
-                "sandboxMcpServers": False, "addCurrentWorkingDirectory": True,
-                # Measured on 1.0.103 (24 Oct 2026): a write outside the folder
-                # or to the home folder is denied unless in readwritePaths, TEMP
-                # is writable, the network is as without a sandbox.
-                "userPolicy": {"filesystem": {
-                    "deniedPaths": list(denied),
-                    **({"readwritePaths": list(also)} if also else {})}}}}
+                if isinstance(one, dict)
+            )
+        ):
+            sandbox = {
+                "sandboxConfig": {
+                    "enabled": True,
+                    "allowBypass": False,
+                    # KOLONİ's bridge reaches 127.0.0.1: it is not sandboxed. No
+                    # network policy: Copilot's default stays (a closed one breaks
+                    # npm install).
+                    "sandboxMcpServers": False,
+                    "addCurrentWorkingDirectory": True,
+                    # Measured on 1.0.103 (24 Oct 2026): a write outside the folder
+                    # or to the home folder is denied unless in readwritePaths, TEMP
+                    # is writable, the network is as without a sandbox.
+                    "userPolicy": {
+                        "filesystem": {
+                            "deniedPaths": list(denied),
+                            **({"readwritePaths": list(also)} if also else {}),
+                        }
+                    },
+                }
+            }
         else:
-            await on_item("completed", {
-                "type": "mcp_tool_call", "server": "copilot", "tool": "sandbox",
-                "arguments": {}, "status": "completed",
-                "result": {"content": [{"type": "text", "text": NO_SANDBOX}]}})
+            await on_item(
+                "completed",
+                {
+                    "type": "mcp_tool_call",
+                    "server": "copilot",
+                    "tool": "sandbox",
+                    "arguments": {},
+                    "status": "completed",
+                    "result": {"content": [{"type": "text", "text": NO_SANDBOX}]},
+                },
+            )
         return sandbox
 
     async def _session_result(
-        self, broke: BaseException | None, server: ToolServer, unasked: str | None,
-        failure: str | None, idle: bool, complaint: bytes, process, reported: str | None,
-        usage: dict | None = None, picked_why: str | None = None,
+        self,
+        broke: BaseException | None,
+        server: ToolServer,
+        unasked: str | None,
+        failure: str | None,
+        idle: bool,
+        complaint: bytes,
+        process,
+        reported: str | None,
+        usage: dict | None = None,
+        picked_why: str | None = None,
     ) -> SessionResult:
         # What `_converse`'s session came to, once it is over.
         if broke is not None:
@@ -3943,9 +4998,11 @@ class CopilotNativeClient(CodexNativeClient):
             # session.create's request against its answer live; if it is the CLI, a check of the
             # model before the session (or on the Models page's Check) would say it at once.
             if self._model and re.search(
-                    r'(?:^|failed with message: )Model "[^"]+" is not available', unasked):
+                r'(?:^|failed with message: )Model "[^"]+" is not available', unasked
+            ):
                 raise OwnStop(
-                    f"Copilot can't use {self._model} on your account: pick another model")
+                    f"Copilot can't use {self._model} on your account: pick another model"
+                )
             # Live (1.0.114, 21 Nov 2026): a routing the plan lacks - 'Auto preference
             # "hydrafusion" is disabled: This tier is not available for the user's Copilot plan.;
             # choose ...' - is the routing's, not the model's (its row stays on: `_refused`).
@@ -3954,20 +5011,32 @@ class CopilotNativeClient(CodexNativeClient):
                 routing = str(self._session._routing or "its routing").capitalize()
                 raise OwnStop(
                     f"Copilot refused {self._model} at {routing} ({tier[1].strip().rstrip('.')}): "
-                    "pick another routing for it on the Models page or in the chat's model panel")
-            raise OwnStop(f"{self.label} {await self._version()} could not be asked before it "
-                          f"acts ({unasked}); run it as a session instead")
+                    "pick another routing for it on the Models page or in the chat's model panel"
+                )
+            raise OwnStop(
+                f"{self.label} {await self._version()} could not be asked before it "
+                f"acts ({unasked}); run it as a session instead"
+            )
         if failure or not idle:
             reason = _brief(self._hide(complaint.decode("utf-8", errors="replace")))
             raise ModelUnavailable(
-                f"{self.label} reported an error: {failure}" if failure
-                else how_it_ended(self.label, process.returncode, reason))
+                f"{self.label} reported an error: {failure}"
+                if failure
+                else how_it_ended(self.label, process.returncode, reason)
+            )
         return replace(copilot_counts(usage), model=reported, picked_why=picked_why)
 
     async def _permit(  # noqa: C901
-        self, request: dict, use_id: str, root: Path, asked: set[str],
-        answered: set[tuple[str, str]], on_item: OnItem, call_tool: CallTool,
-        heredocs: "_ShellPatches", new_shell: bool,
+        self,
+        request: dict,
+        use_id: str,
+        root: Path,
+        asked: set[str],
+        answered: set[tuple[str, str]],
+        on_item: OnItem,
+        call_tool: CallTool,
+        heredocs: "_ShellPatches",
+        new_shell: bool,
     ) -> dict:
         """KOLONİ's answer to a permission request of Copilot's: what `AgentRunner._approve`
         says, asked as Codex's requests are (`CodexNativeClient._decide`) - a command as its
@@ -3984,9 +5053,13 @@ class CopilotNativeClient(CodexNativeClient):
         if kind == "mcp" and request.get("serverName") == SERVER:
             return APPROVE_ONCE
         asked.add(use_id)  # (declined too: it was asked about, it did not run unasked)
-        if kind != "hook" and (use_id, kind) not in answered and not _says_more(request) and (
-                subjects := _subjects(request, root)) and all(
-                (use_id, f"cleared {subject}") in answered for subject in subjects):
+        if (
+            kind != "hook"
+            and (use_id, kind) not in answered
+            and not _says_more(request)
+            and (subjects := _subjects(request, root))
+            and all((use_id, f"cleared {subject}") in answered for subject in subjects)
+        ):
             answered.add((use_id, kind))
             return APPROVE_ONCE
         clears: list[str] = []
@@ -3997,28 +5070,55 @@ class CopilotNativeClient(CodexNativeClient):
                 return APPROVE_ONCE
             request = mapped
             # (what a request after it would name: its command as sent, KOLONİ's prefix on)
-            clears = _subjects({**mapped, "fullCommandText": f"{_at_root(root)}"
-                                f"{mapped['fullCommandText']}"} if new_shell else mapped, root)
+            clears = _subjects(
+                {**mapped, "fullCommandText": f"{_at_root(root)}{mapped['fullCommandText']}"}
+                if new_shell
+                else mapped,
+                root,
+            )
         sent = request.get("fullCommandText")
-        if kind == "shell" and isinstance(sent, str) and (prefix := _at_root(root)) and (
-                sent.startswith(prefix)):
+        if (
+            kind == "shell"
+            and isinstance(sent, str)
+            and (prefix := _at_root(root))
+            and (sent.startswith(prefix))
+        ):
             # Its own request after its hook's, judged again (`_says_more`): KOLONİ's prefix
             # taken off, the one word that it runs at the project - as at the hook (`_from_hook`).
-            request, new_shell = {**request, "fullCommandText": sent[len(prefix):]}, True
+            request, new_shell = {**request, "fullCommandText": sent[len(prefix) :]}, True
         what = str(request.get("kind"))  # (a hook's: the kind of request it is judged as)
         # Asking to go outside its sandbox is a reason: a card at every level, as Codex's.
-        given = {"reason": str(request.get("requestSandboxBypassReason")
-                               or "to go outside its sandbox")} if request.get(
-            "requestSandboxBypass") else {}
-        named = str(request.get({"shell": "fullCommandText", "write": "fileName",
-                                 "read": "path", "patch": "patch"}.get(what, "")) or "")
-        why = (f"KOLONİ declined this request of {self.label}'s: only a command, a file it "
-               "writes or a file it reads is answered")
+        given = (
+            {
+                "reason": str(
+                    request.get("requestSandboxBypassReason") or "to go outside its sandbox"
+                )
+            }
+            if request.get("requestSandboxBypass")
+            else {}
+        )
+        named = str(
+            request.get(
+                {
+                    "shell": "fullCommandText",
+                    "write": "fileName",
+                    "read": "path",
+                    "patch": "patch",
+                }.get(what, "")
+            )
+            or ""
+        )
+        why = (
+            f"KOLONİ declined this request of {self.label}'s: only a command, a file it "
+            "writes or a file it reads is answered"
+        )
         question: tuple[str, dict] | None = None
         questions: list[tuple[str, dict]] = []  # (a patch's: one a file)
         if (use_id, kind) in answered:
-            why = (f"KOLONİ declined this request of {self.label}'s: it asked again for what "
-                   "was answered")
+            why = (
+                f"KOLONİ declined this request of {self.label}'s: it asked again for what "
+                "was answered"
+            )
         elif named and what == "shell":
             # What it says the command touches, judged as a read or write of each (`_approve`);
             # where it runs, if it says (1.0.91 does not, measured 24 Oct 2026): outside the
@@ -4031,32 +5131,48 @@ class CopilotNativeClient(CodexNativeClient):
             # form only in the shell it is said to run in; none once a command may have moved
             # its session (`_ShellPatches.moved`).
             shell = request.get("shellType")
-            patch = None if urls or request.get("hasWriteFileRedirection") or heredocs.moved or (
-                shell not in ("powershell", "bash")) else _heredoc_patch(
-                named, str(where or root), shell == "powershell")
+            patch = (
+                None
+                if urls
+                or request.get("hasWriteFileRedirection")
+                or heredocs.moved
+                or (shell not in ("powershell", "bash"))
+                else _heredoc_patch(named, str(where or root), shell == "powershell")
+            )
             if patch is None:  # (asked as a command: from here on, if it may move its session)
                 heredocs.moved |= bool(SHELL_STATE.search(named))
             if patch is not None:
-                _ok, may = await call_tool(PATCH_MAY_RUN, json.dumps(
-                    {"command": named, **given, **({"cwd": str(where)} if where else {})}))
+                _ok, may = await call_tool(
+                    PATCH_MAY_RUN,
+                    json.dumps(
+                        {"command": named, **given, **({"cwd": str(where)} if where else {})}
+                    ),
+                )
                 patch = patch if may == "true" else None
             if patch is not None:
                 heredocs[use_id] = patch
                 questions = _patch_questions(patch, given)
             else:
-                question = ("Bash", {"command": named, **given,
-                                     **({"cwd": str(where)} if where else {}),
-                                     "paths": list(request.get("possiblePaths") or []),
-                                     "writes": bool(request.get("hasWriteFileRedirection")),
-                                     # Its own word that a part is not read-only can only
-                                     # make it asked, never let one through unasked.
-                                     "not_read_only": any(
-                                         _dict(one).get("readOnly") is False
-                                         for one in request.get("commands") or []),
-                                     "urls": urls,
-                                     # (KOLONİ's own word, last: nothing it was sent can be it.
-                                     # `_approve_command`; Codex's `_decide` sends none.)
-                                     "new_shell": bool(new_shell and not where)})
+                question = (
+                    "Bash",
+                    {
+                        "command": named,
+                        **given,
+                        **({"cwd": str(where)} if where else {}),
+                        "paths": list(request.get("possiblePaths") or []),
+                        "writes": bool(request.get("hasWriteFileRedirection")),
+                        # Its own word that a part is not read-only can only
+                        # make it asked, never let one through unasked.
+                        "not_read_only": any(
+                            _dict(one).get("readOnly") is False
+                            for one in request.get("commands") or []
+                        ),
+                        "urls": urls,
+                        # (KOLONİ's own word, last: nothing it was sent can be it.
+                        # `_approve_command`; Codex's `_decide` sends none.)
+                        "new_shell": bool(new_shell and not where),
+                    },
+                )
         elif named and what == "write":
             # What it will write is its one fileEdit (newFileContents is no sure word: an
             # empty one is not a deletion); a write that names more files, or another one
@@ -4065,8 +5181,12 @@ class CopilotNativeClient(CodexNativeClient):
             after = _dict(edits[0].get("after")) if len(edits) == 1 else {}
             diff = request.get("diff")
             if edits:
-                paths = [str(_dict(side).get("path")) for edit in edits
-                         for side in (edit.get("before"), edit.get("after")) if side]
+                paths = [
+                    str(_dict(side).get("path"))
+                    for edit in edits
+                    for side in (edit.get("before"), edit.get("after"))
+                    if side
+                ]
             else:
                 paths = [str(request["resolvedPath"])] if request.get("resolvedPath") else []
                 paths += _diff_paths(diff)
@@ -4075,11 +5195,15 @@ class CopilotNativeClient(CodexNativeClient):
                 # shortcut: a patch of several files taken to come as one request with a
                 # fileEdit a file - one file's measured (1.0.105); measure a two-file one live.
                 questions = _edits_patch(edits, given)
-                why = (f"KOLONİ declined this request of {self.label}'s: a file of it would "
-                       "move, is named twice, or its content is not said")
+                why = (
+                    f"KOLONİ declined this request of {self.label}'s: a file of it would "
+                    "move, is named twice, or its content is not said"
+                )
             elif not _all_named(root, named, paths):
-                why = (f"KOLONİ declined this request of {self.label}'s: it would change "
-                       "another file than the one it names, or more than one")
+                why = (
+                    f"KOLONİ declined this request of {self.label}'s: it would change "
+                    "another file than the one it names, or more than one"
+                )
             elif isinstance(after.get("content"), str):
                 question = ("Write", {"file_path": named, "content": after["content"], **given})
             elif edits:  # (no after: the file goes)
@@ -4095,31 +5219,46 @@ class CopilotNativeClient(CodexNativeClient):
             # Its own apply_patch at its hook (B-393): each file asked as its own, as a patch
             # sent as a command is (`_patch_questions`).
             changes = _tool_patch(named, str(root))
-            why = (f"KOLONİ declined this request of {self.label}'s: a patch KOLONİ cannot read "
-                   "file by file")
+            why = (
+                f"KOLONİ declined this request of {self.label}'s: a patch KOLONİ cannot read "
+                "file by file"
+            )
             questions = _patch_questions(changes, given) if changes else []
         if question is not None:
             questions = [question]
         if not questions:
-            await on_item("completed", {
-                "type": "mcp_tool_call", "server": "copilot", "tool": f"permission {kind}",
-                "arguments": request, "status": "declined", "error": {"message": why}})
+            await on_item(
+                "completed",
+                {
+                    "type": "mcp_tool_call",
+                    "server": "copilot",
+                    "tool": f"permission {kind}",
+                    "arguments": request,
+                    "status": "declined",
+                    "error": {"message": why},
+                },
+            )
             return {"kind": "reject", "feedback": why}
         answered.add((use_id, kind))
         for number, (tool, input_) in enumerate(questions):
             # (A patch's files by the ids its record names as its `parts`: `_translator`.)
             ask_id = f"{use_id}:{number}" if use_id in heredocs or len(questions) > 1 else use_id
             await on_item("announced", {"id": ask_id})
-            _ok, verdict = await call_tool("approve", json.dumps(
-                {"tool_name": tool, "input": input_, "tool_use_id": ask_id}))
+            _ok, verdict = await call_tool(
+                "approve", json.dumps({"tool_name": tool, "input": input_, "tool_use_id": ask_id})
+            )
             verdict = _dict(json.loads(verdict))
             if verdict.get("behavior") != "allow":
                 return {"kind": "reject", "feedback": str(verdict.get("message") or "rejected")}
         answered.update((use_id, f"cleared {subject}") for subject in clears)
         return APPROVE_ONCE
 
-    def _from_hook(self, request: dict, root: Path, ours: dict[str, str],
-                   ) -> tuple[dict | None, bool]:
+    def _from_hook(
+        self,
+        request: dict,
+        root: Path,
+        ours: dict[str, str],
+    ) -> tuple[dict | None, bool]:
         """A permission request of kind "hook" (protocol 4: KOLONİ's preToolUse hook said ask)
         as the request its tool would have made, for `_permit` to judge; and whether its
         command runs in a new shell at the project - KOLONİ's own prefix on it, taken off
@@ -4128,18 +5267,29 @@ class CopilotNativeClient(CodexNativeClient):
         KOLONİ's own. Any other stays a hook's request: declined, on record."""
         name, args = request.get("toolName"), request.get("toolArgs")
         call = str(request.get("toolCallId") or "")
-        if name in COPILOT_QUIET or name in COPILOT_FOLLOWS or _kolonis(ours, call, name) or (
-                isinstance(name, str) and name.startswith(COPILOT_PREFIX)
-                and name[len(COPILOT_PREFIX):] in self._offered):
+        if (
+            name in COPILOT_QUIET
+            or name in COPILOT_FOLLOWS
+            or _kolonis(ours, call, name)
+            or (
+                isinstance(name, str)
+                and name.startswith(COPILOT_PREFIX)
+                and name[len(COPILOT_PREFIX) :] in self._offered
+            )
+        ):
             return None, False
         given = _dict(args)
         command = given.get("command")
         if name in ("powershell", "bash") and isinstance(command, str):
             prefix = _at_root(root) if name == "powershell" else None
             new_shell = bool(prefix) and command.startswith(str(prefix))
-            return {"kind": "shell", "toolCallId": call, "shellType": name,
-                    "fullCommandText": command[len(str(prefix)):] if new_shell else command,
-                    **_bypass(given)}, new_shell
+            return {
+                "kind": "shell",
+                "toolCallId": call,
+                "shellType": name,
+                "fullCommandText": command[len(str(prefix)) :] if new_shell else command,
+                **_bypass(given),
+            }, new_shell
         if name == COPILOT_PATCH and isinstance(args, str):
             return {"kind": "patch", "toolCallId": call, "patch": args}, False
         path = _tool_path(given.get("path"), root)
@@ -4149,12 +5299,22 @@ class CopilotNativeClient(CodexNativeClient):
         if name == "view":
             return {"kind": "read", "toolCallId": call, "path": path}, False
         if name == "create" and isinstance(text, str):
-            return {"kind": "write", "toolCallId": call, "fileName": path,
-                    "fileEdits": [{"after": {"path": path, "content": text}}]}, False
+            return {
+                "kind": "write",
+                "toolCallId": call,
+                "fileName": path,
+                "fileEdits": [{"after": {"path": path, "content": text}}],
+            }, False
         if name == "edit" and isinstance(old, str) and isinstance(new, str):
             # (each line marked "- " or "+ ": none a diff's header, `_diff_paths`)
-            return {"kind": "write", "toolCallId": call, "fileName": path, "diff": "".join(
-                f"{mark} {line}\n" for mark, side in (("-", old), ("+", new))
-                for line in side.split("\n"))}, False
+            return {
+                "kind": "write",
+                "toolCallId": call,
+                "fileName": path,
+                "diff": "".join(
+                    f"{mark} {line}\n"
+                    for mark, side in (("-", old), ("+", new))
+                    for line in side.split("\n")
+                ),
+            }, False
         return request, False
-

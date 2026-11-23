@@ -3,6 +3,7 @@
 Revision ID: 0010
 Revises: 0009
 """
+
 import json
 
 import sqlalchemy as sa
@@ -79,11 +80,15 @@ def upgrade() -> None:
     )
     with op.batch_alter_table("discussion_posts") as batch:
         batch.create_index(
-            batch.f("ix_discussion_posts_discussion_id"), ["discussion_id"], unique=False)
+            batch.f("ix_discussion_posts_discussion_id"), ["discussion_id"], unique=False
+        )
     with op.batch_alter_table("messages") as batch:
         batch.add_column(sa.Column("discussion_id", sa.String(length=32), nullable=True))
-    _retool(lambda tools, name, builtin: [*tools, TOOL]
-            if builtin and name in CALLERS and TOOL not in tools else tools)
+    _retool(
+        lambda tools, name, builtin: (
+            [*tools, TOOL] if builtin and name in CALLERS and TOOL not in tools else tools
+        )
+    )
 
 
 def downgrade() -> None:

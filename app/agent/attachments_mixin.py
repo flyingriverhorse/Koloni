@@ -74,8 +74,16 @@ class AttachmentsMixin:
     # --- files the user attached (slice 85b) ---------------------------------
 
     async def _sent_with_files(
-        self: "AgentRunner", ctx: Ctx, client, model_id: str, history: list[dict], tools, on_delta,
-        on_thinking, message_id: str, more: dict,
+        self: "AgentRunner",
+        ctx: Ctx,
+        client,
+        model_id: str,
+        history: list[dict],
+        tools,
+        on_delta,
+        on_thinking,
+        message_id: str,
+        more: dict,
     ) -> StepResult:
         """A step whose history carries files sent as they are. A model that refuses a kind
         of them before it writes a word has that on its provider's record, and the step is
@@ -90,7 +98,8 @@ class AttachmentsMixin:
             kinds = {one["kind"] for one in _sent_files(history)}
             try:
                 result = await client.stream_step(
-                    model_id, history, tools, on_delta, on_thinking, **more)
+                    model_id, history, tools, on_delta, on_thinking, **more
+                )
             except ModelUnavailable as exc:
                 said = str(exc)
                 big = TOO_BIG.search(said)
@@ -99,14 +108,20 @@ class AttachmentsMixin:
                     self._reached(ctx, bool(written))
                     raise
                 if big:
-                    showing |= {one["id"]: f"not shown to {who}: the request was too large"
-                                for one in _sent_files(history)}
+                    showing |= {
+                        one["id"]: f"not shown to {who}: the request was too large"
+                        for one in _sent_files(history)
+                    }
                     history = _without(_without(history, "video", "big"), "image", "big")
                     continue
                 kind = "video" if "video" in kinds else "image"
-                showing |= {one["id"]: f"{len(one['frames'])} frames shown to {who}: the video "
-                            "was refused" if one["frames"] else f"not shown to {who}: refused"
-                            for one in _sent_files(history) if one["kind"] == kind}
+                showing |= {
+                    one["id"]: f"{len(one['frames'])} frames shown to {who}: the video was refused"
+                    if one["frames"]
+                    else f"not shown to {who}: refused"
+                    for one in _sent_files(history)
+                    if one["kind"] == kind
+                }
                 self._learned(ctx, kind, False)
                 history = _without(history, kind)
                 continue
@@ -118,15 +133,24 @@ class AttachmentsMixin:
     def _files_of(self: "AgentRunner", session: Session, ctx: Ctx) -> list[Attachment]:
         """The files an agent may read and hand on: the Lead, those sent with the chat's
         messages; a sub-agent, those handed to it. Not a video's frames: they go with it."""
-        rows = session.scalars(select(Attachment).where(
-            Attachment.conversation_id == ctx.cid, Attachment.message_id.is_not(None),
-            Attachment.frame_of.is_(None),
-        ).order_by(Attachment.created_at, literal_column("attachments.rowid"))).all()
+        rows = session.scalars(
+            select(Attachment)
+            .where(
+                Attachment.conversation_id == ctx.cid,
+                Attachment.message_id.is_not(None),
+                Attachment.frame_of.is_(None),
+            )
+            .order_by(Attachment.created_at, literal_column("attachments.rowid"))
+        ).all()
         mine = [one for one in rows if ctx.agent_id in one.given_to]
         return list(rows) if ctx.depth == 0 else mine
 
-    def _takes(self: "AgentRunner", session: Session, ctx: Ctx, in_result: bool = False,
-               ) -> tuple[set[str], str | None, int]:
+    def _takes(
+        self: "AgentRunner",
+        session: Session,
+        ctx: Ctx,
+        in_result: bool = False,
+    ) -> tuple[set[str], str | None, int]:
         """What this agent's model is sent as it is besides text: what was said or found
         it takes (`catalog.inputs`), by a client that sends files - an API's, or a CLI's with
         an image input of its own (`IMAGE_CLIS`). And the name of a CLI that has none, whose
@@ -138,26 +162,46 @@ class AttachmentsMixin:
             return set(), None, attachments.MAX_SENT
         if provider.kind not in (*HTTP_KINDS, *IMAGE_CLIS) and not in_result:
             return set(), CLI_NAMES.get(provider.kind, provider.kind), attachments.MAX_SENT
-        if (provider.kind == "codex_cli" and mode_of(provider) == "step"
-                and "," in tempfile.gettempdir()):
+        if (
+            provider.kind == "codex_cli"
+            and mode_of(provider) == "step"
+            and "," in tempfile.gettempdir()
+        ):
             # Its --image splits a path at each comma, and the copies are in that folder.
-            return set(), ("Codex, whose --image cannot take a path with a comma as this "
-                           "machine's temporary folder has,"), attachments.MAX_SENT
+            return (
+                set(),
+                (
+                    "Codex, whose --image cannot take a path with a comma as this "
+                    "machine's temporary folder has,"
+                ),
+                attachments.MAX_SENT,
+            )
         # Claude Code sends a picture as base64, a third larger, and has no retry without it
         # in a session or natively: none is sent whose base64 would pass Anthropic's limit.
-        most = attachments.MAX_SENT * 3 // 4 if provider.kind == "claude_cli" or in_result else (
-            attachments.MAX_SENT)
-        said = catalog.inputs(provider, catalog.model_key(provider, ctx.model_name),
-                              models_dev.load(self.settings.runtime_root))
+        most = (
+            attachments.MAX_SENT * 3 // 4
+            if provider.kind == "claude_cli" or in_result
+            else (attachments.MAX_SENT)
+        )
+        said = catalog.inputs(
+            provider,
+            catalog.model_key(provider, ctx.model_name),
+            models_dev.load(self.settings.runtime_root),
+        )
         takes = {kind for kind, (yes, _by) in said.items() if yes}
         # A model nobody described is sent an image once, and what it does is learned.
         takes |= {"image"} if "image" not in said else set()
         # (Anthropic's API takes no video, whatever a mark says, nor a CLI: its frames go.)
         return (takes if provider.kind == "openai_compat" else takes - {"video"}), None, most
 
-    def _told_files(self: "AgentRunner", session: Session, ctx: Ctx, files: list[Attachment],
-                    now: bool, off: frozenset[str] = frozenset(),
-                    ) -> tuple[str, list[dict], dict[str, str]]:
+    def _told_files(
+        self: "AgentRunner",
+        session: Session,
+        ctx: Ctx,
+        files: list[Attachment],
+        now: bool,
+        off: frozenset[str] = frozenset(),
+    ) -> tuple[str, list[dict], dict[str, str]]:
         """What an agent is told of files - a line each - and those its model is sent as
         they are. `now`: they came with this turn's message; then also, for each picture
         or video, what became of it for this agent's model, in words for its card.
@@ -167,19 +211,29 @@ class AttachmentsMixin:
         who = _who(ctx)
         seen: dict[str, str] = {}
         frames: dict[str, list[Attachment]] = {}
-        for frame in session.scalars(select(Attachment).where(
-                Attachment.frame_of.in_([one.id for one in files])).order_by(
-                    Attachment.created_at, literal_column("attachments.rowid"))):
+        for frame in session.scalars(
+            select(Attachment)
+            .where(Attachment.frame_of.in_([one.id for one in files]))
+            .order_by(Attachment.created_at, literal_column("attachments.rowid"))
+        ):
             frames.setdefault(frame.frame_of or "", []).append(frame)
 
         def sent(one: Attachment, card: str | None = None) -> dict | None:
             """`id`: the file whose card it is - a frame's is its video's."""
             card = card or one.id
             path = attachments.path_of(self.settings.runtime_root, one.conversation_id, one.id)
-            return None if path is None else {
-                "id": card, "name": one.name, "kind": one.kind, "mime": one.mime,
-                "path": str(path),
-                "frames": [p for f in frames.get(one.id, []) if (p := sent(f, card))]}
+            return (
+                None
+                if path is None
+                else {
+                    "id": card,
+                    "name": one.name,
+                    "kind": one.kind,
+                    "mime": one.mime,
+                    "path": str(path),
+                    "frames": [p for f in frames.get(one.id, []) if (p := sent(f, card))],
+                }
+            )
 
         lines, parts = [], []
         for one in files:
@@ -187,12 +241,17 @@ class AttachmentsMixin:
             if one.kind == "executable":
                 shown = "Only its name and size are known: it is never read or run."
             elif one.kind == "image" and one.size > most:
-                shown = (f"It is over {attachments.size_text(most)}, too big to be shown to a "
-                         "model as it is: only its name and summary are given.")
+                shown = (
+                    f"It is over {attachments.size_text(most)}, too big to be shown to a "
+                    "model as it is: only its name and summary are given."
+                )
                 seen[one.id] = f"not shown to {who}: over {attachments.size_text(most)}"
             elif one.kind == "image" and "image" in takes:
-                shown = "It is shown to you with the message." if now else (
-                    "It was shown to you in its turn.")
+                shown = (
+                    "It is shown to you with the message."
+                    if now
+                    else ("It was shown to you in its turn.")
+                )
                 parts += [sent(one)] if now else []
                 seen[one.id] = f"shown to {who}"
             elif one.kind == "video" and "video" in takes and one.size <= attachments.MAX_SENT:
@@ -200,23 +259,35 @@ class AttachmentsMixin:
                 parts += [sent(one)] if now else []
                 seen[one.id] = f"sent to {who} as it is"
             elif one.kind == "video" and got and "image" in takes:
-                shown = (f"{len(got)} frames of it, taken evenly through it, are shown to you as "
-                         "images; your model is not known to watch video.")
+                shown = (
+                    f"{len(got)} frames of it, taken evenly through it, are shown to you as "
+                    "images; your model is not known to watch video."
+                )
                 parts += [sent(f, one.id) for f in got] if now else []
                 seen[one.id] = f"{len(got)} frames shown to {who}"
             elif one.kind in ("image", "video"):
                 what = "images" if one.kind == "image" or got else "video"
-                shown = (attachments.NOT_GIVEN.format(what=what, cli=without) if without
-                         else attachments.NOT_SEEN.format(what=what)) + "."
+                shown = (
+                    attachments.NOT_GIVEN.format(what=what, cli=without)
+                    if without
+                    else attachments.NOT_SEEN.format(what=what)
+                ) + "."
                 seen[one.id] = f"not shown to {who}: " + (
-                    f"{without} is given no {what} by KOLONİ" if without
-                    else f"its model is not known to see {what}")
+                    f"{without} is given no {what} by KOLONİ"
+                    if without
+                    else f"its model is not known to see {what}"
+                )
             else:
-                shown = "Read it with read_attachment." if "read_attachment" not in off and not (
-                    attachments.secret_name(one.name)) and (
-                    attachments.folder(
-                    self.settings.runtime_root, one.conversation_id) / f"{one.id}.txt").is_file(
-                ) else ""
+                shown = (
+                    "Read it with read_attachment."
+                    if "read_attachment" not in off
+                    and not (attachments.secret_name(one.name))
+                    and (
+                        attachments.folder(self.settings.runtime_root, one.conversation_id)
+                        / f"{one.id}.txt"
+                    ).is_file()
+                    else ""
+                )
             lines.append(attachments.line_of(one.name, one.kind, one.size, one.summary, shown))
         return "\n".join(lines), [part for part in parts if part], seen if now else {}
 
@@ -226,8 +297,11 @@ class AttachmentsMixin:
         if not seen:
             return
         with self._factory() as session:
-            rows = [row for row in session.scalars(select(Attachment).where(
-                Attachment.id.in_(list(seen)))) if row.shown_to.get(ctx.agent_id) != seen[row.id]]
+            rows = [
+                row
+                for row in session.scalars(select(Attachment).where(Attachment.id.in_(list(seen))))
+                if row.shown_to.get(ctx.agent_id) != seen[row.id]
+            ]
             for row in rows:
                 row.shown_to = {**row.shown_to, ctx.agent_id: seen[row.id]}
             session.commit()
@@ -247,11 +321,21 @@ class AttachmentsMixin:
         if not seen:
             return
         with self._factory() as session:
-            known = {row.id for row in session.scalars(select(Attachment).where(
-                Attachment.id.in_(list(seen)))) if ctx.agent_id in row.shown_to}
-        self._shown(ctx, {aid: said if said.startswith("not ") else (
-            f"not shown to {_who(ctx)}: its model was not reached")
-            for aid, said in seen.items() if aid not in known})
+            known = {
+                row.id
+                for row in session.scalars(select(Attachment).where(Attachment.id.in_(list(seen))))
+                if ctx.agent_id in row.shown_to
+            }
+        self._shown(
+            ctx,
+            {
+                aid: said
+                if said.startswith("not ")
+                else (f"not shown to {_who(ctx)}: its model was not reached")
+                for aid, said in seen.items()
+                if aid not in known
+            },
+        )
 
     def _named_files(self: "AgentRunner", ctx: Ctx, names: object) -> list[Attachment]:
         """The files an agent names, among those it may read; ToolError for one it may not."""
@@ -265,9 +349,14 @@ class AttachmentsMixin:
             session.expunge_all()
         for name in names:
             if name not in files:
-                raise ToolError(f"no attached file is named {quoted(name)}: " + (
-                    f"the files are {', '.join(map(quoted, files))}" if files
-                    else "you have none"))
+                raise ToolError(
+                    f"no attached file is named {quoted(name)}: "
+                    + (
+                        f"the files are {', '.join(map(quoted, files))}"
+                        if files
+                        else "you have none"
+                    )
+                )
         return [files[name] for name in dict.fromkeys(names)]
 
     def _hand_files(self: "AgentRunner", ctx: Ctx, files: list[Attachment], agent_id: str) -> None:
@@ -311,8 +400,10 @@ class AttachmentsMixin:
         if attachments.secret_name(one.name):  # (a ".env (2)" kept its text before it was seen)
             return f"{one.name} is a secret file (keys, passwords): what it holds is not given."
         if one.kind in ("image", "video"):
-            return (f"{one.name} is {'an image' if one.kind == 'image' else 'a video'} and has no "
-                    "text. Where your model sees it, it was shown to you with its message.")
+            return (
+                f"{one.name} is {'an image' if one.kind == 'image' else 'a video'} and has no "
+                "text. Where your model sees it, it was shown to you with its message."
+            )
         text = attachments.text_of(self.settings.runtime_root, one.conversation_id, one.id)
         if text is None:
             return f"{one.name}: {one.summary}. No text of it is given."
@@ -320,7 +411,7 @@ class AttachmentsMixin:
         # - on every page, as `_recall_output` keeps its note: that line whole, not words of it
         # any file's first line could hold, to be said again as if KOLONİ said it.
         head = text.split("\n", 2)[:2]
-        head = head[:1 + (head[0] == injection.NOTE and len(head) > 1)]
+        head = head[: 1 + (head[0] == injection.NOTE and len(head) > 1)]
         framed = head[-1] == web.FRAMES[0].format(what=attachments.ISSUE) and start > len(head)
         return ("\n".join(head) + "\n" if framed else "") + attachments.page(text, start)
 
@@ -342,28 +433,46 @@ class AttachmentsMixin:
         with self._factory() as session:
             turn = session.get(Run, ctx.run_id)
             topic_id = turn.topic_id if turn else None
-            found = select(ToolCall).join(Run, Run.id == ToolCall.run_id).join(
-                Agent, Agent.id == ToolCall.agent_id).where(
-                ToolCall.id == wanted.strip(), Run.conversation_id == ctx.cid,
-                Run.topic_id == topic_id if topic_id else Run.topic_id.is_(None),
-                topics.in_history(ctx.run_id))
+            found = (
+                select(ToolCall)
+                .join(Run, Run.id == ToolCall.run_id)
+                .join(Agent, Agent.id == ToolCall.agent_id)
+                .where(
+                    ToolCall.id == wanted.strip(),
+                    Run.conversation_id == ctx.cid,
+                    Run.topic_id == topic_id if topic_id else Run.topic_id.is_(None),
+                    topics.in_history(ctx.run_id),
+                )
+            )
             if ctx.depth > 0:
-                own = [ctx.agent_id, *(link.id for link, _turn in topics.chain(
-                    session, ctx.agent_id))] if ctx.continues_id else [ctx.agent_id]
+                own = (
+                    [
+                        ctx.agent_id,
+                        *(link.id for link, _turn in topics.chain(session, ctx.agent_id)),
+                    ]
+                    if ctx.continues_id
+                    else [ctx.agent_id]
+                )
                 found = found.where(ToolCall.agent_id.in_(own) | (Agent.depth == 0))
             call = session.scalar(found)
-            command = session.scalar(select(Command).where(
-                Command.tool_call_id == call.id)) if call is not None else None
+            command = (
+                session.scalar(select(Command).where(Command.tool_call_id == call.id))
+                if call is not None
+                else None
+            )
         if call is None:
             raise unknown
         if call.status in ("pending", "running"):
             raise ToolError("that call has not returned yet")
         if call.name == "recall":
             raise ToolError("what the memory held then is not given again: look it up with recall")
-        if not recallable(call.name, call.outside_folder, call.why_asked,
-                          command.command if command else None):
-            raise ToolError("that was read on the user's word, for that once: ask for it again "
-                            "with the tool it was read with")
+        if not recallable(
+            call.name, call.outside_folder, call.why_asked, command.command if command else None
+        ):
+            raise ToolError(
+                "that was read on the user's word, for that once: ask for it again "
+                "with the tool it was read with"
+            )
         if command is not None:
             text = OutputMask(secret_values(os.environ)).hide(command.output) or "(no output)"
             if command.output_truncated:
@@ -371,12 +480,16 @@ class AttachmentsMixin:
         else:
             text = call.result or "(no result)"
         # (A line longer than a page is given in pieces: `page` takes a first line whole.)
-        text = "\n".join(line[at:at + MAX_LINE_CHARS] for line in text.splitlines()
-                         for at in range(0, len(line) or 1, MAX_LINE_CHARS))
+        text = "\n".join(
+            line[at : at + MAX_LINE_CHARS]
+            for line in text.splitlines()
+            for at in range(0, len(line) or 1, MAX_LINE_CHARS)
+        )
         # Outside text that read like orders keeps its word on every page, not on the first only.
         flagged = command is None and text.startswith(injection.NOTE)
         return (f"{injection.NOTE}\n" if flagged and start > 1 else "") + attachments.page(
-            text, start)
+            text, start
+        )
 
     async def _save_attached(self: "AgentRunner", ctx: Ctx) -> None:
         """The user's "Save these to the project too" (slice 23), done by KOLONİ before the
@@ -396,21 +509,33 @@ class AttachmentsMixin:
         ws, taken = Workspace(ctx.folder), set()
         for one in wanted:
             source = attachments.path_of(self.settings.runtime_root, ctx.cid, one.id)
-            rel = None if source is None or one.kind == "executable" or attachments.secret_name(
-                one.name) else _free_name(ws, one.name, taken)
+            rel = (
+                None
+                if source is None or one.kind == "executable" or attachments.secret_name(one.name)
+                else _free_name(ws, one.name, taken)
+            )
             if rel is None or source is None:
                 continue
             taken.add(rel)
             data = source.read_bytes()
             with self._factory() as session:
                 change = FileChange(
-                    run_id=ctx.run_id, agent_id=ctx.agent_id, tool_call_id=None, path=rel,
-                    kind="create", before_content=None,
-                    after_content=data.decode("utf-8") if one.kind == "text" else (
+                    run_id=ctx.run_id,
+                    agent_id=ctx.agent_id,
+                    tool_call_id=None,
+                    path=rel,
+                    kind="create",
+                    before_content=None,
+                    after_content=data.decode("utf-8")
+                    if one.kind == "text"
+                    else (
                         f"({attachments.size_text(one.size)}, {one.kind}: {one.name} as you "
-                        "attached it in the chat)"),
-                    before_sha=None, after_sha=hashlib.sha256(data).hexdigest(),
-                    after_from=str(source))
+                        "attached it in the chat)"
+                    ),
+                    before_sha=None,
+                    after_sha=hashlib.sha256(data).hexdigest(),
+                    after_from=str(source),
+                )
                 session.add(change)
                 session.commit()
                 change_id, payload = change.id, file_change_out(change)
@@ -422,7 +547,8 @@ class AttachmentsMixin:
                 self._update_run(ctx.run_id, ctx.cid, status="waiting_approval")
                 try:
                     decision = await self._users_word(
-                        ctx, future, self._change_heard(ctx, change_id))
+                        ctx, future, self._change_heard(ctx, change_id)
+                    )
                 finally:
                     self._decisions.pop(change_id, None)
                     self._update_run(ctx.run_id, ctx.cid, status="running")
@@ -449,54 +575,95 @@ class AttachmentsMixin:
         What it has not been handed yet is not repeated here: it reaches the agent once,
         the usual way, right after this result."""
         with self._factory() as session:
-            seen = session.scalar(
-                select(Agent.board_seen).where(Agent.id == ctx.agent_id)) or 0
+            seen = session.scalar(select(Agent.board_seen).where(Agent.id == ctx.agent_id)) or 0
             reads = self._reader(session, ctx)
-            posts = [post for post in session.scalars(
-                select(BoardPost).where(BoardPost.run_id == ctx.run_id).order_by(BoardPost.seq)
-            ) if reads(post)]
-            names = dict(session.execute(
-                select(Agent.id, Agent.name).where(Agent.run_id == ctx.run_id)).all())
+            posts = [
+                post
+                for post in session.scalars(
+                    select(BoardPost).where(BoardPost.run_id == ctx.run_id).order_by(BoardPost.seq)
+                )
+                if reads(post)
+            ]
+            names = dict(
+                session.execute(
+                    select(Agent.id, Agent.name).where(Agent.run_id == ctx.run_id)
+                ).all()
+            )
             # (The Lead's, of every team: the whole turn's, then a team's together, in the chat's
             # order of its teams.)
-            order = {team.id: at for at, (_row, team, _lead) in enumerate(
-                self._rows(session, ctx.cid))} if ctx.depth == 0 else {}
+            order = (
+                {team.id: at for at, (_row, team, _lead) in enumerate(self._rows(session, ctx.cid))}
+                if ctx.depth == 0
+                else {}
+            )
             known = [
                 (
                     post.seq,
-                    board.labelled("You" if post.agent_id == ctx.agent_id
-                                   else names.get(post.agent_id, "another agent") if post.agent_id
-                                   else board.USER, post),
-                    post.created_at, post.content,
+                    board.labelled(
+                        "You"
+                        if post.agent_id == ctx.agent_id
+                        else names.get(post.agent_id, "another agent")
+                        if post.agent_id
+                        else board.USER,
+                        post,
+                    ),
+                    post.created_at,
+                    post.content,
                 )
-                for post in sorted(posts, key=lambda post: (
-                    -1 if post.team_id is None else order.get(post.team_id, len(order))))
+                for post in sorted(
+                    posts,
+                    key=lambda post: (
+                        -1 if post.team_id is None else order.get(post.team_id, len(order))
+                    ),
+                )
                 if post.seq <= seen or post.agent_id == ctx.agent_id
             ]
             # The Lead was given a short block of the turn before (`board.pushed`): here is all.
             before = self._notes_before(session, ctx) if ctx.depth == 0 else []
             if before:
-                names |= dict(session.execute(select(Agent.id, Agent.name).where(
-                    Agent.run_id == before[0].run_id)).all())
+                names |= dict(
+                    session.execute(
+                        select(Agent.id, Agent.name).where(Agent.run_id == before[0].run_id)
+                    ).all()
+                )
         listed = board.listing(known, len(posts) - len(known))
-        return listed + "\n\n" + board.carried(
-            [(board.who_wrote(post, names), post.content) for post in before]) if before else listed
+        return (
+            listed
+            + "\n\n"
+            + board.carried([(board.who_wrote(post, names), post.content) for post in before])
+            if before
+            else listed
+        )
 
     @staticmethod
     def _notes_before(session, ctx: Ctx) -> list[BoardPost]:
         """The notebook of the turn before this one in the Lead's history (of its topic)."""
         turn = session.get(Run, ctx.run_id)
         topic_id = turn.topic_id if turn else None
-        turns = list(session.scalars(
-            select(Run.id)
-            .where(Run.conversation_id == ctx.cid, Run.started_at.is_not(None),
-                   Run.topic_id == topic_id if topic_id else Run.topic_id.is_(None))
-            .where(topics.in_history(ctx.run_id))
-            .order_by(Run.created_at, literal_column("runs.rowid"))
-        ))
+        turns = list(
+            session.scalars(
+                select(Run.id)
+                .where(
+                    Run.conversation_id == ctx.cid,
+                    Run.started_at.is_not(None),
+                    Run.topic_id == topic_id if topic_id else Run.topic_id.is_(None),
+                )
+                .where(topics.in_history(ctx.run_id))
+                .order_by(Run.created_at, literal_column("runs.rowid"))
+            )
+        )
         at = turns.index(ctx.run_id) if ctx.run_id in turns else 0
-        return list(session.scalars(select(BoardPost).where(
-            BoardPost.run_id == turns[at - 1]).order_by(BoardPost.seq))) if at > 0 else []
+        return (
+            list(
+                session.scalars(
+                    select(BoardPost)
+                    .where(BoardPost.run_id == turns[at - 1])
+                    .order_by(BoardPost.seq)
+                )
+            )
+            if at > 0
+            else []
+        )
 
     def _noted_for_team(self: "AgentRunner", session, ctx: Ctx, team_id: str) -> str:
         """K-devir-5: what a team's new lead is given of the notebook of the turn before
@@ -508,17 +675,26 @@ class AttachmentsMixin:
         if not before:
             return ""
         leads = {lead.name for _row, _team, lead in self._rows(session, ctx.cid) if lead}
-        by_lead = set(session.scalars(select(Agent.id).where(
-            Agent.run_id == before[0].run_id, Agent.role_name.in_(leads))))
+        by_lead = set(
+            session.scalars(
+                select(Agent.id).where(Agent.run_id == before[0].run_id, Agent.role_name.in_(leads))
+            )
+        )
         # (A room's decision is KOLONİ's note that starts with its own constant words.)
-        posts = [post for post in reversed(before) if (
-            post.agent_id in by_lead and (post.everyone or post.team_id == team_id))
+        posts = [
+            post
+            for post in reversed(before)
+            if (post.agent_id in by_lead and (post.everyone or post.team_id == team_id))
             or (post.koloni and post.content.startswith(rooms.DECIDED.partition("{")[0]))
             or (post.koloni and post.content.startswith(evolve.ROUND_RESULT))  # (K-evrim)
-        ][:board.FOR_TEAM_MOST]
+        ][: board.FOR_TEAM_MOST]
         if not posts:
             return ""
-        names = dict(session.execute(
-            select(Agent.id, Agent.name).where(Agent.run_id == before[0].run_id)).all())
-        return board.for_team([(board.who_wrote(post, names), post.created_at, post.content)
-                               for post in posts])
+        names = dict(
+            session.execute(
+                select(Agent.id, Agent.name).where(Agent.run_id == before[0].run_id)
+            ).all()
+        )
+        return board.for_team(
+            [(board.who_wrote(post, names), post.created_at, post.content) for post in posts]
+        )

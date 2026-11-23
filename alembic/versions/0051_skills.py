@@ -3,6 +3,7 @@
 Revision ID: 0051
 Revises: 0050
 """
+
 import json
 
 import sqlalchemy as sa

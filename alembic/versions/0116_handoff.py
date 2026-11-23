@@ -4,6 +4,7 @@ first write, and the ended agents whose work its briefing carried
 Revision ID: 0116
 Revises: 0115
 """
+
 import sqlalchemy as sa
 from alembic import op
 

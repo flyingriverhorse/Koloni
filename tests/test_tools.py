@@ -12,14 +12,23 @@ def ws(tmp_path):
 
 def test_schemas_name_the_seven_tools_and_the_browsers():
     assert [t["function"]["name"] for t in TOOL_SCHEMAS] == [
-        "list_dir", "read_file", "search", "view_image", "write_file", "edit_file", "run_command",
-        *BROWSER_TOOLS, "diagram_image"]  # (slice 51; K-drawio)
+        "list_dir",
+        "read_file",
+        "search",
+        "view_image",
+        "write_file",
+        "edit_file",
+        "run_command",
+        *BROWSER_TOOLS,
+        "diagram_image",
+    ]  # (slice 51; K-drawio)
 
 
 def test_read_file_numbers_lines_and_honours_offset_limit(ws):
     assert run_read_tool(ws, "read_file", {"path": "a.py", "offset": 2, "limit": 2}) == (
         "     2\tline 2\n     3\tline 3\n[showing lines 2-3 of 5]\n"
-        "[the file: LF line endings, ends with a newline; edit_file and write_file keep these]")
+        "[the file: LF line endings, ends with a newline; edit_file and write_file keep these]"
+    )
 
 
 def test_read_file_truncates_at_2000_lines(ws):
@@ -37,18 +46,25 @@ def test_read_file_stops_at_the_byte_budget(ws):
 
 def test_read_file_past_the_end_and_empty_file(ws):
     assert run_read_tool(ws, "read_file", {"path": "a.py", "offset": 99}) == (
-        "[no lines at offset 99; the file has 5 lines]")
+        "[no lines at offset 99; the file has 5 lines]"
+    )
     (ws.root / "empty.txt").write_text("", encoding="utf-8")
     assert run_read_tool(ws, "read_file", {"path": "empty.txt"}) == "[the file is empty]"
 
 
-@pytest.mark.parametrize("data, said", [
-    (b"one\ntwo\n", "LF line endings, ends with a newline"),
-    (b"one\r\ntwo", "CRLF line endings, no final newline"),
-    (b"\xef\xbb\xbfone\r\ntwo\r\nthree\n", "BOM, mixed line endings, mostly CRLF, ends with a newline"),
-    (b"only", "no line breaks, no final newline"),
-    (b"one\r", "no line breaks, no final newline"),  # (a lone CR ends no line here)
-])
+@pytest.mark.parametrize(
+    "data, said",
+    [
+        (b"one\ntwo\n", "LF line endings, ends with a newline"),
+        (b"one\r\ntwo", "CRLF line endings, no final newline"),
+        (
+            b"\xef\xbb\xbfone\r\ntwo\r\nthree\n",
+            "BOM, mixed line endings, mostly CRLF, ends with a newline",
+        ),
+        (b"only", "no line breaks, no final newline"),
+        (b"one\r", "no line breaks, no final newline"),  # (a lone CR ends no line here)
+    ],
+)
 def test_read_file_ends_with_the_files_form_on_a_line_of_its_own(ws, monkeypatch, data, said):
     from app import workspace
 
@@ -65,13 +81,16 @@ def test_list_and_search_format(ws):
     assert run_read_tool(ws, "search", {"pattern": "zzz"}) == "no matches"
 
 
-@pytest.mark.parametrize("args, message", [
-    ({}, "missing required argument: path"),
-    ({"path": 5}, "argument path must be a string"),
-    ({"path": "a.py", "offset": 0}, "offset must be 1 or greater"),
-    ({"path": "a.py", "limit": "ten"}, "argument limit must be an integer"),
-    ({"path": "../elsewhere/x"}, "outside the project"),  # (the folder above holds the home)
-])
+@pytest.mark.parametrize(
+    "args, message",
+    [
+        ({}, "missing required argument: path"),
+        ({"path": 5}, "argument path must be a string"),
+        ({"path": "a.py", "offset": 0}, "offset must be 1 or greater"),
+        ({"path": "a.py", "limit": "ten"}, "argument limit must be an integer"),
+        ({"path": "../elsewhere/x"}, "outside the project"),  # (the folder above holds the home)
+    ],
+)
 def test_bad_arguments_are_tool_errors(ws, args, message):
     with pytest.raises(ToolError, match=message):
         run_read_tool(ws, "read_file", args)
@@ -103,13 +122,21 @@ def test_write_and_edit_say_they_keep_a_files_line_endings_and_bom():
     assert "To add a line at the end, put the file's last line in old_string" in said["edit_file"]
 
 
-@pytest.mark.parametrize("before, after", [
-    (b"\xef\xbb\xbfone\r\ntwo\r\n", b"\xef\xbb\xbfone\r\ntwo\r\nthree\r\n"),
-    (b"one\ntwo", b"one\ntwo\nthree"),
-])
+@pytest.mark.parametrize(
+    "before, after",
+    [
+        (b"\xef\xbb\xbfone\r\ntwo\r\n", b"\xef\xbb\xbfone\r\ntwo\r\nthree\r\n"),
+        (b"one\ntwo", b"one\ntwo\nthree"),
+    ],
+)
 def test_a_line_added_at_the_end_as_edit_file_says_keeps_the_files_end(tmp_path, before, after):
     # B-155: done the way the description says, the file keeps its endings, its BOM and how its last line ends.
     from app.tools import plan_write
+
     (tmp_path / "lines.txt").write_bytes(before)
-    planned = plan_write(Workspace(tmp_path), "edit_file", {"path": "lines.txt", "old_string": "two", "new_string": "two\nthree"})
+    planned = plan_write(
+        Workspace(tmp_path),
+        "edit_file",
+        {"path": "lines.txt", "old_string": "two", "new_string": "two\nthree"},
+    )
     assert planned.after.encode() == after

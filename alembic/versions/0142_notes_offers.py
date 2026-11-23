@@ -4,6 +4,7 @@ that never holds a turn - one waiting in a project at a time
 Revision ID: 0142
 Revises: 0141
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -30,8 +31,13 @@ def upgrade() -> None:
     )
     op.create_index("ix_notes_offers_project_id", "notes_offers", ["project_id"])
     op.create_index("ix_notes_offers_conversation_id", "notes_offers", ["conversation_id"])
-    op.create_index("uq_notes_offers_waiting", "notes_offers", ["project_id"], unique=True,
-                    sqlite_where=sa.text("status = 'waiting'"))
+    op.create_index(
+        "uq_notes_offers_waiting",
+        "notes_offers",
+        ["project_id"],
+        unique=True,
+        sqlite_where=sa.text("status = 'waiting'"),
+    )
 
 
 def downgrade() -> None:

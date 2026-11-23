@@ -29,24 +29,30 @@ def _sum(rows: list[dict], name: str) -> int | None:
     return sum(known) if known else None
 
 
-def count_day(session: Session, project: Project, since: datetime, runner,
-              until: datetime | None = None) -> dict:
+def count_day(
+    session: Session, project: Project, since: datetime, runner, until: datetime | None = None
+) -> dict:
     """Everything of the project's turns started at or after `since`, and before `until`
     where it is given. What waits for the user is what waits now."""
     spent = usage(project_id=project.id, since=since, until=until, session=session)["by_model"]
+
     def kept(at: datetime) -> datetime:  # as `usage` keeps it
         return at.astimezone(UTC) if at.tzinfo else at
 
-    within = [Conversation.project_id == project.id, Run.created_at >= kept(since),
-              *([Run.created_at < kept(until)] if until else [])]
+    within = [
+        Conversation.project_id == project.id,
+        Run.created_at >= kept(since),
+        *([Run.created_at < kept(until)] if until else []),
+    ]
     turns = session.execute(
         select(Run.id, Run.conversation_id, Run.status, Run.error, Conversation.title)
         .join(Conversation, Conversation.id == Run.conversation_id)
         .where(*within)
         .order_by(Run.created_at.desc())
     ).all()
-    of_day = select(Run.id).join(Conversation, Conversation.id == Run.conversation_id).where(
-        *within)
+    of_day = (
+        select(Run.id).join(Conversation, Conversation.id == Run.conversation_id).where(*within)
+    )
     # What reached the project: not what was only proposed, turned down or thrown away.
     changes = session.execute(
         select(FileChange.id, FileChange.path, Run.conversation_id)
@@ -55,17 +61,28 @@ def count_day(session: Session, project: Project, since: datetime, runner,
         .order_by(FileChange.created_at)
     ).all()
     agents = session.scalars(
-        select(Agent.name).where(Agent.run_id.in_(of_day), Agent.started_at.is_not(None))
-        .distinct().order_by(Agent.name)
+        select(Agent.name)
+        .where(Agent.run_id.in_(of_day), Agent.started_at.is_not(None))
+        .distinct()
+        .order_by(Agent.name)
     ).all()
-    waits = {row["conversation_id"]: waiting_in(row)
-             for row in board_of(session, project, runner)["conversations"]}
+    waits = {
+        row["conversation_id"]: waiting_in(row)
+        for row in board_of(session, project, runner)["conversations"]
+    }
     talks: dict[str, dict] = {}
     for rid, cid, status, error, title in turns:
-        talk = talks.setdefault(cid, {
-            "conversation_id": cid, "title": title, "turns": 0, "failed": 0,
-            "files": {}, "failed_runs": [],
-        })
+        talk = talks.setdefault(
+            cid,
+            {
+                "conversation_id": cid,
+                "title": title,
+                "turns": 0,
+                "failed": 0,
+                "files": {},
+                "failed_runs": [],
+            },
+        )
         talk["turns"] += 1
         if status == "failed":
             talk["failed"] += 1
@@ -89,10 +106,15 @@ def count_day(session: Session, project: Project, since: datetime, runner,
             "amount": round(sum(cost["amount"] for cost in costs), 6),
             "currency": costs[0]["currency"],
             "at_least": any(cost.get("at_least") for cost in costs) or None,
-        } if whole else None,
+        }
+        if whole
+        else None,
         "conversations": [
-            {**talk, "changed_files": len(talk["files"]),
-             "files": [{"path": path, "change_id": cid} for path, cid in talk["files"].items()]}
+            {
+                **talk,
+                "changed_files": len(talk["files"]),
+                "files": [{"path": path, "change_id": cid} for path, cid in talk["files"].items()],
+            }
             for talk in talks.values()
         ],
     }
@@ -116,29 +138,42 @@ def _money(amount: float) -> str:
 def note_text(project: Project, day: dict, when: str = "today") -> str:
     """The day as the evening's text: the numbers and nothing else. `when`: which day it
     is, said in its first line."""
+
     def known(n: int | None) -> str:  # never a made-up zero
         return "–" if n is None else f"{n:,}"
 
-    tokens = (("at least " if day["tokens_at_least"] else "")
-              + f"{known(day['input_tokens'])} in / {known(day['output_tokens'])} out")
+    tokens = (
+        "at least " if day["tokens_at_least"] else ""
+    ) + f"{known(day['input_tokens'])} in / {known(day['output_tokens'])} out"
     cost = day["cost"]
-    return "\n".join([
-        f"KOLONİ — {project.name}, {when}: {_count(day['turns'], 'turn')}, "
-        f"{day['failed']} failed, {day['waiting']} waiting for you.",
-        f"Files changed: {', '.join(_first(day['changed_files'])) or 'none'}.",
-        f"Agents: {', '.join(day['agents']) or 'none'}.",
-        f"Tokens: {tokens}; cost "
-        + (f"{'at least ' if cost['at_least'] else ''}≈ {_money(cost['amount'])} {cost['currency']}"
-           if cost else "–") + ".",
-    ])
+    return "\n".join(
+        [
+            f"KOLONİ — {project.name}, {when}: {_count(day['turns'], 'turn')}, "
+            f"{day['failed']} failed, {day['waiting']} waiting for you.",
+            f"Files changed: {', '.join(_first(day['changed_files'])) or 'none'}.",
+            f"Agents: {', '.join(day['agents']) or 'none'}.",
+            f"Tokens: {tokens}; cost "
+            + (
+                f"{'at least ' if cost['at_least'] else ''}≈ "
+                f"{_money(cost['amount'])} {cost['currency']}"
+                if cost
+                else "–"
+            )
+            + ".",
+        ]
+    )
 
 
-def day_note(session: Session, project: Project, since: datetime, runner,
-             until: datetime | None = None) -> str:
+def day_note(
+    session: Session, project: Project, since: datetime, runner, until: datetime | None = None
+) -> str:
     """The evening's text of a project's day (`Triggers.day_notes` sends it); with `until`,
     of a day that is over, sent late."""
-    return note_text(project, count_day(session, project, since, runner, until),
-                     "yesterday (sent late: KOLONİ was closed at its time)" if until else "today")
+    return note_text(
+        project,
+        count_day(session, project, since, runner, until),
+        "yesterday (sent late: KOLONİ was closed at its time)" if until else "today",
+    )
 
 
 def _project(session: Session, project_id: str) -> Project:
@@ -150,7 +185,10 @@ def _project(session: Session, project_id: str) -> Project:
 
 @router.get("/{project_id}/day", response_model=DayOut)
 async def day(  # on the event loop: the board's part reads the runner
-    project_id: str, since: datetime, request: Request, session: Session = Depends(get_session),
+    project_id: str,
+    since: datetime,
+    request: Request,
+    session: Session = Depends(get_session),
 ):
     return count_day(session, _project(session, project_id), since, request.app.state.runner)
 
@@ -163,11 +201,15 @@ WORDS = (
 
 
 @router.post(
-    "/{project_id}/day/words", response_model=DayWordsOut,
+    "/{project_id}/day/words",
+    response_model=DayWordsOut,
     dependencies=[Depends(require_own_origin)],  # a request the user pays for: their click
 )
 async def day_words(
-    project_id: str, body: DayWordsIn, request: Request, session: Session = Depends(get_session),
+    project_id: str,
+    body: DayWordsIn,
+    request: Request,
+    session: Session = Depends(get_session),
 ):
     project = _project(session, project_id)
     conversation = session.get(Conversation, body.conversation_id)
@@ -188,35 +230,59 @@ async def day_words(
     if refused:
         raise HTTPException(409, str(refused))
     numbers = json.dumps(
-        {name: counted[name] for name in (
-            "turns", "failed", "waiting", "agents", "input_tokens", "output_tokens", "cost")}
-        | {"changed_files": _first(counted["changed_files"]),
-           "conversations": [{key: talk[key] for key in (
-               "title", "turns", "changed_files", "failed")}
-               for talk in counted["conversations"]]},
+        {
+            name: counted[name]
+            for name in (
+                "turns",
+                "failed",
+                "waiting",
+                "agents",
+                "input_tokens",
+                "output_tokens",
+                "cost",
+            )
+        }
+        | {
+            "changed_files": _first(counted["changed_files"]),
+            "conversations": [
+                {key: talk[key] for key in ("title", "turns", "changed_files", "failed")}
+                for talk in counted["conversations"]
+            ],
+        },
         ensure_ascii=False,
     )
     client = request.app.state.providers.client(provider, model)
     try:
         model = model or (await client.info()).model_id  # as the Lead learns its own
         # (On Usage as "KOLONİ itself", in this project's budget: K-56.)
-        said, answer = await ask_own(request.app.state.session_factory, (
-                provider.name, mode_of(provider)), client, model, [
-            {"role": "system", "content": WORDS},
-            # Said again over the day, which stands under it as data (titles in JSON's
-            # quotes): a CLI's own rules tell it to do what the user's turn asks.
-            {"role": "user", "content": f"{WORDS}\n\nThe day:\n{numbers}"},
-        ], project_id=project.id)
+        said, answer = await ask_own(
+            request.app.state.session_factory,
+            (provider.name, mode_of(provider)),
+            client,
+            model,
+            [
+                {"role": "system", "content": WORDS},
+                # Said again over the day, which stands under it as data (titles in JSON's
+                # quotes): a CLI's own rules tell it to do what the user's turn asks.
+                {"role": "user", "content": f"{WORDS}\n\nThe day:\n{numbers}"},
+            ],
+            project_id=project.id,
+        )
     except ModelUnavailable as exc:
         reason = str(exc)
         if provider.api_key:
             reason = reason.replace(provider.api_key, "[key]")
-        raise HTTPException(502, (
-            f"{provider.name} isn't answering ({reason}). Start it, or give "
-            "a model the fast tier on the Models page and tick it for agents.")) from None
+        raise HTTPException(
+            502,
+            (
+                f"{provider.name} isn't answering ({reason}). Start it, or give "
+                "a model the fast tier on the Models page and tick it for agents."
+            ),
+        ) from None
     if not said:
         raise HTTPException(502, "the model said nothing")
     return {
-        "text": said, "provider_name": provider.name,
+        "text": said,
+        "provider_name": provider.name,
         "model_id": getattr(answer, "model", None) or model,
     }

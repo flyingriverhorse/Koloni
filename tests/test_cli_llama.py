@@ -33,12 +33,20 @@ pytestmark = pytest.mark.anyio
 MODEL = "Qwen3-0.6B"
 PLANTED = "sk-ant-test-DO-NOT-LEAK"
 OWN = {"Origin": "http://127.0.0.1:8790"}  # (an address is set from the app's own page only)
-KEYS = ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "OPENAI_API_KEY", "CODEX_API_KEY",
-        "CODEX_ACCESS_TOKEN", "CLAUDE_CODE_USE_BEDROCK")
+KEYS = (
+    "ANTHROPIC_API_KEY",
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "OPENAI_API_KEY",
+    "CODEX_API_KEY",
+    "CODEX_ACCESS_TOKEN",
+    "CLAUDE_CODE_USE_BEDROCK",
+)
 # What a started CLI was given, as the stand-ins record it.
-DUMP = ("import json, os; print(json.dumps({n: os.environ.get(n) for n in ("
-        "'ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CONFIG_DIR', 'CODEX_HOME', "
-        "'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', " + ", ".join(map(repr, KEYS)) + ")}))")
+DUMP = (
+    "import json, os; print(json.dumps({n: os.environ.get(n) for n in ("
+    "'ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CONFIG_DIR', 'CODEX_HOME', "
+    "'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC', " + ", ".join(map(repr, KEYS)) + ")}))"
+)
 
 
 @pytest.fixture
@@ -82,8 +90,9 @@ def made(kind, tmp_path, server, **plan):
     record, planned = tmp_path / "record.json", tmp_path / "plan.json"
     planned.write_text(json.dumps({"record": str(record), **plan}), encoding="utf-8")
     env = {"FAKE_CLI_PLAN": str(planned), "CODEX_HOME": str(tmp_path)}  # (not the user's)
-    client = kind(model=MODEL, timeout=20.0, launcher=FAKE, env=env, server=server,
-                  homes=tmp_path / "homes")
+    client = kind(
+        model=MODEL, timeout=20.0, launcher=FAKE, env=env, server=server, homes=tmp_path / "homes"
+    )
     return client, record
 
 
@@ -93,8 +102,10 @@ def kolonis_empty_home(tmp_path, home: str | None) -> bool:
 
 
 # Each CLI's own sign-ins: the ones it would send to the address it is pointed at.
-SIGN_INS = {"claude": ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK"),
-            "codex": ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN")}
+SIGN_INS = {
+    "claude": ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK"),
+    "codex": ("OPENAI_API_KEY", "CODEX_API_KEY", "CODEX_ACCESS_TOKEN"),
+}
 
 
 def nothing_of_the_users(told: dict, command: str) -> bool:
@@ -103,12 +114,20 @@ def nothing_of_the_users(told: dict, command: str) -> bool:
 
 def settings_of(server: str) -> list[str]:
     named = "model_providers.koloni_local"
-    return ["-c", "model_provider='koloni_local'", "-c", f"{named}.name='koloni_local'",
-            "-c", f"{named}.base_url='{server}'", "-c", f"{named}.wire_api='responses'"]
+    return [
+        "-c",
+        "model_provider='koloni_local'",
+        "-c",
+        f"{named}.name='koloni_local'",
+        "-c",
+        f"{named}.base_url='{server}'",
+        "-c",
+        f"{named}.wire_api='responses'",
+    ]
 
 
 def holds(argv: list[str], part: list[str]) -> bool:
-    return any(argv[at:at + len(part)] == part for at in range(len(argv)))
+    return any(argv[at : at + len(part)] == part for at in range(len(argv)))
 
 
 async def test_claude_code_goes_to_the_servers_messages_with_a_stand_in_token_and_no_key(
@@ -129,9 +148,7 @@ async def test_claude_code_goes_to_the_servers_messages_with_a_stand_in_token_an
     assert not hasattr(result, "cost")
 
 
-async def test_codex_is_given_the_server_as_a_responses_provider_and_no_key(
-    tmp_path, llama, keys
-):
+async def test_codex_is_given_the_server_as_a_responses_provider_and_no_key(tmp_path, llama, keys):
     (tmp_path / "config.toml").write_text("[mcp_servers.mine]\ncommand = 'x'\n", "utf-8")
     client, record = made(CodexCliClient, tmp_path, llama)
     await step(client)
@@ -160,7 +177,8 @@ def test_native_codex_gets_the_server_before_its_app_server_and_talkers_keep_it(
     assert holds(claude, ["--setting-sources", ""])
     # On its own sign-in: none of it.
     assert "model_provider='koloni_local'" not in CodexNativeClient(
-        env={"CODEX_HOME": str(tmp_path)})._native_arguments(tmp_path, tmp_path / "b.json")
+        env={"CODEX_HOME": str(tmp_path)}
+    )._native_arguments(tmp_path, tmp_path / "b.json")
 
 
 async def test_a_server_that_is_not_running_is_refused_before_the_cli_starts(tmp_path):
@@ -173,13 +191,20 @@ async def test_a_server_that_is_not_running_is_refused_before_the_cli_starts(tmp
         await client.info()  # the Models page's Check and the banner say it too
 
 
-@pytest.mark.parametrize(("kind", "mode", "built"), [
-    ("claude_cli", "session", ClaudeSessionClient), ("claude_cli", "step", ClaudeCliClient),
-    ("claude_cli", "native", ClaudeNativeClient), ("codex_cli", "step", CodexCliClient),
-    ("codex_cli", "native", CodexNativeClient)])
+@pytest.mark.parametrize(
+    ("kind", "mode", "built"),
+    [
+        ("claude_cli", "session", ClaudeSessionClient),
+        ("claude_cli", "step", ClaudeCliClient),
+        ("claude_cli", "native", ClaudeNativeClient),
+        ("codex_cli", "step", CodexCliClient),
+        ("codex_cli", "native", CodexNativeClient),
+    ],
+)
 def test_every_way_of_running_is_built_on_the_providers_server(settings_env, kind, mode, built):
-    provider = Provider(id="p", name="Local CLI", kind=kind, mode=mode,
-                        base_url="http://127.0.0.1:8180/v1")
+    provider = Provider(
+        id="p", name="Local CLI", kind=kind, mode=mode, base_url="http://127.0.0.1:8180/v1"
+    )
     client = Providers(load_settings(settings_env))._build(provider, MODEL)
     assert isinstance(client, built) and client.server == provider.base_url
     assert client.on_limits is None  # nothing it says is of the user's plan
@@ -192,8 +217,12 @@ async def test_native_claude_code_codex_and_their_talkers_are_started_with_nothi
     codex = CodexNativeClient(server=llama, homes=tmp_path / "homes")
     for client in (native, native.talker(), codex, codex.talker()):
         # (As `run_native` starts it: with the secret variables a project passes as well.)
-        started, _job = await client._start([sys.executable, "-c", DUMP], False, tmp_path,
-                                      {"ANTHROPIC_API_KEY": PLANTED, "CODEX_API_KEY": PLANTED})
+        started, _job = await client._start(
+            [sys.executable, "-c", DUMP],
+            False,
+            tmp_path,
+            {"ANTHROPIC_API_KEY": PLANTED, "CODEX_API_KEY": PLANTED},
+        )
         told = json.loads((await started.communicate())[0])
         assert nothing_of_the_users(told, client.command), client
         home = told["CLAUDE_CONFIG_DIR" if client.command == "claude" else "CODEX_HOME"]
@@ -203,46 +232,85 @@ async def test_native_claude_code_codex_and_their_talkers_are_started_with_nothi
 @pytest.mark.parametrize("kind", ["claude_cli", "codex_cli"])
 def test_only_an_address_on_this_machine_or_the_lan_is_taken_and_never_a_key(client, kind):
     def add(address, **more):
-        return client.post("/api/providers", headers=OWN, json={
-            "name": f"{kind} {address}", "kind": kind, "base_url": address, **more})
+        return client.post(
+            "/api/providers",
+            headers=OWN,
+            json={"name": f"{kind} {address}", "kind": kind, "base_url": address, **more},
+        )
 
     added = add("http://127.0.0.1:8180/v1/", api_key="sk-real")
     assert added.status_code == 201, added.text
-    assert (added.json()["base_url"], added.json()["has_key"]) == ("http://127.0.0.1:8180/v1", False)
-    for nearby in ("http://192.168.1.20:8080/v1", "http://localhost:8080/v1",
-                   "http://[::1]:8080/v1", "http://[fd00::5]:8080/v1"):
+    assert (added.json()["base_url"], added.json()["has_key"]) == (
+        "http://127.0.0.1:8180/v1",
+        False,
+    )
+    for nearby in (
+        "http://192.168.1.20:8080/v1",
+        "http://localhost:8080/v1",
+        "http://[::1]:8080/v1",
+        "http://[fd00::5]:8080/v1",
+    ):
         assert add(nearby).status_code == 201, nearby
-    for elsewhere in ("https://api.anthropic.com", "http://example.com:8080/v1",
-                      "http://8.8.8.8:8080/v1", "http://[2001:4860::8888]:8080/v1",
-                      "http://0.0.0.0:8080/v1", "http://[::]:8080/v1",
-                      "http://169.254.169.254/v1", "http://240.0.0.1:8080/v1",
-                      "http://127.0.0.1:99999/v1", "http://127.0.0.1:8080",
-                      "http://127.0.0.1:8080/v1'", "http://user:pw@127.0.0.1:8080/v1",
-                      "http://127.0.0.1:8080/v1?k=1", "http://127.0.0.\u0661:8080/v1"):
+    for elsewhere in (
+        "https://api.anthropic.com",
+        "http://example.com:8080/v1",
+        "http://8.8.8.8:8080/v1",
+        "http://[2001:4860::8888]:8080/v1",
+        "http://0.0.0.0:8080/v1",
+        "http://[::]:8080/v1",
+        "http://169.254.169.254/v1",
+        "http://240.0.0.1:8080/v1",
+        "http://127.0.0.1:99999/v1",
+        "http://127.0.0.1:8080",
+        "http://127.0.0.1:8080/v1'",
+        "http://user:pw@127.0.0.1:8080/v1",
+        "http://127.0.0.1:8080/v1?k=1",
+        "http://127.0.0.\u0661:8080/v1",
+    ):
         assert add(elsewhere).status_code == 422, elsewhere
     # Not an agent's to point elsewhere (a command against the app's address).
-    by_command = client.post("/api/providers", json={
-        "name": f"{kind} by a command", "kind": kind, "base_url": "http://127.0.0.1:8180/v1"})
+    by_command = client.post(
+        "/api/providers",
+        json={"name": f"{kind} by a command", "kind": kind, "base_url": "http://127.0.0.1:8180/v1"},
+    )
     assert by_command.status_code == 403
-    moved = client.patch(f"/api/providers/{added.json()['id']}",
-                         json={"base_url": "http://192.168.1.9:8080/v1"})
+    moved = client.patch(
+        f"/api/providers/{added.json()['id']}", json={"base_url": "http://192.168.1.9:8080/v1"}
+    )
     assert moved.status_code == 403
     # Taken off again: on the user's own sign-in.
-    patched = client.patch(f"/api/providers/{added.json()['id']}", json={"base_url": ""},
-                           headers=OWN)
+    patched = client.patch(
+        f"/api/providers/{added.json()['id']}", json={"base_url": ""}, headers=OWN
+    )
     assert patched.status_code == 200 and patched.json()["base_url"] is None
 
 
 def test_claude_codes_own_setup_never_goes_with_a_model_server(client):
-    told = client.post("/api/providers", headers=OWN, json={
-        "name": "Claude local", "kind": "claude_cli", "mode": "native",
-        "base_url": "http://127.0.0.1:8180/v1", "options": {"own_setup": True}})
+    told = client.post(
+        "/api/providers",
+        headers=OWN,
+        json={
+            "name": "Claude local",
+            "kind": "claude_cli",
+            "mode": "native",
+            "base_url": "http://127.0.0.1:8180/v1",
+            "options": {"own_setup": True},
+        },
+    )
     assert told.status_code == 422 and "cannot go with a model server" in told.text
-    own = client.post("/api/providers", headers=OWN, json={
-        "name": "Claude mine", "kind": "claude_cli", "mode": "native",
-        "options": {"own_setup": True}}).json()
-    moved = client.patch(f"/api/providers/{own['id']}", headers=OWN,
-                         json={"base_url": "http://127.0.0.1:8180/v1"})
+    own = client.post(
+        "/api/providers",
+        headers=OWN,
+        json={
+            "name": "Claude mine",
+            "kind": "claude_cli",
+            "mode": "native",
+            "options": {"own_setup": True},
+        },
+    ).json()
+    moved = client.patch(
+        f"/api/providers/{own['id']}", headers=OWN, json={"base_url": "http://127.0.0.1:8180/v1"}
+    )
     assert moved.status_code == 422
 
 
@@ -254,8 +322,11 @@ def test_its_models_are_the_servers_and_its_sign_in_is_not_asked(client, llama, 
     monkeypatch.setattr(app.catalog, "signed_in", never)
     monkeypatch.setattr(app.catalog, "status", never)
     for kind in ("claude_cli", "codex_cli"):
-        added = client.post("/api/providers", headers=OWN, json={
-            "name": f"{kind} local", "kind": kind, "base_url": llama}).json()
+        added = client.post(
+            "/api/providers",
+            headers=OWN,
+            json={"name": f"{kind} local", "kind": kind, "base_url": llama},
+        ).json()
         # Not Claude Code's own aliases (sonnet, opus...): what the server serves.
         assert client.get(f"/api/providers/{added['id']}/models").json()["models"] == [MODEL]
         seen = client.get(f"/api/providers/{added['id']}/availability")
@@ -274,16 +345,24 @@ def test_a_session_on_the_local_server_counts_tokens_and_never_money(
     settings_env, tmp_path, llama, keys, project_dir, wait_run
 ):
     record, planned = tmp_path / "record.json", tmp_path / "plan.json"
-    planned.write_text(json.dumps({"record": str(record), "script": [{"say": "hi"}]}),
-                       encoding="utf-8")
-    cli = ClaudeSessionClient(launcher=FAKE_SESSION, timeout=30, server=llama,
-                              env={"FAKE_CLI_PLAN": str(planned)}, homes=tmp_path / "homes")
-    app = create_app(load_settings(settings_env), model=ScriptedModel([]),
-                     clients={"Local Claude": cli})
+    planned.write_text(
+        json.dumps({"record": str(record), "script": [{"say": "hi"}]}), encoding="utf-8"
+    )
+    cli = ClaudeSessionClient(
+        launcher=FAKE_SESSION,
+        timeout=30,
+        server=llama,
+        env={"FAKE_CLI_PLAN": str(planned)},
+        homes=tmp_path / "homes",
+    )
+    app = create_app(
+        load_settings(settings_env), model=ScriptedModel([]), clients={"Local Claude": cli}
+    )
     with TestClient(app, base_url="http://127.0.0.1:8790") as client:
         client.headers["Origin"] = "http://127.0.0.1:8790"
-        provider = client.post("/api/providers", json={
-            "name": "Local Claude", "kind": "claude_cli", "base_url": llama})
+        provider = client.post(
+            "/api/providers", json={"name": "Local Claude", "kind": "claude_cli", "base_url": llama}
+        )
         assert provider.status_code == 201, provider.text
         cid, run_id = start(client, project_dir, provider.json())
         assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
@@ -297,8 +376,10 @@ def test_a_session_on_the_local_server_counts_tokens_and_never_money(
         assert row["input_tokens"] and row["cost"] is None
     told = json.loads(record.read_text(encoding="utf-8"))["sign_in"]
     assert (told["base_url"], told["placeholder"]) == (llama.removesuffix("/v1"), True)
-    assert not any(told[name] for name in ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN",
-                                            "CLAUDE_CODE_USE_BEDROCK"))
+    assert not any(
+        told[name]
+        for name in ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK")
+    )
     assert kolonis_empty_home(tmp_path, told["CLAUDE_CONFIG_DIR"])
 
 
@@ -306,16 +387,30 @@ def test_a_native_turn_on_the_local_server_is_started_with_nothing_of_the_users(
     settings_env, tmp_path, llama, keys, project_dir, wait_run
 ):
     record, planned = tmp_path / "record.json", tmp_path / "plan.json"
-    planned.write_text(json.dumps({"record": str(record), "script": [{"say": "done"}]}),
-                       encoding="utf-8")
-    cli = ClaudeNativeClient(launcher=FAKE_NATIVE, timeout=30, server=llama,
-                             env={"FAKE_CLI_PLAN": str(planned)}, homes=tmp_path / "homes")
-    app = create_app(load_settings(settings_env), model=ScriptedModel([]),
-                     clients={"Claude local": cli})
+    planned.write_text(
+        json.dumps({"record": str(record), "script": [{"say": "done"}]}), encoding="utf-8"
+    )
+    cli = ClaudeNativeClient(
+        launcher=FAKE_NATIVE,
+        timeout=30,
+        server=llama,
+        env={"FAKE_CLI_PLAN": str(planned)},
+        homes=tmp_path / "homes",
+    )
+    app = create_app(
+        load_settings(settings_env), model=ScriptedModel([]), clients={"Claude local": cli}
+    )
     with TestClient(app, base_url="http://127.0.0.1:8790") as client:
         client.headers["Origin"] = "http://127.0.0.1:8790"
-        provider = client.post("/api/providers", json={
-            "name": "Claude local", "kind": "claude_cli", "mode": "native", "base_url": llama})
+        provider = client.post(
+            "/api/providers",
+            json={
+                "name": "Claude local",
+                "kind": "claude_cli",
+                "mode": "native",
+                "base_url": llama,
+            },
+        )
         assert provider.status_code == 201, provider.text
         cid, run_id = start(client, project_dir, provider.json())
         assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
@@ -323,7 +418,9 @@ def test_a_native_turn_on_the_local_server_is_started_with_nothing_of_the_users(
     assert holds(told["argv"], ["--setting-sources", ""])
     signed = told["sign_in"]
     assert (signed["base_url"], signed["placeholder"]) == (llama.removesuffix("/v1"), True)
-    assert not any(signed[name] for name in ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN",
-                                              "CLAUDE_CODE_USE_BEDROCK"))
+    assert not any(
+        signed[name]
+        for name in ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK")
+    )
     assert kolonis_empty_home(tmp_path, signed["CLAUDE_CONFIG_DIR"])
     assert signed["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] == "1"

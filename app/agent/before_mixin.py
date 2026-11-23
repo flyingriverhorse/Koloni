@@ -46,10 +46,12 @@ REGRESSION = "Regression: {id} passed at the last green run and fails now{by}"
 UNUSUAL = "Not re-run alone or on the old code: an unusual test name ({ids})"
 EXCUSED = "{said} - the answer says why: “{why}”"
 NOT_YOURS = " These were failing before this turn and are not yours to fix: {ids}."
-GREEN_LEAD = ("Not the end yet: {said}, against this project's last green run - and your answer "
-              "does not say why. Put back what was taken away, or say in your answer, in a "
-              "sentence that names the tests, why they were removed or skipped; KOLONİ runs them "
-              "again.")
+GREEN_LEAD = (
+    "Not the end yet: {said}, against this project's last green run - and your answer "
+    "does not say why. Put back what was taken away, or say in your answer, in a "
+    "sentence that names the tests, why they were removed or skipped; KOLONİ runs them "
+    "again."
+)
 _SEEN = re.compile(r"seen (\d+) times")
 
 
@@ -60,8 +62,9 @@ def _named(command: str):
 
 
 class BeforeMixin:
-    async def _proof_before(self: "AgentRunner", ctx: Ctx, held: "Proof",
-                            failed: list[tuple[TestRun, str]]) -> list[tuple[TestRun, str]]:
+    async def _proof_before(
+        self: "AgentRunner", ctx: Ctx, held: "Proof", failed: list[tuple[TestRun, str]]
+    ) -> list[tuple[TestRun, str]]:
         """The failures that are this turn's: of each failed run, the tests that pass alone are
         flaky and those that fail on the old code too were failing before - neither is sent
         back; a regression (passed at the last green run) is named. A run whose failing tests
@@ -79,8 +82,9 @@ class BeforeMixin:
             odd = self._unusual(held, run.command, named)
             if not ids or not self._may_rerun(ctx, held, run):
                 if ids:
-                    self._said_once(held, proof.row("before", "note", NO_BEFORE.format(
-                        why=ASKS_AGAIN)))
+                    self._said_once(
+                        held, proof.row("before", "note", NO_BEFORE.format(why=ASKS_AGAIN))
+                    )
                 kept.append((run, output))
                 continue
             still = await self.flaky(ctx, held, run, ids)
@@ -89,39 +93,60 @@ class BeforeMixin:
                 kept.append((run, output))
         return kept
 
-    async def _lint_before(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun,
-                           output: str) -> bool:
+    async def _lint_before(
+        self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun, output: str
+    ) -> bool:
         """CL-336 M: whether a failed lint, format or type check was failing before - said, not
         sent back: no file the turn changed is in its output, and each finding is there on the
         old code too, as often (a type error in a file the turn did not touch may be the turn's;
         a config error of the turn's names no file). Not where none is named, nor without the
         old code: the turn's."""
         root = self._ws(ctx).root
-        now_found = proof_before.lint_findings(output, root, run.cwd,
-                                               [one.path for one in held.changes])
+        now_found = proof_before.lint_findings(
+            output, root, run.cwd, [one.path for one in held.changes]
+        )
         if now_found is None:
             return False
-        why = CHANGED_BY_COMMAND if self._changed_by_command(ctx) else None if (
-            self._may_rerun(ctx, held, run)) else ASKS_AGAIN
+        why = (
+            CHANGED_BY_COMMAND
+            if self._changed_by_command(ctx)
+            else None
+            if (self._may_rerun(ctx, held, run))
+            else ASKS_AGAIN
+        )
         if why:
             self._said_once(held, proof.row("before", "note", NO_BEFORE.format(why=why)))
             return False
         async with self._throwaway_copy(ctx) as place:
             made = None if place is None else await self._run_aside(ctx, held, run, place)
-            then = proof_before.lint_findings(made[1], place.root, run.cwd) if (
-                made and place) else None
+            then = (
+                proof_before.lint_findings(made[1], place.root, run.cwd)
+                if (made and place)
+                else None
+            )
         if then is None or not now_found[1] <= then[1]:
             return False
         files = sorted(now_found[0])
-        more = f" +{len(files) - proof.MOST_TOUCHED} more" if len(
-            files) > proof.MOST_TOUCHED else ""
-        self._said_once(held, proof.row("before", "note", LINT_BEFORE.format(
-            files=", ".join(files[:proof.MOST_TOUCHED]) + more,
-            command=f"from CI: {run.command}" if run.ci else run.command), run.command))
+        more = (
+            f" +{len(files) - proof.MOST_TOUCHED} more" if len(files) > proof.MOST_TOUCHED else ""
+        )
+        self._said_once(
+            held,
+            proof.row(
+                "before",
+                "note",
+                LINT_BEFORE.format(
+                    files=", ".join(files[: proof.MOST_TOUCHED]) + more,
+                    command=f"from CI: {run.command}" if run.ci else run.command,
+                ),
+                run.command,
+            ),
+        )
         return True
 
-    async def flaky(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun,
-                    ids: list[str]) -> list[str]:
+    async def flaky(
+        self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun, ids: list[str]
+    ) -> list[str]:
         """S11's hook too: `ids` of `run` run alone once - those that pass are flaky (said, noted
         in the project's memory); the ones still failing. All of them where it cannot tell."""
         line = proof_before.alone(run.command, ids)
@@ -132,8 +157,9 @@ class BeforeMixin:
         counted = test_found.counts(output, line or "")
         if not (counted and counted.ran):
             return ids  # (it ran none - collected only, say - or did not end: no word on any)
-        failing = set() if row["state"] == "passed" else set(
-            proof_before.failed_ids(line or "", output))
+        failing = (
+            set() if row["state"] == "passed" else set(proof_before.failed_ids(line or "", output))
+        )
         if row["state"] != "passed" and not failing:
             return ids
         for one in (one for one in ids if one not in failing):
@@ -141,19 +167,24 @@ class BeforeMixin:
             self._note_flaky(ctx, one)
         return [one for one in ids if one in failing]
 
-    async def failing_before(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun,
-                             ids: list[str]) -> list[str]:
+    async def failing_before(
+        self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun, ids: list[str]
+    ) -> list[str]:
         """S11's hook too: `ids` of `run` on the code as it was before the turn (a throwaway
         copy) - those failing there too were failing before (said, not sent back); the new ones.
         All of them where the old code cannot be rebuilt."""
         if self._changed_by_command(ctx):
-            self._said_once(held, proof.row("before", "note", NO_BEFORE.format(
-                why=CHANGED_BY_COMMAND)))
+            self._said_once(
+                held, proof.row("before", "note", NO_BEFORE.format(why=CHANGED_BY_COMMAND))
+            )
             return ids
         line = proof_before.alone(run.command, ids) or run.command
         async with self._throwaway_copy(ctx) as place:
-            made = None if place is None else await self._run_aside(
-                ctx, held, TestRun(line, run.cwd, run.yours), place)
+            made = (
+                None
+                if place is None
+                else await self._run_aside(ctx, held, TestRun(line, run.cwd, run.yours), place)
+            )
         if made is None:
             return ids
         row, output = made
@@ -161,31 +192,43 @@ class BeforeMixin:
         before = [one for one in ids if one in there]
         new = [one for one in ids if one not in there]
         if before:
-            self._said_once(held, proof.row("before", "note", BEFORE.format(
-                n=len(before), m=len(new)), run.command))
+            self._said_once(
+                held,
+                proof.row("before", "note", BEFORE.format(n=len(before), m=len(new)), run.command),
+            )
             held.before_ids += before
         return new
 
-    async def _after_pass(self: "AgentRunner", ctx: Ctx, held: "Proof",
-                          runs: list[TestRun]) -> str | None:
+    async def _after_pass(
+        self: "AgentRunner", ctx: Ctx, held: "Proof", runs: list[TestRun]
+    ) -> str | None:
         """The tests passed: what the last failing run of the same command said is said; the
         project's last green state is held (decision 14b) - and kept anew; in a bug fix the new
         test runs on the old code."""
         said = []
-        for row in [one for one in held.rows if one["kind"] == "tests" and one["state"] == "passed"
-                    and one["command"] and one["counts"] and not one["text"].startswith("Related")]:
+        for row in [
+            one
+            for one in held.rows
+            if one["kind"] == "tests"
+            and one["state"] == "passed"
+            and one["command"]
+            and one["counts"]
+            and not one["text"].startswith("Related")
+        ]:
             run = next((one for one in runs if one.command == row["command"]), None)
             if run is not None:
                 self._at_last_run(ctx, held, run)
                 said += self._green(ctx, held, run, dict(row["counts"] or {}))
         await self._bugfix_check(ctx, held, runs)
-        if not said or not self._round_left(ctx, held, "green", frozenset(said),
-                                            "tests removed or skipped"):
+        if not said or not self._round_left(
+            ctx, held, "green", frozenset(said), "tests removed or skipped"
+        ):
             return None
         return GREEN_LEAD.format(said="; ".join(said))
 
-    def _green(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun,
-               counts: dict) -> list[str]:
+    def _green(
+        self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun, counts: dict
+    ) -> list[str]:
         """Decision 14b: a whole suite that passed against the project's last green run of it -
         fewer tests, more skipped, and the Orchestrator's answer says no why: failed rows, what
         goes back. Else this run is the green state from now on."""
@@ -199,14 +242,22 @@ class BeforeMixin:
             answer = self._last_answer(session, ctx)
             why = {one: proof_before.excuse(answer, one) for one in said}
             for one in (one for one in said if why[one]):  # (excused, still shown: a note)
-                self._said_once(held, proof.row("tests", "note", EXCUSED.format(
-                    said=one, why=why[one]), run.command))
+                self._said_once(
+                    held,
+                    proof.row("tests", "note", EXCUSED.format(said=one, why=why[one]), run.command),
+                )
             if left := [one for one in said if not why[one]]:
                 held.rows += [proof.row("tests", "failed", one, run.command) for one in left]
                 return left
-            project.tests_green = {**(project.tests_green or {}), key: {
-                "ran": ran, "skipped": skipped, "at": now().isoformat(),
-                "ids": self._passed_now(session, ctx, run)}}
+            project.tests_green = {
+                **(project.tests_green or {}),
+                key: {
+                    "ran": ran,
+                    "skipped": skipped,
+                    "at": now().isoformat(),
+                    "ids": self._passed_now(session, ctx, run),
+                },
+            }
             session.commit()
         return []
 
@@ -216,16 +267,29 @@ class BeforeMixin:
         output lists none. (Its run by the command it is known by - S9's line has coverage's
         report flags: `proof._known_as`.)"""
         wanted = proof._folded(run.command)
-        output = next((one.output for one in session.scalars(
-            select(Command).join(ToolCall, ToolCall.id == Command.tool_call_id).where(
-                Command.run_id == ctx.run_id, _named(run.command),
-                ToolCall.provider_call_id.startswith(proof.PROOF_CALL), Command.exit_code == 0)
-            .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc()))
-            if proof._known_as(session, one) == wanted), None)
+        output = next(
+            (
+                one.output
+                for one in session.scalars(
+                    select(Command)
+                    .join(ToolCall, ToolCall.id == Command.tool_call_id)
+                    .where(
+                        Command.run_id == ctx.run_id,
+                        _named(run.command),
+                        ToolCall.provider_call_id.startswith(proof.PROOF_CALL),
+                        Command.exit_code == 0,
+                    )
+                    .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc())
+                )
+                if proof._known_as(session, one) == wanted
+            ),
+            None,
+        )
         return proof_before.passed_ids(run.command, output or "")
 
-    def _regressions(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun,
-                     ids: list[str]) -> None:
+    def _regressions(
+        self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun, ids: list[str]
+    ) -> None:
         """Decision 14b: a failing test of a run whose suite was green before - not one this
         turn wrote - passed then: a regression, named."""
         with self._factory() as session:
@@ -235,9 +299,15 @@ class BeforeMixin:
         was = green.get(f"{run.cwd} {run.command}")
         if was is None:
             return
-        held.rows += [proof.row("tests", "failed", REGRESSION.format(
-            id=one, by=" (by file)" if by_file else ""), run.command)
-            for one, by_file in proof_before.regressions(ids, was, mine)]
+        held.rows += [
+            proof.row(
+                "tests",
+                "failed",
+                REGRESSION.format(id=one, by=" (by file)" if by_file else ""),
+                run.command,
+            )
+            for one, by_file in proof_before.regressions(ids, was, mine)
+        ]
 
     def _at_last_run(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun) -> None:
         """A command whose last run by KOLONİ in this project (an earlier turn's) failed and
@@ -245,53 +315,101 @@ class BeforeMixin:
         with self._factory() as session:
             project = self._project(session, ctx.cid)
             wanted = proof._folded(run.command)
-            last = next((one for one in session.scalars(
-                select(Command).join(ToolCall, ToolCall.id == Command.tool_call_id)
-                .join(Run, Run.id == Command.run_id).where(
-                    ToolCall.provider_call_id.startswith(proof.PROOF_CALL),
-                    _named(run.command), Command.run_id != ctx.run_id,
-                    Command.status == "exited", Run.conversation_id.in_(
-                        self._chats_of(session, project)))
-                .order_by(Command.started_at.desc(), literal_column("commands.rowid").desc()))
-                if proof._known_as(session, one) == wanted), None) if project is not None else None
+            last = (
+                next(
+                    (
+                        one
+                        for one in session.scalars(
+                            select(Command)
+                            .join(ToolCall, ToolCall.id == Command.tool_call_id)
+                            .join(Run, Run.id == Command.run_id)
+                            .where(
+                                ToolCall.provider_call_id.startswith(proof.PROOF_CALL),
+                                _named(run.command),
+                                Command.run_id != ctx.run_id,
+                                Command.status == "exited",
+                                Run.conversation_id.in_(self._chats_of(session, project)),
+                            )
+                            .order_by(
+                                Command.started_at.desc(), literal_column("commands.rowid").desc()
+                            )
+                        )
+                        if proof._known_as(session, one) == wanted
+                    ),
+                    None,
+                )
+                if project is not None
+                else None
+            )
         if last is not None and last.exit_code not in (0, None):
             n = len(proof_before.failed_ids(last.command, last.output)) or 1
             when = last.started_at.strftime("%d %b %H:%M") if last.started_at else "earlier"
-            self._said_once(held, proof.row("before", "note", AT_LAST.format(
-                n=n, when=when, m=0), run.command))
+            self._said_once(
+                held, proof.row("before", "note", AT_LAST.format(n=n, when=when, m=0), run.command)
+            )
 
-    async def _bugfix_check(self: "AgentRunner", ctx: Ctx, held: "Proof",
-                            runs: list[TestRun]) -> None:
+    async def _bugfix_check(
+        self: "AgentRunner", ctx: Ctx, held: "Proof", runs: list[TestRun]
+    ) -> None:
         """A bug-fix turn with a new test and a change of the code: the new test alone on the old
         code (a throwaway copy that keeps it) must fail there."""
         with self._factory() as session:
-            asked = session.scalar(select(Message.content).where(
-                Message.run_id == ctx.run_id, Message.role == "user").limit(1)) or ""
+            asked = (
+                session.scalar(
+                    select(Message.content)
+                    .where(Message.run_id == ctx.run_id, Message.role == "user")
+                    .limit(1)
+                )
+                or ""
+            )
             written = self._new_tests(session, ctx)
-        code = [one for one in held.changes if one.in_project and one.kind == "code"
-                and one.path not in written]
-        if not proof_before.BUGFIX.search(asked) or not written or not code or self._unusual(
-                held, runs[0].command if runs else "", written):
+        code = [
+            one
+            for one in held.changes
+            if one.in_project and one.kind == "code" and one.path not in written
+        ]
+        if (
+            not proof_before.BUGFIX.search(asked)
+            or not written
+            or not code
+            or self._unusual(held, runs[0].command if runs else "", written)
+        ):
             return
         run = next((one for one in runs if proof_before.alone(one.command, written)), None)
         if run is None:
             return
         line = proof_before.alone(run.command, written) or run.command
         async with self._throwaway_copy(ctx, keep=written) as place:
-            made = None if place is None else await self._run_aside(
-                ctx, held, TestRun(line, run.cwd, run.yours), place)
+            made = (
+                None
+                if place is None
+                else await self._run_aside(ctx, held, TestRun(line, run.cwd, run.yours), place)
+            )
         if made is not None and made[0]["state"] in ("passed", "failed"):
             caught = made[0]["state"] == "failed"
-            held.rows.append(proof.row("tests", "passed" if caught else "failed",
-                                       CAUGHT if caught else NOT_CAUGHT, line))
+            held.rows.append(
+                proof.row(
+                    "tests",
+                    "passed" if caught else "failed",
+                    CAUGHT if caught else NOT_CAUGHT,
+                    line,
+                )
+            )
 
     def _unusual(self: "AgentRunner", held: "Proof", command: str, ids: list[str]) -> list[str]:
         """Of test ids a run printed (or test files written), those that are no plain name
         (`proof_before.plain_id`): never put on a line KOLONİ runs unasked - said once."""
         odd = [one for one in ids if not proof_before.plain_id(one)]
         if odd:
-            self._said_once(held, proof.row("before", "note", UNUSUAL.format(
-                ids=", ".join(one[:80] for one in odd[:3])), command))
+            self._said_once(
+                held,
+                proof.row(
+                    "before",
+                    "note",
+                    UNUSUAL.format(ids=", ".join(one[:80] for one in odd[:3])),
+                    command,
+                ),
+            )
         return odd
 
     @staticmethod
@@ -307,8 +425,9 @@ class BeforeMixin:
         how = self._may_run_tests(ctx, run)
         return how == "run" or how == "ask" and (run.yours or self._full_auto(ctx))
 
-    async def _run_aside(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun,
-                         place=None) -> tuple[proof.Row, str] | None:
+    async def _run_aside(
+        self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun, place=None
+    ) -> tuple[proof.Row, str] | None:
         """One more of KOLONİ's runs - alone, or on the old code (`place`) - within what is left
         of the turn's wait, on the leave its whole run had (`_may_rerun`: no card); None where
         none is left."""
@@ -371,26 +490,43 @@ class BeforeMixin:
         have changed the project: what it changed is not on record - no "before"."""
         with self._factory() as session:
             mine = select(ToolCall.id).where(ToolCall.provider_call_id.startswith(proof.PROOF_CALL))
-            lines = session.scalars(select(Command.command).where(
-                Command.run_id == ctx.run_id, Command.status == "exited",
-                Command.tool_call_id.not_in(mine))).all()
+            lines = session.scalars(
+                select(Command.command).where(
+                    Command.run_id == ctx.run_id,
+                    Command.status == "exited",
+                    Command.tool_call_id.not_in(mine),
+                )
+            ).all()
         return any(ledger.read_test(line) is None and not only_reads(line) for line in lines)
 
     def _new_tests(self: "AgentRunner", session, ctx: Ctx) -> list[str]:
-        made = [path for path, rows in proof._kept(session, ctx.run_id).items()
-                if rows[0].before_content is None and rows[-1].kind != "delete"]
+        made = [
+            path
+            for path, rows in proof._kept(session, ctx.run_id).items()
+            if rows[0].before_content is None and rows[-1].kind != "delete"
+        ]
         return proof_before.new_tests(made)
 
     @staticmethod
     def _chats_of(session, project):
         from app.db.models import Conversation
+
         return select(Conversation.id).where(Conversation.project_id == project.id)
 
     def _last_answer(self: "AgentRunner", session, ctx: Ctx) -> str:
-        return session.scalar(select(Message.content).where(
-            Message.agent_id == ctx.agent_id, Message.run_id == ctx.run_id,
-            Message.role == "assistant").order_by(
-            Message.created_at.desc(), literal_column("messages.rowid").desc()).limit(1)) or ""
+        return (
+            session.scalar(
+                select(Message.content)
+                .where(
+                    Message.agent_id == ctx.agent_id,
+                    Message.run_id == ctx.run_id,
+                    Message.role == "assistant",
+                )
+                .order_by(Message.created_at.desc(), literal_column("messages.rowid").desc())
+                .limit(1)
+            )
+            or ""
+        )
 
     def _note_flaky(self: "AgentRunner", ctx: Ctx, test: str) -> None:
         """A flaky test in the project's memory, KOLONİ's note: how often it was seen so."""
@@ -401,17 +537,33 @@ class BeforeMixin:
                 if project is None:
                     return
                 about, key = memory.check_about(subject)
-                older = session.scalar(select(Memory.text).where(
-                    Memory.project_id == project.id, Memory.about_key == key,
-                    Memory.status == "active"))
+                older = session.scalar(
+                    select(Memory.text).where(
+                        Memory.project_id == project.id,
+                        Memory.about_key == key,
+                        Memory.status == "active",
+                    )
+                )
                 seen = int(found.group(1)) + 1 if older and (found := _SEEN.search(older)) else 1
                 memory.keep_note(
-                    session, project.id, memory.Asked(FLAKY_NOTE.format(
-                        date=now().strftime("%d %b %Y"), n=seen), about, key, None, None, None,
-                        False), agent_id=None, run_id=ctx.run_id, conversation_id=ctx.cid,
-                    source=None, checked_how=None,
-                    noted_by={"provider_name": "KOLONİ", "model_id": None})
+                    session,
+                    project.id,
+                    memory.Asked(
+                        FLAKY_NOTE.format(date=now().strftime("%d %b %Y"), n=seen),
+                        about,
+                        key,
+                        None,
+                        None,
+                        None,
+                        False,
+                    ),
+                    agent_id=None,
+                    run_id=ctx.run_id,
+                    conversation_id=ctx.cid,
+                    source=None,
+                    checked_how=None,
+                    noted_by={"provider_name": "KOLONİ", "model_id": None},
+                )
                 session.commit()
         except Exception as exc:  # (a note of KOLONİ's fails nothing)
             log.warning("run %s: the flaky test not noted: %r", ctx.run_id, exc)
-

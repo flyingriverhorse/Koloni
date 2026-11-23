@@ -35,8 +35,13 @@ class Executor(Protocol):
     location: str  # "host" | "docker"
 
     async def start(
-        self, command_id: str, command: str, cwd: Path, copy: Path | None = None,
-        links: dict[str, Path] | None = None, secrets: Mapping[str, str] | None = None,
+        self,
+        command_id: str,
+        command: str,
+        cwd: Path,
+        copy: Path | None = None,
+        links: dict[str, Path] | None = None,
+        secrets: Mapping[str, str] | None = None,
         env: Mapping[str, str] | None = None,
     ) -> RunningCommand:
         """`copy`: the working copy the command runs in (`cwd` is inside it), when it

@@ -15,8 +15,10 @@ def test_every_chat_starts_on_the_projects_and_back(tmp_path):
     cfg = _config(db)
     command.upgrade(cfg, "0163")
     with sqlite3.connect(db) as conn:
-        conn.execute("INSERT INTO conversations (id, title, created_at, updated_at) "
-                     "VALUES ('c', 'c', ?, ?)", (AT, AT))
+        conn.execute(
+            "INSERT INTO conversations (id, title, created_at, updated_at) VALUES ('c', 'c', ?, ?)",
+            (AT, AT),
+        )
     command.upgrade(cfg, "0164")
     with sqlite3.connect(db) as conn:
         assert conn.execute("SELECT after_change FROM conversations").fetchall() == [(None,)]

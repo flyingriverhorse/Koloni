@@ -63,8 +63,11 @@ class Off(Exception):
 
 
 def provider_of(session: Session, project: Project) -> Provider | None:
-    return session.get(Provider, project.embedding_provider_id) if (
-        project.embedding_provider_id) else None
+    return (
+        session.get(Provider, project.embedding_provider_id)
+        if (project.embedding_provider_id)
+        else None
+    )
 
 
 def embed(provider: Provider, model: str, texts: list[str]) -> list[list[float]]:
@@ -79,10 +82,12 @@ def embed(provider: Provider, model: str, texts: list[str]) -> list[list[float]]
         raise Off("its provider has no server address")
     headers = {"Authorization": f"Bearer {provider.api_key}"} if provider.api_key else {}
     try:
-        with httpx2.Client(headers=headers,
-                           timeout=httpx2.Timeout(SEARCH_SECONDS, connect=5.0)) as http:
-            r = http.post(f"{provider.base_url.rstrip('/')}/embeddings",
-                          json={"model": model, "input": texts})
+        with httpx2.Client(
+            headers=headers, timeout=httpx2.Timeout(SEARCH_SECONDS, connect=5.0)
+        ) as http:
+            r = http.post(
+                f"{provider.base_url.rstrip('/')}/embeddings", json={"model": model, "input": texts}
+            )
             r.raise_for_status()
             if len(r.content) > MAX_BODY:
                 raise Off(TOO_LARGE)
@@ -95,8 +100,10 @@ def embed(provider: Provider, model: str, texts: list[str]) -> list[list[float]]
     except ValueError:
         raise Off(NO_VECTORS) from None
     try:
-        vectors = [[float(x) for x in item["embedding"]]
-                   for item in sorted(told["data"], key=lambda item: item["index"])]
+        vectors = [
+            [float(x) for x in item["embedding"]]
+            for item in sorted(told["data"], key=lambda item: item["index"])
+        ]
     except (TypeError, KeyError, ValueError):
         raise Off(NO_VECTORS) from None
     if len(vectors) != len(texts) or not all(vectors):
@@ -138,37 +145,59 @@ def search(session: Session, project: Project, project_ids: list[str], query: st
     # What may be found, each with its project and - of a record - its words.
     wanted: dict[tuple[str, str], tuple[str, str | None]] = {
         ("memory", record.id): (record.project_id, words_of(record))
-        for record in session.scalars(select(Memory).where(
-            Memory.project_id.in_(project_ids), Memory.status == "active"))
+        for record in session.scalars(
+            select(Memory).where(Memory.project_id.in_(project_ids), Memory.status == "active")
+        )
     }
-    turns = text("SELECT rowid, project_id FROM said_in_turns "
-                 "WHERE project_id IN :ids AND said != ''").bindparams(
-        bindparam("ids", expanding=True))
+    turns = text(
+        "SELECT rowid, project_id FROM said_in_turns WHERE project_id IN :ids AND said != ''"
+    ).bindparams(bindparam("ids", expanding=True))
     for rowid, pid in session.execute(turns, {"ids": project_ids}):
         wanted[("turn", str(rowid))] = (pid, None)
     stored = {
         (kept.kind, kept.record_id): kept.vector
-        for kept in session.scalars(select(Embedding).where(
-            Embedding.project_id.in_(project_ids), Embedding.model == model))
+        for kept in session.scalars(
+            select(Embedding).where(Embedding.project_id.in_(project_ids), Embedding.model == model)
+        )
         if (kept.kind, kept.record_id) in wanted  # (not in effect any more: not compared)
     }
     missing = [key for key in wanted if key not in stored][:BACKFILL]
     texts = [query[:MAX_CHARS]]
     for kind, record_id in missing:
-        said = wanted[(kind, record_id)][1] if kind == "memory" else session.scalar(
-            text("SELECT said FROM said_in_turns WHERE rowid = :row"), {"row": int(record_id)})
+        said = (
+            wanted[(kind, record_id)][1]
+            if kind == "memory"
+            else session.scalar(
+                text("SELECT said FROM said_in_turns WHERE rowid = :row"), {"row": int(record_id)}
+            )
+        )
         texts.append((said or "")[:MAX_CHARS])
     try:
         asked, *made = embed(provider, model, texts)
     except Off as why:
         return Hits(off=OFF.format(why=why))
     for (kind, record_id), vector in zip(missing, made, strict=True):
-        session.merge(Embedding(kind=kind, record_id=record_id, vector=vector, model=model,
-                                project_id=wanted[(kind, record_id)][0]))
+        session.merge(
+            Embedding(
+                kind=kind,
+                record_id=record_id,
+                vector=vector,
+                model=model,
+                project_id=wanted[(kind, record_id)][0],
+            )
+        )
         stored[(kind, record_id)] = vector
     session.commit()
-    near = sorted(((_cosine(asked, vector), key) for key, vector in stored.items()
-                   if len(vector) == len(asked)), reverse=True)
+    near = sorted(
+        (
+            (_cosine(asked, vector), key)
+            for key, vector in stored.items()
+            if len(vector) == len(asked)
+        ),
+        reverse=True,
+    )
     best = [key for score, key in near[:MAX_FOUND] if score >= LEAST]
-    return Hits(memory=[record_id for kind, record_id in best if kind == "memory"],
-                turns=[int(record_id) for kind, record_id in best if kind == "turn"])
+    return Hits(
+        memory=[record_id for kind, record_id in best if kind == "memory"],
+        turns=[int(record_id) for kind, record_id in best if kind == "turn"],
+    )

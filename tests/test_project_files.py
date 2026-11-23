@@ -35,15 +35,36 @@ def test_a_link_is_neither_listed_nor_followed(client, project_dir, tmp_path):
 
 
 def test_a_secret_by_any_spelling_windows_opens_it_by():
-    for name in (".env", ".ENV.", ".env.local", "prod.env", "sub/id_rsa", "a/server.PEM", ".ssh/known",
-                 ".git/config", ".GIT\\config", ".git-credentials", "prod.tfvars"):
+    for name in (
+        ".env",
+        ".ENV.",
+        ".env.local",
+        "prod.env",
+        "sub/id_rsa",
+        "a/server.PEM",
+        ".ssh/known",
+        ".git/config",
+        ".GIT\\config",
+        ".git-credentials",
+        "prod.tfvars",
+    ):
         assert is_secret(name), name
-    for name in ("hello.py", "environment.md", "id_rsa.pub", "keys.py", "tokenizer.py", ".git",
-                 "config", "src/config"):
+    for name in (
+        "hello.py",
+        "environment.md",
+        "id_rsa.pub",
+        "keys.py",
+        "tokenizer.py",
+        ".git",
+        "config",
+        "src/config",
+    ):
         assert not is_secret(name), name
 
 
-def test_a_page_is_previewed_by_the_view_policy_and_only_what_a_page_draws_with(client, project_dir):
+def test_a_page_is_previewed_by_the_view_policy_and_only_what_a_page_draws_with(
+    client, project_dir
+):
     (project_dir / "page.html").write_text("<p>hi</p>", encoding="utf-8")
     (project_dir / ".env").write_text("TOKEN=s3cr3t-value", encoding="utf-8")
     pid = _project(client, project_dir)
@@ -96,7 +117,9 @@ def test_a_secret_by_its_short_name_is_neither_listed_read_nor_served(client, pr
         pytest.skip("this volume makes no 8.3 short names")
     pid = _project(client, project_dir)
     asked = [
-        ("file", short[".env"]), ("file", f"{short['.ssh']}/config"), ("files", short[".ssh"]),
+        ("file", short[".env"]),
+        ("file", f"{short['.ssh']}/config"),
+        ("files", short[".ssh"]),
         ("file", short[".env.html"]),
     ]
     for how, path in asked:

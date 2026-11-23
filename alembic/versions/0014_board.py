@@ -3,6 +3,7 @@
 Revision ID: 0014
 Revises: 0013
 """
+
 import json
 
 import sqlalchemy as sa
@@ -49,8 +50,7 @@ def upgrade() -> None:
     with op.batch_alter_table("messages") as batch:
         batch.add_column(sa.Column("board_post_id", sa.String(length=32), nullable=True))
     with op.batch_alter_table("agents") as batch:
-        batch.add_column(sa.Column(
-            "board_seen", sa.Integer(), nullable=False, server_default="0"))
+        batch.add_column(sa.Column("board_seen", sa.Integer(), nullable=False, server_default="0"))
     # Every role there is, also one the user changed or an agent created: a note
     # changes nothing, so a role that only reads may write one too.
     _retool(lambda tools: [*tools, *(tool for tool in TOOLS if tool not in tools)])

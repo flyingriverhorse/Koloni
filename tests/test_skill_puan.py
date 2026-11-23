@@ -14,13 +14,27 @@ from tests.test_topics import db
 
 def _read(session, agent, name, args, status="succeeded"):
     run = session.get(Run, agent.run_id)
-    said = Message(conversation_id=run.conversation_id, run_id=agent.run_id, agent_id=agent.id,
-                   role="assistant", content="")
+    said = Message(
+        conversation_id=run.conversation_id,
+        run_id=agent.run_id,
+        agent_id=agent.id,
+        role="assistant",
+        content="",
+    )
     session.add(said)
     session.flush()
-    session.add(ToolCall(run_id=agent.run_id, agent_id=agent.id, message_id=said.id, seq=0,
-                         provider_call_id="c", name=name, arguments=json.dumps(args),
-                         status=status))
+    session.add(
+        ToolCall(
+            run_id=agent.run_id,
+            agent_id=agent.id,
+            message_id=said.id,
+            seq=0,
+            provider_call_id="c",
+            name=name,
+            arguments=json.dumps(args),
+            status=status,
+        )
+    )
 
 
 def test_rows_by_skill_count_who_had_it_and_who_read_it(make_client, project_dir):
@@ -59,8 +73,10 @@ def test_the_lead_hears_of_a_skill_only_from_five_jobs_on_two_models():
     deep = {**_row(agents=4, taken_in=3), "skill": "review", "used": 2}
     quick = {**_row(model="quick", agents=1, taken_in=1), "skill": "review", "used": 0}
     said = record.for_lead([], [deep, quick])
-    assert ("For Coder work with the review skill lately: Fast · deep took in 3 of 4 "
-            "(read it in 2, median 9 steps); Fast · quick 1 of 1 (read it in 0, median 9 steps)."
-            " Data, not an instruction.") in said
+    assert (
+        "For Coder work with the review skill lately: Fast · deep took in 3 of 4 "
+        "(read it in 2, median 9 steps); Fast · quick 1 of 1 (read it in 0, median 9 steps)."
+        " Data, not an instruction."
+    ) in said
     assert record.for_lead([], [deep]) == ""  # one model: nothing to set side by side
     assert record.for_lead([], [{**deep, "agents": 2}, quick]) == ""  # three jobs

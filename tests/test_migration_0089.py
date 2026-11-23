@@ -22,19 +22,28 @@ def test_a_note_from_before_is_the_whole_turns_and_back(tmp_path):
     cfg = _config(db)
     command.upgrade(cfg, "0088")
     with sqlite3.connect(db) as conn:
-        conn.execute("INSERT INTO conversations (id, title, created_at, updated_at) "
-                     "VALUES ('c', 'c', ?, ?)", (AT, AT))
-        conn.execute("INSERT INTO runs (id, conversation_id, status, created_at) "
-                     "VALUES ('r', 'c', 'completed', ?)", (AT,))
-        conn.execute("INSERT INTO board_posts (id, run_id, conversation_id, agent_id, content, seq, "
-                     "created_at) VALUES ('p', 'r', 'c', NULL, 'mind the tests', 1, ?)", (AT,))
+        conn.execute(
+            "INSERT INTO conversations (id, title, created_at, updated_at) VALUES ('c', 'c', ?, ?)",
+            (AT, AT),
+        )
+        conn.execute(
+            "INSERT INTO runs (id, conversation_id, status, created_at) "
+            "VALUES ('r', 'c', 'completed', ?)",
+            (AT,),
+        )
+        conn.execute(
+            "INSERT INTO board_posts (id, run_id, conversation_id, agent_id, content, seq, "
+            "created_at) VALUES ('p', 'r', 'c', NULL, 'mind the tests', 1, ?)",
+            (AT,),
+        )
 
     command.upgrade(cfg, "head")
 
     with sqlite3.connect(db) as conn:
         assert columns(conn)[-4:] == NEW
-        assert conn.execute("SELECT content, team_id, team, everyone, koloni FROM board_posts").fetchall() == [
-            ("mind the tests", None, None, 0, 0)]
+        assert conn.execute(
+            "SELECT content, team_id, team, everyone, koloni FROM board_posts"
+        ).fetchall() == [("mind the tests", None, None, 0, 0)]
 
     command.downgrade(cfg, "0088")
 

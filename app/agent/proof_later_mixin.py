@@ -42,8 +42,10 @@ DETACH_SECONDS = 60
 YOU_STOPPED = "you stopped the check"
 BY_YOU = "{what} stopped by you at {clock} - not checked"
 BY_YOU_EARLY = "{what} stopped by you before they started - not checked"
-BUSY_HERE = ("its tests run on after a turn, or wait for the machine: stop them first (Stop this "
-             "check, under the turn's answer)")
+BUSY_HERE = (
+    "its tests run on after a turn, or wait for the machine: stop them first (Stop this "
+    "check, under the turn's answer)"
+)
 # What KOLONİ's own test runs are given besides the environment an agent's command gets.
 # shortcut: only pytest-xdist's `-n auto` reads it; vitest's / jest's workers are not set - set
 # theirs once measured.
@@ -83,6 +85,7 @@ class Check:
     to its own limit), once it is past its card (`started`), once it has the machine (`going`,
     with when), its call, whether it went on after the answer, why it was stopped, and once its
     run ended and waits on the user's answer on a file it wrote (`on_card`)."""
+
     run_id: str
     cid: str
     project_id: str
@@ -107,24 +110,32 @@ class ProofLaterMixin:
         the run."""
         return self._answer_waits(ctx) and self._works_in(ctx) is None
 
-    async def _all_tests(self: "AgentRunner", ctx: Ctx, held: "Proof",
-                         runs: list[TestRun]) -> list[tuple[TestRun, str]]:
+    async def _all_tests(
+        self: "AgentRunner", ctx: Ctx, held: "Proof", runs: list[TestRun]
+    ) -> list[tuple[TestRun, str]]:
         """Each test command's row in `held`; the failed ones, with their output. Where the
         suite may go on after the answer: the related tests first, then the whole suite - which
         stops holding the answer at once after them, else after DETACH_SECONDS."""
         later = self._may_go_on(ctx) and not held.judging  # (J: a hand-off waits for its verdict)
         project_id, mine = self._project_id(ctx), {(run.command, run.cwd) for run in runs}
         if later:  # (the same suite gone on over an earlier state of the project: void, as CI's)
-            self._end_checks(lambda one: one.later and one.project_id == project_id and (
-                one.command, one.cwd) in mine, proof.SUPERSEDED)
+            self._end_checks(
+                lambda one: (
+                    one.later and one.project_id == project_id and (one.command, one.cwd) in mine
+                ),
+                proof.SUPERSEDED,
+            )
         failed, quick = await self._related_first(ctx, held, runs) if later else ([], False)
         if failed:
             held.rows.append(proof.row("tests", "note", proof.FULL_HELD))
             return failed
         until = time.monotonic() + (0 if quick else DETACH_SECONDS) if later else None
         for run in runs:
-            made, output = self._unrun(run) if held.stopped else await self._covered_tests(
-                ctx, run, held, until)  # (S9: coverage on the whole suite only)
+            made, output = (
+                self._unrun(run)
+                if held.stopped
+                else await self._covered_tests(ctx, run, held, until)
+            )  # (S9: coverage on the whole suite only)
             held.rows.append(made)
             held.rows += self._coverage_rows(held, run)
             # (S1b: a guess that really ran tests is saved; one gone on after the answer, as it
@@ -134,8 +145,9 @@ class ProofLaterMixin:
                 failed.append((run, output))
         return failed
 
-    async def _related_first(self: "AgentRunner", ctx: Ctx, held: "Proof",
-                             runs: list[TestRun]) -> tuple[list[tuple[TestRun, str]], bool]:
+    async def _related_first(
+        self: "AgentRunner", ctx: Ctx, held: "Proof", runs: list[TestRun]
+    ) -> tuple[list[tuple[TestRun, str]], bool]:
         """The tests related to the turn's changes, for each command that can name them - not
         for a whole run that stands on record, nor a guess that still needs its card (one card a
         guess). The failed ones; and whether any passed."""
@@ -143,8 +155,11 @@ class ProofLaterMixin:
         paths = [one.path for one in held.changes if one.in_project]
         root = self._ws(ctx).root
         for run in runs:
-            if held.stopped or not (run.yours or self._full_auto(ctx)) or (
-                    self._fresh_of(ctx, run) is not None):
+            if (
+                held.stopped
+                or not (run.yours or self._full_auto(ctx))
+                or (self._fresh_of(ctx, run) is not None)
+            ):
                 continue
             narrowed = await asyncio.to_thread(proof_related.related, run, paths, root)
             if narrowed is None:
@@ -159,11 +174,13 @@ class ProofLaterMixin:
 
     @staticmethod
     def _unrun(run: TestRun) -> tuple[Row, str]:
-        return proof.row("tests", "not_run", proof.NOT_RUN.format(why=YOU_STOPPED), run.command,
-                         run.guessed), ""
+        return proof.row(
+            "tests", "not_run", proof.NOT_RUN.format(why=YOU_STOPPED), run.command, run.guessed
+        ), ""
 
-    async def _go_on_tests(self: "AgentRunner", ctx: Ctx, run: TestRun, held: "Proof",
-                           until: float) -> tuple[Row, str]:
+    async def _go_on_tests(
+        self: "AgentRunner", ctx: Ctx, run: TestRun, held: "Proof", until: float
+    ) -> tuple[Row, str]:
         """A whole suite that may go on after the answer: never cut at the answer's wait, nor
         left unrun for being slow - one that was slow before goes on at once."""
         with self._factory() as session:
@@ -171,10 +188,12 @@ class ProofLaterMixin:
             slow = project is not None and proof.too_slow(session, project.id, run, DETACH_SECONDS)
         how = self._may_run_tests(ctx, run)
         if how not in ("run", "ask"):
-            return proof.row("tests", "not_run", proof.NOT_RUN.format(why=how), run.command,
-                             run.guessed), ""
-        return await self._run_tests(ctx, run, how, held, None,
-                                     0.0 if slow else max(0.0, until - time.monotonic()))
+            return proof.row(
+                "tests", "not_run", proof.NOT_RUN.format(why=how), run.command, run.guessed
+            ), ""
+        return await self._run_tests(
+            ctx, run, how, held, None, 0.0 if slow else max(0.0, until - time.monotonic())
+        )
 
     def _project_id(self: "AgentRunner", ctx: Ctx) -> str:
         with self._factory() as session:
@@ -186,8 +205,9 @@ class ProofLaterMixin:
         self._test_slot.limit = runs
         return self._test_slot
 
-    def _written_since(self: "AgentRunner", ctx: Ctx, at: datetime,
-                       since: float) -> dict[str, Written]:
+    def _written_since(
+        self: "AgentRunner", ctx: Ctx, at: datetime, since: float
+    ) -> dict[str, Written]:
         """What others wrote in the project after a test run of KOLONİ's started there (`at`;
         `since`, monotonic) - recorded changes of any turn (written, taken in, taken back) and
         KOLONİ's own writes (`seen_in_project`) - by path (casefolded): never that run's to take
@@ -202,14 +222,20 @@ class ProofLaterMixin:
                 found.setdefault(rel.casefold(), []).append((made, held, known))
         with self._factory() as session:
             project = self._project(session, ctx.cid)
-            for rel, left in (proof.written_since(session, project.id, at) if project
-                              else {}).items():
+            for rel, left in (
+                proof.written_since(session, project.id, at) if project else {}
+            ).items():
                 found.setdefault(rel.casefold(), []).extend(
                     (made, None if text is None else text.encode("utf-8"), True)
-                    for made, text in left)
-        return {rel: Written(frozenset(_digest(held) for _made, held, known in writes if known),
-                             *max(writes, key=lambda one: one[0])[1:])
-                for rel, writes in found.items()}
+                    for made, text in left
+                )
+        return {
+            rel: Written(
+                frozenset(_digest(held) for _made, held, known in writes if known),
+                *max(writes, key=lambda one: one[0])[1:],
+            )
+            for rel, writes in found.items()
+        }
 
     def _on_file_card(self: "AgentRunner", call_id: str) -> None:
         """CL-316: the check whose run (its call) ended and now waits on the user's answer on a
@@ -220,24 +246,42 @@ class ProofLaterMixin:
 
     def checking(self: "AgentRunner", run_id: str) -> bool:
         """Whether a test run of the turn's end check still runs (or waits for the machine)."""
-        return any(one.run_id == run_id and not task.done()
-                   for task, one in list(self._checks.items()))
+        return any(
+            one.run_id == run_id and not task.done() for task, one in list(self._checks.items())
+        )
 
     def checks_in(self: "AgentRunner", project_id: str) -> str | None:
         """Why a project is not deleted now: a test run of KOLONİ's in it runs, or waits for the
         machine - it would start later in a folder no longer KOLONİ's."""
-        return BUSY_HERE if any(one.project_id == project_id and not task.done()
-                                for task, one in self._checks.items()) else None
+        return (
+            BUSY_HERE
+            if any(
+                one.project_id == project_id and not task.done()
+                for task, one in self._checks.items()
+            )
+            else None
+        )
 
-    async def _as_check(self: "AgentRunner", ctx: Ctx, held: "Proof", run: TestRun,
-                        later: float | None,
-                        start: Callable[[Check], Awaitable[tuple[Row, str]]]) -> tuple[Row, str]:
+    async def _as_check(
+        self: "AgentRunner",
+        ctx: Ctx,
+        held: "Proof",
+        run: TestRun,
+        later: float | None,
+        start: Callable[[Check], Awaitable[tuple[Row, str]]],
+    ) -> tuple[Row, str]:
         """Run `start` as a check of its own: waited for to its end where `later` is None; else
         past its card, then `later` seconds - still running then, it goes on after the answer.
         Stopped by the user meanwhile: its row says so, and the turn goes on."""
-        check = Check(ctx.run_id, ctx.cid, self._project_id(ctx),
-                      "Tests" if later is None else "Full tests", run.command, run.cwd,
-                      held.until if later is None else None)
+        check = Check(
+            ctx.run_id,
+            ctx.cid,
+            self._project_id(ctx),
+            "Tests" if later is None else "Full tests",
+            run.command,
+            run.cwd,
+            held.until if later is None else None,
+        )
         task = asyncio.ensure_future(start(check))
         self._checks[task] = check
         task.add_done_callback(lambda done: self._checks.pop(done, None))
@@ -271,11 +315,22 @@ class ProofLaterMixin:
         why = check.why or proof.STOPPED
         why = BY_YOU_EARLY if why == BY_YOU and went is None else why
         took = int((now() - went).total_seconds()) if went is not None else 0
-        return proof.row("tests", "not_run", why.format(what=check.what, clock=proof.clock(took)),
-                         command, guessed)
+        return proof.row(
+            "tests",
+            "not_run",
+            why.format(what=check.what, clock=proof.clock(took)),
+            command,
+            guessed,
+        )
 
-    def _go_on_later(self: "AgentRunner", task: asyncio.Future, check: Check, run: TestRun,
-                     ctx: Ctx, held: "Proof") -> Row:
+    def _go_on_later(
+        self: "AgentRunner",
+        task: asyncio.Future,
+        check: Check,
+        run: TestRun,
+        ctx: Ctx,
+        held: "Proof",
+    ) -> Row:
         """The row of a whole suite that goes on after the answer: waiting for the machine, then
         running (its clock from when it started), then as it ended - each written where it is
         (`_checked_update`). Kept in `_telling`: KOLONİ closing ends it. What it writes of
@@ -283,19 +338,37 @@ class ProofLaterMixin:
         check.later = True  # (from here on its look at standing files asks nothing: `over`)
         self._telling.add(task)
         task.add_done_callback(self._telling.discard)
-        made = proof.row("tests", "running", proof.FULL_QUEUED.format(command=run.command),
-                         run.command, run.guessed)
+        made = proof.row(
+            "tests",
+            "running",
+            proof.FULL_QUEUED.format(command=run.command),
+            run.command,
+            run.guessed,
+        )
 
         def going(at: asyncio.Future) -> None:
             if not check.on_card.done():
-                self._checked_update(check, made, {
-                    **made, "text": proof.FULL_RUNNING.format(command=run.command),
-                    "started_at": at.result().isoformat()})
+                self._checked_update(
+                    check,
+                    made,
+                    {
+                        **made,
+                        "text": proof.FULL_RUNNING.format(command=run.command),
+                        "started_at": at.result().isoformat(),
+                    },
+                )
 
         def on_card(_at: asyncio.Future) -> None:  # (CL-316: no clock while it waits on you)
-            self._checked_update(check, made, {
-                **made, "text": proof.FULL_ON_CARD.format(command=run.command),
-                "started_at": None})
+            self._checked_update(
+                check,
+                made,
+                {
+                    **made,
+                    "text": proof.FULL_ON_CARD.format(command=run.command),
+                    "started_at": None,
+                },
+            )
+
         if check.going.done():
             going(check.going)
         else:
@@ -304,8 +377,15 @@ class ProofLaterMixin:
         task.add_done_callback(lambda done: self._ended_later(check, made, done, ctx, held, run))
         return made
 
-    def _ended_later(self: "AgentRunner", check: Check, made: Row, done: asyncio.Future,
-                     ctx: Ctx, held: "Proof", run: TestRun) -> None:
+    def _ended_later(
+        self: "AgentRunner",
+        check: Check,
+        made: Row,
+        done: asyncio.Future,
+        ctx: Ctx,
+        held: "Proof",
+        run: TestRun,
+    ) -> None:
         """A suite gone on after its answer is over: its row as it ended - and a guess that
         really ran tests saved, as in the turn (`_save_found`), its row under it. Ended by KOLONİ
         closing: nothing here - the next start says so (`proof.settle_running`).
@@ -320,6 +400,7 @@ class ProofLaterMixin:
                 saved = self._save_found(ctx, held, run, *done.result())
             except Exception as exc:  # (a save that broke saves nothing: the row is said)
                 log.warning("run %s: the guess gone on after it not saved: %r", check.run_id, exc)
+
         def said(more: list[Row]) -> None:
             more = [*saved, *more, *check.after]
             try:
@@ -327,6 +408,7 @@ class ProofLaterMixin:
                 self._checked_update(check, made, self._later_row(check, made, done), *more)
             except Exception as exc:  # (a row of KOLONİ's fails nothing)
                 log.warning("run %s: the tests gone on after it not said: %r", check.run_id, exc)
+
         # (S9: its coverage report, read as it ends - off the loop, said with it)
         if not self._coverage_later(ctx, held, run, said):
             said([])
@@ -335,22 +417,36 @@ class ProofLaterMixin:
         if done.cancelled():
             return self._stopped_row(check, made["command"], made["guessed"])
         if (exc := done.exception()) is not None:
-            return proof.row("tests", "not_run", proof.NOT_STARTED.format(
-                first=str(exc) or type(exc).__name__), made["command"], made["guessed"])
+            return proof.row(
+                "tests",
+                "not_run",
+                proof.NOT_STARTED.format(first=str(exc) or type(exc).__name__),
+                made["command"],
+                made["guessed"],
+            )
         row, _output = done.result()
         if not check.going.done():  # (never started: nothing ran beneath a change)
             return row
         with self._factory() as session:
-            ran = session.scalar(select(Command).where(
-                Command.tool_call_id == check.call_id)) if check.call_id else None
+            ran = (
+                session.scalar(select(Command).where(Command.tool_call_id == check.call_id))
+                if check.call_id
+                else None
+            )
             # (From its start - its row's clock may be gone: it waited on your answer, CL-316.)
             changed = proof.changed_since(session, check.project_id, check.going.result(), ran)
         # (Review Focus 2: a pass on what is no longer the work is no pass.)
-        return {**row, "text": row["text"] + proof.CHANGED_WHILE,
-                "state": "note" if row["state"] == "passed" else row["state"]} if changed else row
+        return (
+            {
+                **row,
+                "text": row["text"] + proof.CHANGED_WHILE,
+                "state": "note" if row["state"] == "passed" else row["state"],
+            }
+            if changed
+            else row
+        )
 
-    def _checked_update(self: "AgentRunner", check: Check, row: Row, new: Row,
-                        *after: Row) -> None:
+    def _checked_update(self: "AgentRunner", check: Check, row: Row, new: Row, *after: Row) -> None:
         """`row` of the turn's Checked section is now `new` (and `after` follows it in the
         written one): in the turn's rows still to be written, and in its "checked" message where
         that is written - sent again under the same id, which the page puts in place of the
@@ -359,13 +455,14 @@ class ProofLaterMixin:
         row.update(new)  # (every key of a row: none of the old is left)
         try:
             with self._factory() as session:
-                note = session.scalar(select(Message).where(
-                    Message.run_id == check.run_id, Message.role == "checked"))
+                note = session.scalar(
+                    select(Message).where(Message.run_id == check.run_id, Message.role == "checked")
+                )
                 rows = list((note.blocks or {}).get("rows", [])) if note is not None else []
                 if note is None or was not in rows:
                     return
                 at = rows.index(was)
-                rows[at:at + 1] = [dict(new), *map(dict, after)]
+                rows[at : at + 1] = [dict(new), *map(dict, after)]
                 note.blocks, note.content = {"rows": rows}, proof.checked_text(rows)
                 session.commit()
                 payload = message_out(note)
@@ -382,7 +479,7 @@ class ProofLaterMixin:
         return bool(found)
 
     def stop_check(self: "AgentRunner", run_id: str) -> bool:
-        """"Stop this check" (plan decision 17): the turn's test runs that run now - its related
+        """ "Stop this check" (plan decision 17): the turn's test runs that run now - its related
         tests while the answer waits, or its whole suite gone on after it - are stopped; what
         finished stays, and the rest of the turn's runs are not started. False: none runs."""
         stopped = self._end_checks(lambda one: one.run_id == run_id, BY_YOU)

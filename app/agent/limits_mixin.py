@@ -64,32 +64,43 @@ ROLE_STEPS = "stopped at its role's limit of {limit} step{s}"
 ROLE_TOKENS = "stopped at its role's limit of {limit} tokens: it used {used}"
 # B-413: in a watched turn, the first time the Orchestrator's loop guard stops it, it is told
 # this and goes on (its counts start again); the next time, the user is asked on a card.
-CIRCLING_NUDGE = ("KOLONİ: you seem to go round in circles: {tool} again and again, with the same "
-                  "result, and nothing moved in between. Try a different approach, or report what "
-                  "you did and end.")
-CIRCLING_ASKED = ("The Orchestrator has no step limit, and it seems to go round in circles: {why} "
-                  "Go on lets it carry on; Stop here ends it, with what it did so far. With no "
-                  "answer in 10 minutes its turn ends, its work kept.")
+CIRCLING_NUDGE = (
+    "KOLONİ: you seem to go round in circles: {tool} again and again, with the same "
+    "result, and nothing moved in between. Try a different approach, or report what "
+    "you did and end."
+)
+CIRCLING_ASKED = (
+    "The Orchestrator has no step limit, and it seems to go round in circles: {why} "
+    "Go on lets it carry on; Stop here ends it, with what it did so far. With no "
+    "answer in 10 minutes its turn ends, its work kept."
+)
 CIRCLING_GO_ON = "Go on"
 # How long that card waits: then the turn ends by itself, so a queued message, the To-do run or
 # the night goes on. shortcut: a fixed 10 minutes, not a setting; make it one if users ask.
 CIRCLING_WAIT = 600.0
 CIRCLING_NO_ANSWER = "No answer in 10 minutes"
 # Said on the desktop and to the project's notification address as the card goes up.
-CIRCLING_TOLD = ("The Orchestrator seems stuck: it repeated {tool} with the same result. Go on "
-                 "or Stop here in the chat; with no answer in 10 minutes its turn ends, its work "
-                 "kept.")
+CIRCLING_TOLD = (
+    "The Orchestrator seems stuck: it repeated {tool} with the same result. Go on "
+    "or Stop here in the chat; with no answer in 10 minutes its turn ends, its work "
+    "kept."
+)
 # KOLONİ's line where nobody answered it.
-CIRCLING_REPORT = ("No answer in 10 minutes: the Orchestrator's turn ended here, its work kept. It "
-                   "had opened {agents} and changed {files} in the project; it got stuck repeating "
-                   "{tool}.")
+CIRCLING_REPORT = (
+    "No answer in 10 minutes: the Orchestrator's turn ended here, its work kept. It "
+    "had opened {agents} and changed {files} in the project; it got stuck repeating "
+    "{tool}."
+)
 CIRCLING_LANDED = "The Orchestrator ended after this turn's work was in the project: {why}"
-TODO_TOO_LONG = ("stopped after {hours} hour{s}, the longest a To-do task's turn works: what it "
-                 "did is kept")
+TODO_TOO_LONG = (
+    "stopped after {hours} hour{s}, the longest a To-do task's turn works: what it did is kept"
+)
 # B-413: a turn nobody watches - a To-do task's, a night's job, a trigger's - whose Orchestrator
 # counts no steps, ends where nothing real moved for Settings' minutes (`_progress`).
-NO_PROGRESS = ("stopped: nothing moved in {minutes} minutes - no file of the turn changed, no "
-               "agent finished its work, no failing command passed")
+NO_PROGRESS = (
+    "stopped: nothing moved in {minutes} minutes - no file of the turn changed, no "
+    "agent finished its work, no failing command passed"
+)
 # K-yavas (the user, 20 Nov 2026): in a turn the user watches, the Orchestrator's model silent this
 # long is asked about on a card (`_slow`) - measured: Qoder's free queue held one 5.5 and 7 min,
 # Codex at its 5-hour limit answered every 7-10 min; a CLI's own silence limit
@@ -105,9 +116,11 @@ SLOW_STOP = "Stop and pick another model"
 # shortcut: one wording for every lead - a plan turn's (the team's strongest model) and a
 # comparison side's (that side's model) are picked elsewhere; word it from `would_run`'s source
 # if a user is seen sent to the wrong place.
-SLOW_STOPPED = ("You stopped this turn: {said} What it did so far is kept. To go on, pick another "
-                "model for the Orchestrator - in the chat's model picker, or on the Agents page "
-                "where the Orchestrator role has a model of its own - and send your message again.")
+SLOW_STOPPED = (
+    "You stopped this turn: {said} What it did so far is kept. To go on, pick another "
+    "model for the Orchestrator - in the chat's model picker, or on the Agents page "
+    "where the Orchestrator role has a model of its own - and send your message again."
+)
 
 # How a stop at the end of the steps given once more (K-devam-butce, `GIVEN_ONCE`) is on
 # record (B-327: not "step_limit", whose words everywhere say the app's limit).
@@ -134,14 +147,10 @@ BUDGET_NEAR = (
 BUDGET_EVERY = 60.0
 
 BUDGET_STEPS = "budget: stopped after {steps} model steps, the most this trigger gives a turn"
-BUDGET_MINUTES = (
-    "budget: stopped after {minutes} minutes, the longest this trigger lets a turn run"
-)
+BUDGET_MINUTES = "budget: stopped after {minutes} minutes, the longest this trigger lets a turn run"
 OVER_LIMIT = "this turn used {used} tokens, over the project's limit of {limit}"
 # Where the stop cut a step or a CLI at work: what that had spent by then is not all known.
-OVER_LIMIT_AT_LEAST = (
-    "this turn used at least {used} tokens, over the project's limit of {limit}"
-)
+OVER_LIMIT_AT_LEAST = "this turn used at least {used} tokens, over the project's limit of {limit}"
 # What an agent is on record as having spent: all it sent and all it wrote.
 SPENT = func.coalesce(Agent.input_tokens_total, 0) + func.coalesce(Agent.output_tokens, 0)
 # The same of a request KOLONİ made itself in a turn: the turn spent it, no agent did.
@@ -180,8 +189,10 @@ class LimitsMixin:
         trigger = session.get(Trigger, run.trigger_id) if run.trigger_id else None
         budget = trigger.budget if trigger else {}
         unwatched = self._unwatched[run.id] = _Unwatched(
-            trigger.id if trigger else None, run.trigger_name or "",
-            steps=int(budget.get("steps") or 0), minutes=int(budget.get("minutes") or 0),
+            trigger.id if trigger else None,
+            run.trigger_name or "",
+            steps=int(budget.get("steps") or 0),
+            minutes=int(budget.get("minutes") or 0),
         )
         unwatched.left = unwatched.minutes * MINUTE
         self._count_minutes(run.id)
@@ -216,7 +227,9 @@ class LimitsMixin:
             later = self.call_later or asyncio.get_running_loop().call_later
             unwatched.since = at
             unwatched.timer = later(
-                max(0.0, unwatched.left), self._over_budget, run_id,
+                max(0.0, unwatched.left),
+                self._over_budget,
+                run_id,
                 BUDGET_MINUTES.format(minutes=unwatched.minutes),
             )
 
@@ -256,14 +269,21 @@ class LimitsMixin:
     def _turn_spent(session, run_id: str) -> tuple[int, bool]:
         """What a turn is on record as having spent - its agents, and what KOLONİ asked
         itself for them (`OwnRequest`) - and whether any of that was cut short."""
-        spent = [session.execute(
-            select(func.sum(tokens), func.max(of.cut_short)).where(of.run_id == run_id)
-        ).one() for tokens, of in ((SPENT, Agent), (ASKED, OwnRequest))]
+        spent = [
+            session.execute(
+                select(func.sum(tokens), func.max(of.cut_short)).where(of.run_id == run_id)
+            ).one()
+            for tokens, of in ((SPENT, Agent), (ASKED, OwnRequest))
+        ]
         return sum(used or 0 for used, _cut in spent), any(cut for _used, cut in spent)
 
     def _cut(
-        self: "AgentRunner", ctx: Ctx, sent: int | None = None, made: int | None = None,
-        read: int | None = None, written: int | None = None,
+        self: "AgentRunner",
+        ctx: Ctx,
+        sent: int | None = None,
+        made: int | None = None,
+        read: int | None = None,
+        written: int | None = None,
     ) -> None:
         """A model step, or a CLI's run, ended without coming to its end - Stop, a limit,
         a failure: what it had reported by then is counted, and the agent is on record as
@@ -304,9 +324,9 @@ class LimitsMixin:
         self._hold_to_away(ctx)
         with self._factory() as session:
             limit = session.scalar(
-                select(Project.turn_token_limit).join(
-                    Conversation, Conversation.project_id == Project.id
-                ).where(Conversation.id == ctx.cid)
+                select(Project.turn_token_limit)
+                .join(Conversation, Conversation.project_id == Project.id)
+                .where(Conversation.id == ctx.cid)
             )
             used = limit and self._turn_spent(session, ctx.run_id)[0]
         if limit and used and used > limit:
@@ -329,12 +349,18 @@ class LimitsMixin:
             self._stopped_by_koloni(ctx)
             raise OwnStop(self._halt_why.get(ctx.agent_id, TEAM_STOPPED))
         # (K-devam-butce: a job on a budget given on top runs its steps, not the role's.)
-        if taken is not None and ctx.role_steps is not None and (
+        if (
+            taken is not None
+            and ctx.role_steps is not None
+            and (
                 ctx.agent_id not in self._given_steps
-                and taken + self._role_before(ctx) >= ctx.role_steps):
+                and taken + self._role_before(ctx) >= ctx.role_steps
+            )
+        ):
             self._stopped_by_koloni(ctx)
-            raise OwnStop(ROLE_STEPS.format(
-                limit=ctx.role_steps, s="" if ctx.role_steps == 1 else "s"))
+            raise OwnStop(
+                ROLE_STEPS.format(limit=ctx.role_steps, s="" if ctx.role_steps == 1 else "s")
+            )
         if ctx.role_tokens is None:
             return
         with self._factory() as session:
@@ -366,8 +392,11 @@ class LimitsMixin:
         one with a limit of its own (a room's sharing step), nor a room member's: each time
         it is woken counts on its own, as before B-325."""
         room = self._rooms.get(ctx.run_id)
-        return _goes_on(ctx) and not ctx.max_steps and not (
-            room is not None and ctx.agent_id in room.members)
+        return (
+            _goes_on(ctx)
+            and not ctx.max_steps
+            and not (room is not None and ctx.agent_id in room.members)
+        )
 
     def _role_now(self: "AgentRunner", ctx: Ctx) -> Ctx:
         """B-325: an agent with its role's limits as they stand now (the user may have changed
@@ -375,8 +404,11 @@ class LimitsMixin:
         keeps no role id."""
         with self._factory() as session:
             role = find_role(session, ctx.role)
-        return ctx if role is None else replace(
-            ctx, role_steps=role.max_steps, role_tokens=role.max_tokens)
+        return (
+            ctx
+            if role is None
+            else replace(ctx, role_steps=role.max_steps, role_tokens=role.max_tokens)
+        )
 
     def _stopped_by_koloni(self: "AgentRunner", ctx: Ctx) -> None:
         """An agent stopped by a limit, a rule or a count of KOLONİ's own: so it is in the
@@ -409,7 +441,8 @@ class LimitsMixin:
         if used < ctx.role_tokens * WRAP_UP_SHARE:
             return ""
         return WRAP_UP.format(
-            near=f"you have used {used} of the {ctx.role_tokens} tokens your role allows")
+            near=f"you have used {used} of the {ctx.role_tokens} tokens your role allows"
+        )
 
     def _near_budget(self: "AgentRunner", ctx: Ctx) -> str:
         """What an agent is told once, at its first step after its project's month came to
@@ -426,10 +459,14 @@ class LimitsMixin:
             at, said = self._budget_read.get(project.id, (None, ""))
             if at is None or time.monotonic() - at >= BUDGET_EVERY:
                 spend = month_spend(session, project)
-                said = BUDGET_NEAR.format(
-                    least="at least " if spend["at_least"] else "",
-                    used=int(spend["share"] * 100 + 1e-9),  # (0.29 * 100 is 28.99…)
-                ) if spend["warn"] else ""
+                said = (
+                    BUDGET_NEAR.format(
+                        least="at least " if spend["at_least"] else "",
+                        used=int(spend["share"] * 100 + 1e-9),  # (0.29 * 100 is 28.99…)
+                    )
+                    if spend["warn"]
+                    else ""
+                )
                 self._budget_read[project.id] = (time.monotonic(), said)
         if said:
             self._budget_told.add(ctx.agent_id)
@@ -474,8 +511,11 @@ class LimitsMixin:
         self._stopped_by_koloni(ctx)
         self._guard_ended.add(ctx.agent_id)
         with self._factory() as session:  # (written in the project, or a copy taken in)
-            landed = attended and session.scalar(select(FileChange.id).where(
-                FileChange.run_id == ctx.run_id, FileChange.status == "applied").limit(1))
+            landed = attended and session.scalar(
+                select(FileChange.id)
+                .where(FileChange.run_id == ctx.run_id, FileChange.status == "applied")
+                .limit(1)
+            )
         if not landed:
             if said:
                 self._koloni_line(ctx.cid, ctx.run_id, said)
@@ -483,8 +523,9 @@ class LimitsMixin:
         self._koloni_line(ctx.cid, ctx.run_id, said or CIRCLING_LANDED.format(why=why))
         return "completed", None
 
-    async def _circling_goes_on(self: "AgentRunner", ctx: Ctx, call_id: str,
-                                why: str) -> bool | str:
+    async def _circling_goes_on(
+        self: "AgentRunner", ctx: Ctx, call_id: str, why: str
+    ) -> bool | str:
         """`_circled` in a turn the user can be asked in: the first time, the Orchestrator is
         told to try another way or end (CIRCLING_NUDGE) and goes on; then the user is asked on a
         card, told on the desktop and at the project's address (`_tell_stuck`). True: it goes
@@ -505,13 +546,20 @@ class LimitsMixin:
             if ids and (asked := self._answers.get(ids[0])) is not None and not asked.done():
                 asked.set_result(CIRCLING_NO_ANSWER)
 
-        timer = (self.call_later or asyncio.get_running_loop().call_later)(
-            CIRCLING_WAIT, no_answer)
+        timer = (self.call_later or asyncio.get_running_loop().call_later)(CIRCLING_WAIT, no_answer)
         self._tell_stuck(ctx, tool)
         try:
-            _status, word = await self._ask_user(ctx, call_id, {
-                "question": CIRCLING_ASKED.format(why=why.removeprefix(signs.CIRCLING)),
-                "options": [CIRCLING_GO_ON, STEPS_STOP]}, leave=True, ids=ids, tell=False)
+            _status, word = await self._ask_user(
+                ctx,
+                call_id,
+                {
+                    "question": CIRCLING_ASKED.format(why=why.removeprefix(signs.CIRCLING)),
+                    "options": [CIRCLING_GO_ON, STEPS_STOP],
+                },
+                leave=True,
+                ids=ids,
+                tell=False,
+            )
         except _NobodyToAsk:
             return False
         finally:
@@ -520,12 +568,27 @@ class LimitsMixin:
         if word != CIRCLING_NO_ANSWER:
             return word == CIRCLING_GO_ON or ""
         with self._factory() as session:
-            agents = session.scalar(select(func.count()).select_from(Agent).where(
-                Agent.run_id == ctx.run_id, Agent.depth > 0)) or 0
-            files = session.scalar(select(func.count(func.distinct(FileChange.path))).where(
-                FileChange.run_id == ctx.run_id, FileChange.status == "applied")) or 0
-        return CIRCLING_REPORT.format(agents=f"{agents} agent{'' if agents == 1 else 's'}",
-                                      files=f"{files} file{'' if files == 1 else 's'}", tool=tool)
+            agents = (
+                session.scalar(
+                    select(func.count())
+                    .select_from(Agent)
+                    .where(Agent.run_id == ctx.run_id, Agent.depth > 0)
+                )
+                or 0
+            )
+            files = (
+                session.scalar(
+                    select(func.count(func.distinct(FileChange.path))).where(
+                        FileChange.run_id == ctx.run_id, FileChange.status == "applied"
+                    )
+                )
+                or 0
+            )
+        return CIRCLING_REPORT.format(
+            agents=f"{agents} agent{'' if agents == 1 else 's'}",
+            files=f"{files} file{'' if files == 1 else 's'}",
+            tool=tool,
+        )
 
     def _tell_stuck(self: "AgentRunner", ctx: Ctx, tool: str) -> None:
         """B-413: the Orchestrator's card that it seems stuck, told as a night's end is
@@ -539,8 +602,13 @@ class LimitsMixin:
                 desktop = project.notify_desktop and self._toasts.take(ctx.cid)
                 if not (desktop or project.notify_url):
                     return
-                note = (project.name, project.notify_url, project.notify_format, desktop,
-                        CIRCLING_TOLD.format(tool=tool))
+                note = (
+                    project.name,
+                    project.notify_url,
+                    project.notify_format,
+                    desktop,
+                    CIRCLING_TOLD.format(tool=tool),
+                )
             away.send(note)
 
     def _arm_todo_deadline(self: "AgentRunner", run_id: str) -> None:
@@ -575,13 +643,23 @@ class LimitsMixin:
         if run is None:
             return False
         task = away.job_of(session, run.conversation_id)
-        return run.status == "waiting_approval" or self._asking.get(run_id, 0) > 0 or (
-            task is not None and task.away_state == "waits") or any(
-            session.scalar(query.limit(1)) is not None for query in (
-                select(Command.id).where(Command.run_id == run_id, Command.status == "proposed"),
-                select(Agent.id).where(Agent.run_id == run_id, Agent.status == "proposed"),
-                select(FileChange.id).where(FileChange.run_id == run_id,
-                                            FileChange.status == "proposed")))
+        return (
+            run.status == "waiting_approval"
+            or self._asking.get(run_id, 0) > 0
+            or (task is not None and task.away_state == "waits")
+            or any(
+                session.scalar(query.limit(1)) is not None
+                for query in (
+                    select(Command.id).where(
+                        Command.run_id == run_id, Command.status == "proposed"
+                    ),
+                    select(Agent.id).where(Agent.run_id == run_id, Agent.status == "proposed"),
+                    select(FileChange.id).where(
+                        FileChange.run_id == run_id, FileChange.status == "proposed"
+                    ),
+                )
+            )
+        )
 
     def _progress(self: "AgentRunner", run_id: str, arm: bool = False) -> None:
         """B-413: something real moved in a turn nobody watches - a file of it changed, an agent
@@ -610,16 +688,27 @@ class LimitsMixin:
             if session.get(Run, run_id) is None:
                 return
             since = now() - timedelta(minutes=minutes)
-            busy = self._waits_for_user(session, run_id) or (
-                self._worked_below.get(run_id, since) > since) or any(
-                session.scalar(query.limit(1)) is not None for query in (
-                    select(Command.id).where(Command.run_id == run_id, Command.status == "running",
-                                             Command.keep_running.is_(False)),
-                    select(Message.id).where(Message.run_id == run_id,
-                                             Message.status == "streaming"),
-                    select(Agent.id).where(Agent.run_id == run_id, Agent.ended_at >= since),
-                    select(FileChange.id).where(FileChange.run_id == run_id,
-                                                FileChange.created_at >= since)))
+            busy = (
+                self._waits_for_user(session, run_id)
+                or (self._worked_below.get(run_id, since) > since)
+                or any(
+                    session.scalar(query.limit(1)) is not None
+                    for query in (
+                        select(Command.id).where(
+                            Command.run_id == run_id,
+                            Command.status == "running",
+                            Command.keep_running.is_(False),
+                        ),
+                        select(Message.id).where(
+                            Message.run_id == run_id, Message.status == "streaming"
+                        ),
+                        select(Agent.id).where(Agent.run_id == run_id, Agent.ended_at >= since),
+                        select(FileChange.id).where(
+                            FileChange.run_id == run_id, FileChange.created_at >= since
+                        ),
+                    )
+                )
+            )
         if busy:
             self._progress_timers.pop(run_id, None)
             self._progress(run_id, arm=True)
@@ -663,8 +752,11 @@ class LimitsMixin:
         """`_slow`: its model is no longer asked, or was heard from - no clock, and its card is
         closed (it ends by itself; `_slow_ended` waits for that)."""
         slow = self._slow_turns.get(ctx.run_id)
-        if slow is not None and slow.agent_id == ctx.agent_id and not (
-                ctx.depth or ctx.answering or ctx.discussion):
+        if (
+            slow is not None
+            and slow.agent_id == ctx.agent_id
+            and not (ctx.depth or ctx.answering or ctx.discussion)
+        ):
             slow.off()
 
     def _slow_dropped(self: "AgentRunner", run_id: str) -> None:
@@ -686,8 +778,13 @@ class LimitsMixin:
         """`_show_live`: Qoder has kept the Orchestrator's model queued past QUEUE_WAIT_SECONDS -
         asked now, and once until its model is heard from (the line comes every ~30 s)."""
         slow = self._slow_turns.get(ctx.run_id)
-        if (queue and (queue.get("elapsed_s") or 0) >= QUEUE_WAIT_SECONDS and slow is not None
-                and slow.agent_id == ctx.agent_id and not slow.waited):
+        if (
+            queue
+            and (queue.get("elapsed_s") or 0) >= QUEUE_WAIT_SECONDS
+            and slow is not None
+            and slow.agent_id == ctx.agent_id
+            and not slow.waited
+        ):
             self._slow_due(ctx.run_id, queue)
 
     def _slow_due(self: "AgentRunner", run_id: str, queue: dict | None = None) -> None:
@@ -701,15 +798,30 @@ class LimitsMixin:
         is back - no card meanwhile; tell the two apart if a CLI is seen silent then."""
         slow = self._slow_turns.get(run_id)
         ctx = self._ctxs.get(slow.agent_id) if slow is not None else None
-        if slow is None or ctx is None or slow.timer is None or (
-                slow.card is not None and not slow.card.done()):
+        if (
+            slow is None
+            or ctx is None
+            or slow.timer is None
+            or (slow.card is not None and not slow.card.done())
+        ):
             return
         with self._factory() as session:
             lead = session.get_one(Agent, ctx.agent_id)
-            busy = lead.status != "running" or self._waits_for_user(session, run_id) or (
-                session.scalar(select(ToolCall.id).where(
-                    ToolCall.agent_id == ctx.agent_id,
-                    ToolCall.status.in_(("pending", "running"))).limit(1)) is not None)
+            busy = (
+                lead.status != "running"
+                or self._waits_for_user(session, run_id)
+                or (
+                    session.scalar(
+                        select(ToolCall.id)
+                        .where(
+                            ToolCall.agent_id == ctx.agent_id,
+                            ToolCall.status.in_(("pending", "running")),
+                        )
+                        .limit(1)
+                    )
+                    is not None
+                )
+            )
             provider, model = shown_name(lead.provider_name or "Its CLI"), lead.model_id
         if busy:
             if queue is None:
@@ -717,11 +829,18 @@ class LimitsMixin:
             return
         slow.waited += 1
         queue = queue or self._cli_live.get(ctx.agent_id, ("", {}))[1].get("queue")
-        said = SLOW_QUEUED.format(
-            provider=provider, model=model or "its model", minutes=round(queue["elapsed_s"] / 60)
-        ) if queue and queue.get("elapsed_s") else SLOW_SILENT.format(
-            who=f"{provider} · {model}" if model else provider,
-            minutes=slow.waited * WATCHED_SLOW_MINUTES)
+        said = (
+            SLOW_QUEUED.format(
+                provider=provider,
+                model=model or "its model",
+                minutes=round(queue["elapsed_s"] / 60),
+            )
+            if queue and queue.get("elapsed_s")
+            else SLOW_SILENT.format(
+                who=f"{provider} · {model}" if model else provider,
+                minutes=slow.waited * WATCHED_SLOW_MINUTES,
+            )
+        )
         slow.card = asyncio.ensure_future(self._slow_asked(ctx, said))
 
     async def _slow_asked(self: "AgentRunner", ctx: Ctx, said: str) -> None:
@@ -734,9 +853,14 @@ class LimitsMixin:
         pick, and `_moved_on` moves no lead; offer the next of its tier if the user asks."""
         ids: list[str] = []
         try:
-            _status, word = await self._ask_user(ctx, None, {
-                "question": SLOW_ASKED.format(said=said), "options": [SLOW_WAIT, SLOW_STOP]},
-                leave=True, ids=ids, aside=False)
+            _status, word = await self._ask_user(
+                ctx,
+                None,
+                {"question": SLOW_ASKED.format(said=said), "options": [SLOW_WAIT, SLOW_STOP]},
+                leave=True,
+                ids=ids,
+                aside=False,
+            )
         except asyncio.CancelledError:
             self._slow_closed(ctx, ids)
             raise
@@ -763,7 +887,8 @@ class LimitsMixin:
         """Whether the user can be asked on a card in this turn: one they started - not a
         trigger's, a night's job or a backlog task."""
         return self._watched(ctx.run_id) and (
-            ctx.run_id not in self._away_jobs and ctx.run_id not in self._backlog_turns)
+            ctx.run_id not in self._away_jobs and ctx.run_id not in self._backlog_turns
+        )
 
     async def _more_steps(self: "AgentRunner", ctx: Ctx) -> bool:
         """B-397: a sub-agent - a team's coordinator too - that came to its step limit in a turn
@@ -794,9 +919,17 @@ class LimitsMixin:
             return False
         go_on, ids = STEPS_CONTINUE.format(steps=steps), []
         try:
-            _status, word = await self._ask_user(ctx, call_id, {
-                "question": STEPS_ASKED.format(name=ctx.name, taken=taken, steps=steps),
-                "options": [go_on, STEPS_STOP]}, leave=True, ids=ids, kind="steps")
+            _status, word = await self._ask_user(
+                ctx,
+                call_id,
+                {
+                    "question": STEPS_ASKED.format(name=ctx.name, taken=taken, steps=steps),
+                    "options": [go_on, STEPS_STOP],
+                },
+                leave=True,
+                ids=ids,
+                kind="steps",
+            )
         except _NobodyToAsk:
             return False
         by_user = self._who_answered(ctx, ids) == "The user"
@@ -805,16 +938,25 @@ class LimitsMixin:
                 self._stopped_here.add(key)
             return False
         self._budgeted[key] = self._give_steps(
-            ctx, "the user's Continue" if by_user else "your call at Full auto", taken, steps)
+            ctx, "the user's Continue" if by_user else "your call at Full auto", taken, steps
+        )
         self._nudge(ctx, CONTINUE_WORDS.format(steps=steps))
         return True
 
     async def _steps_card_offered(self: "AgentRunner", ctx: Ctx) -> bool:
         """`_more_steps`: whether its card is asked at all."""
-        if (not ctx.depth or ctx.max_steps or not _goes_on(ctx) or ctx.in_turn
-                or ctx.agent_id in self._halted or not self._watched(ctx.run_id)
-                or ctx.run_id in self._away_jobs or ctx.run_id in self._backlog_turns
-                or self._member_of(ctx) is not None or await self._kept_card_comes(ctx)):
+        if (
+            not ctx.depth
+            or ctx.max_steps
+            or not _goes_on(ctx)
+            or ctx.in_turn
+            or ctx.agent_id in self._halted
+            or not self._watched(ctx.run_id)
+            or ctx.run_id in self._away_jobs
+            or ctx.run_id in self._backlog_turns
+            or self._member_of(ctx) is not None
+            or await self._kept_card_comes(ctx)
+        ):
             return False
         return not ((ctx.run_id, ctx.name.casefold()) in self._budgeted and self._full_auto(ctx))
 
@@ -844,8 +986,7 @@ class LimitsMixin:
         steps = 0
         with self._factory() as session:
             for row, _team, lead in self._rows(session, ctx.cid):
-                if lead and lead.name == ctx.role and (
-                        state := self._live_state(row, ctx.run_id)):
+                if lead and lead.name == ctx.role and (state := self._live_state(row, ctx.run_id)):
                     asked = min(state.get("asked", 0), ASKED_ROUNDS_PAID)
                     steps += len(recipe_run.graph_of(state).steps) * (1 + asked)
         return LEAD_STEPS_PER_RECIPE_STEP * steps
@@ -859,8 +1000,11 @@ class LimitsMixin:
         away): by their rule nothing asks there but harm - the Lead decides the rest.
         shortcut: a session per call, at every command look too; cache it per run once a
         turn is seen to feel it (the level may change mid-turn: read it then)."""
-        if (not self._watched(ctx.run_id) or ctx.run_id in self._away_jobs
-                or ctx.run_id in self._backlog_turns):
+        if (
+            not self._watched(ctx.run_id)
+            or ctx.run_id in self._away_jobs
+            or ctx.run_id in self._backlog_turns
+        ):
             return False
         with self._factory() as session:
             return session.get_one(Conversation, ctx.cid).permission_mode == "full_auto"
@@ -876,9 +1020,14 @@ class LimitsMixin:
         return standing_asks(standing, "ask" if run_id in self._backlog_turns else level)
 
     def _nobody_to_ask(
-        self: "AgentRunner", ctx: Ctx, what: str, wanted: str, command: str | None = None,
+        self: "AgentRunner",
+        ctx: Ctx,
+        what: str,
+        wanted: str,
+        command: str | None = None,
         cwd: str = ".",
-        opening: int = 1, host: str | None = None,
+        opening: int = 1,
+        host: str | None = None,
     ) -> str | None:
         """The one gate before anything that would wait for the user.
 
@@ -902,15 +1051,23 @@ class LimitsMixin:
             trigger = session.get(Trigger, unwatched.trigger_id) if unwatched.trigger_id else None
             leave = trigger.permissions if trigger and isinstance(trigger.permissions, dict) else {}
             lines = [rule.prefix for rule in ticked(session, trigger)] if leave else []
-            tests = session.scalar(
-                select(Project.test_commands)
-                .join(Conversation, Conversation.project_id == Project.id)
-                .where(Conversation.id == ctx.cid)) if what == "command" else None
-            opened = session.scalar(
-                select(func.count()).select_from(Agent).where(
-                    Agent.run_id == ctx.run_id, Agent.depth > 0, Agent.status != "rejected"
+            tests = (
+                session.scalar(
+                    select(Project.test_commands)
+                    .join(Conversation, Conversation.project_id == Project.id)
+                    .where(Conversation.id == ctx.cid)
                 )
-            ) or 0
+                if what == "command"
+                else None
+            )
+            opened = (
+                session.scalar(
+                    select(func.count())
+                    .select_from(Agent)
+                    .where(Agent.run_id == ctx.run_id, Agent.depth > 0, Agent.status != "rejected")
+                )
+                or 0
+            )
         if what == "write":
             may = leave.get("write") is True
         elif what == "command":
@@ -918,9 +1075,11 @@ class LimitsMixin:
             # the one that is its text. (With the user there the same rule also covers
             # that command with more arguments - `CommandRunner` reads it so, not this.)
             # So does the user's own test command, run in its part's folder (K-buyuk-proje).
-            may = isinstance(command, str) and (cwd == "." and any(
-                is_exactly(command, line) for line in lines
-            ) or project_map.own_test(tests, command, cwd))
+            may = isinstance(command, str) and (
+                cwd == "."
+                and any(is_exactly(command, line) for line in lines)
+                or project_map.own_test(tests, command, cwd)
+            )
         elif what == "agent":
             most = leave.get("agents")
             may = isinstance(most, int) and not isinstance(most, bool) and opened + opening <= most
@@ -965,7 +1124,8 @@ class LimitsMixin:
             if not self._cannot_be_held(ctx.model, provider):
                 return None
         return (BACKLOG_NOT_THIS if backlog_turn else UNATTENDED_NOT_THIS).format(
-            provider=ctx.provider or "This CLI")
+            provider=ctx.provider or "This CLI"
+        )
 
     def _leave(self: "AgentRunner", run_id: str) -> dict:
         """What the trigger of an unattended turn allows, as it stands right now; nothing
@@ -989,19 +1149,34 @@ class LimitsMixin:
         off = self._off()  # (slice 61: a web tool switched off is not said to be allowed)
         if "http_request" in off:
             hosts = []
-        return "; ".join([
-            "read, search, look in the memory and write notes",
-            "change files" if leave.get("write") is True else "change no file",
-            # (`_nobody_to_ask`: the user's own test command runs unticked, `own_test`)
-            ("run exactly these command lines in the project folder, and the project's own test "
-             "command if it has one, and no other: " + ", ".join(quoted(line) for line in lines))
-            if lines else "run no command but the project's own test command, if it has one",
-            f"open {most} sub-agent(s) in all, held to the same" if most else "open no sub-agent",
-            "search the web" if leave.get("web") is True and "web_search" not in off
-            else "make no web search",
-            ("make GET and HEAD requests to these and no other: " + ", ".join(hosts)
-             + " (with no body and no headers)") if hosts
-            else "make no HTTP request",
-            "send the user a notification" if leave.get("notify") is True
-            else "send no notification",
-        ])
+        return "; ".join(
+            [
+                "read, search, look in the memory and write notes",
+                "change files" if leave.get("write") is True else "change no file",
+                # (`_nobody_to_ask`: the user's own test command runs unticked, `own_test`)
+                (
+                    "run exactly these command lines in the project folder, and the project's own "
+                    "test "
+                    "command if it has one, and no other: "
+                    + ", ".join(quoted(line) for line in lines)
+                )
+                if lines
+                else "run no command but the project's own test command, if it has one",
+                f"open {most} sub-agent(s) in all, held to the same"
+                if most
+                else "open no sub-agent",
+                "search the web"
+                if leave.get("web") is True and "web_search" not in off
+                else "make no web search",
+                (
+                    "make GET and HEAD requests to these and no other: "
+                    + ", ".join(hosts)
+                    + " (with no body and no headers)"
+                )
+                if hosts
+                else "make no HTTP request",
+                "send the user a notification"
+                if leave.get("notify") is True
+                else "send no notification",
+            ]
+        )

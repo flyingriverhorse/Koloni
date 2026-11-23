@@ -21,7 +21,8 @@ from tests.test_usage_scenarios import began, turn
 def over(make_client, wait_run, project_dir, steps, **project):
     """A project whose one turn so far cost 10.5 USD, against a budget of 10."""
     client, _model, pid, cid = began(
-        make_client, project_dir, [text("a", 1_000_000, 500_000), *steps], **project)
+        make_client, project_dir, [text("a", 1_000_000, 500_000), *steps], **project
+    )
     run = turn(client, wait_run, cid)
     client.put("/api/prices", json=PRICE)
     client.patch(f"/api/projects/{pid}", json={"monthly_budget": 10})
@@ -68,12 +69,12 @@ def test_going_on_over_the_budget_is_the_users_word(make_client, wait_run, proje
     client, _pid, cid, _run = over(make_client, wait_run, project_dir, [text("b", 1, 1)])
     del client.headers["Origin"]
     going = client.post(
-        f"/api/conversations/{cid}/messages", json={"content": "more", "over_budget": True})
+        f"/api/conversations/{cid}/messages", json={"content": "more", "over_budget": True}
+    )
     assert going.status_code == 403
 
 
-def test_a_trigger_starts_nothing_over_the_budget_and_says_why(make_client, wait_run,
-                                                               project_dir):
+def test_a_trigger_starts_nothing_over_the_budget_and_says_why(make_client, wait_run, project_dir):
     client, pid, cid, _run = over(make_client, wait_run, project_dir, [text("b", 1, 1)])
     made = trigger(client, pid, cid)
     assert tick(client, datetime.now(UTC) + timedelta(hours=2)) == []
@@ -85,13 +86,15 @@ def test_a_trigger_starts_nothing_over_the_budget_and_says_why(make_client, wait
     assert client.post(f"/api/triggers/{made['id']}/run").status_code in (200, 201, 202)
 
 
-def test_the_desktop_is_told_once_a_month_at_80_percent(make_client, wait_run, project_dir,
-                                                         monkeypatch):
+def test_the_desktop_is_told_once_a_month_at_80_percent(
+    make_client, wait_run, project_dir, monkeypatch
+):
     shown = []
     monkeypatch.setattr(app.web, "has_desktop", lambda: True)
     monkeypatch.setattr(app.web, "desktop", lambda title, said: shown.append(said))
     client, pid, cid, _run = over(
-        make_client, wait_run, project_dir, [text("b", 1, 1)], notify_desktop=True)
+        make_client, wait_run, project_dir, [text("b", 1, 1)], notify_desktop=True
+    )
     client.patch(f"/api/projects/{pid}", json={"monthly_budget": 12})  # 87.5%
     turn(client, wait_run, cid, "b")
     deadline = time.monotonic() + 5
@@ -110,25 +113,37 @@ def test_80_percent_is_80_percent_however_the_division_falls(make_client, wait_r
 
 
 def test_costs_in_two_currencies_are_not_added_and_the_budget_holds_nothing_back(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     client, pid, cid, run = over(make_client, wait_run, project_dir, [text("b", 1, 1)])
     with client.app.state.session_factory() as session:
         agent = session.scalar(select(Agent).where(Agent.run_id == run["id"]))
-        session.add(OwnRequest(run_id=run["id"], agent_id=agent.id, provider_name="other",
-                               model_id="other-model", input_tokens=1_000_000, output_tokens=0))
+        session.add(
+            OwnRequest(
+                run_id=run["id"],
+                agent_id=agent.id,
+                provider_name="other",
+                model_id="other-model",
+                input_tokens=1_000_000,
+                output_tokens=0,
+            )
+        )
         session.commit()
     client.put("/api/prices", json={**PRICE, "model_id": "other-model", "currency": "EUR"})
     seen = budget(client, pid)
     assert (seen["spent"], seen["currency"], seen["over"]) == (None, None, False)
-    assert client.post(f"/api/conversations/{cid}/messages", json={"content": "b"}).status_code == 201
+    assert (
+        client.post(f"/api/conversations/{cid}/messages", json={"content": "b"}).status_code == 201
+    )
     # "usd" is USD: the same currency, added up - and over the budget again.
     client.put("/api/prices", json={**PRICE, "model_id": "other-model", "currency": "usd"})
     seen = budget(client, pid)
     assert (seen["currency"], seen["over"]) == ("USD", True) and seen["spent"] >= 13.5
 
 
-def test_a_room_is_not_opened_over_the_budget_without_the_users_word(make_client, wait_run,
-                                                                     project_dir):
+def test_a_room_is_not_opened_over_the_budget_without_the_users_word(
+    make_client, wait_run, project_dir
+):
     client, _pid, cid, _run = over(make_client, wait_run, project_dir, [text("b", 1, 1)] * 4)
     room = {"goal": "together", "with": [{"role": "Coder"}, {"role": "Reviewer"}]}
     refused = client.post(f"/api/conversations/{cid}/rooms", json=room)
@@ -139,12 +154,15 @@ def test_a_room_is_not_opened_over_the_budget_without_the_users_word(make_client
 
 
 def test_an_approved_plan_starts_its_work_over_the_budget_only_on_the_users_word(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     client, _pid, cid, _run = over(
-        make_client, wait_run, project_dir, [text("PLAN: look", 1, 1), text("done", 1, 1)])
+        make_client, wait_run, project_dir, [text("PLAN: look", 1, 1), text("done", 1, 1)]
+    )
     assert client.patch(f"/api/conversations/{cid}", json={"plan_first": True}).status_code == 200
     planned = client.post(
-        f"/api/conversations/{cid}/messages", json={"content": "plan", "over_budget": True})
+        f"/api/conversations/{cid}/messages", json={"content": "plan", "over_budget": True}
+    )
     run_id = planned.json()["run"]["id"]
     wait_run(client, cid, run_id)
     refused = client.post(f"/api/runs/{run_id}/plan/approve", json={})
@@ -158,7 +176,8 @@ def test_an_approved_plan_starts_its_work_over_the_budget_only_on_the_users_word
 
 
 def test_a_message_not_sent_before_a_restart_is_sent_over_the_budget_only_on_the_users_word(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     client, _pid, cid, _run = over(make_client, wait_run, project_dir, [text("done", 1, 1)])
     with client.app.state.session_factory() as session:  # (queued when KOLONİ restarted)
         session.add(Run(id="q", conversation_id=cid, status="interrupted", by_user=True))
@@ -189,9 +208,16 @@ def test_an_agent_is_told_once_its_project_has_used_most_of_its_budget(
     from tests.test_usage_scenarios import began, turn
 
     told = BUDGET_NEAR.split("{used}")[1]  # (with "at least" or without: one turn is unpriced)
-    client, model, pid, cid = began(make_client, project_dir, [
-        text("a", 1_000_000, 500_000), text("b", 1, 1),
-        step(call("list_files", {"path": "."})), text("c", 1, 1)])
+    client, model, pid, cid = began(
+        make_client,
+        project_dir,
+        [
+            text("a", 1_000_000, 500_000),
+            text("b", 1, 1),
+            step(call("list_files", {"path": "."})),
+            text("c", 1, 1),
+        ],
+    )
     turn(client, wait_run, cid)
     client.put("/api/prices", json=PRICE)
 
@@ -215,11 +241,21 @@ def test_a_projects_month_is_not_added_up_for_it_at_every_step(
 
     added = []
     plain = app.agent.limits_mixin.month_spend
-    monkeypatch.setattr(app.agent.limits_mixin, "month_spend", lambda *a: added.append(1) or plain(*a))
-    monkeypatch.setattr(app.agent.tiers_mixin, "month_spend", lambda *a: added.append(1) or plain(*a))
-    client, _model, pid, cid = began(make_client, project_dir, [
-        step(call("list_files", {"path": "."})), step(call("list_files", {"path": "."})),
-        text("done")])
+    monkeypatch.setattr(
+        app.agent.limits_mixin, "month_spend", lambda *a: added.append(1) or plain(*a)
+    )
+    monkeypatch.setattr(
+        app.agent.tiers_mixin, "month_spend", lambda *a: added.append(1) or plain(*a)
+    )
+    client, _model, pid, cid = began(
+        make_client,
+        project_dir,
+        [
+            step(call("list_files", {"path": "."})),
+            step(call("list_files", {"path": "."})),
+            text("done"),
+        ],
+    )
     client.patch(f"/api/projects/{pid}", json={"monthly_budget": 1000})  # far under it
     turn(client, wait_run, cid)
     assert len(added) == 1  # three steps, one reading

@@ -35,12 +35,15 @@ from app.providers import (
 from app.roles import LEAD, LEAD_KIND, shown_name
 
 KIND_NAMES = {
-    "openai_compat": "OpenAI-compatible server", "anthropic": "Anthropic API", **CLI_NAMES,
+    "openai_compat": "OpenAI-compatible server",
+    "anthropic": "Anthropic API",
+    **CLI_NAMES,
 }
 # How a provider works, in fixed words: these are KOLONİ's, never the user's.
 RUNS_API = "API"
 RUNS = {
-    "step": "one step at a time", "session": "as a session, KOLONİ's tools",
+    "step": "one step at a time",
+    "session": "as a session, KOLONİ's tools",
     # How it is started, which is all KOLONİ knows: the user's own settings for that CLI
     # can give leave for more, so "changes nothing" is not said as a fact.
     "reads": "reads with its own tools; started without leave to write or run",
@@ -68,16 +71,19 @@ PICK_NEEDS_THE_TOOLS = (
 )
 # B-385: a sub-agent left with only a model the user closed to agents (`closed_to_agents`) - also
 # on a fresh install, whose CLIs start closed: what to do is said with it, to the user too.
-CLOSED_TO_AGENTS = ("{role} can't open: {what} open to agents. Tick \"Agents may use\" on the "
-                    "Models page.")
+CLOSED_TO_AGENTS = (
+    '{role} can\'t open: {what} open to agents. Tick "Agents may use" on the Models page.'
+)
 PICK_AN_OPEN_ONE = " Or pick a provider open to agents from the team guide."
 
 
 # Why a role's agent is no recipe's step where it runs (`only_in_project`): said as one is
 # opened, and on the Agents page before (B-89, `/roles/models`).
-ONLY_IN_THE_PROJECT = ("{provider} works with tools of its own in the project itself: a recipe's "
-                       "work stays in its copy until the user takes it in. Open a role that runs "
-                       "elsewhere for this step")
+ONLY_IN_THE_PROJECT = (
+    "{provider} works with tools of its own in the project itself: a recipe's "
+    "work stays in its copy until the user takes it in. Open a role that runs "
+    "elsewhere for this step"
+)
 
 
 @dataclass(frozen=True)
@@ -132,13 +138,18 @@ def guide(providers: Iterable[Provider], copy: dict | None = None) -> list[Entry
     for provider in providers:
         # Only the models agents may use (slice 81a) and the user left on; a list of none of
         # them leaves it out, as one switched off is.
-        mine = [m for m in provider.models or []
-                if m.get("agents", True) and m.get("enabled", True)]
+        mine = [
+            m for m in provider.models or [] if m.get("agents", True) and m.get("enabled", True)
+        ]
         if not provider.for_agents or provider.enabled is False or (provider.models and not mine):
             continue
         models = tuple((m["name"], m.get("note")) for m in mine)
-        known = {row["name"]: row for row in catalog.models_for(
-            catalog.catalogue_of(provider.kind, provider.base_url, copy), copy, provider.name)}
+        known = {
+            row["name"]: row
+            for row in catalog.models_for(
+                catalog.catalogue_of(provider.kind, provider.base_url, copy), copy, provider.name
+            )
+        }
         # The user's own note wins. None, or one of the catalogue's tier notes word for word (a
         # fill copied it): the catalogue's note for the tier the row has now, with its day.
         noted = []
@@ -154,32 +165,52 @@ def guide(providers: Iterable[Provider], copy: dict | None = None) -> list[Entry
         # not offered as one.
         # (Nor is one the user said agents may not use.)
         off = [m["name"] for m in provider.models or [] if m not in mine]
-        held = (bool(provider.only_listed) and provider.default_model not in [
-            name for name, _note in models
-        ]) or provider.default_model in off or (
-            # (The Anthropic API has no default of its own: `allowed`.)
-            provider.kind == "anthropic" and not provider.default_model)
-        entries.append(Entry(
-            provider_id=provider.id,
-            # A name from before names were checked is shown, and chosen, without what
-            # does not print.
-            name=shown_name(provider.name),
-            kind=KIND_NAMES.get(provider.kind, provider.kind),
-            runs=_runs(provider),
-            note=provider.note,
-            models=models,
-            default=None if held else provider.default_model,
-            must_name=held,
-            tiers=tuple((m["name"], m["tier"]) for m in mine if m.get("tier")),
-            places=tuple((m["name"], m["order"]) for m in mine if m.get("tier") and "order" in m),
-            catalogue=tuple(noted),
-            # (A CLI's model is said to see only what its CLI is given: images, `IMAGE_CLIS`.)
-            sees=tuple((m["name"], words) for m in mine if (
-                words := catalog.inputs_words({
-                    kind: said for kind, said in catalog.inputs(provider, m["name"], copy).items()
-                    if provider.kind in HTTP_KINDS
-                    or provider.kind in IMAGE_CLIS and kind == "image"}))),
-        ))
+        held = (
+            (
+                bool(provider.only_listed)
+                and provider.default_model not in [name for name, _note in models]
+            )
+            or provider.default_model in off
+            or (
+                # (The Anthropic API has no default of its own: `allowed`.)
+                provider.kind == "anthropic" and not provider.default_model
+            )
+        )
+        entries.append(
+            Entry(
+                provider_id=provider.id,
+                # A name from before names were checked is shown, and chosen, without what
+                # does not print.
+                name=shown_name(provider.name),
+                kind=KIND_NAMES.get(provider.kind, provider.kind),
+                runs=_runs(provider),
+                note=provider.note,
+                models=models,
+                default=None if held else provider.default_model,
+                must_name=held,
+                tiers=tuple((m["name"], m["tier"]) for m in mine if m.get("tier")),
+                places=tuple(
+                    (m["name"], m["order"]) for m in mine if m.get("tier") and "order" in m
+                ),
+                catalogue=tuple(noted),
+                # (A CLI's model is said to see only what its CLI is given: images, `IMAGE_CLIS`.)
+                sees=tuple(
+                    (m["name"], words)
+                    for m in mine
+                    if (
+                        words := catalog.inputs_words(
+                            {
+                                kind: said
+                                for kind, said in catalog.inputs(provider, m["name"], copy).items()
+                                if provider.kind in HTTP_KINDS
+                                or provider.kind in IMAGE_CLIS
+                                and kind == "image"
+                            }
+                        )
+                    )
+                ),
+            )
+        )
     return entries
 
 
@@ -207,8 +238,11 @@ def place_of(role: Role | None, found: tuple["Entry", str | None]) -> int:
     """Where this model stands in the role's list, counted as the user wrote it (1 first) -
     an entry passed over for a reason still counts. (The model is on the list: the callers
     found it there.)"""
-    return next(i for i, one in enumerate((role.models if role else None) or [], 1)
-                if (one["provider_id"], one["model_id"]) == (found[0].provider_id, found[1]))
+    return next(
+        i
+        for i, one in enumerate((role.models if role else None) or [], 1)
+        if (one["provider_id"], one["model_id"]) == (found[0].provider_id, found[1])
+    )
 
 
 def tier_range(role: Role) -> list[str]:
@@ -218,8 +252,9 @@ def tier_range(role: Role) -> list[str]:
         return []
     if role.tier:
         return [role.tier]
-    return list(TIERS[TIERS.index(role.tier_min or TIERS[0]):
-                      TIERS.index(role.tier_max or TIERS[-1]) + 1])
+    return list(
+        TIERS[TIERS.index(role.tier_min or TIERS[0]) : TIERS.index(role.tier_max or TIERS[-1]) + 1]
+    )
 
 
 def tier_for(role: Role | None, asked: str | None = None) -> str | None:
@@ -231,8 +266,10 @@ def tier_for(role: Role | None, asked: str | None = None) -> str | None:
         return None
     if role.tier == CONVERSATION:
         if asked is not None:
-            raise ValueError(f"the {role.name} role runs on the conversation's model: that is "
-                             "the user's rule. Leave tier out.")
+            raise ValueError(
+                f"the {role.name} role runs on the conversation's model: that is "
+                "the user's rule. Leave tier out."
+            )
         return None
     allowed = tier_range(role)
     if asked is None:
@@ -241,10 +278,14 @@ def tier_for(role: Role | None, asked: str | None = None) -> str | None:
     if asked in allowed:
         return asked
     if role.tier:
-        raise ValueError(f"the {role.name} role always runs on the {role.tier} tier: that is "
-                         "the user's rule. Leave tier out.")
-    raise ValueError(f"the {role.name} role may be given {allowed[0]} to {allowed[-1]}: "
-                     f"choose one of {', '.join(allowed)}, or leave tier out.")
+        raise ValueError(
+            f"the {role.name} role always runs on the {role.tier} tier: that is "
+            "the user's rule. Leave tier out."
+        )
+    raise ValueError(
+        f"the {role.name} role may be given {allowed[0]} to {allowed[-1]}: "
+        f"choose one of {', '.join(allowed)}, or leave tier out."
+    )
 
 
 def outside_rule(role: Role, provider: Provider, model: str | None) -> str | None:
@@ -253,8 +294,11 @@ def outside_rule(role: Role, provider: Provider, model: str | None) -> str | Non
     where it is, where the rule is the whole range, or the role has a model of its own. A
     team's lead on the conversation's model (0083) is held to none, as the Lead: that is
     where it runs by default, not all it may be given."""
-    if role.provider_id or len(tier_range(role)) == len(TIERS) or (
-            role.kind == LEAD_KIND and role.tier == CONVERSATION):
+    if (
+        role.provider_id
+        or len(tier_range(role)) == len(TIERS)
+        or (role.kind == LEAD_KIND and role.tier == CONVERSATION)
+    ):
         return None
     try:
         tier_for(role, tier_of(provider, model) or "untiered")
@@ -311,9 +355,11 @@ class Would:
         providers in the user's order, then the models of one in its list's order.
         `blocked_too`: and those `cannot_pick` holds back."""
         found = [
-            (entry, name) for entry in self.pick_from
+            (entry, name)
+            for entry in self.pick_from
             if blocked_too or entry.name not in self.cannot_pick
-            for name, its in entry.tiers if its == tier
+            for name, its in entry.tiers
+            if its == tier
         ]
         # (`sorted` keeps equal places as they were: the order before the user set one.)
         return sorted(found, key=lambda one: dict(one[0].places).get(one[1], inf))
@@ -360,9 +406,13 @@ class Would:
             # K-claude-hesap: lower on the same plan, or on another kind - never another account
             # of the same CLI to get past this one's share (`limits.another_account`).
             # shortcut: one of that CLI on the user's own model server is passed over too.
-            below, passed = self._with_room([
-                one for one in self.tried(lower, blocked_too=True)
-                if not another_account_of(one[0], found[0])])
+            below, passed = self._with_room(
+                [
+                    one
+                    for one in self.tried(lower, blocked_too=True)
+                    if not another_account_of(one[0], found[0])
+                ]
+            )
             if below:
                 said = [f"{self.plan_used[found[0].name]}: {lower} instead of {tier}"]
                 said += [f"{'; '.join(passed)}: the next {lower} model"] if passed else []
@@ -389,7 +439,11 @@ def not_listed(provider: Provider, model: str | None) -> NotListed | None:
 
 
 def cannot_pick(
-    unasked: bool, provider: str, mode: str, tools: Iterable[str], role: str,
+    unasked: bool,
+    provider: str,
+    mode: str,
+    tools: Iterable[str],
+    role: str,
     looks_by_running: bool = False,
 ) -> str | None:
     """Why a provider cannot be picked for a sub-agent of a role, at a permission level
@@ -415,10 +469,12 @@ def reads_only(model: object, tools: Iterable[str]) -> bool:
     has = set(tools)
     # (Nor a role that writes on one no bridge reaches - an agy older than B-310's: its document
     # would never be written, and it would say it was done.)
-    return bool(getattr(model, "native", False) and getattr(model, "starts_read_only", False)
-                ) and not set(NATIVE_NEEDS_TOOLS) <= has and (
-        "run_command" not in has or bool(getattr(model, "read_only_commands", False))) and (
-        bool(getattr(model, "collaborates", True)) or not {"write_file", "edit_file"} & has)
+    return (
+        bool(getattr(model, "native", False) and getattr(model, "starts_read_only", False))
+        and not set(NATIVE_NEEDS_TOOLS) <= has
+        and ("run_command" not in has or bool(getattr(model, "read_only_commands", False)))
+        and (bool(getattr(model, "collaborates", True)) or not {"write_file", "edit_file"} & has)
+    )
 
 
 def only_in_project(model: object, tools: Iterable[str] | None = None) -> bool:
@@ -428,16 +484,22 @@ def only_in_project(model: object, tools: Iterable[str] | None = None) -> bool:
     an agent is no recipe's step (`ONLY_IN_THE_PROJECT`). With the agent's `tools`: not one
     that works read-only (`reads_only`, B-301) - it changes nothing itself, and is started in
     its line's copy, where KOLONİ's write tools write for it."""
-    return bool(getattr(model, "native", False)) and not getattr(model, "own_copy", False) and (
-        tools is None or not reads_only(model, tools))
+    return (
+        bool(getattr(model, "native", False))
+        and not getattr(model, "own_copy", False)
+        and (tools is None or not reads_only(model, tools))
+    )
 
 
 def _in_step(
     role: Role | None, step: Providers | None, has: list[str], one: Provider
 ) -> str | None:
     """For `would_run`: why a provider cannot be a recipe's step for the role - or None."""
-    if role is None or step is None or not only_in_project(
-            step.client(one, one.default_model), has):
+    if (
+        role is None
+        or step is None
+        or not only_in_project(step.client(one, one.default_model), has)
+    ):
         return None
     return ONLY_IN_THE_PROJECT.format(provider=shown_name(one.name))
 
@@ -456,9 +518,11 @@ def _in_the_way(
     # a role short of the write and command tools (`reads_only`, B-301): no tools of its own
     # act unasked then. Its tier passed it over for such a role, onto the conversation's model.
     unasked = _runs(one) == RUNS_OWN and not reads_only(
-        CopilotNativeClient if one.kind == "copilot_cli" else None, has)
+        CopilotNativeClient if one.kind == "copilot_cli" else None, has
+    )
     return _in_step(role, step, has, one) or cannot_pick(
-        unasked, shown_name(one.name), mode, has, role.name)
+        unasked, shown_name(one.name), mode, has, role.name
+    )
 
 
 def _role_list(role: Role | None, by_entry: dict, by_id: dict, held: set) -> tuple[list, list]:
@@ -480,8 +544,12 @@ def _role_list(role: Role | None, by_entry: dict, by_id: dict, held: set) -> tup
 
 
 def would_run(
-    session: Session, role: Role | None, conversation: Conversation | None,
-    unattended: bool = False, tools: Iterable[str] | None = None, tier: str | None = None,
+    session: Session,
+    role: Role | None,
+    conversation: Conversation | None,
+    unattended: bool = False,
+    tools: Iterable[str] | None = None,
+    tier: str | None = None,
     step: Providers | None = None,
 ) -> Would:
     """The one place that says where a role's agent runs and what may be picked for it:
@@ -519,7 +587,8 @@ def would_run(
     # (Over the whole guide, not `entries`: the role's list is the user's rule, held to no
     # `pick_from`, and what stands in its way is read here too.)
     blocked = {
-        entry.name: why for entry in whole
+        entry.name: why
+        for entry in whole
         if (why := _in_the_way(role, step, has, mode, by_id[entry.provider_id]))
     }
     would = Would(provider, model_id, source, entries, None, blocked)
@@ -530,13 +599,22 @@ def would_run(
     past = {e.name: why for e in whole if (why := over_limit(session, by_id[e.provider_id]))}
     used = {e.name: why for e in whole if (why := plan_used(session, by_id[e.provider_id]))}
     looked = down_now(session)
-    down = {e.name: f"{e.name} was {why} when last looked at"
-            for e in whole if (why := looked.get(e.provider_id))}
+    down = {
+        e.name: f"{e.name} was {why} when last looked at"
+        for e in whole
+        if (why := looked.get(e.provider_id))
+    }
     by_entry = {e.provider_id: e for e in whole}
     preferred, dropped = _role_list(role, by_entry, by_id, held)
-    would = replace(would, past_limit=past, plan_used=used, down=down,
-                    steps=tuple(tier_range(role)) if role else (),
-                    says_blocked=role is None or role.name != LEAD, preferred=tuple(preferred))
+    would = replace(
+        would,
+        past_limit=past,
+        plan_used=used,
+        down=down,
+        steps=tuple(tier_range(role)) if role else (),
+        says_blocked=role is None or role.name != LEAD,
+        preferred=tuple(preferred),
+    )
     among = replace(would, pick_from=[e for e in entries if e.provider_id not in held])
     # The role's list first, where the opener gave no tier (the Lead's tier wins, as today).
     first, passed = among._with_room(preferred) if preferred and tier is None else (None, [])
@@ -546,20 +624,27 @@ def would_run(
         nth = place_of(role, first)  # (role is not None: `preferred` came from its list)
         why = f"the role's {nth_choice(nth)}" if nth > 1 or passed else None
         return replace(
-            would, provider=session.get_one(Provider, first[0].provider_id), model_id=first[1],
-            source="role", moved=f"{'; '.join(passed)}: {why}" if passed else why)
+            would,
+            provider=session.get_one(Provider, first[0].provider_id),
+            model_id=first[1],
+            source="role",
+            moved=f"{'; '.join(passed)}: {why}" if passed else why,
+        )
     wanted = tier_for(role, tier) if source != "role" else None
     found, moved = among.pick(wanted) if wanted else (None, None)
     if not found and moved:
-        moved += (": the conversation's model" if source == "conversation"
-                  else ": the default provider")
+        moved += (
+            ": the conversation's model" if source == "conversation" else ": the default provider"
+        )
     if passed:  # (none of the role's list had: why, then where it runs instead)
         moved = f"{'; '.join(passed)}: none of the role's models" + (f"; {moved}" if moved else "")
     would = replace(would, tier=wanted, moved=moved)
     if found:
         entry, model_id = found
         would = replace(
-            would, provider=session.get_one(Provider, entry.provider_id), model_id=model_id,
+            would,
+            provider=session.get_one(Provider, entry.provider_id),
+            model_id=model_id,
             source="tier",
         )
     cannot = _in_the_way(role, step, has, mode, would.provider)
@@ -568,30 +653,50 @@ def would_run(
         # next that can, in the user's order (of the role's own list), held to what a tier's
         # model is (a limit, a plan's share, the role's tier rule; one that looked down last),
         # and why said (`moved`). The role's own model is the user's rule: kept, and refused.
-        fit = [e for e in among.pick_from if e.name not in blocked and e.name not in past
-               and e.name not in used and not e.must_name
-               and not (role and outside_rule(role, by_id[e.provider_id], e.default))]
+        fit = [
+            e
+            for e in among.pick_from
+            if e.name not in blocked
+            and e.name not in past
+            and e.name not in used
+            and not e.must_name
+            and not (role and outside_rule(role, by_id[e.provider_id], e.default))
+        ]
         if would.provider.name in used and would.provider.id in by_entry:
             # (Past its plan's share: never another account of its CLI, as `pick`.)
             fit = [e for e in fit if not another_account_of(e, by_entry[would.provider.id])]
         then = next((e for e in fit if e.name not in down), fit[0] if fit else None)
         if then is not None and cannot:
-            would = replace(would, provider=session.get_one(Provider, then.provider_id),
-                            model_id=then.default, source="default",
-                            moved=f"{cannot.split(':')[0]}: the next provider")
+            would = replace(
+                would,
+                provider=session.get_one(Provider, then.provider_id),
+                model_id=then.default,
+                source="default",
+                moved=f"{cannot.split(':')[0]}: the next provider",
+            )
             cannot = None
     refused = not_listed(would.provider, would.model_id)
-    if refused is None and role is not None and role.name != LEAD and would.source in (
-            "conversation", "default") and closed_to_agents(would.provider, would.model_id):
+    if (
+        refused is None
+        and role is not None
+        and role.name != LEAD
+        and would.source in ("conversation", "default")
+        and closed_to_agents(would.provider, would.model_id)
+    ):
         # B-385 (live): with no tier's model had, a sub-agent - a team's coordinator too, whose
         # rule is the conversation's model - fell back to the Lead's Copilot model, every one of
         # which the user had closed to agents. Never: it is not opened, and says why.
         # shortcut: no move onto another provider open to agents here (it may be paid per
         # token, which `_paid_for` does not ask about); add one, asked, if a refusal is felt.
         shown = shown_name(would.provider.name)
-        said = CLOSED_TO_AGENTS.format(role=shown_name(role.name), what=(
-            f"no model of {shown} is" if would.provider.id not in by_entry
-            else f"{shown}'s {would.model_id} is not"))
+        said = CLOSED_TO_AGENTS.format(
+            role=shown_name(role.name),
+            what=(
+                f"no model of {shown} is"
+                if would.provider.id not in by_entry
+                else f"{shown}'s {would.model_id} is not"
+            ),
+        )
         # (An agent that picks may still pick one that is open: it is told so, the user not.)
         refused = ClosedToAgents(said, said + (PICK_AN_OPEN_ONE if among.pick_from else ""))
     return replace(would, refused=refused, cannot_open=cannot)
@@ -602,9 +707,12 @@ def closed_to_agents(provider: Provider, model: str | None) -> bool:
     in the team guide (`guide`), or its model's row says agents may not use it. One switched off
     (`is_on`) is closed to them too."""
     rows = provider.models or []
-    return not provider.for_agents or not is_on(provider, model) or (bool(rows) and not any(
-        m.get("agents", True) and m.get("enabled", True) for m in rows)) or any(
-        m["name"] == model and not m.get("agents", True) for m in rows)
+    return (
+        not provider.for_agents
+        or not is_on(provider, model)
+        or (bool(rows) and not any(m.get("agents", True) and m.get("enabled", True) for m in rows))
+        or any(m["name"] == model and not m.get("agents", True) for m in rows)
+    )
 
 
 def asked_how_hard(
@@ -705,12 +813,20 @@ def describe(entries: Iterable[Entry]) -> str:
                 # The tier the user gave it, in KOLONİ's fixed words; then their note, or
                 # the catalogue's, said to be that.
                 said, day = from_catalogue.get(name, (None, None))
-                more = "; ".join(filter(None, [
-                    f"{tiers[name]} tier" if name in tiers else None,
-                    sees.get(name),
-                    f"the catalogue's note{f' ({day})' if day else ''}: {quoted(said)}" if said
-                    else quoted(note) if note else None,
-                ]))
+                more = "; ".join(
+                    filter(
+                        None,
+                        [
+                            f"{tiers[name]} tier" if name in tiers else None,
+                            sees.get(name),
+                            f"the catalogue's note{f' ({day})' if day else ''}: {quoted(said)}"
+                            if said
+                            else quoted(note)
+                            if note
+                            else None,
+                        ],
+                    )
+                )
                 listed.append(quoted(name) + (f" ({more})" if more else ""))
             line += f" Models: {', '.join(listed)}."
         if entry.must_name:

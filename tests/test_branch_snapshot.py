@@ -52,20 +52,28 @@ needs_merge_base = pytest.mark.skipif(not _known(), reason="git older than 2.40"
 
 
 def has_object(repo, sha):
-    return subprocess.run(["git", "cat-file", "-e", sha], cwd=repo,
-                          capture_output=True).returncode == 0
+    return (
+        subprocess.run(["git", "cat-file", "-e", sha], cwd=repo, capture_output=True).returncode
+        == 0
+    )
 
 
 def subject(repo, sha):
     """A commit's subject, as git wrote it (UTF-8, whatever the console's code page)."""
-    return subprocess.run(["git", "log", "-1", "--format=%s", sha], cwd=repo, capture_output=True,
-                          check=True).stdout.decode("utf-8").strip()
+    return (
+        subprocess.run(
+            ["git", "log", "-1", "--format=%s", sha], cwd=repo, capture_output=True, check=True
+        )
+        .stdout.decode("utf-8")
+        .strip()
+    )
 
 
 def porcelain(repo):
     """`git status --porcelain`'s lines, each as git wrote it (a leading space too)."""
-    return subprocess.run(["git", "status", "--porcelain"], cwd=repo, capture_output=True,
-                          text=True, check=True).stdout.splitlines()
+    return subprocess.run(
+        ["git", "status", "--porcelain"], cwd=repo, capture_output=True, text=True, check=True
+    ).stdout.splitlines()
 
 
 def blob_of(repo, path):
@@ -106,7 +114,9 @@ def test_a_branch_starts_from_the_folder_as_it_is_and_the_users_git_is_untouched
     # The user's own: index, files, HEAD, branch - and no ref, index or lock of KOLONİ's left.
     assert (repo / ".git" / "index").read_bytes() == index
     assert run(repo, "status", "--porcelain") == status
-    assert run(repo, "branch", "--show-current") == "main" and run(repo, "rev-parse", "HEAD") == head
+    assert (
+        run(repo, "branch", "--show-current") == "main" and run(repo, "rev-parse", "HEAD") == head
+    )
     assert run(repo, "for-each-ref", "refs/koloni/") == ""
     assert not list((repo / ".git").glob("koloni-index-*"))
 
@@ -144,7 +154,8 @@ def test_nested_repositories_and_dependencies_stay_out_of_the_snapshot(repo, run
         (repo / "node_modules" / f"m{at}.js").write_text("module\n")
     tree, no_hooks = runtime / "wt", runtime / "no-hooks"
     branch, _into, _sha, snapshot, why, _left = git.add_worktree(
-        repo, tree, "x", no_hooks, (2, 10**9))
+        repo, tree, "x", no_hooks, (2, 10**9)
+    )
     assert snapshot and why is None
     held = run(repo, "ls-tree", "--name-only", snapshot).split()
     assert "new.txt" in held and "sub" not in held and "node_modules" not in held
@@ -161,7 +172,8 @@ def test_over_the_caps_a_branch_starts_from_head_and_says_why_with_nothing_hashe
         (repo / name).write_text(f"{name} is new\n")
     head = run(repo, "rev-parse", "HEAD")
     branch, _into, sha, snapshot, why, _left = git.add_worktree(
-        repo, runtime / "wt", "x", runtime / "no-hooks", most)
+        repo, runtime / "wt", "x", runtime / "no-hooks", most
+    )
     assert snapshot is None and sha == head
     assert why == git.TOO_MANY.format(count="3 files, 0 MB")
     assert run(runtime / "wt", "rev-parse", "HEAD") == head
@@ -191,8 +203,9 @@ def test_no_hook_runs_while_the_snapshot_is_made(repo, runtime):
     hooks, marker = repo.parent / "hooks", runtime.parent / "hook-ran"
     hooks.mkdir()
     for name in ("post-index-change", "reference-transaction", "post-checkout", "pre-commit"):
-        (hooks / name).write_text(f"#!/bin/sh\necho {name} >> '{marker.as_posix()}'\n",
-                                  newline="\n")
+        (hooks / name).write_text(
+            f"#!/bin/sh\necho {name} >> '{marker.as_posix()}'\n", newline="\n"
+        )
         os.chmod(hooks / name, 0o755)
     run(repo, "config", "core.hooksPath", str(hooks))
     (repo / "c.txt").write_text("control\n")
@@ -218,7 +231,8 @@ def test_a_split_index_and_an_untracked_cache_of_the_users_stay_as_they_are(repo
     after = {one.name: one.read_bytes() for one in (repo / ".git").iterdir() if one.is_file()}
     # (git's own record of the worktree aside, nothing of the git folder's top changed.)
     assert {name: data for name, data in after.items() if name != "ORIG_HEAD"} == {
-        name: data for name, data in before.items() if name != "ORIG_HEAD"}
+        name: data for name, data in before.items() if name != "ORIG_HEAD"
+    }
     assert run(repo, "status", "--porcelain") == status
 
 
@@ -247,8 +261,7 @@ def test_a_branch_copy_is_made_by_the_one_way_in(make_client, wait_run, repo, mo
         return real(project, *args, **kwargs)
 
     monkeypatch.setattr(git, "add_worktree", add)
-    client, cid, run_id = on_branch(opened, repo, [step(edit("two", "TWO-agent")),
-                                                   text("A done")])
+    client, cid, run_id = on_branch(opened, repo, [step(edit("two", "TWO-agent")), text("A done")])
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert snap["runs"][0]["status"] == "completed" and held == [True]
 
@@ -294,8 +307,9 @@ def test_the_card_and_the_merge_carry_the_agents_work_alone(repo, runtime):
     run(repo, "reset", "-q", "staged.txt")  # (staged, git merges nothing: the user unstages it)
     look = git.branch_look(repo, copy.branch, copy.start, copy.snapshot_sha)
     assert look["dirty"] == []
-    sha = git.merge_branch(repo, look["share"], "Merge koloni/x", runtime / "no-hooks", "main",
-                           copy.start[1])
+    sha = git.merge_branch(
+        repo, look["share"], "Merge koloni/x", runtime / "no-hooks", "main", copy.start[1]
+    )
     assert run(repo, "show", "--name-only", "--format=", sha).split() == ["b.txt", "nine.txt"]
     assert (repo / "nine.txt").read_text() == NINE.replace("9\n", "9-agent\n")
     assert (repo / "a.txt").read_text() == "one\nTWO-mine\n"  # (the user's, still uncommitted)
@@ -315,10 +329,14 @@ def test_the_users_uncommitted_lines_in_the_way_wait_until_they_commit_them(repo
     run(repo, "commit", "-qam", "mine")
     look = git.branch_look(repo, copy.branch, copy.start, copy.snapshot_sha)
     assert (look["dirty"], look["conflicts"]) == ([], [])
-    git.merge_branch(repo, look["share"], "Merge koloni/x", runtime / "no-hooks", "main",
-                     copy.start[1])
+    git.merge_branch(
+        repo, look["share"], "Merge koloni/x", runtime / "no-hooks", "main", copy.start[1]
+    )
     assert (repo / "nine.txt").read_text().splitlines() == [
-        "1-mine", *NINE.splitlines()[1:8], "9-agent"]
+        "1-mine",
+        *NINE.splitlines()[1:8],
+        "9-agent",
+    ]
 
 
 @needs_merge_base
@@ -409,8 +427,12 @@ ON_YOURS = {"a.txt": "one\ntwo-mine\n"}
 def said_yes(client, cid):
     """A branch that began from uncommitted work: its pull request waits for the user's click
     (`PR_SNAPSHOT`), at Full auto too - given here."""
-    merge = until(client, cid, lambda s: s["merges"] and (
-        s["merges"][0].get("branch") or {}).get("note") == PR_SNAPSHOT, timeout=LONG)["merges"][0]
+    merge = until(
+        client,
+        cid,
+        lambda s: s["merges"] and (s["merges"][0].get("branch") or {}).get("note") == PR_SNAPSHOT,
+        timeout=LONG,
+    )["merges"][0]
     assert client.post(f"/api/merges/{merge['id']}/approve", json={"shown": {}}).status_code == 200
 
 
@@ -423,9 +445,16 @@ def landed(repo):
 def test_an_agent_on_a_branch_sees_your_uncommitted_work_and_the_merge_brings_its_work_alone(
     make_client, wait_run, repo
 ):
-    client, cid, run_id = on_branch(make_client, repo, [
-        step(call("read_file", {"path": "notes.txt"}, "r")), step(edit("two", "TWO-agent")),
-        text("A done")], wip=MINE)
+    client, cid, run_id = on_branch(
+        make_client,
+        repo,
+        [
+            step(call("read_file", {"path": "notes.txt"}, "r")),
+            step(edit("two", "TWO-agent")),
+            text("A done"),
+        ],
+        wip=MINE,
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     (read,) = calls(snap, "Coder", "read_file")
@@ -442,8 +471,12 @@ def test_the_agent_changed_your_uncommitted_file_so_nothing_is_merged_until_you_
     make_client, wait_run, repo
 ):
     # (a.txt: `on_branch` writes lines.txt anew as the turn starts.)
-    client, cid, run_id = on_branch(make_client, repo, [
-        step(edit("two", "TWO-agent", path="a.txt")), text("A done")], wip=ON_YOURS)
+    client, cid, run_id = on_branch(
+        make_client,
+        repo,
+        [step(edit("two", "TWO-agent", path="a.txt")), text("A done")],
+        wip=ON_YOURS,
+    )
     merge = card(client, cid)  # (at Full auto too: the user's word)
     assert merge["branch"]["dirty"] == ["a.txt"] and merge["branch"]["conflicts"] == []
     assert merge["branch"]["note"] == BRANCH_ON_YOURS.format(files="a.txt")
@@ -482,16 +515,24 @@ def test_a_pull_request_over_your_uncommitted_lines_pushes_nothing(
     bare, _log = github
     held = Gate()
     client, cid, _run_id = on_branch(
-        make_client, repo, [step(edit("two", "TWO-agent", path="a.txt")),
-                            held.step(text("A done"))],
-        wip=ON_YOURS, project={"finish_way": "pull_request"})
+        make_client,
+        repo,
+        [step(edit("two", "TWO-agent", path="a.txt")), held.step(text("A done"))],
+        wip=ON_YOURS,
+        project={"finish_way": "pull_request"},
+    )
     held.wait_partial()
     pushed_main(repo)
     held.release()
     said_yes(client, cid)
-    merge = until(client, cid, lambda s: "no pull request" in (
-        ((s["merges"] or [{}])[0].get("branch") or {}).get("note") or ""), timeout=LONG)[
-        "merges"][0]
+    merge = until(
+        client,
+        cid,
+        lambda s: (
+            "no pull request" in (((s["merges"] or [{}])[0].get("branch") or {}).get("note") or "")
+        ),
+        timeout=LONG,
+    )["merges"][0]
     assert BRANCH_ON_YOURS.format(files="a.txt") in merge["branch"]["note"]
     assert run(bare, "for-each-ref", "refs/heads/koloni/") == ""
 
@@ -500,9 +541,13 @@ def test_a_pull_request_over_your_uncommitted_lines_pushes_nothing(
 def test_an_agent_gone_on_with_on_its_branch_is_measured_from_the_snapshot_it_began_from(
     make_client, wait_run, repo
 ):
-    client, cid, run_id = on_branch(make_client, repo, [
-        *STOP_ON_BRANCH, step(edit("TWO-agent", "TWO-again", "e2")), text("done")],
-        then=[GO_ON], wip=MINE)
+    client, cid, run_id = on_branch(
+        make_client,
+        repo,
+        [*STOP_ON_BRANCH, step(edit("TWO-agent", "TWO-again", "e2")), text("done")],
+        then=[GO_ON],
+        wip=MINE,
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     (merge,) = snap["merges"]
     assert merge["status"] == "applied" and [f["path"] for f in merge["files"]] == ["lines.txt"]
@@ -514,8 +559,9 @@ def test_an_agent_gone_on_with_on_its_branch_is_measured_from_the_snapshot_it_be
 def test_a_branch_whose_agent_changed_nothing_goes_with_its_snapshot(make_client, wait_run, repo):
     # (It wrote the user's own file as it was: nothing of its own - the branch holds the snapshot
     # alone, which git counts as not merged.)
-    client, cid, run_id = on_branch(make_client, repo, [
-        step(write("notes.txt", MINE["notes.txt"])), text("A done")], wip=MINE)
+    client, cid, run_id = on_branch(
+        make_client, repo, [step(write("notes.txt", MINE["notes.txt"])), text("A done")], wip=MINE
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     assert snap["runs"][0]["status"] == "completed" and snap["merges"] == []
     assert run(repo, "branch", "--list", "koloni/*") == "" and len(worktrees(repo)) == 1
@@ -545,30 +591,48 @@ def test_a_branch_in_the_way_of_an_uncommitted_take_in_names_it_and_merges_after
     (repo / "check.py").write_bytes(CHECK.encode())
     run(repo, "add", "-A")
     run(repo, "commit", "-qm", "lines")
-    client, _model = make_client({
-        "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "seven"}, "s1")),
-                 step(call("spawn_agent", {"role": "Coder", "task": "two", "on_branch": "fix"},
-                           "s2")), text("done")],
-        "Coder": [step(edit("seven", "SEVEN-a", "e1")), text("A done")],
-        "Coder 2": [step(edit("two", "TWO-b", "e2")), text("B done")]})
+    client, _model = make_client(
+        {
+            "Lead": [
+                step(call("spawn_agent", {"role": "Coder", "task": "seven"}, "s1")),
+                step(
+                    call("spawn_agent", {"role": "Coder", "task": "two", "on_branch": "fix"}, "s2")
+                ),
+                text("done"),
+            ],
+            "Coder": [step(edit("seven", "SEVEN-a", "e1")), text("A done")],
+            "Coder 2": [step(edit("two", "TWO-b", "e2")), text("B done")],
+        }
+    )
     client.headers["Origin"] = ORIGIN
     pid = client.post("/api/projects", json={"root_path": str(repo)}).json()["id"]
     # (Where the project offers a commit of what was taken in, the card says to make it there.)
     assert client.patch(f"/api/projects/{pid}", json={"git_commit": offered}).status_code == 200
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    assert client.patch(f"/api/conversations/{cid}", json={
-        "permission_mode": "full_auto", "spawn_approval": "never"}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/conversations/{cid}",
+            json={"permission_mode": "full_auto", "spawn_approval": "never"},
+        ).status_code
+        == 200
+    )
     run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()[
-        "run"]["id"]
-    snap = until(client, cid, lambda s: [m["status"] for m in s["merges"]] == [
-        "applied", "pending"], timeout=LONG)
+        "run"
+    ]["id"]
+    snap = until(
+        client,
+        cid,
+        lambda s: [m["status"] for m in s["merges"]] == ["applied", "pending"],
+        timeout=LONG,
+    )
     taken, merge = snap["merges"]
     name = next(a["name"] for a in snap["agents"] if a["id"] == taken["agent_id"])
     # (Its work changes what the snapshot held of the Take in, not committed: said, and asked.)
     assert merge["branch"]["dirty"] == ["lines.txt"]
     assert merge["branch"]["note"] == BRANCH_OVER_YOURS.format(files="lines.txt")
     assert merge["branch"]["taken_in"] == TAKEN_IN_FIRST.format(
-        files="lines.txt", name=name, how="commit it on its card" if offered else "commit it")
+        files="lines.txt", name=name, how="commit it on its card" if offered else "commit it"
+    )
     run(repo, "commit", "-qam", "the Take in")
     assert client.post(f"/api/merges/{merge['id']}/approve").status_code == 200
     snap = wait_run(client, cid, run_id, timeout=LONG)
@@ -580,13 +644,15 @@ def test_a_branch_from_your_last_commit_says_so_on_its_card(
     make_client, wait_run, repo, monkeypatch
 ):
     monkeypatch.setattr(git, "merge_base_known", lambda _git: False)
-    client, cid, run_id = on_branch(make_client, repo, [
-        step(edit("two", "TWO-agent")), text("A done")], wip=MINE)
+    client, cid, run_id = on_branch(
+        make_client, repo, [step(edit("two", "TWO-agent")), text("A done")], wip=MINE
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     (merge,) = snap["merges"]
     version = run(repo, "--version").removeprefix("git version ").split()[0]
     assert merge["branch"]["started"] == FROM_HEAD.format(
-        branch="koloni/fix", why=git.OLD_GIT.format(version=version))
+        branch="koloni/fix", why=git.OLD_GIT.format(version=version)
+    )
     assert merge["status"] == "applied" and merge["branch"]["note"] is None
     assert porcelain(repo) == [" M a.txt", "?? notes.txt"]
 
@@ -637,15 +703,20 @@ def test_after_a_restart_a_kept_branch_copy_merges_line_by_line_and_its_branch_g
     pid = client.post("/api/projects", json={"root_path": str(repo)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()[
-        "run"]["id"]
+        "run"
+    ]["id"]
     (lead,) = wait_run(client, cid, run_id)["agents"]
     root = client.app.state.settings.runtime_root
     copy = copies.make_branch(repo, root, lead["id"], "x")  # (its agent at work: a crash)
     assert copy.snapshot_sha
     with client.app.state.session_factory() as session:
         session.get_one(Agent, lead["id"]).copy = {
-            "state": "own", "tree": str(copy.root), "on_branch": copy.branch,
-            "start": list(copy.start), "snapshot": copy.snapshot_sha}
+            "state": "own",
+            "tree": str(copy.root),
+            "on_branch": copy.branch,
+            "start": list(copy.start),
+            "snapshot": copy.snapshot_sha,
+        }
         session.commit()
     line(copy.root, 9, "9-agent")  # (its work, not committed when the app stopped)
     line(repo, 5, "5-user")  # (the user's, meanwhile)
@@ -655,7 +726,9 @@ def test_after_a_restart_a_kept_branch_copy_merges_line_by_line_and_its_branch_g
     assert client.post(f"/api/merges/{merge['id']}/{decision}").status_code == 200
     took = decision == "approve"
     assert (repo / "nine.txt").read_text().splitlines()[4::4] == [
-        "5-user", "9-agent" if took else "9"]
+        "5-user",
+        "9-agent" if took else "9",
+    ]
     assert run(repo, "branch", "--list", "koloni/*") == "" and len(worktrees(repo)) == 1
     assert not os.path.lexists(copy.root)
     assert "?? notes.txt" in porcelain(repo)
@@ -673,20 +746,29 @@ def test_a_kept_copys_branch_is_believed_only_where_its_agents_record_names_its_
     pid = client.post("/api/projects", json={"root_path": str(repo)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()[
-        "run"]["id"]
+        "run"
+    ]["id"]
     (lead,) = wait_run(client, cid, run_id)["agents"]
     held = tmp_path / "copies" / "agent1"
-    said = {"state": "own", "tree": str(held / copies.TREE), "on_branch": "koloni/x",
-            "start": ["main", "a" * 40], "snapshot": "b" * 40}
+    said = {
+        "state": "own",
+        "tree": str(held / copies.TREE),
+        "on_branch": "koloni/x",
+        "start": ["main", "a" * 40],
+        "snapshot": "b" * 40,
+    }
     with client.app.state.session_factory() as session:
-        for record, found in ((said, ("koloni/x", ("main", "a" * 40), "b" * 40)),
-                              ({**said, "tree": str(tmp_path / "other")}, None),
-                              ({**said, "on_branch": "main"}, None),
-                              ({**said, "start": "main"}, None)):
+        for record, found in (
+            (said, ("koloni/x", ("main", "a" * 40), "b" * 40)),
+            ({**said, "tree": str(tmp_path / "other")}, None),
+            ({**said, "on_branch": "main"}, None),
+            ({**said, "start": "main"}, None),
+        ):
             session.get_one(Agent, lead["id"]).copy = record
             got = _kept_branch(session, lead["id"], held)
             assert (got and (got["branch"], got["start"], got["snapshot"])) == found or (
-                got is None and found is None)
+                got is None and found is None
+            )
         loaded = copies.Copy(repo, held / copies.TREE, {}, {}, {})
         _as_branch(loaded, _kept_branch(session, lead["id"], held))
         assert loaded.branch is None  # (the last record named no start it could be held to)

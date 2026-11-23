@@ -37,87 +37,170 @@ from tests.test_take_in_scenarios import git, needs_git, repository
 from tests.test_trigger_scenarios import run_now, trigger
 
 
-@pytest.mark.parametrize(("line", "shell", "targets"), [
-    ("rm -rf build", POSIX, [("folder", "build", True)]),
-    ("Remove-Item -Recurse -Force dist", POWERSHELL, [("folder", "dist", True)]),
-    ("rm -r build dist", POSIX, [("folder", "build", False), ("folder", "dist", False)]),
-    ("rm -R frontend/dist", POSIX, [("folder", "frontend/dist", False)]),
-    ("Remove-Item -LiteralPath .pytest_cache -Recurse", POWERSHELL,
-     [("folder", ".pytest_cache", False)]),
-    ("git worktree remove ../wt/x", None, [("worktree", "../wt/x", False)]),
-    ("git worktree remove /tmp/wt/x", POSIX, [("worktree", "/tmp/wt/x", False)]),
-    ("git branch -d old", POWERSHELL, [("branch", "old", False)]),
-    ("git branch -D a b", None, [("branch", "a", True), ("branch", "b", True)]),
-    ("git branch -d feature/v1.2", POSIX, [("branch", "feature/v1.2", False)]),
-])
+@pytest.mark.parametrize(
+    ("line", "shell", "targets"),
+    [
+        ("rm -rf build", POSIX, [("folder", "build", True)]),
+        ("Remove-Item -Recurse -Force dist", POWERSHELL, [("folder", "dist", True)]),
+        ("rm -r build dist", POSIX, [("folder", "build", False), ("folder", "dist", False)]),
+        ("rm -R frontend/dist", POSIX, [("folder", "frontend/dist", False)]),
+        (
+            "Remove-Item -LiteralPath .pytest_cache -Recurse",
+            POWERSHELL,
+            [("folder", ".pytest_cache", False)],
+        ),
+        ("git worktree remove ../wt/x", None, [("worktree", "../wt/x", False)]),
+        ("git worktree remove /tmp/wt/x", POSIX, [("worktree", "/tmp/wt/x", False)]),
+        ("git branch -d old", POWERSHELL, [("branch", "old", False)]),
+        ("git branch -D a b", None, [("branch", "a", True), ("branch", "b", True)]),
+        ("git branch -d feature/v1.2", POSIX, [("branch", "feature/v1.2", False)]),
+    ],
+)
 def test_a_plain_line_names_what_it_would_delete(line, shell, targets):
     assert disposable_targets(line, shell) == targets
 
 
-@pytest.mark.parametrize(("line", "shell", "folder"), [
-    # PowerShell's Remove-Item and its aliases, as Windows PowerShell 5.1 measured (22 Nov):
-    # `-r` is -Recurse, `-fo` -Force; `-rf` and `-f` are no parameter of it, a second path no
-    # position - each an error, nothing deleted.
-    ("Remove-Item -Recurse -Force build", POWERSHELL, True),
-    ("rm -r build", POWERSHELL, True), ("ri -r -Force build", POWERSHELL, True),
-    ("del -Recurse build", POWERSHELL, True), ("Remove-Item -Recurse -fo build", POWERSHELL, True),
-    ("rm -rf build", POWERSHELL, False), ("rm -r -f build", POWERSHELL, False),
-    ("Remove-Item -Recurse -f build", POWERSHELL, False),
-    ("Remove-Item -Recurse build dist", POWERSHELL, False),
-    # sh's and bash's rm, its options as it reads them, its name as it is spelt.
-    ("rm -rf build", POSIX, True), ("rm -r -f build dist", POSIX, True),
-    ("rm -Rf build", POSIX, True), ("rm --force -r build", POSIX, True),
-    ("Remove-Item -Recurse -Force build", POSIX, False), ("del -Recurse build", POSIX, False),
-    ("RM -rf build", POSIX, False), ("rm -RF build", POSIX, False),
-    ("rm -recurse build", POSIX, False),
-    # A shell not known: no folder form at all (git's are every shell's).
-    ("rm -rf build", None, False), ("Remove-Item -Recurse -Force build", None, False),
-])
+@pytest.mark.parametrize(
+    ("line", "shell", "folder"),
+    [
+        # PowerShell's Remove-Item and its aliases, as Windows PowerShell 5.1 measured (22 Nov):
+        # `-r` is -Recurse, `-fo` -Force; `-rf` and `-f` are no parameter of it, a second path no
+        # position - each an error, nothing deleted.
+        ("Remove-Item -Recurse -Force build", POWERSHELL, True),
+        ("rm -r build", POWERSHELL, True),
+        ("ri -r -Force build", POWERSHELL, True),
+        ("del -Recurse build", POWERSHELL, True),
+        ("Remove-Item -Recurse -fo build", POWERSHELL, True),
+        ("rm -rf build", POWERSHELL, False),
+        ("rm -r -f build", POWERSHELL, False),
+        ("Remove-Item -Recurse -f build", POWERSHELL, False),
+        ("Remove-Item -Recurse build dist", POWERSHELL, False),
+        # sh's and bash's rm, its options as it reads them, its name as it is spelt.
+        ("rm -rf build", POSIX, True),
+        ("rm -r -f build dist", POSIX, True),
+        ("rm -Rf build", POSIX, True),
+        ("rm --force -r build", POSIX, True),
+        ("Remove-Item -Recurse -Force build", POSIX, False),
+        ("del -Recurse build", POSIX, False),
+        ("RM -rf build", POSIX, False),
+        ("rm -RF build", POSIX, False),
+        ("rm -recurse build", POSIX, False),
+        # A shell not known: no folder form at all (git's are every shell's).
+        ("rm -rf build", None, False),
+        ("Remove-Item -Recurse -Force build", None, False),
+    ],
+)
 def test_a_folder_delete_is_read_in_the_shell_it_runs_in(line, shell, folder):
     assert (disposable_targets(line, shell) is not None) is folder
 
 
-@pytest.mark.parametrize("line", [
-    # (the plan's)
-    "rm -rf build && x", "rm -rf ../build", "rm -rf /tmp/build", "rm -rf src", "rm -rf build/*",
-    "rm -rf .git/build", "rm -rf node_modules/x/build", "rmdir /s /q build", "cmd /c rd /s build",
-    "git worktree remove -f x", "git -C x branch -d y", "git branch -d",
-    "git push origin --delete x",
-    # A folder: recursive, by a bare deleter, flags it knows, each path one of the names, plainly
-    # below where it runs - no dot-part above it, no linked folder, no name Windows reads as
-    # another (`node_modules.`), no trailing slash (`build/` is where a link leads).
-    "rm -f build", "rm build", "rm -rf", "rm -rf -- build", "rm -rf build/", "rm -rf ./build",
-    "rm -rf a//build", "rm -rf Build", "rm -rf build.", "rm -rf NODE_MODULES/build",
-    "rm -rf node_modules./build", "rm -rf .venv/build", "rm -rf venv/dist", "rm -rf build src",
-    "rm.exe -rf build", "/bin/rm -rf build", "Remove-Item -Rec build", "rm -rfv build",
-    "rm -rf --no-preserve-root build", "unlink build", "rmdir build", "rd build",
-    # Nothing a shell reads past a plain word: a quote, a backslash, a drive, a comment, a
-    # splat, a variable, a tab or another space.
-    "rm -rf 'build'", "rm -rf a\\build", "rm -rf C:build", "Remove-Item -Recurse -Path:build",
-    "rm -rf build #x", "Remove-Item -Recurse @p", "rm -rf $x/build", "rm\t-rf build",
-    "rm -rf\u00a0build", "rm -rf build\u000bx", "rm -rf ~/build", "rm -rf build; ls",
-    "rm  -rf build", " rm -rf build", "Remove-Item –Recurse build",
-    # A worktree: exactly `git worktree remove <path>`.
-    "git worktree remove --force x", "git worktree remove x y", "git worktree remove",
-    "git worktree remove ../wt/.x", "git worktree remove .git/worktrees/x",
-    "git worktree remove node_modules/x", "git worktree remove C:/wt/x",
-    "git worktree remove ..\\wt\\x", "git worktree remove -- x", "git worktree prune",
-    "git worktree remove ../wt/x/", "git worktree remove wt./x",
-    # A branch: exactly `git branch -d|-D <name>...`, none KOLONİ's own.
-    "git branch -d koloni/x", "git branch -D Koloni/x", "git branch -d -f x",
-    "git branch --delete x", "git branch -dr x", "git branch -d -r origin/x",
-    "git branch -d .x", "git branch -d a/.b", "git branch -d x.", "git branch -d x -D y",
-    "git branch x", "git branch -m a b", "GIT branch -d x", "git.exe branch -d x",
-    "git branch -d @{-1}", "git branch -d x:y", "git branch -d -- x",
-])
+@pytest.mark.parametrize(
+    "line",
+    [
+        # (the plan's)
+        "rm -rf build && x",
+        "rm -rf ../build",
+        "rm -rf /tmp/build",
+        "rm -rf src",
+        "rm -rf build/*",
+        "rm -rf .git/build",
+        "rm -rf node_modules/x/build",
+        "rmdir /s /q build",
+        "cmd /c rd /s build",
+        "git worktree remove -f x",
+        "git -C x branch -d y",
+        "git branch -d",
+        "git push origin --delete x",
+        # A folder: recursive, by a bare deleter, flags it knows, each path one of the names, plainly
+        # below where it runs - no dot-part above it, no linked folder, no name Windows reads as
+        # another (`node_modules.`), no trailing slash (`build/` is where a link leads).
+        "rm -f build",
+        "rm build",
+        "rm -rf",
+        "rm -rf -- build",
+        "rm -rf build/",
+        "rm -rf ./build",
+        "rm -rf a//build",
+        "rm -rf Build",
+        "rm -rf build.",
+        "rm -rf NODE_MODULES/build",
+        "rm -rf node_modules./build",
+        "rm -rf .venv/build",
+        "rm -rf venv/dist",
+        "rm -rf build src",
+        "rm.exe -rf build",
+        "/bin/rm -rf build",
+        "Remove-Item -Rec build",
+        "rm -rfv build",
+        "rm -rf --no-preserve-root build",
+        "unlink build",
+        "rmdir build",
+        "rd build",
+        # Nothing a shell reads past a plain word: a quote, a backslash, a drive, a comment, a
+        # splat, a variable, a tab or another space.
+        "rm -rf 'build'",
+        "rm -rf a\\build",
+        "rm -rf C:build",
+        "Remove-Item -Recurse -Path:build",
+        "rm -rf build #x",
+        "Remove-Item -Recurse @p",
+        "rm -rf $x/build",
+        "rm\t-rf build",
+        "rm -rf\u00a0build",
+        "rm -rf build\u000bx",
+        "rm -rf ~/build",
+        "rm -rf build; ls",
+        "rm  -rf build",
+        " rm -rf build",
+        "Remove-Item –Recurse build",
+        # A worktree: exactly `git worktree remove <path>`.
+        "git worktree remove --force x",
+        "git worktree remove x y",
+        "git worktree remove",
+        "git worktree remove ../wt/.x",
+        "git worktree remove .git/worktrees/x",
+        "git worktree remove node_modules/x",
+        "git worktree remove C:/wt/x",
+        "git worktree remove ..\\wt\\x",
+        "git worktree remove -- x",
+        "git worktree prune",
+        "git worktree remove ../wt/x/",
+        "git worktree remove wt./x",
+        # A branch: exactly `git branch -d|-D <name>...`, none KOLONİ's own.
+        "git branch -d koloni/x",
+        "git branch -D Koloni/x",
+        "git branch -d -f x",
+        "git branch --delete x",
+        "git branch -dr x",
+        "git branch -d -r origin/x",
+        "git branch -d .x",
+        "git branch -d a/.b",
+        "git branch -d x.",
+        "git branch -d x -D y",
+        "git branch x",
+        "git branch -m a b",
+        "GIT branch -d x",
+        "git.exe branch -d x",
+        "git branch -d @{-1}",
+        "git branch -d x:y",
+        "git branch -d -- x",
+    ],
+)
 def test_anything_else_is_no_disposable_delete(line):
     assert [disposable_targets(line, shell) for shell in (POSIX, POWERSHELL, None)] == [None] * 3
 
 
-@pytest.mark.parametrize("line", [
-    "rm -rf build `\n src", "rm -rf bu\\\nild", "git branch -d old `\n -f",
-    "git worktree remove ../wt/x \\\n--force", "rm -rf build`\r\n", "rm -rf build \\\n",
-])
+@pytest.mark.parametrize(
+    "line",
+    [
+        "rm -rf build `\n src",
+        "rm -rf bu\\\nild",
+        "git branch -d old `\n -f",
+        "git worktree remove ../wt/x \\\n--force",
+        "rm -rf build`\r\n",
+        "rm -rf build \\\n",
+    ],
+)
 def test_a_continued_line_is_no_disposable_delete_however_a_shell_joins_it(line):
     # (sh joins `bu\⏎ild` into `build`, PowerShell runs `ild` as a command of its own: a line
     # that two shells read two ways is never freed by either reading - `commands.joined`)
@@ -125,13 +208,20 @@ def test_a_continued_line_is_no_disposable_delete_however_a_shell_joins_it(line)
 
 
 def test_a_project_asks_as_before_until_the_user_allows_disposable_deletes_on_its_own_page(
-        client, project_dir):
+    client, project_dir
+):
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     assert client.get(f"/api/projects/{pid}").json()["disposable_deletes"] is False
     for on in (True, False):
-        assert client.patch(f"/api/projects/{pid}", json={"disposable_deletes": on}).status_code == 403
-        assert client.patch(f"/api/projects/{pid}", json={"disposable_deletes": on},
-                            headers=OWN).json()["disposable_deletes"] is on
+        assert (
+            client.patch(f"/api/projects/{pid}", json={"disposable_deletes": on}).status_code == 403
+        )
+        assert (
+            client.patch(
+                f"/api/projects/{pid}", json={"disposable_deletes": on}, headers=OWN
+            ).json()["disposable_deletes"]
+            is on
+        )
     # (the user's own, of this KOLONİ: never from the folder's .koloni/settings.json)
     assert "disposable_deletes" not in koloni.SETTINGS
 
@@ -139,9 +229,11 @@ def test_a_project_asks_as_before_until_the_user_allows_disposable_deletes_on_it
 BUILD = {"what": "build folder build", "allowed": True}
 # The line KOLONİ's own command deletes build/ with in the shell it runs in here (PowerShell on
 # Windows, sh elsewhere: `executors.host.shell_argv`), and the other shell's, which it does not.
-OWN_DELETE, OTHER_DELETE = (("Remove-Item -Recurse -Force build", "rm -rf build")
-                            if sys.platform == "win32" else
-                            ("rm -rf build", "Remove-Item -Recurse -Force build"))
+OWN_DELETE, OTHER_DELETE = (
+    ("Remove-Item -Recurse -Force build", "rm -rf build")
+    if sys.platform == "win32"
+    else ("rm -rf build", "Remove-Item -Recurse -Force build")
+)
 
 
 def runner_at(tmp_path, mode, allows=True, calls=9):
@@ -162,9 +254,19 @@ def runner_at(tmp_path, mode, allows=True, calls=9):
         s.add(Message(id="m", conversation_id="c", run_id="r", role="assistant"))
         s.flush()
         for n in range(calls):
-            s.add(ToolCall(id=f"t{n}", run_id="r", agent_id="a", message_id="m", seq=n,
-                           provider_call_id=f"k{n}", name="run_command", arguments="{}",
-                           status="running"))
+            s.add(
+                ToolCall(
+                    id=f"t{n}",
+                    run_id="r",
+                    agent_id="a",
+                    message_id="m",
+                    seq=n,
+                    provider_call_id=f"k{n}",
+                    name="run_command",
+                    arguments="{}",
+                    status="running",
+                )
+            )
         s.commit()
     runner = CommandRunner(factory, SimpleNamespace(emit=lambda *_: None), None, lambda **_: None)
     runner.asked = []
@@ -178,7 +280,8 @@ def runner_at(tmp_path, mode, allows=True, calls=9):
 
 
 def test_a_disposable_delete_goes_without_its_levels_card_only_where_the_project_allows_it(
-        tmp_path):
+    tmp_path,
+):
     runner, factory = runner_at(tmp_path, "auto_edit")
 
     def asked(call, line="rm -rf build", **given):
@@ -193,7 +296,10 @@ def test_a_disposable_delete_goes_without_its_levels_card_only_where_the_project
     assert asked("t2", always=True, disposable=BUILD)[1:] == (True, {**unasked, "unasked": False})
     # (one not found allowed asks, and keeps what was disposable of it for its card)
     assert asked("t3", disposable={**BUILD, "allowed": False}) == (
-        False, True, {**unasked, "unasked": False})
+        False,
+        True,
+        {**unasked, "unasked": False},
+    )
     assert asked("t4") == (False, True, None)
     # (a turn nobody watches runs it by its trigger's leave, not as disposable)
     assert asked("t5", ask=False, disposable=BUILD) == (True, False, {**unasked, "unasked": False})
@@ -219,8 +325,9 @@ def proposed(client, cid, line):
     deadline = time.monotonic() + scaled(5)
     while time.monotonic() < deadline:
         snap = client.get(f"/api/conversations/{cid}").json()
-        if found := [c for c in snap["commands"]
-                     if (c["command"], c["status"]) == (line, "proposed")]:
+        if found := [
+            c for c in snap["commands"] if (c["command"], c["status"]) == (line, "proposed")
+        ]:
             return found[0]
         time.sleep(0.02)
     raise AssertionError(f"{line} never waited: {snap['commands']}")
@@ -228,10 +335,12 @@ def proposed(client, cid, line):
 
 # --- what of it is disposable: checked against its folder and the project's git (3.4) --------
 
+
 def junction(link, target):
     """`link` a junction to `target` (Windows), else a symbolic link."""
     if sys.platform == "win32":
         import _winapi
+
         _winapi.CreateJunction(str(target), str(link))
     else:
         os.symlink(target, link)
@@ -269,15 +378,23 @@ def repo(tmp_path, monkeypatch):
     return project
 
 
-def judged(project, line, cwd=".", root=None, in_copy=False, copies_at=(), keep=None,
-           shell=POSIX):
-    return disposable.what(line, project, root or project, cwd, in_copy=in_copy,
-                           copies_at=list(copies_at), keep=keep, shell=shell)
+def judged(project, line, cwd=".", root=None, in_copy=False, copies_at=(), keep=None, shell=POSIX):
+    return disposable.what(
+        line,
+        project,
+        root or project,
+        cwd,
+        in_copy=in_copy,
+        copies_at=list(copies_at),
+        keep=keep,
+        shell=shell,
+    )
 
 
 @needs_git
 def test_a_build_folder_is_disposable_where_git_ignores_it_holds_nothing_tracked_and_no_link(
-        repo, tmp_path, monkeypatch):
+    repo, tmp_path, monkeypatch
+):
     assert judged(repo, "rm -rf build") == "build folder build"
     (repo / "web" / "dist").mkdir(parents=True)
     assert judged(repo, "rm -r dist", cwd="web") == "build folder dist"
@@ -318,7 +435,8 @@ def test_a_build_folder_is_disposable_where_git_ignores_it_holds_nothing_tracked
 
 @needs_git
 def test_in_a_copy_a_build_folder_is_judged_by_the_projects_git_and_nothing_else_is_disposable(
-        repo, tmp_path):
+    repo, tmp_path
+):
     copy = tmp_path / "copies" / "a" / "tree"
     (copy / "build").mkdir(parents=True)
     (copy / "src").mkdir()
@@ -330,7 +448,8 @@ def test_in_a_copy_a_build_folder_is_judged_by_the_projects_git_and_nothing_else
 
 @needs_git
 def test_a_clean_worktree_of_the_users_is_disposable_and_none_of_koloni_s_locked_or_holding_more(
-        repo, tmp_path):
+    repo, tmp_path
+):
     git(repo, "worktree", "add", "-q", "-b", "feat", str(tmp_path / "wt" / "x"))
     assert judged(repo, "git worktree remove ../wt/x") == "worktree ../wt/x"
     git(repo, "worktree", "lock", str(tmp_path / "wt" / "x"))
@@ -408,6 +527,7 @@ def test_what_git_tracks_under_a_folder(repo):
 
 # --- the agent runner hands it in: where the user allowed it, at Auto-edit and Full auto (3.5) -
 
+
 @pytest.fixture
 def at_git(project_dir, monkeypatch):
     """The project as a git repository: build/ ignored (and there), a branch `old` merged, and
@@ -426,30 +546,36 @@ def at_git(project_dir, monkeypatch):
 
 def allowing(client, project_dir, allows):
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    assert client.patch(f"/api/projects/{pid}", json={"disposable_deletes": allows},
-                        headers=OWN).status_code == 200
+    assert (
+        client.patch(
+            f"/api/projects/{pid}", json={"disposable_deletes": allows}, headers=OWN
+        ).status_code
+        == 200
+    )
     return pid
 
 
 @needs_git
 @pytest.mark.parametrize("mode", ["full_auto", "auto_edit"])
 def test_where_the_user_allowed_it_a_merged_branch_and_a_build_folder_go_without_a_card(
-        make_client, wait_run, at_git, mode):
+    make_client, wait_run, at_git, mode
+):
     executor = ScriptedExecutor([Script([""]), Script([""])])
-    client, _ = make_client([cmd("git branch -D old", "k1"), cmd(OWN_DELETE, "k2"),
-                             text("done")], executor=executor)
+    client, _ = make_client(
+        [cmd("git branch -D old", "k1"), cmd(OWN_DELETE, "k2"), text("done")], executor=executor
+    )
     allowing(client, at_git, True)
     cid, run_id = start_in_mode(client, at_git, mode)
     snap = wait_run(client, cid, run_id)
     assert [(c["command"], c["status"], c["disposable"]) for c in snap["commands"]] == [
         ("git branch -D old", "exited", {"what": "branch old", "unasked": True}),
-        (OWN_DELETE, "exited", {"what": "build folder build", "unasked": True})]
+        (OWN_DELETE, "exited", {"what": "build folder build", "unasked": True}),
+    ]
 
 
 @needs_git
 def test_at_ask_a_disposable_delete_still_asks(make_client, wait_run, at_git):
-    client, _ = make_client([cmd("git branch -D old"), text("done")],
-                            executor=ScriptedExecutor([]))
+    client, _ = make_client([cmd("git branch -D old"), text("done")], executor=ScriptedExecutor([]))
     allowing(client, at_git, True)
     cid, run_id = start_in_mode(client, at_git, "ask")
     card = proposed(client, cid, "git branch -D old")
@@ -460,10 +586,13 @@ def test_at_ask_a_disposable_delete_still_asks(make_client, wait_run, at_git):
 
 @needs_git
 def test_allow_such_deletes_on_its_card_turns_the_switch_on_and_runs_it_and_koloni_s_branch_asks(
-        make_client, wait_run, at_git):
+    make_client, wait_run, at_git
+):
     executor = ScriptedExecutor([Script([""]), Script([""])])
-    client, _ = make_client([cmd("git branch -D old", "k1"), cmd("git branch -D koloni/x", "k2"),
-                             text("done")], executor=executor)
+    client, _ = make_client(
+        [cmd("git branch -D old", "k1"), cmd("git branch -D koloni/x", "k2"), text("done")],
+        executor=executor,
+    )
     pid = allowing(client, at_git, False)
     cid, run_id = start_in_mode(client, at_git, "full_auto")
     card = proposed(client, cid, "git branch -D old")
@@ -473,14 +602,19 @@ def test_allow_such_deletes_on_its_card_turns_the_switch_on_and_runs_it_and_kolo
     assert client.post(sent, json={"disposable": True, "remember": True}).status_code == 422
     assert client.post(sent, json={"disposable": True}, headers={"Origin": None}).status_code == 403
     assert client.post(sent, json={"disposable": True}).json()["status"] in (
-        "approved", "running", "exited")
+        "approved",
+        "running",
+        "exited",
+    )
     assert client.get(f"/api/projects/{pid}").json()["disposable_deletes"] is True
     # KOLONİ's own branch is never disposable: asked though the switch is on, and its card
     # takes no such word.
     plain = proposed(client, cid, "git branch -D koloni/x")
     assert plain["disposable"] is None and plain["danger"]
-    assert client.post(f"/api/commands/{plain['id']}/approve",
-                       json={"disposable": True}).status_code == 422
+    assert (
+        client.post(f"/api/commands/{plain['id']}/approve", json={"disposable": True}).status_code
+        == 422
+    )
     assert approve(client, plain["id"]).status_code == 200
     wait_run(client, cid, run_id)
     assert [line for line, _ in executor.started] == ["git branch -D old", "git branch -D koloni/x"]
@@ -489,23 +623,40 @@ def test_allow_such_deletes_on_its_card_turns_the_switch_on_and_runs_it_and_kolo
 @needs_git
 @pytest.mark.parametrize("dependencies", [False, True])
 def test_in_a_copy_a_build_folder_goes_without_a_card_but_not_one_holding_a_link(
-        make_client, wait_run, at_git, tmp_path, dependencies):
+    make_client, wait_run, at_git, tmp_path, dependencies
+):
     if dependencies:  # (linked into the copy: there any other recursive delete is asked)
         (at_git / "node_modules" / "pkg").mkdir(parents=True)
         (at_git / "node_modules" / "pkg" / "index.js").write_text("dep")
     made, linked = Gate(), Gate()
-    client, _ = make_client({
-        "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
-                 text("done")],
-        "Coder": [step(write("a.txt", "A")), made.step(step(run(OWN_DELETE, "c1"))),
-                  linked.step(step(run(OWN_DELETE, "c2"))), text("A done")],
-    }, executor=ScriptedExecutor([Script([""])]))
+    client, _ = make_client(
+        {
+            "Lead": [
+                step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
+                text("done"),
+            ],
+            "Coder": [
+                step(write("a.txt", "A")),
+                made.step(step(run(OWN_DELETE, "c1"))),
+                linked.step(step(run(OWN_DELETE, "c2"))),
+                text("A done"),
+            ],
+        },
+        executor=ScriptedExecutor([Script([""])]),
+    )
     pid = allowing(client, at_git, True)
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    assert client.patch(f"/api/conversations/{cid}", json={
-        "permission_mode": "full_auto", "spawn_approval": "never"}, headers=OWN).status_code == 200
-    run_id = client.post(f"/api/conversations/{cid}/messages",
-                         json={"content": "go"}).json()["run"]["id"]
+    assert (
+        client.patch(
+            f"/api/conversations/{cid}",
+            json={"permission_mode": "full_auto", "spawn_approval": "never"},
+            headers=OWN,
+        ).status_code
+        == 200
+    )
+    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()[
+        "run"
+    ]["id"]
     try:
         made.wait_partial()
         (copy,) = client.app.state.runner._copies.values()
@@ -522,7 +673,9 @@ def test_in_a_copy_a_build_folder_goes_without_a_card_but_not_one_holding_a_link
     assert client.post(f"/api/commands/{card['id']}/reject").status_code == 200
     first = wait_run(client, cid, run_id)["commands"][0]
     assert (first["status"], first["disposable"]) == (
-        "exited", {"what": "build folder build", "unasked": True})
+        "exited",
+        {"what": "build folder build", "unasked": True},
+    )
 
 
 @needs_git
@@ -531,8 +684,12 @@ def test_a_turn_nobody_watches_gets_no_disposable_delete_unasked(make_client, wa
     client, _ = make_client([cmd("git branch -D old"), text("done")], executor=executor)
     pid = allowing(client, at_git, True)
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    assert client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto"},
-                        headers=OWN).status_code == 200
+    assert (
+        client.patch(
+            f"/api/conversations/{cid}", json={"permission_mode": "full_auto"}, headers=OWN
+        ).status_code
+        == 200
+    )
     client.headers["Origin"] = OWN["Origin"]  # (a trigger is the user's, from their page)
     run_id = run_now(client, trigger(client, pid, cid)["id"])
     snap = wait_run(client, cid, run_id)
@@ -544,29 +701,45 @@ def test_a_turn_nobody_watches_gets_no_disposable_delete_unasked(make_client, wa
 @needs_git
 @pytest.mark.parametrize("allows", [True, False])
 def test_a_clis_own_disposable_delete_where_its_folder_is_known(
-        native_app, wait_run, at_git, allows):  # noqa: F811
+    native_app, wait_run, at_git, allows
+):  # noqa: F811
     client, provider, _ = native_app([{"run": "git branch -D old", "output": ""}, {"say": "ok"}])
     allowing(client, at_git, allows)
     cid, run_id = start_native(client, at_git, provider, "full_auto")
     if not allows:
         assert proposed(client, cid, "git branch -D old")["disposable"] == {
-            "what": "branch old", "unasked": False}
-        assert client.post(f"/api/commands/{proposed(client, cid, 'git branch -D old')['id']}"
-                           "/reject").status_code == 200
+            "what": "branch old",
+            "unasked": False,
+        }
+        assert (
+            client.post(
+                f"/api/commands/{proposed(client, cid, 'git branch -D old')['id']}/reject"
+            ).status_code
+            == 200
+        )
     (ran,) = wait_run(client, cid, run_id)["commands"]
     assert (ran["origin"], ran["disposable"]) == ("cli", {"what": "branch old", "unasked": allows})
     assert answers(native_app) == [(RUN, ACCEPT if allows else DECLINE)]
 
 
 @needs_git
-@pytest.mark.parametrize("parameters", [
-    {"CommandLine": "rm -rf build", "Cwd": "."},  # (agy's Cwd: its model's word)
-    {"CommandLine": "rm -rf build"},  # (no folder: where its shell stands is not known)
-])
+@pytest.mark.parametrize(
+    "parameters",
+    [
+        {"CommandLine": "rm -rf build", "Cwd": "."},  # (agy's Cwd: its model's word)
+        {"CommandLine": "rm -rf build"},  # (no folder: where its shell stands is not known)
+    ],
+)
 def test_a_clis_delete_where_its_folder_is_its_models_word_or_not_known_is_never_disposable(
-        agy_app, wait_run, at_git, parameters):  # noqa: F811
-    client, cli, _ = agy_app([{"tool": "run_command", "asks": True, "parameters": parameters,
-                               "output": ""}, {"say": "left it"}], mode="native")
+    agy_app, wait_run, at_git, parameters
+):  # noqa: F811
+    client, cli, _ = agy_app(
+        [
+            {"tool": "run_command", "asks": True, "parameters": parameters, "output": ""},
+            {"say": "left it"},
+        ],
+        mode="native",
+    )
     allowing(client, at_git, True)
     cid, run_id = start_agy(client, at_git, cli, "full_auto")
     card = proposed(client, cid, "rm -rf build")
@@ -577,17 +750,23 @@ def test_a_clis_delete_where_its_folder_is_its_models_word_or_not_known_is_never
 
 @needs_git
 def test_only_a_watched_turn_of_its_own_at_auto_edit_or_full_auto_gets_it_unasked(
-        make_client, at_git):
+    make_client, at_git
+):
     client, _ = make_client([])
     runner = client.app.state.runner
     pid = allowing(client, at_git, True)
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
 
     def allowed(mode="full_auto"):
-        assert client.patch(f"/api/conversations/{cid}", json={"permission_mode": mode},
-                            headers=OWN).status_code == 200
-        ctx = Ctx(run_id="r", cid=cid, root=str(at_git), agent_id="a", role="Lead", tools=(),
-                  depth=0)
+        assert (
+            client.patch(
+                f"/api/conversations/{cid}", json={"permission_mode": mode}, headers=OWN
+            ).status_code
+            == 200
+        )
+        ctx = Ctx(
+            run_id="r", cid=cid, root=str(at_git), agent_id="a", role="Lead", tools=(), depth=0
+        )
         found = asyncio.run(runner._disposable(ctx, "git branch -D old", at_git, ".", False))
         assert found["what"] == "branch old"
         return found["allowed"]
@@ -603,20 +782,24 @@ def test_only_a_watched_turn_of_its_own_at_auto_edit_or_full_auto_gets_it_unaske
     runner._backlog_turns.add("r")
     assert allowed() is False
     runner._backlog_turns.discard("r")
-    assert client.patch(f"/api/projects/{pid}", json={"disposable_deletes": False},
-                        headers=OWN).status_code == 200
+    assert (
+        client.patch(
+            f"/api/projects/{pid}", json={"disposable_deletes": False}, headers=OWN
+        ).status_code
+        == 200
+    )
     assert allowed() is False
 
 
 @needs_git
 def test_a_look_that_fails_is_no_disposable_delete_and_its_card_as_before(
-        make_client, wait_run, at_git, monkeypatch):
+    make_client, wait_run, at_git, monkeypatch
+):
     def broken(*_args, **_kwargs):
         raise ValueError("a path on another drive")
 
     monkeypatch.setattr(disposable, "what", broken)
-    client, _ = make_client([cmd("git branch -D old"), text("done")],
-                            executor=ScriptedExecutor([]))
+    client, _ = make_client([cmd("git branch -D old"), text("done")], executor=ScriptedExecutor([]))
     allowing(client, at_git, True)
     cid, run_id = start_in_mode(client, at_git, "full_auto")
     card = proposed(client, cid, "git branch -D old")
@@ -627,7 +810,8 @@ def test_a_look_that_fails_is_no_disposable_delete_and_its_card_as_before(
 
 @needs_git
 def test_a_delete_whose_folder_changed_while_the_turn_waited_is_asked(
-        make_client, wait_run, at_git, tmp_path):
+    make_client, wait_run, at_git, tmp_path
+):
     client, _ = make_client([cmd(OWN_DELETE), text("done")], executor=ScriptedExecutor([]))
     runner = client.app.state.runner
     looked = runner._keeps_answered
@@ -650,12 +834,12 @@ def test_a_delete_whose_folder_changed_while_the_turn_waited_is_asked(
 
 
 @needs_git
-def test_copilots_delete_from_a_new_shell_is_never_disposable(
-        copilot_native, wait_run, at_git):  # noqa: F811
+def test_copilots_delete_from_a_new_shell_is_never_disposable(copilot_native, wait_run, at_git):  # noqa: F811
     # (as a delete in the scratch: 1.0.67 has no sandbox, and a link a script makes after the
     # look is followed by the delete - `commands.scratch_delete_only`)
-    client, provider = copilot_native([{"shell": "git branch -D old"}, {"say": "ok"}],
-                                      version="1.0.105")
+    client, provider = copilot_native(
+        [{"shell": "git branch -D old"}, {"say": "ok"}], version="1.0.105"
+    )
     allowing(client, at_git, True)
     cid, run_id = start_copilot(client, at_git, provider)
     card = proposed(client, cid, "git branch -D old")
@@ -666,6 +850,7 @@ def test_copilots_delete_from_a_new_shell_is_never_disposable(
 
 # --- the adversarial review's round: what git and the file system read past the checks ----------
 
+
 def ignoring(repo, *lines):
     with (repo / ".gitignore").open("a", encoding="utf-8") as kept:
         kept.write("".join(f"{line}\n" for line in lines))
@@ -673,7 +858,8 @@ def ignoring(repo, *lines):
 
 @needs_git
 def test_a_build_folder_spelt_in_another_case_than_it_is_or_than_git_tracks_it_is_no_disposable(
-        repo):
+    repo,
+):
     # (NTFS and APFS open `build` as `Build`: a tracked Build/make.ps1 would go with it)
     (repo / "Build").mkdir(exist_ok=True)
     (repo / "Build" / "make.ps1").write_text("make\n")
@@ -714,7 +900,8 @@ def test_a_build_folder_holding_a_repository_of_its_own_is_no_disposable(repo):
 
 @needs_git
 def test_a_worktree_with_new_files_git_is_told_not_to_show_or_edits_it_hides_is_no_disposable(
-        repo, tmp_path):
+    repo, tmp_path
+):
     tree = tmp_path / "wt" / "x"
     git(repo, "worktree", "add", "-q", "-b", "feat", str(tree))
     assert judged(repo, "git worktree remove ../wt/x") == "worktree ../wt/x"
@@ -735,7 +922,8 @@ def test_a_worktree_with_new_files_git_is_told_not_to_show_or_edits_it_hides_is_
 
 @needs_git
 def test_a_worktree_whose_ignored_file_lies_in_a_tracked_folder_of_a_build_name_is_no_disposable(
-        repo, tmp_path):
+    repo, tmp_path
+):
     tree = tmp_path / "wt" / "x"
     git(repo, "worktree", "add", "-q", "-b", "feat", str(tree))
     (tree / "target").mkdir()
@@ -756,7 +944,8 @@ def test_a_worktree_whose_ignored_file_lies_in_a_tracked_folder_of_a_build_name_
 
 @needs_git
 def test_a_worktree_named_through_a_link_or_by_a_suffix_another_shares_is_no_disposable(
-        repo, tmp_path):
+    repo, tmp_path
+):
     # (git finds a worktree by the end of its path first: `J/x` is any listed one ending so)
     (tmp_path / "elsewhere").mkdir()
     git(repo, "worktree", "add", "-q", "-b", "a", str(tmp_path / "elsewhere" / "x"))
@@ -771,7 +960,8 @@ def test_a_worktree_named_through_a_link_or_by_a_suffix_another_shares_is_no_dis
 
 @needs_git
 def test_a_worktree_named_through_a_link_alone_or_climbing_out_of_one_is_no_disposable(
-        repo, tmp_path):
+    repo, tmp_path
+):
     # (named through a link, no other worktree's path ending as it is spelt)
     git(repo, "worktree", "add", "-q", "-b", "a", str(tmp_path / "elsewhere" / "x"))
     junction(repo / "K", tmp_path / "elsewhere")
@@ -788,9 +978,11 @@ def test_a_worktree_named_through_a_link_alone_or_climbing_out_of_one_is_no_disp
 
 @needs_git
 def test_a_copilot_command_is_never_disposable_even_where_it_says_its_folder(
-        copilot_native, wait_run, at_git):  # noqa: F811
+    copilot_native, wait_run, at_git
+):  # noqa: F811
     client, provider = copilot_native(
-        [{"shell": "git branch -D old", "cwd": str(at_git)}, {"say": "ok"}])
+        [{"shell": "git branch -D old", "cwd": str(at_git)}, {"say": "ok"}]
+    )
     allowing(client, at_git, True)
     cid, run_id = start_copilot(client, at_git, provider)
     card = proposed(client, cid, "git branch -D old")
@@ -800,6 +992,7 @@ def test_a_copilot_command_is_never_disposable_even_where_it_says_its_folder(
 
 
 # --- the review's second round: another repository's, and commits on no branch -----------------
+
 
 def nested(folder):
     """A repository of its own at `folder`, one commit on main."""
@@ -827,7 +1020,8 @@ def test_a_detached_worktree_or_one_whose_head_no_ref_holds_is_no_disposable(rep
 
 @needs_git
 def test_a_branch_delete_run_in_another_repository_or_through_a_link_is_no_disposable(
-        repo, tmp_path):
+    repo, tmp_path
+):
     # (the project's `old` is merged; the nested one's, unmerged, is what git deletes there)
     nested(repo / "sub")
     git(repo / "sub", "branch", "old")
@@ -848,7 +1042,8 @@ def test_a_branch_delete_run_in_another_repository_or_through_a_link_is_no_dispo
 
 @needs_git
 def test_a_build_folder_of_another_repository_or_worktree_in_the_project_is_no_disposable(
-        repo, tmp_path):
+    repo, tmp_path
+):
     nested(repo / "sub")
     (repo / "sub" / "build").mkdir()
     (repo / "sub" / "build" / "x").write_text("tracked by sub\n")
@@ -872,7 +1067,8 @@ def test_a_build_folder_of_another_repository_or_worktree_in_the_project_is_no_d
 @needs_git
 @pytest.mark.parametrize("dotgit", ["repository", "file"])
 def test_a_worktree_whose_ignored_build_folder_holds_a_repository_is_no_disposable(
-        repo, tmp_path, dotgit):
+    repo, tmp_path, dotgit
+):
     tree = tmp_path / "wt" / "x"
     git(repo, "worktree", "add", "-q", "-b", "feat", str(tree))
     (tree / "build").mkdir()
@@ -912,9 +1108,11 @@ def test_a_branch_delete_run_in_a_bare_repository_in_the_project_is_no_disposabl
 
 # --- each shell's own forms: KOLONİ's command in its shell, a CLI's in the one it says ----------
 
+
 @needs_git
 def test_kolonis_own_command_in_the_other_shells_form_is_no_disposable(
-        make_client, wait_run, at_git):
+    make_client, wait_run, at_git
+):
     # (PowerShell answers `rm -rf build` with "A parameter cannot be found that matches parameter
     # name 'rf'": nothing deleted, yet the row said it went as disposable)
     client, _ = make_client([cmd(OTHER_DELETE), text("done")], executor=ScriptedExecutor([]))
@@ -928,7 +1126,8 @@ def test_kolonis_own_command_in_the_other_shells_form_is_no_disposable(
 
 @needs_git
 def test_a_clis_folder_delete_whose_shell_is_not_said_is_never_disposable(
-        native_app, wait_run, at_git):  # noqa: F811
+    native_app, wait_run, at_git
+):  # noqa: F811
     # (Codex sends its command with no shell said: its folder is known, its shell is not)
     client, provider, _ = native_app([{"run": "rm -rf build", "output": ""}, {"say": "ok"}])
     allowing(client, at_git, True)

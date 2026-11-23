@@ -3,6 +3,7 @@
 Revision ID: 0021
 Revises: 0020
 """
+
 import uuid
 
 import sqlalchemy as sa
@@ -53,35 +54,56 @@ def upgrade() -> None:
     # message that started its first turn.
     bind = op.get_bind()
     runs = sa.table(
-        "runs", sa.column("id", sa.String), sa.column("conversation_id", sa.String),
-        sa.column("trigger_id", sa.String), sa.column("created_at", sa.DateTime),
-        sa.column("topic_id", sa.String), sa.column("unattended", sa.Boolean),
+        "runs",
+        sa.column("id", sa.String),
+        sa.column("conversation_id", sa.String),
+        sa.column("trigger_id", sa.String),
+        sa.column("created_at", sa.DateTime),
+        sa.column("topic_id", sa.String),
+        sa.column("unattended", sa.Boolean),
         sa.column("trigger_name", sa.String),
     )
     messages = sa.table(
-        "messages", sa.column("run_id", sa.String), sa.column("role", sa.String),
-        sa.column("content", sa.Text), sa.column("created_at", sa.DateTime),
+        "messages",
+        sa.column("run_id", sa.String),
+        sa.column("role", sa.String),
+        sa.column("content", sa.Text),
+        sa.column("created_at", sa.DateTime),
     )
     conversations = sa.table(
-        "conversations", sa.column("id", sa.String), sa.column("title", sa.String),
+        "conversations",
+        sa.column("id", sa.String),
+        sa.column("title", sa.String),
     )
     topics = sa.table(
-        "topics", sa.column("id", sa.String), sa.column("conversation_id", sa.String),
-        sa.column("title", sa.String), sa.column("trigger_id", sa.String),
+        "topics",
+        sa.column("id", sa.String),
+        sa.column("conversation_id", sa.String),
+        sa.column("title", sa.String),
+        sa.column("trigger_id", sa.String),
         sa.column("created_at", sa.DateTime),
     )
     names = dict(bind.execute(sa.select(conversations.c.id, conversations.c.title)).all())
     made: dict[tuple, str] = {}
     rows = bind.execute(
-        sa.select(runs.c.id, runs.c.conversation_id, runs.c.trigger_id, runs.c.created_at,
-                  runs.c.unattended, runs.c.trigger_name)
-        .order_by(runs.c.created_at, sa.literal_column("runs.rowid"))
+        sa.select(
+            runs.c.id,
+            runs.c.conversation_id,
+            runs.c.trigger_id,
+            runs.c.created_at,
+            runs.c.unattended,
+            runs.c.trigger_name,
+        ).order_by(runs.c.created_at, sa.literal_column("runs.rowid"))
     ).all()
     for run_id, cid, trigger_id, created_at, unattended, trigger_name in rows:
         # A turn nobody watched whose trigger is not on record (none is known to exist)
         # is still not one of the user's own: those are a topic by the trigger's name.
-        key = (cid, trigger_id or None, trigger_name if unattended and not trigger_id else None,
-               bool(unattended) and not trigger_id)
+        key = (
+            cid,
+            trigger_id or None,
+            trigger_name if unattended and not trigger_id else None,
+            bool(unattended) and not trigger_id,
+        )
         if key not in made:
             first = bind.execute(
                 sa.select(messages.c.content)
@@ -90,10 +112,15 @@ def upgrade() -> None:
                 .limit(1)
             ).scalar()
             made[key] = uuid.uuid4().hex
-            bind.execute(topics.insert().values(
-                id=made[key], conversation_id=cid, trigger_id=key[1], created_at=created_at,
-                title=_title(first) or _title(names.get(cid)) or "Untitled",
-            ))
+            bind.execute(
+                topics.insert().values(
+                    id=made[key],
+                    conversation_id=cid,
+                    trigger_id=key[1],
+                    created_at=created_at,
+                    title=_title(first) or _title(names.get(cid)) or "Untitled",
+                )
+            )
         bind.execute(runs.update().where(runs.c.id == run_id).values(topic_id=made[key]))
 
 

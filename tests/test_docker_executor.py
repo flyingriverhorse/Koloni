@@ -98,8 +98,14 @@ async def test_a_command_of_a_working_copy_is_started_on_the_copy(monkeypatch, t
 
 
 def test_executor_for_picks_by_the_commands_recorded_location(tmp_path):
-    project = Project(id="p", name="p", root_path=str(tmp_path), exec_location="docker",
-                      docker_image="alpine", docker_network=True)
+    project = Project(
+        id="p",
+        name="p",
+        root_path=str(tmp_path),
+        exec_location="docker",
+        docker_image="alpine",
+        docker_network=True,
+    )
     assert executor_for("host", project, tmp_path).location == "host"
     chosen = executor_for("docker", project, tmp_path)
     assert isinstance(chosen, DockerExecutor) and chosen.location == "docker"
@@ -208,5 +214,7 @@ async def test_live_kill_stops_the_container(tmp_path):
     await asyncio.wait_for(running.wait(), 20)
     listing = subprocess.run(
         ["docker", "ps", "--filter", "name=koloni-k-kill", "--format", "{{.Names}}"],
-        capture_output=True, text=True).stdout
+        capture_output=True,
+        text=True,
+    ).stdout
     assert listing.strip() == ""

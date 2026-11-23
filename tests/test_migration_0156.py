@@ -16,8 +16,10 @@ def test_every_project_asks_as_before_and_a_command_keeps_what_the_check_said_an
     cfg = _config(db)
     command.upgrade(cfg, "0155")
     with sqlite3.connect(db) as conn:
-        conn.execute("INSERT INTO projects (id, name, root_path, created_at) "
-                     "VALUES ('p', 'p', 'C:/p', ?)", (AT,))
+        conn.execute(
+            "INSERT INTO projects (id, name, root_path, created_at) VALUES ('p', 'p', 'C:/p', ?)",
+            (AT,),
+        )
 
     command.upgrade(cfg, "0156")
     with sqlite3.connect(db) as conn:
@@ -27,5 +29,6 @@ def test_every_project_asks_as_before_and_a_command_keeps_what_the_check_said_an
     command.downgrade(cfg, "0155")
     with sqlite3.connect(db) as conn:
         assert "full_auto_check" not in [
-            row[1] for row in conn.execute("PRAGMA table_info(projects)")]
+            row[1] for row in conn.execute("PRAGMA table_info(projects)")
+        ]
         assert "judged" not in [row[1] for row in conn.execute("PRAGMA table_info(commands)")]

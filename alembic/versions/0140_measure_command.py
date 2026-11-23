@@ -6,6 +6,7 @@ is measured.
 Revision ID: 0140
 Revises: 0139
 """
+
 import sqlalchemy as sa
 from alembic import op
 

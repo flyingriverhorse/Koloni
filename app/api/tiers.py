@@ -22,15 +22,27 @@ def tiers(providers: list[Provider]) -> dict[str, list[dict]]:
     for provider in providers:
         for m in provider.models or []:
             if m.get("tier"):
-                found[m["tier"]].append((m.get("order", inf), {
-                    "provider_id": provider.id, "provider_name": provider.name, "model": m["name"],
-                    # As the team guide has it (app.team.guide): passed over when off, or when
-                    # it, or its provider, is switched off.
-                    "agents": provider.for_agents and provider.enabled is not False
-                    and m.get("agents", True) and m.get("enabled", True),
-                }))
-    return {tier: [one for _at, one in sorted(rows, key=lambda row: row[0])]
-            for tier, rows in found.items()}
+                found[m["tier"]].append(
+                    (
+                        m.get("order", inf),
+                        {
+                            "provider_id": provider.id,
+                            "provider_name": provider.name,
+                            "model": m["name"],
+                            # As the team guide has it (app.team.guide): passed over when off, or
+                            # when
+                            # it, or its provider, is switched off.
+                            "agents": provider.for_agents
+                            and provider.enabled is not False
+                            and m.get("agents", True)
+                            and m.get("enabled", True),
+                        },
+                    )
+                )
+    return {
+        tier: [one for _at, one in sorted(rows, key=lambda row: row[0])]
+        for tier, rows in found.items()
+    }
 
 
 @router.get("", response_model=TiersOut)
@@ -48,8 +60,8 @@ def put_tiers(body: TiersIn, session: Session = Depends(get_session)):
         told = [(one.provider_id, one.model) for one in getattr(body, tier)]
         if sorted(told) != sorted((one["provider_id"], one["model"]) for one in now[tier]):
             raise HTTPException(
-                422, f"the {tier} list has to be exactly the models whose tier is {tier}, "
-                "each once")
+                422, f"the {tier} list has to be exactly the models whose tier is {tier}, each once"
+            )
         order.update((key, at) for at, key in enumerate(told))
     for provider in providers:
         # A new list, so the JSON column is seen to change.

@@ -48,14 +48,26 @@ def waiting(client, cid, count):
 
 def test_a_rule_never_covers_the_destructive_form(make_client, wait_run, project_dir):
     executor = ScriptedExecutor([Script(["ok\n"]), Script(["forced\n"]), Script(["gone\n"])])
-    client, _ = make_client([
-        cmd("git push origin main", "k1"), cmd("git push --force origin main", "k2"),
-        cmd("rm -rf build", "k3"), text("done")], executor=executor)
+    client, _ = make_client(
+        [
+            cmd("git push origin main", "k1"),
+            cmd("git push --force origin main", "k2"),
+            cmd("rm -rf build", "k3"),
+            text("done"),
+        ],
+        executor=executor,
+    )
     cid, run_id = start(client, project_dir)
     # (K-fullauto-sorma: a push sends off this machine - no rule is offered, and one written
     # by hand does not cover it either: `git push origin main` asks with the rule there.)
-    assert client.post(f"/api/conversations/{cid}/allowed-commands",
-                       json={"prefix": "git push"}, headers=ORIGIN).status_code == 201
+    assert (
+        client.post(
+            f"/api/conversations/{cid}/allowed-commands",
+            json={"prefix": "git push"},
+            headers=ORIGIN,
+        ).status_code
+        == 201
+    )
     first = waiting(client, cid, 1)[0]
     # (R118: the record carries the card's reason for a push too, once `danger` alone)
     assert first["suggested_prefix"] == "" and "sends work off" in first["danger"]
@@ -75,17 +87,20 @@ def test_a_rule_never_covers_the_destructive_form(make_client, wait_run, project
 def test_such_a_rule_cannot_be_put_on_the_list_by_hand(make_client, project_dir):
     client, _ = make_client([text("hi")])
     cid, _run = start(client, project_dir)
-    refused = client.post(f"/api/conversations/{cid}/allowed-commands",
-                          json={"prefix": "rm -rf dist"}, headers=ORIGIN)
+    refused = client.post(
+        f"/api/conversations/{cid}/allowed-commands", json={"prefix": "rm -rf dist"}, headers=ORIGIN
+    )
     assert refused.status_code == 422 and "asked every time" in refused.text
-    kept = client.post(f"/api/conversations/{cid}/allowed-commands",
-                       json={"prefix": "git push"}, headers=ORIGIN)
+    kept = client.post(
+        f"/api/conversations/{cid}/allowed-commands", json={"prefix": "git push"}, headers=ORIGIN
+    )
     assert kept.status_code == 201
 
 
 @pytest.mark.parametrize("line", ["type .env", "Get-Content -Path config/.env", "cat id_rsa"])
 def test_a_command_naming_a_secret_file_is_asked_in_full_auto_too(
-        make_client, wait_run, project_dir, line):
+    make_client, wait_run, project_dir, line
+):
     executor = ScriptedExecutor([])
     client, model = make_client([cmd(line), text("Understood.")], executor=executor)
     cid, run_id = start_in_mode(client, project_dir, "full_auto")
@@ -97,7 +112,8 @@ def test_a_command_naming_a_secret_file_is_asked_in_full_auto_too(
 
 
 def test_a_rule_naming_a_secret_file_still_leaves_its_command_asked(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     """B-206: a rule stored for `type .env` before slice 90 (none can be written now) does not
     skip its card; nor is "Always run" offered for it."""
     executor = ScriptedExecutor([])
@@ -107,8 +123,9 @@ def test_a_rule_naming_a_secret_file_still_leaves_its_command_asked(
     with client.app.state.session_factory() as session:
         session.add(AllowedCommand(conversation_id=cid, project_id=pid, prefix="type .env"))
         session.commit()
-    run_id = client.post(f"/api/conversations/{cid}/messages",
-                         json={"content": "hi"}).json()["run"]["id"]
+    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "hi"}).json()[
+        "run"
+    ]["id"]
     asked = waiting(client, cid, 1)[0]
     assert "secret" in asked["danger"] and asked["suggested_prefix"] == ""
     assert client.post(f"/api/commands/{asked['id']}/reject").json()["status"] == "rejected"
@@ -125,8 +142,9 @@ def test_an_ordinary_command_still_runs_unasked_in_full_auto(make_client, wait_r
 
 
 def test_claude_codes_own_bash_naming_a_secret_file_is_asked_in_full_auto_too(
-        claude_app, wait_run, project_dir):  # noqa: F811
-    bash ={"tool": "Bash", "input": {"command": "cat .env"}, "result": "x"}
+    claude_app, wait_run, project_dir
+):  # noqa: F811
+    bash = {"tool": "Bash", "input": {"command": "cat .env"}, "result": "x"}
     client, provider, _ = claude_app([bash, {"say": "done"}])
     cid, run_id = start_claude(client, project_dir, provider, "full_auto")
     asked = waiting(client, cid, 1)[0]
@@ -137,7 +155,8 @@ def test_claude_codes_own_bash_naming_a_secret_file_is_asked_in_full_auto_too(
 
 
 def test_a_printed_secret_reaches_neither_the_model_nor_the_record(
-        make_client, wait_run, project_dir, monkeypatch):
+    make_client, wait_run, project_dir, monkeypatch
+):
     monkeypatch.setenv("GITHUB_TOKEN", SECRET)
     executor = ScriptedExecutor([Script(["GITHUB_TOKEN=s3cr3t-va", "lue-ABCDEFGH\nPATH=x\n"])])
     client, model = make_client([cmd("env"), text("done")], executor=executor)

@@ -45,8 +45,9 @@ KILL_SECONDS = 20.0
 TRUNCATED_NOTE = "\n[output truncated: more than 1 MiB]"
 # B-321: a refusal ends that one action, not the task - told "do not try another way" and
 # "stop and ask", Codex gave up the whole task over one part of one command.
-CARRY_ON = ("Carry on with the rest of the task without it, and say in your report what you "
-            "could not do.")
+CARRY_ON = (
+    "Carry on with the rest of the task without it, and say in your report what you could not do."
+)
 REJECTED = (
     "rejected: the user declined to run this command. This is their decision, not a tool "
     "error: do not run it again, or anything that does the same. " + CARRY_ON
@@ -54,16 +55,22 @@ REJECTED = (
 # K-yargic: a command a sentence of the user's forbids at Full auto (`judge.verdict` "refuse"),
 # told as a declined one is: not "another way" - one no pattern of KOLONİ's sees (`python -c`,
 # `find -exec rm`) would go around the rule (the security review of slice 2).
-REFUSED = ("KOLONİ did not run this: your user's rule says \"{quote}\". Do not run it again, or "
-           "anything that does the same; do what the rule allows, or ask them. " + CARRY_ON)
-REFUSED_BY_A_MESSAGE = ("KOLONİ did not run this: a message of your user's in this chat forbids "
-                        "it. Do not run it again, or anything that does the same; do what it "
-                        "allows, or ask them. " + CARRY_ON)
+REFUSED = (
+    'KOLONİ did not run this: your user\'s rule says "{quote}". Do not run it again, or '
+    "anything that does the same; do what the rule allows, or ask them. " + CARRY_ON
+)
+REFUSED_BY_A_MESSAGE = (
+    "KOLONİ did not run this: a message of your user's in this chat forbids "
+    "it. Do not run it again, or anything that does the same; do what it "
+    "allows, or ask them. " + CARRY_ON
+)
 # B-389 (R187, live): a patch sent as a command, refused, and the agent gave up its change. Not
 # the change was refused - the command: it is made with the file tools, as a card of its own.
-FILE_TOOLS = ("If the change is still needed, make it with edit_file / write_file (or your own "
-              "file edit tool, where you work with your own tools); the user sees it as a file "
-              "change. ")
+FILE_TOOLS = (
+    "If the change is still needed, make it with edit_file / write_file (or your own "
+    "file edit tool, where you work with your own tools); the user sees it as a file "
+    "change. "
+)
 PATCH_REJECTED = (
     "rejected: the user declined to run this patch as a command. Do not run it again, or "
     "anything else that applies a patch, as a command. " + FILE_TOOLS + CARRY_ON
@@ -82,7 +89,8 @@ APPLY_PATCH = re.compile(r"(?:^|[|;&])\s*apply_patch\b", re.M)
 WRITES_FILE = re.compile(
     r"(?i)\[\s*(?:system\s*\.\s*)?io\s*\.\s*file\s*\]\s*::\s*(?:write|append)all"
     r"|\b(?:set-content|add-content|out-file)\b"
-    r"|(?<![=<>-])>>?(?![>&=])\s*(?!\$null\b|nul\b|/dev/null\b)[^\s|;&]")
+    r"|(?<![=<>-])>>?(?![>&=])\s*(?!\$null\b|nul\b|/dev/null\b)[^\s|;&]"
+)
 # ...and `New-Item … -Value`, looked for part by part: as one pattern, a long line of `new-item`
 # with no `-value` took seconds.
 NEW_ITEM, WITH_VALUE = re.compile(r"(?i)\bnew-item\b"), re.compile(r"(?i)\s-value\b")
@@ -90,7 +98,8 @@ NEW_ITEM, WITH_VALUE = re.compile(r"(?i)\bnew-item\b"), re.compile(r"(?i)\s-valu
 
 def _writes_file(command: str) -> bool:
     return bool(WRITES_FILE.search(command)) or any(
-        NEW_ITEM.search(part) and WITH_VALUE.search(part) for part in re.split(r"[|;&\n]", command))
+        NEW_ITEM.search(part) and WITH_VALUE.search(part) for part in re.split(r"[|;&\n]", command)
+    )
 
 
 def rejected(command: str) -> str:
@@ -136,8 +145,13 @@ def _free(ask: bool, disposable: dict | None, mode: str, allows: bool) -> bool:
     the caller found it so in a turn the user watches (`allowed`) and, read again as it is
     decided, the project allows such deletes (`allows`) and the chat is at Auto-edit or Full
     auto. What asks at every level is asked all the same."""
-    return (ask and disposable is not None and disposable["allowed"] and allows
-            and mode in ("auto_edit", "full_auto"))
+    return (
+        ask
+        and disposable is not None
+        and disposable["allowed"]
+        and allows
+        and mode in ("auto_edit", "full_auto")
+    )
 
 
 def _lapsed(disposable: dict | None, free: bool) -> bool:
@@ -151,8 +165,11 @@ def _noted(disposable: dict | None, unasked: bool) -> dict | None:
     """What of a command goes on its record as disposable (`schemas.DisposableOut`)."""
     return None if disposable is None else {"what": disposable["what"], "unasked": unasked}
 
-HELD_BACK = ("(secret variables held back from this command: {names} - the user can pass one "
-             "in Settings › This project › Commands and secrets)")
+
+HELD_BACK = (
+    "(secret variables held back from this command: {names} - the user can pass one "
+    "in Settings › This project › Commands and secrets)"
+)
 # A command that keeps running (a dev server, slice 42b): the tool answers once it printed
 # its address, or its output went quiet for SERVE_QUIET after it began, or SERVE_AT_MOST is up.
 SERVE_QUIET = 1.0
@@ -212,9 +229,9 @@ class CommandRunner:
         # the agents' places puts its own here, so that one that waits holds none. Its
         # last argument is called with the decision as soon as it is there, and with
         # whether the agent has to wait for a place before it can go on.
-        self.users_word: Callable[
-            [str, asyncio.Future[str], Callable[[str, bool], None]], Awaitable[str]
-        ] | None = None
+        self.users_word: (
+            Callable[[str, asyncio.Future[str], Callable[[str, bool], None]], Awaitable[str]] | None
+        ) = None
         # The ports a served address may not have: KOLONİ's own, the model servers'.
         self.closed_ports: Callable[[], set[int]] = set
         # A turn's secrets the user gave on a card (slice 91), by run id: name -> value.
@@ -235,10 +252,20 @@ class CommandRunner:
         return {k: text for k, (cid, text) in self._live.items() if cid == conversation_id}
 
     async def run(
-        self, run_id: str, cid: str, agent_id: str, ws: Workspace, call_id: str, args: dict,
-        ask: bool = True, where: Callable[[], Awaitable[Workspace]] | None = None,
-        always: bool = False, web_off: bool = False, once: set[str] | None = None,
-        judgement: dict | None = None, disposable: dict | None = None,
+        self,
+        run_id: str,
+        cid: str,
+        agent_id: str,
+        ws: Workspace,
+        call_id: str,
+        args: dict,
+        ask: bool = True,
+        where: Callable[[], Awaitable[Workspace]] | None = None,
+        always: bool = False,
+        web_off: bool = False,
+        once: set[str] | None = None,
+        judgement: dict | None = None,
+        disposable: dict | None = None,
         env: Mapping[str, str] | None = None,
     ) -> tuple[str, str]:
         """Returns the tool call's final status and the result text for the model.
@@ -259,23 +286,34 @@ class CommandRunner:
         deletes in this project" where it is asked. `env`: what its environment gets besides
         (KOLONİ's own test runs: their processes, S6) - never an agent's command."""
         planned = plan_command(ws, args)
-        searched = await asyncio.to_thread(
-            search_reason, planned.command, ws.root, planned.cwd_rel)
+        searched = await asyncio.to_thread(search_reason, planned.command, ws.root, planned.cwd_rel)
         reads = await asyncio.to_thread(
-            reads_here, planned.command, ws.root, planned.cwd_rel == ".", planned.cwd_rel)
+            reads_here, planned.command, ws.root, planned.cwd_rel == ".", planned.cwd_rel
+        )
         with self._factory() as session:
             conversation = session.get_one(Conversation, cid)
             project = session.get_one(Project, conversation.project_id)
             gate = _gate_open(conversation.permission_mode, project.full_auto_check)
             forbidden = _refuses(judgement, gate)
             if planned.keep_running and not forbidden:
-                self._may_serve(session, cid, project, ws, ask, where,
-                                lead=session.get_one(Agent, agent_id).depth == 0)
+                self._may_serve(
+                    session,
+                    cid,
+                    project,
+                    ws,
+                    ask,
+                    where,
+                    lead=session.get_one(Agent, agent_id).depth == 0,
+                )
             prefixes = [rule.prefix for rule in session.scalars(rules_here(conversation))]
             # (Its id is said beside a cut output only where recall_output would give it.)
             asked = session.get(ToolCall, call_id) if call_id else None  # (a check: none)
-            recall = call_id if asked is not None and recallable(
-                asked.name, asked.outside_folder, None, planned.command) else None
+            recall = (
+                call_id
+                if asked is not None
+                and recallable(asked.name, asked.outside_folder, None, planned.command)
+                else None
+            )
             # One the user is not asked about runs on a yes given before - a rule, the
             # level, its trigger's leave: "approved" from the first, so that while its
             # start is waited for it is not shown as waiting for the user, and a turn
@@ -292,16 +330,29 @@ class CommandRunner:
             # (K-fullauto-sorma: at Full auto an instruction file alone is not asked.)
             # (Judged with its cwd, `with_cwd`: `cwd=.koloni/tmp` and `.. ` reach out of it.)
             judged = with_cwd(planned.command, planned.cwd_rel)
-            free = _free(ask, disposable, conversation.permission_mode,
-                         project.disposable_deletes)
-            asks = ask and (always or names_secret(judged) or bool(standing_asked(
-                judged, conversation.permission_mode != "full_auto"))
-                or bool(searched) or judgement is not None and not gate
-                or _lapsed(disposable, free) or (
-                conversation.permission_mode != "full_auto"
-                and (planned.keep_running or not (is_allowed(planned.command, prefixes)
-                                                  or reads or own or free
-                                                  or planned.command in (once or ())))))
+            free = _free(ask, disposable, conversation.permission_mode, project.disposable_deletes)
+            asks = ask and (
+                always
+                or names_secret(judged)
+                or bool(standing_asked(judged, conversation.permission_mode != "full_auto"))
+                or bool(searched)
+                or judgement is not None
+                and not gate
+                or _lapsed(disposable, free)
+                or (
+                    conversation.permission_mode != "full_auto"
+                    and (
+                        planned.keep_running
+                        or not (
+                            is_allowed(planned.command, prefixes)
+                            or reads
+                            or own
+                            or free
+                            or planned.command in (once or ())
+                        )
+                    )
+                )
+            )
             # The place is fixed now: changing the project setting while this command
             # waits for a decision must not move it somewhere the user did not see.
             command = Command(
@@ -356,9 +407,13 @@ class CommandRunner:
             # turn; stop such a one at the turn's end if a secret is ever given to a server.
             given = self.secrets(run_id)
             running = await self._executors(location, project).start(
-                command_id, planned.command, planned.cwd_path,
-                copy=ws.root if in_copy else None, links=ws.links if in_copy else None,
-                secrets=given, env=env,
+                command_id,
+                planned.command,
+                planned.cwd_path,
+                copy=ws.root if in_copy else None,
+                links=ws.links if in_copy else None,
+                secrets=given,
+                env=env,
             )
         except StartError as exc:
             # The reason stays on the record, so the user sees it and not only the model.
@@ -375,25 +430,31 @@ class CommandRunner:
         self._masks[command_id] = OutputMask([*secret_values(os.environ), *given.values()])
         # Which were held back (slice 103), by name: the model is told, and that the user can
         # pass one. (Not one the user gave this turn on a card: it has that.)
-        held = [name for name in held_back(os.environ, project.pass_env)
-                if name.upper() not in given] if location == "host" else []
+        held = (
+            [name for name in held_back(os.environ, project.pass_env) if name.upper() not in given]
+            if location == "host"
+            else []
+        )
         note = f"\n{HELD_BACK.format(names=', '.join(held))}" if held else ""
         started = time.monotonic()
         if not planned.keep_running:
             ended = await self._through(cid, command_id, running, ws.root, planned.timeout)
-            status, said = self._told(
-                *ended, planned.timeout, time.monotonic() - started, recall)
+            status, said = self._told(*ended, planned.timeout, time.monotonic() - started, recall)
             return status, said + note
         heard = {"url": None, "at": None, "scanned": 0, "closed": self.closed_ports()}
-        life = asyncio.ensure_future(
-            self._through(cid, command_id, running, ws.root, None, heard))
+        life = asyncio.ensure_future(self._through(cid, command_id, running, ws.root, None, heard))
         self._serving[command_id] = (cid, life)
         life.add_done_callback(lambda _: self._serving.pop(command_id, None))
         status, said = await self._first_words(cid, command_id, life, heard, started)
         return status, said + note
 
     async def _through(
-        self, cid: str, command_id: str, running, root: Path, timeout: int | None,
+        self,
+        cid: str,
+        command_id: str,
+        running,
+        root: Path,
+        timeout: int | None,
         heard: dict | None = None,
     ) -> Ended:
         """Watch a started command to its end and record it: how it ended, its exit code,
@@ -438,8 +499,13 @@ class CommandRunner:
 
     @staticmethod
     def _told(
-        status: str, code: int | None, output: str, failure: str | None, timeout: int | None,
-        seconds: float, call_id: str | None = None,
+        status: str,
+        code: int | None,
+        output: str,
+        failure: str | None,
+        timeout: int | None,
+        seconds: float,
+        call_id: str | None = None,
     ) -> tuple[str, str]:
         """How a command ended, for the model: the tool call's status and its result - where
         that is cut, with the id that gives the whole of it (K-gecmis-zengin).
@@ -456,7 +522,13 @@ class CommandRunner:
         return "succeeded", f"exit code {code} ({seconds:.1f}s)\n{shown}"
 
     def _may_serve(
-        self, session, cid: str, project: Project, ws: Workspace, ask: bool, where,
+        self,
+        session,
+        cid: str,
+        project: Project,
+        ws: Workspace,
+        ask: bool,
+        where,
         lead: bool = False,
     ) -> None:
         """Why a command may not keep running here, as a ToolError: said before anything of
@@ -465,40 +537,56 @@ class CommandRunner:
         if project.exec_location == "docker":
             raise ToolError(
                 "keep_running is only on this machine for now, and this project runs its "
-                "commands in Docker: run it without keep_running, or ask the user to start it")
+                "commands in Docker: run it without keep_running, or ask the user to start it"
+            )
         # shortcut: never in a working copy (it goes with its agent's work, and a server in it
         # would too); upgrade when a sub-agent has to serve what it made.
         if (where is not None or ws.root != Path(project.root_path).resolve()) and lead:
             raise ToolError(
                 "keep_running does not run in the copy you work in: start it once the work is "
                 "taken into the project (the user's Take in), or run the server and its test in "
-                "one command without keep_running")
+                "one command without keep_running"
+            )
         if where is not None or ws.root != Path(project.root_path).resolve():
             raise ToolError(
                 "keep_running runs in the project folder itself, not in a working copy: "
-                "say what to start, and the Orchestrator starts it")
+                "say what to start, and the Orchestrator starts it"
+            )
         if not ask:
             raise ToolError("keep_running is not for a turn nobody watches")
         serving = session.scalar(
-            select(func.count()).select_from(Command).join(Run, Run.id == Command.run_id).where(
-                Run.conversation_id == cid, Command.keep_running,
+            select(func.count())
+            .select_from(Command)
+            .join(Run, Run.id == Command.run_id)
+            .where(
+                Run.conversation_id == cid,
+                Command.keep_running,
                 Command.status.in_(("proposed", "approved", "running")),
             )
         )
         if serving >= MAX_SERVING:
             raise ToolError(
                 f"at most three commands keep running in a conversation, and {serving} do: "
-                "nothing was started. The user can stop one under Preview")
+                "nothing was started. The user can stop one under Preview"
+            )
 
     async def _first_words(
-        self, cid: str, command_id: str, life: asyncio.Future[Ended], heard: dict,
+        self,
+        cid: str,
+        command_id: str,
+        life: asyncio.Future[Ended],
+        heard: dict,
         started: float,
     ) -> tuple[str, str]:
         """The answer for a command that keeps running: once it said its address, its output
         went quiet or SERVE_AT_MOST is up - or, where it ended first, as any command's."""
-        while not life.done() and heard["url"] is None and (
-            (heard["at"] is None or time.monotonic() - heard["at"] < SERVE_QUIET)
-            and time.monotonic() - started < SERVE_AT_MOST
+        while (
+            not life.done()
+            and heard["url"] is None
+            and (
+                (heard["at"] is None or time.monotonic() - heard["at"] < SERVE_QUIET)
+                and time.monotonic() - started < SERVE_AT_MOST
+            )
         ):
             await asyncio.sleep(0.05)
         if not life.done() and heard["url"] is None and heard["at"] is not None:
@@ -512,8 +600,11 @@ class CommandRunner:
                 return "failed", "error: the command was stopped"
             return self._told(*life.result(), None, time.monotonic() - started)
         last = "\n".join(self._live.get(command_id, (cid, ""))[1].splitlines()[-20:])
-        where = (f"serving {heard['url']}" if heard["url"]
-                 else "no address on this machine in its output yet")
+        where = (
+            f"serving {heard['url']}"
+            if heard["url"]
+            else "no address on this machine in its output yet"
+        )
         return "succeeded", (
             f"keeps running as command {command_id}, {where}. The user sees its page under "
             f"Preview and can stop it there. Its last lines:\n{for_model(last)}"
@@ -535,9 +626,11 @@ class CommandRunner:
                 self.stop(command_id)
         with self._factory() as session:
             asked = session.scalars(
-                select(Command.id).join(Run, Run.id == Command.run_id).where(
-                    Run.conversation_id == cid, Command.keep_running,
-                    Command.status == "proposed")
+                select(Command.id)
+                .join(Run, Run.id == Command.run_id)
+                .where(
+                    Run.conversation_id == cid, Command.keep_running, Command.status == "proposed"
+                )
             ).all()
         for command_id in asked:
             self.decide(command_id, "reject")
@@ -551,9 +644,19 @@ class CommandRunner:
         await asyncio.gather(*lives, return_exceptions=True)
 
     async def ask_for(
-        self, run_id: str, cid: str, agent_id: str, call_id: str, command: str,
-        ask: bool = True, always: bool = False, held: bool = False, reads: bool = False,
-        web_off: bool = False, cwd: str | None = None, judgement: dict | None = None,
+        self,
+        run_id: str,
+        cid: str,
+        agent_id: str,
+        call_id: str,
+        command: str,
+        ask: bool = True,
+        always: bool = False,
+        held: bool = False,
+        reads: bool = False,
+        web_off: bool = False,
+        cwd: str | None = None,
+        judgement: dict | None = None,
         disposable: dict | None = None,
     ) -> tuple[bool, str]:
         """A command a CLI is about to run with a tool of its own: put it on record,
@@ -571,9 +674,11 @@ class CommandRunner:
             conversation = session.get_one(Conversation, cid)
             mode = conversation.permission_mode
             prefixes = [rule.prefix for rule in session.scalars(rules_here(conversation))]
-            tests, check, allows = session.execute(select(
-                Project.test_commands, Project.full_auto_check, Project.disposable_deletes).where(
-                Project.id == conversation.project_id)).one()
+            tests, check, allows = session.execute(
+                select(
+                    Project.test_commands, Project.full_auto_check, Project.disposable_deletes
+                ).where(Project.id == conversation.project_id)
+            ).one()
             gate = _gate_open(mode, check)
             forbidden = _refuses(judgement, gate)
             # (as `run`'s: the user's own test command in its part's folder is not asked)
@@ -581,15 +686,28 @@ class CommandRunner:
             # (judged in its folder, as `run`'s: `> settings.json` in `.claude` - denetim-010 #18)
             judged = with_cwd(command, cwd)
             free = _free(ask, disposable, mode, allows)
-            asks = ask and (always or names_secret(judged)
-                            or bool(standing_asked(judged, mode != "full_auto"))
-                            or judgement is not None and not gate
-                            or _lapsed(disposable, free)
-                            or (mode != "full_auto"
-                                and not (is_allowed(command, prefixes) or reads or own or free)))
+            asks = ask and (
+                always
+                or names_secret(judged)
+                or bool(standing_asked(judged, mode != "full_auto"))
+                or judgement is not None
+                and not gate
+                or _lapsed(disposable, free)
+                or (
+                    mode != "full_auto"
+                    and not (is_allowed(command, prefixes) or reads or own or free)
+                )
+            )
             row = Command(
-                run_id=run_id, agent_id=agent_id, tool_call_id=call_id, command=command,
-                cwd=cwd, location="host", timeout_seconds=0, origin="cli", web_off=web_off,
+                run_id=run_id,
+                agent_id=agent_id,
+                tool_call_id=call_id,
+                command=command,
+                cwd=cwd,
+                location="host",
+                timeout_seconds=0,
+                origin="cli",
+                web_off=web_off,
                 status="refused" if forbidden else "proposed",
                 ended_at=now() if forbidden else None,
                 # (as `run`'s: what the check said holds only while its gate is open)
@@ -604,7 +722,8 @@ class CommandRunner:
             return False, command_id
         if asks:
             decision = await self._wait_for_decision(
-                run_id, cid, agent_id, command_id, payload["suggested_prefix"])
+                run_id, cid, agent_id, command_id, payload["suggested_prefix"]
+            )
             if decision == "reject":
                 self._set(cid, command_id, status="rejected", ended_at=now())
                 return False, command_id
@@ -632,8 +751,9 @@ class CommandRunner:
         if kill:
             self._ending[task] = root
             task.add_done_callback(
-                lambda done: None if done.cancelled() or done.exception()
-                else self._ending.pop(done, None)
+                lambda done: (
+                    None if done.cancelled() or done.exception() else self._ending.pop(done, None)
+                )
             )
         try:
             await asyncio.shield(task)
@@ -643,8 +763,9 @@ class CommandRunner:
             pass  # could not kill it; the record still says what we know
         return False
 
-    def close_open(self, run_id: str, cid: str, agent_id: str | None = None,
-                   calls: list[str] | None = None) -> None:
+    def close_open(
+        self, run_id: str, cid: str, agent_id: str | None = None, calls: list[str] | None = None
+    ) -> None:
         """Settle whatever a run (or one of its agents, or these of its tool calls) leaves
         behind: a command nobody decided on is rejected, one the user said yes to that never
         started - its agent never got its place, or its start never came back - is
@@ -666,8 +787,7 @@ class CommandRunner:
                     command.output = self._live.pop(command.id, (cid, command.output))[1]
                     command.status = "killed"
                 else:
-                    command.status = (
-                        "interrupted" if command.status == "approved" else "rejected")
+                    command.status = "interrupted" if command.status == "approved" else "rejected"
                 command.ended_at = now()
             session.commit()
             payloads = [command_event(command) for command in leftover]
@@ -735,7 +855,7 @@ class CommandRunner:
         self.emit_rules(cid)
 
     def _allow_disposable(self, cid: str, command_id: str) -> None:
-        """"Allow such deletes in this project" on a disposable delete's card: the project's own
+        """ "Allow such deletes in this project" on a disposable delete's card: the project's own
         switch on (`Project.disposable_deletes`), from now on - only from a row KOLONİ found
         disposable (the API takes the word on no other)."""
         with self._factory() as session:
@@ -747,8 +867,9 @@ class CommandRunner:
 
     def emit_rules(self, cid: str) -> None:
         with self._factory() as session:
-            rules = session.scalars(rules_here(session.get_one(Conversation, cid))
-                                    .order_by(AllowedCommand.created_at)).all()
+            rules = session.scalars(
+                rules_here(session.get_one(Conversation, cid)).order_by(AllowedCommand.created_at)
+            ).all()
             payload = {"rules": [allowed_command_out(rule) for rule in rules]}
         self.bus.emit(cid, None, "allowed_commands.updated", payload)
 
@@ -790,7 +911,7 @@ class CommandRunner:
         # (From a little before where the last look ended: an address cut by a chunk is whole.)
         # shortcut: the address is only what the output says - a server that prints none stays
         # "starting"; find the loopback port its process tree listens on if one is seen (B-351).
-        url = preview_url(output[max(0, heard["scanned"] - 512):], heard["closed"])
+        url = preview_url(output[max(0, heard["scanned"] - 512) :], heard["closed"])
         heard["scanned"] = len(output)
         if url:
             heard["url"] = url

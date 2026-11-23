@@ -33,10 +33,15 @@ def said(rows):
 def test_md_links_and_anchors(tmp_path):
     put(tmp_path, "docs/guide.md", "# Guide\n\n## Install it\n")
     put(tmp_path, "img/logo.png", b"png")
-    rel = put(tmp_path, "README.md", (
-        "# Readme\n\n## Start here\n\n[guide](docs/guide.md) and [install](docs/guide.md#install-it)"
-        " and ![logo](img/logo.png) and [up](#start-here) and [web](https://example.com) and "
-        "[mail](mailto:a@b.c) and [site root](/about)\n\n```\n[in a fence](nowhere.md)\n```\n"))
+    rel = put(
+        tmp_path,
+        "README.md",
+        (
+            "# Readme\n\n## Start here\n\n[guide](docs/guide.md) and [install](docs/guide.md#install-it)"
+            " and ![logo](img/logo.png) and [up](#start-here) and [web](https://example.com) and "
+            "[mail](mailto:a@b.c) and [site root](/about)\n\n```\n[in a fence](nowhere.md)\n```\n"
+        ),
+    )
     rows = check_docs(tmp_path, [rel])
     assert ("passed", "README.md: 4 links, all found") in said(rows), said(rows)
     put(tmp_path, "README.md", "# Readme\n\n[gone](docs/old.md) [bad anchor](docs/guide.md#nope)\n")
@@ -74,10 +79,12 @@ def test_docx_that_does_not_open(tmp_path):
     assert ("failed", "bad.docx: does not open as a Word document") in rows
 
 
-MODEL = ("<mxGraphModel><root><mxCell id='0'/><mxCell id='1' parent='0'/>"
-         "<mxCell id='a' value='A' vertex='1' parent='1'><mxGeometry x='0' y='0' width='80' height='40'/></mxCell>"
-         "<mxCell id='b' value='B' vertex='1' parent='1'><mxGeometry x='200' y='0' width='80' height='40'/></mxCell>"
-         "<mxCell id='e' edge='1' source='a' target='b' parent='1'/></root></mxGraphModel>")
+MODEL = (
+    "<mxGraphModel><root><mxCell id='0'/><mxCell id='1' parent='0'/>"
+    "<mxCell id='a' value='A' vertex='1' parent='1'><mxGeometry x='0' y='0' width='80' height='40'/></mxCell>"
+    "<mxCell id='b' value='B' vertex='1' parent='1'><mxGeometry x='200' y='0' width='80' height='40'/></mxCell>"
+    "<mxCell id='e' edge='1' source='a' target='b' parent='1'/></root></mxGraphModel>"
+)
 
 
 def packed(xml: str) -> str:
@@ -97,9 +104,11 @@ def test_drawio_plain_and_compressed(tmp_path):
 
 def test_drawio_dangling_edge_overlap_and_lonely_shape(tmp_path):
     model = MODEL.replace("target='b'", "target='gone'").replace(
-        "</root>", "<mxCell id='c' value='C' vertex='1' parent='1'><mxGeometry x='0' y='0' "
-                   "width='80' height='40'/></mxCell><mxCell id='d' value='D' vertex='1' parent='1'>"
-                   "<mxGeometry x='500' y='0' width='80' height='40'/></mxCell></root>")
+        "</root>",
+        "<mxCell id='c' value='C' vertex='1' parent='1'><mxGeometry x='0' y='0' "
+        "width='80' height='40'/></mxCell><mxCell id='d' value='D' vertex='1' parent='1'>"
+        "<mxGeometry x='500' y='0' width='80' height='40'/></mxCell></root>",
+    )
     rel = put(tmp_path, "d.drawio", f"<mxfile><diagram>{model}</diagram></mxfile>")
     rows = said(check_diagrams(tmp_path, [rel]))
     assert ("failed", "d.drawio: edge e points at nothing") in rows
@@ -122,11 +131,14 @@ def test_svg_and_mermaid(tmp_path):
 
 
 def test_an_xml_with_a_dtd_is_not_read(tmp_path):
-    bomb = ("<?xml version='1.0'?><!DOCTYPE lolz [<!ENTITY lol 'lol'>"
-            "<!ENTITY lol2 '&lol;&lol;&lol;'>]><svg>&lol2;</svg>")
+    bomb = (
+        "<?xml version='1.0'?><!DOCTYPE lolz [<!ENTITY lol 'lol'>"
+        "<!ENTITY lol2 '&lol;&lol;&lol;'>]><svg>&lol2;</svg>"
+    )
     rel = put(tmp_path, "bomb.svg", bomb)
     assert said(check_diagrams(tmp_path, [rel])) == [
-        ("note", "bomb.svg: not checked: it declares a DTD or entities, which KOLONİ does not read")]
+        ("note", "bomb.svg: not checked: it declares a DTD or entities, which KOLONİ does not read")
+    ]
 
 
 def test_csv_ragged_rows(tmp_path):
@@ -143,31 +155,53 @@ def notebook(cells):
 
 
 def test_notebook_out_of_order_and_error_cell(tmp_path):
-    put(tmp_path, "ok.ipynb", notebook([
-        {"cell_type": "code", "execution_count": 1, "outputs": [], "source": ""},
-        {"cell_type": "markdown", "source": "# x"},
-        {"cell_type": "code", "execution_count": 2, "outputs": [], "source": ""}]))
-    put(tmp_path, "bad.ipynb", notebook([
-        {"cell_type": "code", "execution_count": 3, "outputs": [], "source": ""},
-        {"cell_type": "code", "execution_count": 1, "source": "",
-         "outputs": [{"output_type": "error", "ename": "ZeroDivisionError"}]}]))
+    put(
+        tmp_path,
+        "ok.ipynb",
+        notebook(
+            [
+                {"cell_type": "code", "execution_count": 1, "outputs": [], "source": ""},
+                {"cell_type": "markdown", "source": "# x"},
+                {"cell_type": "code", "execution_count": 2, "outputs": [], "source": ""},
+            ]
+        ),
+    )
+    put(
+        tmp_path,
+        "bad.ipynb",
+        notebook(
+            [
+                {"cell_type": "code", "execution_count": 3, "outputs": [], "source": ""},
+                {
+                    "cell_type": "code",
+                    "execution_count": 1,
+                    "source": "",
+                    "outputs": [{"output_type": "error", "ename": "ZeroDivisionError"}],
+                },
+            ]
+        ),
+    )
     rows = said(check_data(tmp_path, ["ok.ipynb", "bad.ipynb", "c.parquet"]))
     assert ("passed", "ok.ipynb: 2 code cells, run in order") in rows
     assert ("note", "ok.ipynb: not re-run: KOLONİ does not run notebooks") in rows
     assert ("failed", "bad.ipynb: cell 2 ends in an error") in rows
     assert ("note", "bad.ipynb: cells did not run in order from 1 (3, 1)") in rows
     assert ("note", "c.parquet: not checked: 'c.parquet' does not exist") in rows or any(
-        text.startswith("c.parquet: not checked") for _state, text in rows)  # (not there: said)
+        text.startswith("c.parquet: not checked") for _state, text in rows
+    )  # (not there: said)
     put(tmp_path, "d.parquet", b"PAR1")
     assert said(check_data(tmp_path, ["d.parquet"])) == [
-        ("note", "d.parquet: not checked: only CSV and notebooks are read")]
+        ("note", "d.parquet: not checked: only CSV and notebooks are read")
+    ]
 
 
 def pptx(*slides, notes=0):
     made = io.BytesIO()
     with zipfile.ZipFile(made, "w") as deck:
         for at, body in enumerate(slides, 1):
-            deck.writestr(f"ppt/slides/slide{at}.xml", f"<p:sld xmlns:p='p' xmlns:a='a'>{body}</p:sld>")
+            deck.writestr(
+                f"ppt/slides/slide{at}.xml", f"<p:sld xmlns:p='p' xmlns:a='a'>{body}</p:sld>"
+            )
         for at in range(1, notes + 1):
             deck.writestr(f"ppt/notesSlides/notesSlide{at}.xml", "<p:notes/>")
     return made.getvalue()
@@ -188,7 +222,9 @@ def test_a_path_outside_the_root_is_never_read(tmp_path):
     put(tmp_path, "secret.md", "[x](nowhere.md)\n")
     rel = put(root, "a.md", "[out](../secret.md) [far](../../x.md)\n")
     assert said(check_docs(root, ["../secret.md"]))[0] == (
-        "note", "../secret.md: not read - it is outside the project")
+        "note",
+        "../secret.md: not read - it is outside the project",
+    )
     rows = said(check_docs(root, [rel]))
     assert ("note", "a.md: link to ../secret.md leads outside the project") in rows
     assert not [one for one in rows if one[0] == "failed"]
@@ -217,8 +253,14 @@ def test_a_zip_member_too_big_is_not_read(tmp_path, monkeypatch):
 
 def test_valid_files_a_reader_may_take_otherwise_are_not_failed(tmp_path):
     # (Review: each of these spent a fix round on valid work.)
-    put(tmp_path, "chart.pptx", pptx("<p:graphicFrame>chart</p:graphicFrame>",
-                                     "<p:sp><p:spPr><a:prstGeom prst='rect'/></p:spPr></p:sp>"))
+    put(
+        tmp_path,
+        "chart.pptx",
+        pptx(
+            "<p:graphicFrame>chart</p:graphicFrame>",
+            "<p:sp><p:spPr><a:prstGeom prst='rect'/></p:spPr></p:sp>",
+        ),
+    )
     put(tmp_path, "front.mmd", "---\ntitle: Flow\n---\nflowchart LR\n  A --> B\n")
     put(tmp_path, "new.mmd", "quadrantChart\n  title Reach\n")
     put(tmp_path, "odd.mmd", "someNewChart\n")
@@ -227,9 +269,12 @@ def test_valid_files_a_reader_may_take_otherwise_are_not_failed(tmp_path):
     put(tmp_path, "docs/api/index.md", "# API\n")
     put(tmp_path, "site.md", "# Site\n\n[g](docs/guide) [a](docs/api/) and `[code](nowhere.md)`\n")
     put(tmp_path, "wide.csv", "a,b\n" + "x" * 200_000 + ",1\n")
-    rows = said(check_slides(tmp_path, ["chart.pptx"]) + check_diagrams(
-        tmp_path, ["front.mmd", "new.mmd", "odd.mmd", "mind.puml"]) + check_docs(
-        tmp_path, ["site.md"]) + check_data(tmp_path, ["wide.csv"]))
+    rows = said(
+        check_slides(tmp_path, ["chart.pptx"])
+        + check_diagrams(tmp_path, ["front.mmd", "new.mmd", "odd.mmd", "mind.puml"])
+        + check_docs(tmp_path, ["site.md"])
+        + check_data(tmp_path, ["wide.csv"])
+    )
     assert not [one for one in rows if one[0] == "failed"], rows
     assert ("passed", "chart.pptx: 2 slides, 0 with notes") in rows
     assert ("passed", "front.mmd: a flowchart diagram") in rows
@@ -248,13 +293,16 @@ def test_a_zip_member_that_breaks_its_reader_is_said_not_checked(tmp_path):
         broken.writestr("ppt/slides/slide1.xml", "<p:sld><a:t>" + "word " * 200 + "</a:t></p:sld>")
     data = bytearray(made.getvalue())
     start = data.find(b"ppt/slides/slide1.xml") + len("ppt/slides/slide1.xml")
-    data[start + 5:start + 25] = b"\xff" * 20  # (inside the compressed stream)
+    data[start + 5 : start + 25] = b"\xff" * 20  # (inside the compressed stream)
     rel = put(tmp_path, "broken.pptx", bytes(data))
     rows = said(check_slides(tmp_path, [rel]))
     # (One line for the file - however its reader breaks - never the whole check broken.)
-    assert at >= 0 and len(rows) == 1 and rows[0] in (
-        ("failed", "broken.pptx: does not open as a PowerPoint file"),) or rows[0][1].startswith(
-        "broken.pptx: not checked"), rows
+    assert (
+        at >= 0
+        and len(rows) == 1
+        and rows[0] in (("failed", "broken.pptx: does not open as a PowerPoint file"),)
+        or rows[0][1].startswith("broken.pptx: not checked")
+    ), rows
 
 
 def test_a_file_gives_at_most_a_dozen_lines(tmp_path):
@@ -268,13 +316,16 @@ def test_a_file_gives_at_most_a_dozen_lines(tmp_path):
 def test_a_reader_that_breaks_any_way_is_one_line_not_a_broken_check(tmp_path, monkeypatch):
     def broke(_data, _rel):
         raise RuntimeError("zipfile: a member of an unknown compression")
+
     monkeypatch.setattr(proof_kinds, "_pptx", broke)
     rel = put(tmp_path, "a.pptx", pptx("<a:t>x</a:t>"))
     assert said(check_slides(tmp_path, [rel])) == [
-        ("note", "a.pptx: not checked: zipfile: a member of an unknown compression")]
+        ("note", "a.pptx: not checked: zipfile: a member of an unknown compression")
+    ]
 
 
 # --- review of S5a: what a hostile file inflates to is read no further than the caps -----------
+
 
 def peak_of(work):
     """What `work` returns, and the most Python heap it held at once."""
@@ -295,16 +346,39 @@ def lying_docx(inflated: int, says: int) -> bytes:
     squeeze = zlib.compressobj(9, zlib.DEFLATED, -15)
     raw = squeeze.compress(b"<a>" + b"A" * inflated + b"</a>") + squeeze.flush()
     name = b"word/document.xml"
-    local = struct.pack("<4s5H3L2H", b"PK\x03\x04", 20, 0, 8, 0, 0, 0, len(raw), says,
-                        len(name), 0) + name + raw
-    central = struct.pack("<4s6H3L5H2L", b"PK\x01\x02", 20, 20, 0, 8, 0, 0, 0, len(raw), says,
-                          len(name), 0, 0, 0, 0, 0, 0) + name
+    local = (
+        struct.pack("<4s5H3L2H", b"PK\x03\x04", 20, 0, 8, 0, 0, 0, len(raw), says, len(name), 0)
+        + name
+        + raw
+    )
+    central = (
+        struct.pack(
+            "<4s6H3L5H2L",
+            b"PK\x01\x02",
+            20,
+            20,
+            0,
+            8,
+            0,
+            0,
+            0,
+            len(raw),
+            says,
+            len(name),
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+        )
+        + name
+    )
     end = struct.pack("<4s4H2LH", b"PK\x05\x06", 0, 0, 1, 1, len(central), len(local), 0)
     return local + central + end
 
 
-def test_a_zip_member_is_read_no_further_than_the_cap_whatever_size_it_says(tmp_path,
-                                                                             monkeypatch):
+def test_a_zip_member_is_read_no_further_than_the_cap_whatever_size_it_says(tmp_path, monkeypatch):
     # (The probe: a 298 KB .docx saying 100 bytes inflated to 300 MB at once - 602 MB of heap.
     # A file is read no further than MOST_BYTES + 1 - Python makes room for that much first.)
     monkeypatch.setattr(proof_kinds, "MOST_INFLATED", 64 * 2**10)
@@ -325,13 +399,17 @@ def test_a_decks_slides_are_capped_together_and_by_number(tmp_path, monkeypatch)
     monkeypatch.setattr(proof_kinds, "MOST_MEMBERS", 3)
     rel = put(tmp_path, "four.pptx", pptx(*["<a:t>x</a:t>"] * 4))
     assert said(check_slides(tmp_path, [rel])) == [
-        ("note", "four.pptx: not checked: it has over 3 slides")]
+        ("note", "four.pptx: not checked: it has over 3 slides")
+    ]
 
 
 def drawio_pages(n: int, size: int) -> str:
     page = f"<mxGraphModel><root><mxCell id='0' value='{'A' * size}'/></root></mxGraphModel>"
-    return "<mxfile>" + "".join(f"<diagram id='p{i}'>{packed(page)}</diagram>"
-                                for i in range(n)) + "</mxfile>"
+    return (
+        "<mxfile>"
+        + "".join(f"<diagram id='p{i}'>{packed(page)}</diagram>" for i in range(n))
+        + "</mxfile>"
+    )
 
 
 def test_a_drawio_files_pages_are_capped_together(tmp_path, monkeypatch):
@@ -353,18 +431,28 @@ def test_a_drawio_files_pages_are_checked_one_at_a_time(tmp_path, monkeypatch):
 
 def test_a_dtd_is_refused_whatever_the_encoding(tmp_path):
     # (The probe: in UTF-16 the byte search for "<!DOCTYPE" found nothing.)
-    laughs = ('<?xml version="1.0" encoding="UTF-16"?><!DOCTYPE svg [<!ENTITY a "' + "x" * 100
-              + '"><!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;">]><svg>&b;</svg>')
-    outside = ('<?xml version="1.0" encoding="UTF-16"?><!DOCTYPE svg [<!ENTITY x SYSTEM '
-               '"file:///C:/Windows/win.ini">]><svg>&x;</svg>')
+    laughs = (
+        '<?xml version="1.0" encoding="UTF-16"?><!DOCTYPE svg [<!ENTITY a "'
+        + "x" * 100
+        + '"><!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;">]><svg>&b;</svg>'
+    )
+    outside = (
+        '<?xml version="1.0" encoding="UTF-16"?><!DOCTYPE svg [<!ENTITY x SYSTEM '
+        '"file:///C:/Windows/win.ini">]><svg>&x;</svg>'
+    )
     put(tmp_path, "laughs.svg", laughs.encode("utf-16"))
     put(tmp_path, "outside.svg", outside.encode("utf-16"))
-    put(tmp_path, "fine.svg", '<?xml version="1.0" encoding="UTF-16"?><svg><rect/></svg>'.encode(
-        "utf-16"))
+    put(
+        tmp_path,
+        "fine.svg",
+        '<?xml version="1.0" encoding="UTF-16"?><svg><rect/></svg>'.encode("utf-16"),
+    )
     refused = "not checked: it declares a DTD or entities, which KOLONİ does not read"
     assert said(check_diagrams(tmp_path, ["laughs.svg", "outside.svg", "fine.svg"])) == [
-        ("note", f"laughs.svg: {refused}"), ("note", f"outside.svg: {refused}"),
-        ("passed", "fine.svg: parses")]
+        ("note", f"laughs.svg: {refused}"),
+        ("note", f"outside.svg: {refused}"),
+        ("passed", "fine.svg: parses"),
+    ]
 
 
 def test_a_member_compressed_other_than_office_does_is_not_read(tmp_path):
@@ -372,12 +460,16 @@ def test_a_member_compressed_other_than_office_does_is_not_read(tmp_path):
     def zipped(name, how):
         made = io.BytesIO()
         with zipfile.ZipFile(made, "w") as held:
-            held.writestr(zipfile.ZipInfo(name), b"<a:t>" + b"x" * 10_000 + b"</a:t>",
-                          compress_type=how)
+            held.writestr(
+                zipfile.ZipInfo(name), b"<a:t>" + b"x" * 10_000 + b"</a:t>", compress_type=how
+            )
         return made.getvalue()
+
     put(tmp_path, "b.docx", zipped("word/document.xml", zipfile.ZIP_BZIP2))
     put(tmp_path, "l.pptx", zipped("ppt/slides/slide1.xml", zipfile.ZIP_LZMA))
     odd = "not checked: compressed in a way KOLONİ does not read"
     rows = said(check_docs(tmp_path, ["b.docx"]) + check_slides(tmp_path, ["l.pptx"]))
     assert [one for one in rows if one[1].startswith(("b.docx", "l.pptx"))] == [
-        ("note", f"b.docx: {odd}"), ("note", f"l.pptx: {odd}")], rows
+        ("note", f"b.docx: {odd}"),
+        ("note", f"l.pptx: {odd}"),
+    ], rows

@@ -48,10 +48,13 @@ async def test_a_stalled_stream_fails_with_a_reason():
 @pytest.mark.anyio
 async def test_an_error_chunk_inside_the_stream_fails_the_step():
     def handler(request):
-        return httpx2.Response(200, content=sse_body(
-            {"choices": [{"delta": {"content": "par"}}]},
-            {"error": {"message": "context size exceeded"}},
-        ))
+        return httpx2.Response(
+            200,
+            content=sse_body(
+                {"choices": [{"delta": {"content": "par"}}]},
+                {"error": {"message": "context size exceeded"}},
+            ),
+        )
 
     client = OpenAICompatClient("http://model/v1", transport=httpx2.MockTransport(handler))
     with pytest.raises(ModelUnavailable, match="context size exceeded"):
@@ -94,11 +97,33 @@ def _seed_proposed_change(tmp_path, written: bool):
         s.flush()
         s.add(Message(id="m", conversation_id="c", run_id="r", role="assistant"))
         s.flush()
-        s.add(ToolCall(id="t", run_id="r", agent_id="a", message_id="m", seq=1, provider_call_id="t",
-                       name="write_file", arguments="{}", status="running"))
+        s.add(
+            ToolCall(
+                id="t",
+                run_id="r",
+                agent_id="a",
+                message_id="m",
+                seq=1,
+                provider_call_id="t",
+                name="write_file",
+                arguments="{}",
+                status="running",
+            )
+        )
         s.flush()
-        s.add(FileChange(id="f", run_id="r", agent_id="a", tool_call_id="t", path="f.txt", kind="create",
-                         after_content="new\n", after_sha=sha256_text("new\n"), status="proposed"))
+        s.add(
+            FileChange(
+                id="f",
+                run_id="r",
+                agent_id="a",
+                tool_call_id="t",
+                path="f.txt",
+                kind="create",
+                after_content="new\n",
+                after_sha=sha256_text("new\n"),
+                status="proposed",
+            )
+        )
         s.commit()
     return factory
 
@@ -119,14 +144,23 @@ def test_recovery_rejects_a_change_whose_file_was_not_written(tmp_path):
 
 
 def test_stop_lets_the_running_read_finish_and_records_its_result(
-        make_client, wait_run, project_dir, monkeypatch):
+    make_client, wait_run, project_dir, monkeypatch
+):
     def slow_read(ws, name, args, *search):  # (a search's time limit and its stop: slice 36)
         time.sleep(0.3)
         return "slow result"
 
     monkeypatch.setattr(agent, "run_read_tool", slow_read)
-    client, _ = make_client([StepResult("", [
-        ToolCallRequest("a", "list_dir", "{}"), ToolCallRequest("b", "list_dir", "{}")], 1, 1)])
+    client, _ = make_client(
+        [
+            StepResult(
+                "",
+                [ToolCallRequest("a", "list_dir", "{}"), ToolCallRequest("b", "list_dir", "{}")],
+                1,
+                1,
+            )
+        ]
+    )
     cid, run_id = start(client, project_dir)
     time.sleep(0.1)
     client.post(f"/api/runs/{run_id}/cancel")
@@ -138,7 +172,8 @@ def test_stop_lets_the_running_read_finish_and_records_its_result(
 
 
 def test_a_failing_finish_does_not_strand_the_queue(
-        make_client, wait_run, project_dir, gate, monkeypatch):
+    make_client, wait_run, project_dir, gate, monkeypatch
+):
     real_finish = AgentRunner._finish
     calls = {"n": 0}
 

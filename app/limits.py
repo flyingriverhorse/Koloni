@@ -85,14 +85,24 @@ FROM_ANSWER = "its last answer"
 # DeepSeek's API, the one service whose key is asked its balance (`deepseek_balance`): only a
 # provider whose base URL is on its host is (`is_deepseek`), and the key goes only there.
 DEEPSEEK = "https://api.deepseek.com"
-FAILURES = ("rate_limited", "credits_exhausted", "signed_out", "cli_crashed", "empty_output",
-            "other")
+FAILURES = (
+    "rate_limited",
+    "credits_exhausted",
+    "signed_out",
+    "cli_crashed",
+    "empty_output",
+    "other",
+)
 # The CLIs that say what is left of their plan without a model turn, read as they are looked
 # at (`Limits.refresh`): no more often than this, in seconds, read well or not.
 QUIET = ("agy_cli", "copilot_cli")
 AUTO_EVERY = 600
-NAMES = {"codex_cli": "Codex", "claude_cli": "Claude Code", "agy_cli": "agy",
-         "copilot_cli": "Copilot"}
+NAMES = {
+    "codex_cli": "Codex",
+    "claude_cli": "Claude Code",
+    "agy_cli": "agy",
+    "copilot_cli": "Copilot",
+}
 # K-claude-hesap: the kinds a provider may give a sign-in folder of its own, and where those are
 # in the runtime (`cli_home`).
 SIGN_IN_KINDS = ("claude_cli", "codex_cli")
@@ -131,7 +141,8 @@ async def _rate_limits(stdin: asyncio.StreamWriter, stdout: asyncio.StreamReader
             read += len(raw)
             if read > MAX_BYTES:
                 raise ModelUnavailable(
-                    "Codex said too much without saying what is left of its plan")
+                    "Codex said too much without saying what is left of its plan"
+                )
             try:
                 told = json.loads(raw)
             except ValueError:
@@ -139,13 +150,17 @@ async def _rate_limits(stdin: asyncio.StreamWriter, stdout: asyncio.StreamReader
             # A request of its own can carry the same id: an answer names no method.
             if isinstance(told, dict) and told.get("id") == to and "method" not in told:
                 if "result" not in told:
-                    raise ModelUnavailable(
-                        "Codex would not say what is left of its plan")
+                    raise ModelUnavailable("Codex would not say what is left of its plan")
                 return told["result"]
         raise ModelUnavailable("Codex ended without saying what is left of its plan")
 
-    await ask({"id": 1, "method": "initialize",
-               "params": {"clientInfo": {"name": "koloni", "version": "0"}}})
+    await ask(
+        {
+            "id": 1,
+            "method": "initialize",
+            "params": {"clientInfo": {"name": "koloni", "version": "0"}},
+        }
+    )
     await answer(1)
     await ask({"method": "initialized"})
     await ask({"id": 2, "method": "account/rateLimits/read"})
@@ -153,7 +168,9 @@ async def _rate_limits(stdin: asyncio.StreamWriter, stdout: asyncio.StreamReader
 
 
 async def app_server(
-    executable: str | None, timeout: float = SECONDS, launcher: list[str] | None = None,
+    executable: str | None,
+    timeout: float = SECONDS,
+    launcher: list[str] | None = None,
     home: Path | None = None,
 ) -> dict:
     """What `codex app-server` answers to `account/rateLimits/read`: no model is called.
@@ -169,6 +186,7 @@ async def app_server(
         async with asyncio.timeout(timeout):
             command, shim = client._command()
             arguments = await asyncio.to_thread(client._arguments, workdir)
+
             # Not given up half-way: a Codex that was started is one that is ended below.
             async def start() -> tuple:
                 return await client._start([*command, *arguments], shim, workdir)
@@ -210,14 +228,27 @@ class _OneTurn(ClaudeCliClient):
         # plugins or settings; no session kept) without its answer format, and a one-line
         # system prompt in place of Claude Code's long one: as little as a turn can cost.
         return [
-            "-p", "--tools", "", "--strict-mcp-config", "--no-session-persistence",
-            "--setting-sources", "", "--output-format", "stream-json", "--verbose",
-            "--system-prompt", "Answer with one word.", "--model", self._model or "haiku",
+            "-p",
+            "--tools",
+            "",
+            "--strict-mcp-config",
+            "--no-session-persistence",
+            "--setting-sources",
+            "",
+            "--output-format",
+            "stream-json",
+            "--verbose",
+            "--system-prompt",
+            "Answer with one word.",
+            "--model",
+            self._model or "haiku",
         ]
 
 
 async def claude_turn(
-    executable: str | None, timeout: float = CLAUDE_SECONDS, launcher: list[str] | None = None,
+    executable: str | None,
+    timeout: float = CLAUDE_SECONDS,
+    launcher: list[str] | None = None,
     home: Path | None = None,
 ) -> dict:
     """The `rate_limit_info` of the last `rate_limit_event` of one short Claude Code turn:
@@ -233,19 +264,23 @@ async def claude_turn(
         # Nobody's work: nothing of it is in an agent's raw stream.
         with of(None):
             code, stdout, stderr = await client._run(
-                [*command, *client._arguments(workdir)], shim, "Say ok.", workdir)
+                [*command, *client._arguments(workdir)], shim, "Say ok.", workdir
+            )
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
     client._limits(stdout)
     if not said:
         why = f": {_brief(stderr)}" if _brief(stderr) else ""
         raise ModelUnavailable(
-            f"Claude Code ended without saying its limits (exit code {code}){why}")
+            f"Claude Code ended without saying its limits (exit code {code}){why}"
+        )
     return said[-1]
 
 
 async def agy_quota(
-    executable: str | None, homes: Path | None, timeout: float = SECONDS,
+    executable: str | None,
+    homes: Path | None,
+    timeout: float = SECONDS,
     launcher: list[str] | None = None,
 ) -> dict:
     """What `agy -p /quota --output-format json` answers: no model turn (`num_turns: 0`,
@@ -257,13 +292,18 @@ async def agy_quota(
     homes = homes or Path(tempfile.gettempdir())
     homes.mkdir(parents=True, exist_ok=True)
     home = Path(tempfile.mkdtemp(prefix="agy-", dir=homes))  # (as `sweep_homes` clears them)
-    client = AgyClient(executable, reads=False, launcher=launcher,
-                       env={"USERPROFILE": str(home), "HOME": str(home)})
+    client = AgyClient(
+        executable,
+        reads=False,
+        launcher=launcher,
+        env={"USERPROFILE": str(home), "HOME": str(home)},
+    )
     try:
         try:
             # A list, never a shell's line: Git Bash's once made a path of "/quota".
             code, printed, complaint = await client.run_status(
-                ["-p", "/quota", "--output-format", "json"], timeout)
+                ["-p", "/quota", "--output-format", "json"], timeout
+            )
         except OSError as exc:
             raise OwnStop(f"agy could not be started: {exc.strerror or exc}") from None
     finally:
@@ -281,13 +321,19 @@ async def agy_quota(
 
 
 async def copilot_quota(
-    executable: str | None, token: str | None, timeout: float = SECONDS,
+    executable: str | None,
+    token: str | None,
+    timeout: float = SECONDS,
     launcher: list[str] | None = None,
 ) -> dict:
     """What Copilot headless answers to `account.getQuota` (measured on 1.0.91): only its
     `quotaSnapshots` are handed on."""
-    told = await _copilot_asked(CopilotNativeClient(executable, api_key=token, launcher=launcher),
-                                "account.getQuota", "what is left of its plan", timeout)
+    told = await _copilot_asked(
+        CopilotNativeClient(executable, api_key=token, launcher=launcher),
+        "account.getQuota",
+        "what is left of its plan",
+        timeout,
+    )
     # Whose account it is is nobody's business here: only what is left of it is kept.
     return {"quotaSnapshots": _dict(told).get("quotaSnapshots")}
 
@@ -296,7 +342,9 @@ def is_deepseek(provider: Provider) -> bool:
     """Whether a provider is DeepSeek's API: an OpenAI-compatible one on its host."""
     ours, theirs = urlsplit(DEEPSEEK), urlsplit(provider.base_url or "")
     return provider.kind == "openai_compat" and (theirs.scheme, theirs.netloc) == (
-        ours.scheme, ours.netloc)
+        ours.scheme,
+        ours.netloc,
+    )
 
 
 async def deepseek_balance(key: str | None, timeout: float = SECONDS) -> object:
@@ -306,13 +354,13 @@ async def deepseek_balance(key: str | None, timeout: float = SECONDS) -> object:
         raise OwnStop("this provider needs an API key")
     try:
         async with httpx2.AsyncClient(timeout=httpx2.Timeout(timeout, connect=5.0)) as http:
-            response = await http.get(f"{DEEPSEEK}/user/balance",
-                                      headers={"Authorization": f"Bearer {key}"})
+            response = await http.get(
+                f"{DEEPSEEK}/user/balance", headers={"Authorization": f"Bearer {key}"}
+            )
             response.raise_for_status()
             return response.json()
     except httpx2.HTTPStatusError as exc:
-        raise ModelUnavailable(
-            f"DeepSeek's balance answered {exc.response.status_code}") from None
+        raise ModelUnavailable(f"DeepSeek's balance answered {exc.response.status_code}") from None
     except httpx2.HTTPError as exc:
         raise ModelUnavailable(_describe(exc)) from None
     except ValueError:
@@ -320,21 +368,33 @@ async def deepseek_balance(key: str | None, timeout: float = SECONDS) -> object:
 
 
 async def copilot_signed_in(
-    executable: str | None, token: str | None, timeout: float = SECONDS,
+    executable: str | None,
+    token: str | None,
+    timeout: float = SECONDS,
     launcher: list[str] | None = None,
 ) -> dict:
     """What Copilot headless answers to `auth.getStatus` (measured on 1.0.103): whether it
     is signed in and how. Its statusMessage names the account: it is never kept."""
-    told = _dict(await _copilot_asked(
-        CopilotNativeClient(executable, api_key=token, launcher=launcher), "auth.getStatus",
-        "whether it is signed in", timeout))
+    told = _dict(
+        await _copilot_asked(
+            CopilotNativeClient(executable, api_key=token, launcher=launcher),
+            "auth.getStatus",
+            "whether it is signed in",
+            timeout,
+        )
+    )
     signed_in, how = told.get("isAuthenticated"), told.get("authType")
-    return {"isAuthenticated": signed_in if isinstance(signed_in, bool) else None,
-            "authType": how if isinstance(how, str) else None}
+    return {
+        "isAuthenticated": signed_in if isinstance(signed_in, bool) else None,
+        "authType": how if isinstance(how, str) else None,
+    }
 
 
 async def _copilot_asked(
-    client: CopilotNativeClient, method: str, saying: str, timeout: float,
+    client: CopilotNativeClient,
+    method: str,
+    saying: str,
+    timeout: float,
 ) -> object:
     """What Copilot headless answers to `method` after its `ping`: no session, no turn.
     Started as `client`'s native Copilot is: KOLONİ's empty COPILOT_HOME, the provider's GitHub
@@ -369,8 +429,9 @@ async def _copilot_asked(
             complaints = asyncio.ensure_future(unheard())
 
             async def ask(number: int, method: str) -> object:
-                body = json.dumps({"jsonrpc": "2.0", "id": number, "method": method,
-                                   "params": {}}).encode("utf-8")
+                body = json.dumps(
+                    {"jsonrpc": "2.0", "id": number, "method": method, "params": {}}
+                ).encode("utf-8")
                 stdin.write(b"Content-Length: %d\r\n\r\n" % len(body) + body)
                 await stdin.drain()
                 # A request or notification of its own comes in between: it names a method.
@@ -379,8 +440,7 @@ async def _copilot_asked(
                         if "result" not in told:
                             error = told.get("error")
                             why = _brief(client._hide(str(_dict(error).get("message") or error)))
-                            raise ModelUnavailable(
-                                f"Copilot would not say {saying}: {why}")
+                            raise ModelUnavailable(f"Copilot would not say {saying}: {why}")
                         return told["result"]
                 raise ModelUnavailable(f"Copilot ended without saying {saying}")
 
@@ -412,8 +472,13 @@ def _number(value: object) -> int | float | None:
 def _window(name: str | None, minutes: object, used: object, resets: object) -> dict | None:
     if _number(used) is None and when(resets) is None:
         return None  # it says nothing of this window
-    return {"name": name, "minutes": minutes if isinstance(minutes, int) else None,
-            "used_percent": _number(used), "resets_at": when(resets), "stale": False}
+    return {
+        "name": name,
+        "minutes": minutes if isinstance(minutes, int) else None,
+        "used_percent": _number(used),
+        "resets_at": when(resets),
+        "stale": False,
+    }
 
 
 def of_codex(told: object, read_at: datetime) -> dict:
@@ -422,12 +487,15 @@ def of_codex(told: object, read_at: datetime) -> dict:
     if not isinstance(limits, dict):
         return {"unknown": "Codex's answer could not be read"}
     windows = [
-        window for window in (
-            _window(None, part.get("windowDurationMins"), part.get("usedPercent"),
-                    part.get("resetsAt"))
+        window
+        for window in (
+            _window(
+                None, part.get("windowDurationMins"), part.get("usedPercent"), part.get("resetsAt")
+            )
             for part in (limits.get("primary"), limits.get("secondary"))
             if isinstance(part, dict)
-        ) if window
+        )
+        if window
     ]
     credits, plan = limits.get("credits"), limits.get("planType")
     if isinstance(credits, dict):
@@ -443,8 +511,14 @@ def of_codex(told: object, read_at: datetime) -> dict:
     if not windows and not credits and not plan:
         return {"unknown": "Codex's answer says nothing of its plan"}
     # `reached`: which limit Codex says is reached, if any. For `room` only - not shown.
-    return {"read_at": read_at, "source": None, "plan": plan, "windows": windows,
-            "credits": credits, "reached": limits.get("rateLimitReachedType") is not None}
+    return {
+        "read_at": read_at,
+        "source": None,
+        "plan": plan,
+        "windows": windows,
+        "credits": credits,
+        "reached": limits.get("rateLimitReachedType") is not None,
+    }
 
 
 def _iso(value: object) -> float | None:
@@ -471,13 +545,13 @@ def of_agy(told: object, read_at: datetime) -> dict:
                 str(group.get("name") or bucket.get("id") or "agy"),
                 AGY_MINUTES.get(str(bucket.get("window"))),
                 None if left is None else round(100 * (1 - left), 2),
-                _iso(bucket.get("reset_time")))
+                _iso(bucket.get("reset_time")),
+            )
             if window:
                 windows.append(window)
     if not windows:
         return {"unknown": "agy's answer says nothing of its plan"}
-    return {"read_at": read_at, "source": None, "plan": None, "windows": windows,
-            "credits": None}
+    return {"read_at": read_at, "source": None, "plan": None, "windows": windows, "credits": None}
 
 
 def of_copilot(told: object, read_at: datetime) -> dict:
@@ -492,12 +566,14 @@ def of_copilot(told: object, read_at: datetime) -> dict:
     # within a few minutes of the reading, or before it, is not known.
     if resets is not None and resets <= read_at.timestamp() + 300:
         resets = None
-    window = None if premium.get("isUnlimitedEntitlement") is True else _window(
-        PREMIUM, None, None if left is None else round(100 - left, 2), resets)
+    window = (
+        None
+        if premium.get("isUnlimitedEntitlement") is True
+        else _window(PREMIUM, None, None if left is None else round(100 - left, 2), resets)
+    )
     if not window:
         return {"unknown": "Copilot's answer says nothing of a limited plan"}
-    return {"read_at": read_at, "source": None, "plan": None, "windows": [window],
-            "credits": None}
+    return {"read_at": read_at, "source": None, "plan": None, "windows": [window], "credits": None}
 
 
 def of_deepseek(told: object, read_at: datetime) -> dict:
@@ -505,16 +581,23 @@ def of_deepseek(told: object, read_at: datetime) -> dict:
     any. shortcut: its shape is from its API documentation, not seen from a real key here."""
     told = _dict(told)
     infos = told.get("balance_infos")
-    parts = [f"{info['total_balance']} {info['currency']}"
-             for info in map(_dict, infos if isinstance(infos, list) else [])
-             if isinstance(info.get("total_balance"), str)
-             and isinstance(info.get("currency"), str)]
+    parts = [
+        f"{info['total_balance']} {info['currency']}"
+        for info in map(_dict, infos if isinstance(infos, list) else [])
+        if isinstance(info.get("total_balance"), str) and isinstance(info.get("currency"), str)
+    ]
     has = told.get("is_available")
     if not parts and not isinstance(has, bool):
         return {"unknown": "DeepSeek's answer says nothing of its balance"}
-    return {"read_at": read_at, "source": None, "credits": {
-        "balance": ", ".join(parts) or None, "has_credits": has if isinstance(has, bool) else None,
-        "unlimited": None}}
+    return {
+        "read_at": read_at,
+        "source": None,
+        "credits": {
+            "balance": ", ".join(parts) or None,
+            "has_credits": has if isinstance(has, bool) else None,
+            "unlimited": None,
+        },
+    }
 
 
 def _count(value: str | None) -> int | None:
@@ -559,18 +642,28 @@ def of_headers(headers, read_at: datetime) -> list[dict]:
             limit, left = (_count(headers.get(anthropic + one)) for one in ("limit", "remaining"))
             resets, minutes = _rfc3339(headers.get(anthropic + "reset")), 1
         else:
-            limit, left = (_count(headers.get(f"x-ratelimit-{one}-{part}"))
-                           for one in ("limit", "remaining"))
+            limit, left = (
+                _count(headers.get(f"x-ratelimit-{one}-{part}")) for one in ("limit", "remaining")
+            )
             resets, minutes = _after(headers.get(f"x-ratelimit-reset-{part}"), read_at), None
         if limit is not None or left is not None:
-            windows.append({"name": part.replace("-", " "), "minutes": minutes,
-                            "used_percent": None, "resets_at": resets, "stale": False,
-                            "limit": limit, "remaining": left})
+            windows.append(
+                {
+                    "name": part.replace("-", " "),
+                    "minutes": minutes,
+                    "used_percent": None,
+                    "resets_at": resets,
+                    "stale": False,
+                    "limit": limit,
+                    "remaining": left,
+                }
+            )
     return windows
 
 
 def of_claude(info: dict, read_at: datetime) -> dict:
     """Claude Code's `rate_limit_info`, as it is shown: a window for each it names."""
+
     def percent(share: object) -> int | float | None:
         share = _number(share)
         if share is None:
@@ -580,20 +673,33 @@ def of_claude(info: dict, read_at: datetime) -> dict:
 
     named = info.get("unifiedWindows")
     windows = [
-        window for name, part in (named.items() if isinstance(named, dict) else ())
-        if isinstance(part, dict) and (window := _window(
-            str(name), CLAUDE_MINUTES.get(name), percent(part.get("utilization")),
-            part.get("resetsAt")))
+        window
+        for name, part in (named.items() if isinstance(named, dict) else ())
+        if isinstance(part, dict)
+        and (
+            window := _window(
+                str(name),
+                CLAUDE_MINUTES.get(name),
+                percent(part.get("utilization")),
+                part.get("resetsAt"),
+            )
+        )
     ]
     kind = info.get("rateLimitType")
     if not windows and isinstance(kind, str):
-        one = _window(kind, CLAUDE_MINUTES.get(kind), percent(info.get("utilization")),
-                      info.get("resetsAt"))
+        one = _window(
+            kind, CLAUDE_MINUTES.get(kind), percent(info.get("utilization")), info.get("resetsAt")
+        )
         windows = [one] if one else []
     if not windows:
         return {"unknown": "Claude Code's last run named no limit"}
-    return {"read_at": read_at, "source": FROM_RUNS, "plan": None, "windows": windows,
-            "credits": None}
+    return {
+        "read_at": read_at,
+        "source": FROM_RUNS,
+        "plan": None,
+        "windows": windows,
+        "credits": None,
+    }
 
 
 def of_session(told: object, read_at: datetime) -> dict:
@@ -607,8 +713,12 @@ def of_session(told: object, read_at: datetime) -> dict:
         if not isinstance(part, dict) or set(part) != {"used_percentage", "resets_at"}:
             raise ValueError("not the status line's rate_limits")
         used, resets = _number(part["used_percentage"]), _number(part["resets_at"])
-        if not (used is not None and 0 <= used <= 100 and resets is not None
-                and 0 <= resets <= LATEST_RESET):
+        if not (
+            used is not None
+            and 0 <= used <= 100
+            and resets is not None
+            and 0 <= resets <= LATEST_RESET
+        ):
             raise ValueError("a number of the status line's rate_limits is out of range")
         named[name] = {"utilization": used / 100, "resetsAt": resets}
     return {**of_claude({"unifiedWindows": named}, read_at), "source": FROM_SESSION}
@@ -620,8 +730,10 @@ def _as_of(reading: dict, now: datetime) -> dict:
     limit Codex said was reached still taken for reached once a window has reset."""
     windows = [
         {**w, "stale": True, "used_percent": None}
-        if w["resets_at"] is not None and w["resets_at"] <= now else w
-        for w in reading.get("windows") or [] if w["name"] not in NOT_THE_PLANS
+        if w["resets_at"] is not None and w["resets_at"] <= now
+        else w
+        for w in reading.get("windows") or []
+        if w["name"] not in NOT_THE_PLANS
     ]
     if reading.get("reached") and any(w["stale"] for w in windows):
         reading = {**reading, "reached": False}
@@ -656,7 +768,8 @@ _SIGNED_OUT = re.compile(
 # other words is not seen; keep the code too if Alibaba's measured 429 words differ.
 _USED_UP = USED_UP
 _CRASHED = re.compile(
-    r"[\w .-]+? (?:exited with code -?\d|ended without finishing|ended, exit code not known)")
+    r"[\w .-]+? (?:exited with code -?\d|ended without finishing|ended, exit code not known)"
+)
 _EMPTY = re.compile(r"[\w .-]+? ended without an answer")
 
 
@@ -669,7 +782,7 @@ def classify(exc: ModelUnavailable) -> tuple[str, datetime | None]:
         return exc.failure
     said = str(exc).lower()
     lead = _LEAD.match(said)
-    own = said[lead.end():] if lead else ""
+    own = said[lead.end() :] if lead else ""
     # Before the limit: an API out of credit can answer 429 too.
     if _CREDITS.match(own):
         return "credits_exhausted", None
@@ -691,8 +804,9 @@ _LONG = re.compile(r"\b(?:daily|weekly|monthly)\b|credit (?:usage )?limit|quota"
 LONG_MINUTES = 1440
 
 
-def window(failure: str | None, error: str | None, resets: datetime | None, reading: dict
-           ) -> str | None:
+def window(
+    failure: str | None, error: str | None, resets: datetime | None, reading: dict
+) -> str | None:
     """Which window a provider's failure is in (G3.1), never kept: "sign_in" for one not
     signed in; out of credits "long"; for a limit "long" (a day or more) or "short" - by its
     reset, a day or more away; by the provider's last reading (`Limits.last`), a window that
@@ -708,14 +822,22 @@ def window(failure: str | None, error: str | None, resets: datetime | None, read
         resets = resets.replace(tzinfo=UTC)  # (as the database gives it back: UTC)
     if resets and resets - datetime.now(UTC) >= timedelta(minutes=LONG_MINUTES):
         return "long"
-    lengths = [w["minutes"] for w in reading.get("windows") or [] if w["minutes"] and (
-        (w["used_percent"] or 0) >= 100 or resets and w["resets_at"]
-        and abs((w["resets_at"] - resets).total_seconds()) < SAME_WINDOW)]
+    lengths = [
+        w["minutes"]
+        for w in reading.get("windows") or []
+        if w["minutes"]
+        and (
+            (w["used_percent"] or 0) >= 100
+            or resets
+            and w["resets_at"]
+            and abs((w["resets_at"] - resets).total_seconds()) < SAME_WINDOW
+        )
+    ]
     if lengths:
         return "long" if max(lengths) >= LONG_MINUTES else "short"
     said = (error or "").lower()
     lead = _LEAD.match(said)
-    own = said[lead.end():] if lead else ""
+    own = said[lead.end() :] if lead else ""
     if _USED_UP.search(said) or _LONG.search(own):
         return "long"
     return "short" if (lead and lead["status"] == "429") or _LIMIT.match(own) else None
@@ -724,16 +846,32 @@ def window(failure: str | None, error: str | None, resets: datetime | None, read
 def at_limit(reading: dict) -> bool:
     """Whether a reading (`Limits.last`) has its limit reached now, as far as anyone knows."""
     return bool(reading.get("reached")) or any(
-        (w["used_percent"] or 0) >= 100 for w in reading.get("windows") or [])
+        (w["used_percent"] or 0) >= 100 for w in reading.get("windows") or []
+    )
 
 
 def _loaded(row: LimitReading | None) -> dict:
     """A reading as the database keeps it, its times read back; {} for none."""
-    return {} if row is None else {**row.reading, "read_at": row.read_at, "windows": [
-        {**w, "resets_at": w["resets_at"] and datetime.fromisoformat(w["resets_at"]),
-         **({"read_at": datetime.fromisoformat(w["read_at"])} if w.get("read_at") else {})}
-        for w in row.reading["windows"]
-    ]}
+    return (
+        {}
+        if row is None
+        else {
+            **row.reading,
+            "read_at": row.read_at,
+            "windows": [
+                {
+                    **w,
+                    "resets_at": w["resets_at"] and datetime.fromisoformat(w["resets_at"]),
+                    **(
+                        {"read_at": datetime.fromisoformat(w["read_at"])}
+                        if w.get("read_at")
+                        else {}
+                    ),
+                }
+                for w in row.reading["windows"]
+            ],
+        }
+    )
 
 
 # The words of a window's length in "Claude Code's weekly plan 84% used".
@@ -753,14 +891,17 @@ def plan_used(session: Session, provider: Provider) -> str | None:
     if read_at is not None and read_at.tzinfo is None:
         read_at = read_at.replace(tzinfo=UTC)  # (as the database gives it back: UTC)
     known = [
-        w for w in reading.get("windows") or [] if w["used_percent"] is not None
+        w
+        for w in reading.get("windows") or []
+        if w["used_percent"] is not None
         # Only the whole account's: a model's own week (Claude Code's `seven_day_opus`, ...)
         # holds back that model, not every pick on the plan. Copilot's premium requests are
         # the whole account's too (B-314: its step-down share was never reached).
         and (w["name"] is None or w["name"] in CLAUDE_MINUTES or w["name"] == PREMIUM)
         # One read longer ago than the window lasts (a day where that is not known) says
         # nothing of now, reset time or none: a step down does not go on for ever on it.
-        and read_at is not None and now - read_at < timedelta(minutes=w["minutes"] or 1440)
+        and read_at is not None
+        and now - read_at < timedelta(minutes=w["minutes"] or 1440)
     ]
     if not known:
         return None
@@ -779,9 +920,12 @@ def cli_home(runtime_root: Path, provider: Provider) -> Path | None:
     shortcut: measured (3 Nov 2026) only that `claude auth status` goes by the folder; that a
     login made with it lands there on Windows (not in a store both share) and that Codex's does
     in its CODEX_HOME is not - check both at the user's first login."""
-    if provider.kind not in SIGN_IN_KINDS or provider.base_url or (
-            provider.options or {}).get("sign_in") != "koloni" or not PROVIDER_ID.fullmatch(
-            provider.id or ""):
+    if (
+        provider.kind not in SIGN_IN_KINDS
+        or provider.base_url
+        or (provider.options or {}).get("sign_in") != "koloni"
+        or not PROVIDER_ID.fullmatch(provider.id or "")
+    ):
         return None
     return runtime_root / CLI_HOMES / provider.id
 
@@ -792,8 +936,11 @@ def account(provider: Provider) -> tuple:
     neither has room when the other is at its limit. Anything else is its own - a CLI on a
     model server of the user's too: its room is not the plan's (K-cli-llama) - and one with
     a sign-in folder of its own (`cli_home`)."""
-    if not provider.kind.endswith("_cli") or _on_server(provider) or (
-            provider.options or {}).get("sign_in") == "koloni":
+    if (
+        not provider.kind.endswith("_cli")
+        or _on_server(provider)
+        or (provider.options or {}).get("sign_in") == "koloni"
+    ):
         return (provider.id,)
     # shortcut: the command is compared as it is written (none given is not "claude"
     # spelled out, nor its full path); resolve it first if such doubles are seen in use.
@@ -813,8 +960,12 @@ def another_account(failed: Provider, other: Provider, failure: str | None) -> b
     the failure is its plan's limit: work is not moved from one account of a vendor to the
     next to get past a limit (the user's rule, 3 Nov 2026; the vendors' terms). Another kind,
     or the user's own model server, is fine."""
-    return (failure in ACCOUNT_LIMITS and other.kind == failed.kind
-            and other.kind.endswith("_cli") and not _on_server(other))
+    return (
+        failure in ACCOUNT_LIMITS
+        and other.kind == failed.kind
+        and other.kind.endswith("_cli")
+        and not _on_server(other)
+    )
 
 
 def _on_server(provider: Provider) -> bool:
@@ -833,7 +984,9 @@ class Limits:
     `runtime_root`: where the providers' own sign-in folders are (`cli_home`)."""
 
     def __init__(
-        self, session_factory: Callable[[], Session] | None = None, homes: Path | None = None,
+        self,
+        session_factory: Callable[[], Session] | None = None,
+        homes: Path | None = None,
         runtime_root: Path | None = None,
     ) -> None:
         self._factory = session_factory
@@ -865,14 +1018,19 @@ class Limits:
         shown = {k: v for k, v in reading.items() if k != "read_at"}
         try:
             with self._factory() as session:
-                session.merge(LimitReading(
-                    account=json.dumps(of), read_at=reading["read_at"],
-                    reading=json.loads(json.dumps(shown, default=datetime.isoformat))))
+                session.merge(
+                    LimitReading(
+                        account=json.dumps(of),
+                        read_at=reading["read_at"],
+                        reading=json.loads(json.dumps(shown, default=datetime.isoformat)),
+                    )
+                )
                 session.commit()
         except SQLAlchemyError as exc:
             # In memory it is kept all the same: only a restart forgets it.
-            log.warning("the last limits reading of a %s could not be saved: %s",
-                        of[0], type(exc).__name__)
+            log.warning(
+                "the last limits reading of a %s could not be saved: %s", of[0], type(exc).__name__
+            )
 
     def _take(self, of: tuple, told: dict) -> None:
         """What Claude Code said of its windows - in a run here, a short run to read it or
@@ -912,13 +1070,20 @@ class Limits:
         # "read 6 min ago, in its last run here" after it). A window it did not name keeps
         # when it was read (its own `read_at`): it is not read now.
         if taken or told.get("source") == SHORT_RUN:
-            self._keep(of, {**{k: v for k, v in kept.items() if k != "failed"},
-                            "read_at": told["read_at"], "source": told["source"],
-                            "windows": [
-                                {k: v for k, v in w.items() if k != "read_at"}
-                                if name in said else {**w, "read_at": w.get("read_at")
-                                                      or kept["read_at"]}
-                                for name, w in windows.items()]})
+            self._keep(
+                of,
+                {
+                    **{k: v for k, v in kept.items() if k != "failed"},
+                    "read_at": told["read_at"],
+                    "source": told["source"],
+                    "windows": [
+                        {k: v for k, v in w.items() if k != "read_at"}
+                        if name in said
+                        else {**w, "read_at": w.get("read_at") or kept["read_at"]}
+                        for name, w in windows.items()
+                    ],
+                },
+            )
         elif "failed" in kept:
             # Read afresh after all: the failure beside it is over (what is saved is as it was).
             self._kept[of] = {k: v for k, v in kept.items() if k != "failed"}
@@ -961,8 +1126,14 @@ class Limits:
             return
         with self._taking:
             kept = {k: v for k, v in self._known(of).items() if k not in ("unknown", "failed")}
-            self._kept[of] = {"plan": None, "credits": None, **kept, "read_at": now,
-                              "source": FROM_ANSWER, "windows": windows}
+            self._kept[of] = {
+                "plan": None,
+                "credits": None,
+                **kept,
+                "read_at": now,
+                "source": FROM_ANSWER,
+                "windows": windows,
+            }
 
     def from_session(self, reading: dict) -> None:
         """What the status line of the user's own Claude Code session said (`of_session`):
@@ -1030,13 +1201,23 @@ class Limits:
         reading = self._reading.get(of)
         if reading is None:
             # Plain values: the provider's row is its request's, which ends before this does.
-            reading = self._reading[of] = asyncio.ensure_future(self._ask(
-                of, provider.kind, provider.executable, provider.api_key,
-                cli_home(self._root, provider)))
+            reading = self._reading[of] = asyncio.ensure_future(
+                self._ask(
+                    of,
+                    provider.kind,
+                    provider.executable,
+                    provider.api_key,
+                    cli_home(self._root, provider),
+                )
+            )
         return reading
 
     async def _ask(
-        self, of: tuple, kind: str, executable: str | None, token: str | None = None,
+        self,
+        of: tuple,
+        kind: str,
+        executable: str | None,
+        token: str | None = None,
         home: Path | None = None,
     ) -> None:
         self._tried[of] = time.monotonic()
@@ -1045,25 +1226,31 @@ class Limits:
         try:
             try:
                 if kind == "codex_cli":
-                    told = of_codex(await app_server(executable, SECONDS, home=home),
-                                    datetime.now(UTC))
+                    told = of_codex(
+                        await app_server(executable, SECONDS, home=home), datetime.now(UTC)
+                    )
                 elif kind == "agy_cli":
-                    told = of_agy(await agy_quota(executable, self._homes, SECONDS),
-                                  datetime.now(UTC))
+                    told = of_agy(
+                        await agy_quota(executable, self._homes, SECONDS), datetime.now(UTC)
+                    )
                 elif kind == "copilot_cli":
-                    told = of_copilot(await copilot_quota(executable, token, SECONDS),
-                                      datetime.now(UTC))
+                    told = of_copilot(
+                        await copilot_quota(executable, token, SECONDS), datetime.now(UTC)
+                    )
                 elif kind == "openai_compat":  # (DeepSeek's only: `read`)
                     told = of_deepseek(await deepseek_balance(token, SECONDS), datetime.now(UTC))
                 else:
-                    told = of_claude(await claude_turn(executable, CLAUDE_SECONDS, home=home),
-                                     datetime.now(UTC))
+                    told = of_claude(
+                        await claude_turn(executable, CLAUDE_SECONDS, home=home), datetime.now(UTC)
+                    )
                     if "unknown" not in told:
                         told["source"] = SHORT_RUN
             except TimeoutError:
                 seconds = CLAUDE_SECONDS if claude else SECONDS
-                told = {"unknown": f"{NAMES.get(kind, 'DeepSeek')} did not answer within "
-                                   f"{seconds:g} seconds"}
+                told = {
+                    "unknown": f"{NAMES.get(kind, 'DeepSeek')} did not answer within "
+                    f"{seconds:g} seconds"
+                }
             except ModelUnavailable as exc:
                 told = {"unknown": str(exc)}
             with self._taking:
@@ -1077,9 +1264,15 @@ class Limits:
                 elif kind == "openai_compat" and "unknown" not in told:
                     # The balance, read now and kept as such: the windows its last answer said
                     # (`api_said`) were not read now, and are not kept with it.
-                    self._keep(of, {"plan": None, **{
-                        k: v for k, v in kept.items() if k not in ("unknown", "failed")},
-                        **told, "windows": []})
+                    self._keep(
+                        of,
+                        {
+                            "plan": None,
+                            **{k: v for k, v in kept.items() if k not in ("unknown", "failed")},
+                            **told,
+                            "windows": [],
+                        },
+                    )
                 elif not claude:
                     self._keep(of, told)
                 else:
@@ -1087,32 +1280,42 @@ class Limits:
         finally:
             del self._reading[of]
 
-    def why(
-        self, provider: Provider | None, exc: ModelUnavailable
-    ) -> tuple[str, datetime | None]:
+    def why(self, provider: Provider | None, exc: ModelUnavailable) -> tuple[str, datetime | None]:
         """`classify`, and for a limit whose reset the failure did not name: that of a
         window the provider's last reading has as full. A plan key's quota used up is kept
         as its reading, with when it was seen: no API says what is left of such a plan."""
         failure, resets = classify(exc)
         if failure == "rate_limited" and resets is None and provider is not None:
-            full = [w["resets_at"] for w in self.last(provider).get("windows") or []
-                    if (w["used_percent"] or 0) >= 100 and w["resets_at"]]
+            full = [
+                w["resets_at"]
+                for w in self.last(provider).get("windows") or []
+                if (w["used_percent"] or 0) >= 100 and w["resets_at"]
+            ]
             resets = max(full) if full else None
             # shortcut: kept until the next one is seen, a turn that runs again does not
             # unsay it; clear it on a turn that ends well if a stale "used up" misleads.
             if provider.plan and _USED_UP.search(str(exc).lower()):
                 with self._taking:
-                    self._keep(account(provider), {"read_at": datetime.now(UTC),
-                                                   "windows": [], "used_up": True})
+                    self._keep(
+                        account(provider),
+                        {"read_at": datetime.now(UTC), "windows": [], "used_up": True},
+                    )
         return failure, resets
 
-    def room(self, session: Session, providers: list[Provider], failed: str | None,
-             failure: str | None = None) -> str:
+    def room(
+        self,
+        session: Session,
+        providers: list[Provider],
+        failed: str | None,
+        failure: str | None = None,
+    ) -> str:
         """Advice for whoever opened an agent that failed: which other providers of the
         team guide have room now, each with why. Nothing is asked for it - what was last
         read is used, with when - and nothing is switched."""
-        found = [f"{json.dumps(entry.name, ensure_ascii=False)} ({why})"
-                 for entry, why in self.with_room(session, providers, failed, failure)]
+        found = [
+            f"{json.dumps(entry.name, ensure_ascii=False)} ({why})"
+            for entry, why in self.with_room(session, providers, failed, failure)
+        ]
         if not found:
             return "No other provider is known to have room now."
         return (
@@ -1120,8 +1323,13 @@ class Limits:
             "nothing was switched. To go on with one of them, open a new agent on it."
         )
 
-    def with_room(self, session: Session, providers: list[Provider], failed: str | None,
-                  failure: str | None = None) -> list[tuple["Entry", str]]:
+    def with_room(
+        self,
+        session: Session,
+        providers: list[Provider],
+        failed: str | None,
+        failure: str | None = None,
+    ) -> list[tuple["Entry", str]]:
         """The team guide's entries (`app.team.Entry`) that have room now, in its order,
         each with why: not the provider that failed nor another on its account - nor, where
         it failed at its limit (`failure`), another account of its CLI (`another_account`)."""
@@ -1134,8 +1342,11 @@ class Limits:
             provider = by_id[entry.provider_id]
             # Not the one that failed, nor another on its account (its limit is that
             # one's too), nor one an agent could name no model for.
-            if account(provider) == same or (entry.must_name and not entry.selectable()) or (
-                    failed in by_id and another_account(by_id[failed], provider, failure)):
+            if (
+                account(provider) == same
+                or (entry.must_name and not entry.selectable())
+                or (failed in by_id and another_account(by_id[failed], provider, failure))
+            ):
                 continue
             why = has_room(session, provider, self.last(provider))
             if why is not None:
@@ -1143,8 +1354,9 @@ class Limits:
         return found
 
 
-def has_room(session: Session, provider: Provider, reading: dict,
-             never_ran_is_room: bool = False) -> str | None:
+def has_room(
+    session: Session, provider: Provider, reading: dict, never_ran_is_room: bool = False
+) -> str | None:
     """Why a provider has room now, from its last reading (`Limits.last`): what of its plan is
     used; or, where nothing of it is known (most API keys: their credit is not read), that its
     last run ended well. None where it is known to have none - its plan at its limit or used
@@ -1152,23 +1364,31 @@ def has_room(session: Session, provider: Provider, reading: dict,
     rate-limit failure among others), or it has not run - unless `never_ran_is_room` (B-166,
     the Lead's yes to a sub-agent: what has neither run out nor gone over a limit may be used;
     `Limits.with_room`'s advice names only one known to have room)."""
-    if at_limit(reading) or reading.get("used_up") or (
-            reading.get("credits") or {}).get("has_credits") is False:
+    if (
+        at_limit(reading)
+        or reading.get("used_up")
+        or (reading.get("credits") or {}).get("has_credits") is False
+    ):
         return None
     known = [w for w in reading.get("windows") or [] if w["used_percent"] is not None]
     if known:
         used = ", ".join(
             f"{w['used_percent']:g}% of its "
             + (f"{w['minutes']}-minute" if w["minutes"] else w["name"] or "one")
-            + " window used" for w in known
+            + " window used"
+            for w in known
         )
         return f"{used}; read {reading['read_at']:%Y-%m-%d %H:%M} UTC"
     # (Of the runs that ended by themselves: the user's Stop, or a restart, says nothing of it.)
     last = session.scalars(
         select(Agent.status)
-        .where(Agent.provider_name == provider.name, Agent.ended_at.is_not(None),
-               Agent.status.in_(("completed", "failed")))
-        .order_by(Agent.ended_at.desc()).limit(1)
+        .where(
+            Agent.provider_name == provider.name,
+            Agent.ended_at.is_not(None),
+            Agent.status.in_(("completed", "failed")),
+        )
+        .order_by(Agent.ended_at.desc())
+        .limit(1)
     ).first()
     if last is None and never_ran_is_room:
         return "its limit is not known; it has not run yet"

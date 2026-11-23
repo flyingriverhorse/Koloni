@@ -53,15 +53,22 @@ def proposed(client):
 def test_the_proposal_saves_nothing_and_ticks_subscriptions_only(client, quiet):
     claude = add(client, name="Claude Code", kind="claude_cli")
     keyed = add(client, name="Anthropic API", kind="anthropic", api_key="sk-test")
-    local = add(client, name="Own server", kind="openai_compat", base_url="http://127.0.0.1:8080/v1",
-                models=[{"name": "qwen-local", "tier": "balanced"}])
+    local = add(
+        client,
+        name="Own server",
+        kind="openai_compat",
+        base_url="http://127.0.0.1:8080/v1",
+        models=[{"name": "qwen-local", "tier": "balanced"}],
+    )
     told = proposed(client)
     assert told["Claude Code"]["for_agents"] is True
     assert told["Anthropic API"]["for_agents"] is False
     tiers = {m["tier"] for m in told["Claude Code"]["models"]}
     assert {"strongest", "balanced", "fast"} <= tiers
     # a server of one's own keeps its rows as the user wrote them
-    assert [(m["name"], m["tier"]) for m in told["Own server"]["models"]] == [("qwen-local", "balanced")]
+    assert [(m["name"], m["tier"]) for m in told["Own server"]["models"]] == [
+        ("qwen-local", "balanced")
+    ]
     # nothing saved by being proposed
     now = {p["id"]: p for p in client.get("/api/providers").json()}
     for made in (claude, keyed, local):
@@ -73,8 +80,15 @@ def test_the_proposal_saves_nothing_and_ticks_subscriptions_only(client, quiet):
 def test_saving_the_proposal_gives_the_lead_a_fast_model(client, quiet):
     add(client, name="Claude Code", kind="claude_cli")
     told = proposed(client)
-    assert client.post("/api/providers/fill-all/save", json={"providers": list(told.values())}).status_code == 403
-    saved = client.post("/api/providers/fill-all/save", headers=ORIGIN, json={"providers": list(told.values())})
+    assert (
+        client.post(
+            "/api/providers/fill-all/save", json={"providers": list(told.values())}
+        ).status_code
+        == 403
+    )
+    saved = client.post(
+        "/api/providers/fill-all/save", headers=ORIGIN, json={"providers": list(told.values())}
+    )
     assert saved.status_code == 200, saved.text
     (claude,) = [p for p in client.get("/api/providers").json() if p["name"] == "Claude Code"]
     assert claude["for_agents"] is True

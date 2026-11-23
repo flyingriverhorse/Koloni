@@ -31,10 +31,13 @@ def raw_of(client, snap, **asked):
 
 
 def test_what_the_cli_wrote_is_there_line_by_line_with_what_koloni_does_not_know(
-    agy_app, wait_run, project_dir  # noqa: F811
+    agy_app,
+    wait_run,
+    project_dir,  # noqa: F811
 ):
-    client, provider, _default = agy_app([
-        {"say": "Let me look."}, READS, {"other": True}, {"say": "It prints hi."}])
+    client, provider, _default = agy_app(
+        [{"say": "Let me look."}, READS, {"other": True}, {"say": "It prints hi."}]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     told = raw_of(client, snap)
@@ -61,26 +64,43 @@ def test_what_the_cli_wrote_to_its_error_output_is_there_too(agy_app, wait_run, 
     assert any("boom: the disk is full" in line for line in errors)
 
 
-def test_only_so_much_is_kept_and_the_newest_stays(agy_app, wait_run, project_dir,  # noqa: F811
-                                                   monkeypatch):
+def test_only_so_much_is_kept_and_the_newest_stays(
+    agy_app,
+    wait_run,
+    project_dir,  # noqa: F811
+    monkeypatch,
+):
     monkeypatch.setattr(app.raw, "MAX_BYTES", 3000)
     client, provider, _default = agy_app([READS] * 12 + [{"say": "done"}])
     cid, run_id = start(client, project_dir, provider)
     told = raw_of(client, wait_run(client, cid, run_id))
     assert told["dropped"] > 0
     assert sum(len(line["text"].encode()) for line in told["lines"]) <= 3000
-    assert told["lines"][0]["n"] == told["dropped"] + 1      # the numbers go on, with a gap
+    assert told["lines"][0]["n"] == told["dropped"] + 1  # the numbers go on, with a gap
     assert json.loads(told["lines"][-1]["text"])["event"] == "result"
 
 
 def test_a_secret_koloni_knows_is_not_in_it(agy_app, wait_run, project_dir):  # noqa: F811
-    client, provider, _default = agy_app([
-        {"tool": "view_file", "parameters": {"AbsolutePath": ".env"},
-         "output": f"ANTHROPIC_API_KEY={KEY}"},
-        {"say": "read"}])
+    client, provider, _default = agy_app(
+        [
+            {
+                "tool": "view_file",
+                "parameters": {"AbsolutePath": ".env"},
+                "output": f"ANTHROPIC_API_KEY={KEY}",
+            },
+            {"say": "read"},
+        ]
+    )
     client.headers["Origin"] = ORIGIN
-    made = client.post("/api/providers", json={
-        "name": "Paid", "kind": "anthropic", "api_key": KEY, "default_model": "claude-haiku-5-5"})
+    made = client.post(
+        "/api/providers",
+        json={
+            "name": "Paid",
+            "kind": "anthropic",
+            "api_key": KEY,
+            "default_model": "claude-haiku-5-5",
+        },
+    )
     assert made.status_code == 201, made.text
     cid, run_id = start(client, project_dir, provider)
     told = raw_of(client, wait_run(client, cid, run_id))
@@ -94,7 +114,8 @@ def test_an_agent_whose_model_is_no_cli_has_no_raw_stream(make_client, wait_run,
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "hi"}).json()[
-        "run"]["id"]
+        "run"
+    ]["id"]
     told = raw_of(client, wait_run(client, cid, run_id))
     assert told["available"] is False and told["lines"] == []
     assert client.get("/api/agents/00000000000000000000000000000000/raw").status_code == 404

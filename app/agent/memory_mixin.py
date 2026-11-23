@@ -52,11 +52,15 @@ class MemoryMixin:
 
     def _work_of(self: "AgentRunner", session: Session, ctx: Ctx) -> str | None:
         """What an agent is on: its task; the lead's is the user's message of the turn."""
-        return ctx.task if ctx.depth > 0 else session.scalar(
-            select(Message.content)
-            .where(Message.run_id == ctx.run_id, Message.role.in_(("user", "trigger")))
-            .order_by(Message.created_at, literal_column("messages.rowid"))
-            .limit(1)
+        return (
+            ctx.task
+            if ctx.depth > 0
+            else session.scalar(
+                select(Message.content)
+                .where(Message.run_id == ctx.run_id, Message.role.in_(("user", "trigger")))
+                .order_by(Message.created_at, literal_column("messages.rowid"))
+                .limit(1)
+            )
         )
 
     def _briefing(self: "AgentRunner", ctx: Ctx, can_recall: bool) -> tuple[str, list[str] | None]:
@@ -77,29 +81,52 @@ class MemoryMixin:
             # (K-devir-2: a sub-agent's role names the work too, so that the user's words at
             # a card on a role's work reach its next agent - "feedback: Reviewer".)
             said, given = kept.briefing(
-                session, project, f"{ctx.role} {work or ''}" if ctx.depth > 0 else work or "",
-                can_recall)
+                session,
+                project,
+                f"{ctx.role} {work or ''}" if ctx.depth > 0 else work or "",
+                can_recall,
+            )
             handed, from_ids = "", []
             # (Not to a speaker in a discussion: it has no task of its own there.)
-            if not ctx.continues_id and not ctx.discussion and (ctx.depth > 0 or session.scalar(
-                    select(Run.id).where(Run.conversation_id == ctx.cid,
-                                         Run.id != ctx.run_id).limit(1)) is None):
+            if (
+                not ctx.continues_id
+                and not ctx.discussion
+                and (
+                    ctx.depth > 0
+                    or session.scalar(
+                        select(Run.id)
+                        .where(Run.conversation_id == ctx.cid, Run.id != ctx.run_id)
+                        .limit(1)
+                    )
+                    is None
+                )
+            ):
                 # K-devir-1: what the project's last agents on this work did and left, after
                 # the user's rules and the memory's facts (data after instructions); a new
                 # conversation's lead gets the last of them whatever they did. Not to an agent
                 # that goes on from itself: its chain has it.
                 handed, from_ids = handoff.earlier_on(
-                    session, project, work if ctx.depth > 0 else None, ctx.part,
-                    handoff.paths_in(work or ""), ctx.cid)
+                    session,
+                    project,
+                    work if ctx.depth > 0 else None,
+                    ctx.part,
+                    handoff.paths_in(work or ""),
+                    ctx.cid,
+                )
                 if ctx.depth == 0:
                     # K-devir-3: and the project's last commits, read off git (no git: nothing).
-                    handed = "\n\n".join(p for p in (
-                        handed, handoff.commits(project.root_path)) if p)
+                    handed = "\n\n".join(
+                        p for p in (handed, handoff.commits(project.root_path)) if p
+                    )
             self._handed_from[ctx.agent_id] = from_ids
             noted = ""
-            if ctx.depth == 1 and not ctx.continues_id and not ctx.discussion and (
-                    team := self._team_of(session, ctx.cid, ctx.run_id, ctx.agent_id)
-            ) and self._leads_teams(session, ctx):
+            if (
+                ctx.depth == 1
+                and not ctx.continues_id
+                and not ctx.discussion
+                and (team := self._team_of(session, ctx.cid, ctx.run_id, ctx.agent_id))
+                and self._leads_teams(session, ctx)
+            ):
                 # K-devir-5: a team's new lead is given what the leads noted for its team in
                 # the turn before, and what a room between teams decided then. Once: the
                 # briefing is built once an agent (`_briefed`); a new turn's lead is a new agent.
@@ -117,15 +144,30 @@ class MemoryMixin:
                 # if Leads in a part miss it.
                 # K-belge-haritasi: the Lead is told which documents there are, to read on need;
                 # a sub-agent has its task's context. (Their headings are the repository's.)
-                docs = project_map.documents(project.root_path) if (
-                    ctx.depth == 0 and "read_file" in ctx.tools) else ""
-                said = "\n\n".join(p for p in (
-                    koloni.instructions(project.root_path),
-                    injection.noted(docs, "agent") if docs else "",
-                    *((koloni.instructions(project.root_path, ctx.part),
-                       project_map.told(ctx.part, self._map_now(ctx), self._watched(ctx.run_id)))
-                      if ctx.part else ()),
-                    said) if p)
+                docs = (
+                    project_map.documents(project.root_path)
+                    if (ctx.depth == 0 and "read_file" in ctx.tools)
+                    else ""
+                )
+                said = "\n\n".join(
+                    p
+                    for p in (
+                        koloni.instructions(project.root_path),
+                        injection.noted(docs, "agent") if docs else "",
+                        *(
+                            (
+                                koloni.instructions(project.root_path, ctx.part),
+                                project_map.told(
+                                    ctx.part, self._map_now(ctx), self._watched(ctx.run_id)
+                                ),
+                            )
+                            if ctx.part
+                            else ()
+                        ),
+                        said,
+                    )
+                    if p
+                )
             return said, given
 
     def _briefed_with(self: "AgentRunner", ctx: Ctx, said: str, given: list[str]) -> None:
@@ -156,15 +198,22 @@ class MemoryMixin:
         with self._factory() as session:
             project = self._project(session, ctx.cid)
             # Looked at where the agent works: in its working copy, once it has one.
-            told = kept.withdrawn(
-                session, project, watched, looked_up, self._ws(ctx).root
-            ) if project else {}
+            told = (
+                kept.withdrawn(session, project, watched, looked_up, self._ws(ctx).root)
+                if project
+                else {}
+            )
             if not told:
                 return []
             rows = [
                 Message(
-                    conversation_id=ctx.cid, run_id=ctx.run_id, agent_id=ctx.agent_id,
-                    role="memory", content=words, status="complete", delivered_at=now(),
+                    conversation_id=ctx.cid,
+                    run_id=ctx.run_id,
+                    agent_id=ctx.agent_id,
+                    role="memory",
+                    content=words,
+                    status="complete",
+                    delivered_at=now(),
                 )
                 for words in told.values()
             ]
@@ -179,14 +228,17 @@ class MemoryMixin:
             self.bus.emit(ctx.cid, ctx.run_id, "message.created", payload)
         return list(told.values())
 
-    def _has_read(self: "AgentRunner", session, ctx: Ctx, ws: Workspace,
-                  source: "kept.Source") -> bool:
+    def _has_read(
+        self: "AgentRunner", session, ctx: Ctx, ws: Workspace, source: "kept.Source"
+    ) -> bool:
         """Whether read_file showed this agent these lines of the file in this turn."""
         seen: set[int] = set()
         for arguments, result in session.execute(
             select(ToolCall.arguments, ToolCall.result).where(
-                ToolCall.agent_id == ctx.agent_id, ToolCall.run_id == ctx.run_id,
-                ToolCall.name == "read_file", ToolCall.status == "succeeded",
+                ToolCall.agent_id == ctx.agent_id,
+                ToolCall.run_id == ctx.run_id,
+                ToolCall.name == "read_file",
+                ToolCall.status == "succeeded",
                 ToolCall.origin == "koloni",
             )
         ):
@@ -197,7 +249,8 @@ class MemoryMixin:
             shown = re.search(
                 r"\[showing lines (\d+)-(\d+) of \d+\]\s*(?:\[the file: [^\]]*\]\s*)?"
                 r"(?:\[Counted by KOLONİ: [^\]]*\]\s*)?$",
-                result or "")
+                result or "",
+            )
             if shown and path.casefold() == source.path.casefold():
                 seen.update(range(int(shown[1]), int(shown[2]) + 1))
         return all(line in seen for line in range(source.start, source.end + 1))
@@ -208,8 +261,7 @@ class MemoryMixin:
         Nothing here waits (no await): the note is checked and written in one go."""
         if ctx.answering or ctx.in_turn:  # not offered there, and not taken either
             raise ToolError(
-                "nothing is written into the memory in a turn taken on a message or in "
-                "a discussion"
+                "nothing is written into the memory in a turn taken on a message or in a discussion"
             )
         own_tools = bool(getattr(ctx.model, "native", False))
         unattended = not self._watched(ctx.run_id)
@@ -232,9 +284,7 @@ class MemoryMixin:
                             "read_file first: a note can only rest on lines you have read "
                             "in this turn"
                         )
-                    changed = kept.changed_in_turn(
-                        session, ctx.folder, ctx.run_id, source.path
-                    )
+                    changed = kept.changed_in_turn(session, ctx.folder, ctx.run_id, source.path)
                     if changed and asked.propose:
                         raise ToolError(
                             f"{source.path} was changed by an agent in this turn, or "
@@ -243,8 +293,9 @@ class MemoryMixin:
                             "propose out to keep it as a note."
                         )
                     # What a CLI reads with its own tools KOLONİ does not see.
-                    checked = (kept.CHANGED_HERE if changed
-                               else kept.READ_HERE if read else kept.NOT_SEEN)
+                    checked = (
+                        kept.CHANGED_HERE if changed else kept.READ_HERE if read else kept.NOT_SEEN
+                    )
                 elif asked.propose:
                     raise ToolError(
                         "only a note that rests on lines of a project file can be put "
@@ -252,8 +303,14 @@ class MemoryMixin:
                         "leave propose out"
                     )
                 note = kept.keep_note(
-                    session, project_id, asked, agent_id=ctx.agent_id, run_id=ctx.run_id,
-                    conversation_id=ctx.cid, source=source, checked_how=checked,
+                    session,
+                    project_id,
+                    asked,
+                    agent_id=ctx.agent_id,
+                    run_id=ctx.run_id,
+                    conversation_id=ctx.cid,
+                    source=source,
+                    checked_how=checked,
                     unattended=unattended,
                 )
                 waits, wants = note.status == "proposed", note.wants_core
@@ -291,14 +348,16 @@ class MemoryMixin:
             also = kept.also(session, project, query)
             # (93-C5: the agent's work orders what is found, among equals; it never matches.)
             found, shown = kept.looked_up(
-                session, project, query, self._work_of(session, ctx) or "", also)
+                session, project, query, self._work_of(session, ctx) or "", also
+            )
             found += "\n\n" + earlier.told(session, project.id, query, also)
             if also.off:
                 found += "\n\n" + also.off
         # As it was shown last. What the briefing gave is watched already.
         given = self._given.get(ctx.agent_id) or []
         self._looked_up.setdefault(ctx.agent_id, {}).update(
-            {record: state for record, state in shown.items() if record not in given})
+            {record: state for record, state in shown.items() if record not in given}
+        )
         return found
 
     def note_from_user(self: "AgentRunner", run_id: str, content: str) -> dict | str:
@@ -313,8 +372,9 @@ class MemoryMixin:
             return "this turn has not started yet"
         return self._write_note(run_id, cid, None, content)
 
-    async def _reply_turn(self: "AgentRunner", ctx: Ctx, target: Ctx, kind: str, body: str,
-                          koloni: bool = False) -> tuple[str, str]:
+    async def _reply_turn(
+        self: "AgentRunner", ctx: Ctx, target: Ctx, kind: str, body: str, koloni: bool = False
+    ) -> tuple[str, str]:
         """The receiver's turn on a message: it works on, or answers; then its reply.
         `koloni`: the words are KOLONİ's own (G3's Go on), not the opener's - told as a
         nudge, no message between agents, not counted against the turn's."""
@@ -322,17 +382,30 @@ class MemoryMixin:
             record = session.get_one(Agent, target.agent_id)
             previous, limited = record.status, _at_a_step_limit(record.error)
             # (K-uzman: an expert's web search is for answering - its only work.)
-            searches = bool((knows.known_here(session, find_role(session, target.role), (
-                session.get_one(Conversation, target.cid).project_id)) or {}).get(
-                "search_answering"))
+            searches = bool(
+                (
+                    knows.known_here(
+                        session,
+                        find_role(session, target.role),
+                        (session.get_one(Conversation, target.cid).project_id),
+                    )
+                    or {}
+                ).get("search_answering")
+            )
             last_call = session.scalar(
                 select(func.max(ToolCall.seq)).where(ToolCall.run_id == ctx.run_id)
             )
             # (Its reply: what it says after its last message so far.)
-            inbound_id = session.scalar(select(Message.id).where(
-                Message.agent_id == target.agent_id).order_by(
-                Message.created_at.desc(), literal_column("messages.rowid").desc()).limit(1)
-            ) if koloni else None
+            inbound_id = (
+                session.scalar(
+                    select(Message.id)
+                    .where(Message.agent_id == target.agent_id)
+                    .order_by(Message.created_at.desc(), literal_column("messages.rowid").desc())
+                    .limit(1)
+                )
+                if koloni
+                else None
+            )
         now_on = self._role_now(target)
         # Not sent where it could take no step on it: its kept card stays the user's. KOLONİ's
         # own Go on (a reset, Reconnect) is let through: its row then says why it stopped, and
@@ -348,14 +421,19 @@ class MemoryMixin:
         # A turn taken on somebody's message writes nothing into the project's memory,
         # whether it answers or carries on: what is kept is noted in an agent's own work.
         turn = replace(
-            now_on, calls_from=last_call or 0, in_turn=True,
+            now_on,
+            calls_from=last_call or 0,
+            in_turn=True,
             tools=tuple(t for t in target.tools if t != "remember"),
         )
         if kind == "answer":
             turn = replace(
-                turn, answering=True, own_calls=set(),
-                tools=tuple(t for t in target.tools if t in ANSWER_TOOLS
-                            or searches and t == "web_search"),
+                turn,
+                answering=True,
+                own_calls=set(),
+                tools=tuple(
+                    t for t in target.tools if t in ANSWER_TOOLS or searches and t == "web_search"
+                ),
             )
         if kind == "answer":
             self._answering[target.agent_id] = previous
@@ -387,8 +465,9 @@ class MemoryMixin:
             # Its own calls in this turn, as a session's end closes them (`_settle_session`):
             # cut off from above too (its opener's call given up on), when no Stop closes them.
             with contextlib.suppress(Exception):
-                self._interrupt_open_calls(turn.run_id, turn.cid, turn.agent_id,
-                                           turn.calls_from, turn.own_calls)
+                self._interrupt_open_calls(
+                    turn.run_id, turn.cid, turn.agent_id, turn.calls_from, turn.own_calls
+                )
             raise
         finally:
             self._in_reply.discard(target.agent_id)
@@ -403,8 +482,9 @@ class MemoryMixin:
 
         return self._reply_turn_result(ctx, target, kind, status, error, reply)
 
-    def _go_on_gate(self: "AgentRunner", ctx: Ctx, target: Ctx, now_on: Ctx,
-                    limited: bool) -> tuple[str | None, str]:
+    def _go_on_gate(
+        self: "AgentRunner", ctx: Ctx, target: Ctx, now_on: Ctx, limited: bool
+    ) -> tuple[str | None, str]:
         """`_reply_turn`: whether the opener's go on reaches `target` - why not, or None and what
         it is given: "once" (B-397: `limited`, its last stop was at a step limit - it goes on, on
         a fresh app's limit, its role's still holding), or "". Once a turn for an agent
@@ -417,19 +497,31 @@ class MemoryMixin:
         once = self._budgeted.get(key)
         if now_on.role_steps is not None and self._role_before(now_on) >= now_on.role_steps:
             with self._factory() as session:
-                kept = session.scalar(select(Merge.id).where(
-                    Merge.agent_id == target.agent_id, Merge.status == "interrupted",
-                    Merge.kept_in.is_not(None)).limit(1)) is not None
+                kept = (
+                    session.scalar(
+                        select(Merge.id)
+                        .where(
+                            Merge.agent_id == target.agent_id,
+                            Merge.status == "interrupted",
+                            Merge.kept_in.is_not(None),
+                        )
+                        .limit(1)
+                    )
+                    is not None
+                )
             return NO_STEPS_LEFT.format(
-                name=target.name, limit=now_on.role_steps,
+                name=target.name,
+                limit=now_on.role_steps,
                 given=GIVEN_ONCE.format(steps=once) if once is not None else "",
-                how=HOW_CONTINUE if kept else HOW_RAISE), ""
+                how=HOW_CONTINUE if kept else HOW_RAISE,
+            ), ""
         if limited and once is not None:
             return NO_MORE_GO_ON.format(name=target.name, steps=once), ""
         return None, "once" if limited else ""
 
-    def _reply_turn_send(self: "AgentRunner", ctx: Ctx, target: Ctx, body: str, koloni: bool,
-                         inbound_id):
+    def _reply_turn_send(
+        self: "AgentRunner", ctx: Ctx, target: Ctx, body: str, koloni: bool, inbound_id
+    ):
         """`_reply_turn`: the words handed to it - KOLONİ's as a nudge, else a message between
         agents (its id: where its reply begins)."""
         if koloni:
@@ -447,9 +539,7 @@ class MemoryMixin:
         """`_reply_turn`, in its place: it is at work - going on, with its copy given back
         first where one is kept for it."""
         if kind == "continue":
-            self._set_agent(
-                ctx.cid, target.agent_id, status="running", error=None, ended_at=None
-            )
+            self._set_agent(ctx.cid, target.agent_id, status="running", error=None, ended_at=None)
             # (Only its own: a room's member or a recipe's agent leaves its lead's be.)
             owner = self._copy_owner(target) or target.agent_id
             if owner == target.agent_id and owner not in self._copies:
@@ -461,8 +551,9 @@ class MemoryMixin:
         else:
             self._set_agent(ctx.cid, target.agent_id, status="running")
 
-    def _reply_turn_result(self: "AgentRunner", ctx: Ctx, target: Ctx, kind: str, status: str,
-                           error, reply) -> tuple[str, str]:
+    def _reply_turn_result(
+        self: "AgentRunner", ctx: Ctx, target: Ctx, kind: str, status: str, error, reply
+    ) -> tuple[str, str]:
         """`_reply_turn`: its reply as its sender is told it - or why there is none."""
         if status == "completed":
             said = reply or "(it gave no answer)"
@@ -470,14 +561,17 @@ class MemoryMixin:
             return "succeeded", f"{target.name} replied:\n\n{said}"
         if error == "step_limit":
             # (Its recipe's steps too, where it runs one: `_recipe_steps`.)
-            result = (f"{target.name} stopped after "
-                      f"{self._app_steps() + self._recipe_steps(target)} steps.")
+            result = (
+                f"{target.name} stopped after "
+                f"{self._app_steps() + self._recipe_steps(target)} steps."
+            )
         else:
             result = f"{target.name} could not reply: {self._told(target.agent_id, error)}"
         if reply:
             result += f"\n\nWhat it said last:\n{reply}"
         if kind == "continue":
             result += (self._left_undone(target) if _at_a_step_limit(error) else "") + self._room(
-                target)
+                target
+            )
         self._channel(ctx, target.agent_id, ctx.agent_id, "reply", result)
         return "failed", result

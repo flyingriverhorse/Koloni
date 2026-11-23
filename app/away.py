@@ -65,18 +65,26 @@ CLOCK = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
 OFFERED = (
     "A line under your answer offers the user to go away; nothing starts before their Go "
     "away, which works through the tasks they tick on To-do. End your turn now with one short "
-    "line.")
+    "line."
+)
 RETRY = "KOLONİ: the last try of this job failed ({why}). Try it once more."
-AGAIN = ("KOLONİ: the user asks to try this job again. The work while they were away is over: "
-         "this turn works as any turn of this chat - not in a copy kept for them; what it changes "
-         "goes into the project as this chat's level says, asked where it asks.")
-JOB_TOO_LONG = ("Stopped after {hours} hour{s}, the most one job works: what it did is kept in "
-                "its copy.")
+AGAIN = (
+    "KOLONİ: the user asks to try this job again. The work while they were away is over: "
+    "this turn works as any turn of this chat - not in a copy kept for them; what it changes "
+    "goes into the project as this chat's level says, asked where it asks."
+)
+JOB_TOO_LONG = (
+    "Stopped after {hours} hour{s}, the most one job works: what it did is kept in its copy."
+)
 CLOSED = "Stopped: KOLONİ was closed while you were away."
 # What starts no other work while the user is away (Run the backlog, Try again).
 AWAY_NOW = "You're away from this project: press I'm back first"
-KEPT_OUT = ("{path} is kept out: the user asked that nothing touches it while they are away. "
-            "Leave it as it is and say so in your report")
+KEPT_OUT = (
+    "{path} is kept out: the user asked that nothing touches it while they are away. "
+    "Leave it as it is and say so in your report"
+)
+
+
 def needs_project(said: str) -> str | None:
     """What a job's Lead says the job needs of the project itself (B-122); None: nothing."""
     return backlog.marked(said, backlog.NEEDS_PROJECT)
@@ -87,15 +95,18 @@ class Refused(ValueError):
 
 
 def running(session: Session, project_id: str) -> AwayRun | None:
-    return session.scalar(select(AwayRun).where(
-        AwayRun.project_id == project_id, AwayRun.status == "running").limit(1))
+    return session.scalar(
+        select(AwayRun)
+        .where(AwayRun.project_id == project_id, AwayRun.status == "running")
+        .limit(1)
+    )
 
 
 def gone_from(session: Session, cid: str) -> AwayRun | None:
     """The Away that runs for chat `cid`: the user went away from it, or it is a job's of it."""
-    return session.scalar(select(AwayRun).where(
-        AwayRun.conversation_id == cid, AwayRun.status == "running").limit(1)) or night_of(
-        session, cid)
+    return session.scalar(
+        select(AwayRun).where(AwayRun.conversation_id == cid, AwayRun.status == "running").limit(1)
+    ) or night_of(session, cid)
 
 
 def until_at(clock: str, at: datetime | None = None, zone: tzinfo | None = None) -> datetime:
@@ -128,7 +139,7 @@ def clean(path: str, root: str | tuple[str, ...] | None = None) -> str:
     for one in (root,) if isinstance(root, str) else root or ():
         base = one.replace("\\", "/").rstrip("/") + "/"
         if path.casefold().startswith(base.casefold()):
-            path = path[len(base):]
+            path = path[len(base) :]
             break
     path = posixpath.normpath(path).strip("/") if path else ""
     if os.name == "nt":
@@ -140,20 +151,28 @@ def outside(path: str) -> bool:
     """Whether a place the user names is no place in the project: a full path not in it
     (`/etc`, `C:\\other`), one of the home folder (`~/.ssh`), or one that leads up and out."""
     path = path.strip().strip("'\"")
-    return (path.startswith(("/", "\\", "~")) or re.match(r"^[A-Za-z]:", path) is not None
-            or posixpath.normpath(path.replace("\\", "/")).startswith(".."))
+    return (
+        path.startswith(("/", "\\", "~"))
+        or re.match(r"^[A-Za-z]:", path) is not None
+        or posixpath.normpath(path.replace("\\", "/")).startswith("..")
+    )
 
 
 def _kept_out(given: object, root: str) -> list[str]:
     if given is None:
         return []
-    if not isinstance(given, list) or len(given) > MAX_KEPT_OUT or not all(
-            isinstance(one, str) and clean(one, root) and len(one) <= 500 for one in given):
+    if (
+        not isinstance(given, list)
+        or len(given) > MAX_KEPT_OUT
+        or not all(isinstance(one, str) and clean(one, root) and len(one) <= 500 for one in given)
+    ):
         raise Refused(f"kept_out is a list of at most {MAX_KEPT_OUT} paths of the project")
     for one in given:
         if any(mark in one for mark in "*?["):
-            raise Refused(f"{one!r} is a pattern: name the file or folder itself (src/payments, "
-                          "not src/payments/*)")
+            raise Refused(
+                f"{one!r} is a pattern: name the file or folder itself (src/payments, "
+                "not src/payments/*)"
+            )
         relative = clean(one, root)
         if outside(relative) or ":" in relative or relative == clean(one) and outside(one):
             raise Refused(f"{one!r} is outside the project: name a file or folder in it")
@@ -165,8 +184,9 @@ def _limits(given: dict) -> tuple[datetime | None, float | None]:
     if until is not None and (not isinstance(until, str) or not CLOCK.match(until)):
         raise Refused("until is a time of day, HH:MM")
     money = given.get("money")
-    if money is not None and (isinstance(money, bool) or not isinstance(money, int | float)
-                              or money < 0):
+    if money is not None and (
+        isinstance(money, bool) or not isinstance(money, int | float) or money < 0
+    ):
         raise Refused("money is an amount, 0 or more")
     return (until_at(until) if until else None), money
 
@@ -179,10 +199,13 @@ def _picked(session: Session, project_id: str, given: object) -> list[BacklogTas
     if len(set(given)) != len(given):
         raise Refused("a task is ticked twice")
     tasks = [session.get(BacklogTask, one) if isinstance(one, str) else None for one in given]
-    if any(task is None or task.project_id != project_id or task.status not in (
-            "proposed", "todo") for task in tasks):
-        raise Refused("a task ticked is not an open task of this project's To-do list (gone, "
-                      "started or done)")
+    if any(
+        task is None or task.project_id != project_id or task.status not in ("proposed", "todo")
+        for task in tasks
+    ):
+        raise Refused(
+            "a task ticked is not an open task of this project's To-do list (gone, started or done)"
+        )
     return [task for task in tasks if task is not None]
 
 
@@ -191,11 +214,13 @@ def _keep_order(tasks: list[BacklogTask], order: object) -> list[BacklogTask]:
     place) of the task that was at that place among them. The tasks in that order."""
     if not isinstance(order, list) or len(order) > 200:
         return tasks
-    ranked = sorted(tasks, key=lambda task: (backlog.PRIORITIES.index(task.priority),
-                                             task.position))
+    ranked = sorted(
+        tasks, key=lambda task: (backlog.PRIORITIES.index(task.priority), task.position)
+    )
     places = [(task.priority, task.position) for task in ranked]
-    wanted = sorted(tasks, key=lambda task: order.index(task.id) if task.id in order
-                    else len(order))
+    wanted = sorted(
+        tasks, key=lambda task: order.index(task.id) if task.id in order else len(order)
+    )
     for task, (priority, position) in zip(wanted, places, strict=True):
         task.priority, task.position = priority, position
     return wanted
@@ -215,22 +240,34 @@ def go(session: Session, conversation: Conversation, given: dict, runner) -> Awa
         raise Refused("everything is held (Stop everything): Resume first")
     if why := backlog.busy(session, project_id, waiting=True):
         raise Refused(f"{why}: go away once nothing of the To-do list is at work")
-    run_id = session.scalar(select(Run.id).where(Run.conversation_id == conversation.id)
-                            .order_by(Run.created_at.desc()).limit(1))
+    run_id = session.scalar(
+        select(Run.id)
+        .where(Run.conversation_id == conversation.id)
+        .order_by(Run.created_at.desc())
+        .limit(1)
+    )
     if run_id is None:
         raise Refused("write to the Orchestrator first: Away finishes this chat's turn")
     project = session.get_one(Project, project_id)
     tasks = _picked(session, project_id, given.get("task_ids") or [])
     kept, (until, money) = _kept_out(given.get("kept_out"), project.root_path), _limits(given)
     tasks = _keep_order(tasks, given.get("order"))
-    for planned in session.scalars(select(AwayRun).where(
-            AwayRun.project_id == project_id, AwayRun.status == "planned")):
+    for planned in session.scalars(
+        select(AwayRun).where(AwayRun.project_id == project_id, AwayRun.status == "planned")
+    ):
         planned.status = "dismissed"  # (the offer: Go away is the user's answer to it)
     alive = [Conversation.id == conversation.id, Run.ended_at.is_(None)]
-    night = AwayRun(project_id=project_id, conversation_id=conversation.id, run_id=run_id,
-                    status="running", kept_out=kept, until=until, started_at=now(),
-                    money=most_money(session, project, money),
-                    spent_before=spend(session, alive)["spent"])
+    night = AwayRun(
+        project_id=project_id,
+        conversation_id=conversation.id,
+        run_id=run_id,
+        status="running",
+        kept_out=kept,
+        until=until,
+        started_at=now(),
+        money=most_money(session, project, money),
+        spent_before=spend(session, alive)["spent"],
+    )
     session.add(night)
     session.flush()
     jobs = []
@@ -239,8 +276,16 @@ def go(session: Session, conversation: Conversation, given: dict, runner) -> Awa
         task.status = "todo"  # (a proposed one ticked: the user's OK - held by Away)
         task.away_state = task.away_why = task.conversation_id = None
         task.away_run_id = night.id
-        jobs.append({"title": task.title, "line": task.criteria, "team": None, "recipe": None,
-                     "task_id": task.id, "was_todo": was_todo})
+        jobs.append(
+            {
+                "title": task.title,
+                "line": task.criteria,
+                "team": None,
+                "recipe": None,
+                "task_id": task.id,
+                "was_todo": was_todo,
+            }
+        )
     night.jobs = jobs
     session.commit()
     runner.away_now(conversation.id)
@@ -260,8 +305,9 @@ def back(session: Session, project_id: str) -> Message | None:
     return message
 
 
-def offer(session: Session, conversation: Conversation, run_id: str, args: dict,
-          lead_id: str | None) -> str:
+def offer(
+    session: Session, conversation: Conversation, run_id: str, args: dict, lead_id: str | None
+) -> str:
     """offer_away: the Orchestrator's one line offering the user to go away - with the places
     kept out and the limits it heard them name, and the tasks it put on To-do itself in this
     turn (`lead_id`'s add_task: never a sub-agent's, nor an earlier turn's - those stay in the
@@ -275,13 +321,23 @@ def offer(session: Session, conversation: Conversation, run_id: str, args: dict,
     project = session.get_one(Project, conversation.project_id)
     kept = _kept_out(args.get("kept_out"), project.root_path)
     until, money = _limits(args)
-    for old in session.scalars(select(AwayRun).where(
-            AwayRun.conversation_id == conversation.id, AwayRun.status == "planned")):
+    for old in session.scalars(
+        select(AwayRun).where(
+            AwayRun.conversation_id == conversation.id, AwayRun.status == "planned"
+        )
+    ):
         old.status = "dismissed"
-    session.add(AwayRun(project_id=project.id, conversation_id=conversation.id, run_id=run_id,
-                        jobs=_its_own(session, conversation.id, run_id, lead_id) if lead_id
-                        else [], kept_out=kept,
-                        until=until, money=money))
+    session.add(
+        AwayRun(
+            project_id=project.id,
+            conversation_id=conversation.id,
+            run_id=run_id,
+            jobs=_its_own(session, conversation.id, run_id, lead_id) if lead_id else [],
+            kept_out=kept,
+            until=until,
+            money=money,
+        )
+    )
     return OFFERED
 
 
@@ -292,15 +348,27 @@ ADDED = re.compile(r"proposed task ([0-9a-f]{32})\b")
 def _its_own(session: Session, cid: str, run_id: str, lead_id: str) -> list[dict]:
     """`offer`'s tasks: those the Orchestrator `lead_id` added in turn `run_id`, still open."""
     # (Not one a CLI's own sub-agent made under its name: `ToolCall.parent_call_id`.)
-    said = session.scalars(select(ToolCall.result).where(
-        ToolCall.run_id == run_id, ToolCall.agent_id == lead_id, ToolCall.name == "add_task",
-        ToolCall.parent_call_id.is_(None)))
+    said = session.scalars(
+        select(ToolCall.result).where(
+            ToolCall.run_id == run_id,
+            ToolCall.agent_id == lead_id,
+            ToolCall.name == "add_task",
+            ToolCall.parent_call_id.is_(None),
+        )
+    )
     ids = dict.fromkeys(found.group(1) for one in said if one and (found := ADDED.match(one)))
     tasks = [session.get(BacklogTask, one) for one in ids]
-    return [{"title": task.title, "line": task.criteria, "team": None, "recipe": None,
-             "task_id": task.id} for task in tasks
-            if task is not None and task.proposed_in == cid and task.status in (
-                "proposed", "todo")][:MAX_JOBS]
+    return [
+        {
+            "title": task.title,
+            "line": task.criteria,
+            "team": None,
+            "recipe": None,
+            "task_id": task.id,
+        }
+        for task in tasks
+        if task is not None and task.proposed_in == cid and task.status in ("proposed", "todo")
+    ][:MAX_JOBS]
 
 
 def tasks_of(session: Session, away: AwayRun) -> list[BacklogTask]:
@@ -308,18 +376,27 @@ def tasks_of(session: Session, away: AwayRun) -> list[BacklogTask]:
     the To-do list's it never started, given back to the list at its end (`_close`), while that
     is still not started."""
     was_todo = {job["task_id"]: job.get("was_todo") for job in away.jobs if job.get("task_id")}
-    found = {task.id: task for task in session.scalars(
-        select(BacklogTask).where(BacklogTask.id.in_(was_todo)))
-        if task.away_run_id == away.id or (was_todo[task.id] and task.away_run_id is None
-                                           and task.conversation_id is None)}
+    found = {
+        task.id: task
+        for task in session.scalars(select(BacklogTask).where(BacklogTask.id.in_(was_todo)))
+        if task.away_run_id == away.id
+        or (was_todo[task.id] and task.away_run_id is None and task.conversation_id is None)
+    }
     return [found[job["task_id"]] for job in away.jobs if job.get("task_id") in found]
 
 
 def at_work(session: Session, task: BacklogTask) -> bool:
     """A job whose turn runs now - not one that waits for the user's word."""
-    return task.away_state is None and task.conversation_id is not None and session.scalar(
-        select(Run.id).where(Run.conversation_id == task.conversation_id,
-                             Run.status.not_in(backlog.ENDED)).limit(1)) is not None
+    return (
+        task.away_state is None
+        and task.conversation_id is not None
+        and session.scalar(
+            select(Run.id)
+            .where(Run.conversation_id == task.conversation_id, Run.status.not_in(backlog.ENDED))
+            .limit(1)
+        )
+        is not None
+    )
 
 
 def spent(session: Session, away: AwayRun) -> dict:
@@ -328,10 +405,18 @@ def spent(session: Session, away: AwayRun) -> dict:
     before (`spent_before`)."""
     began = (away.started_at or now()).replace(tzinfo=None)
     chats = [task.conversation_id for task in tasks_of(session, away) if task.conversation_id]
-    found = spend(session, [or_(
-        and_(Conversation.id.in_(chats), Run.created_at >= began),
-        and_(Conversation.id == away.conversation_id,
-             or_(Run.ended_at.is_(None), Run.ended_at >= began)))])
+    found = spend(
+        session,
+        [
+            or_(
+                and_(Conversation.id.in_(chats), Run.created_at >= began),
+                and_(
+                    Conversation.id == away.conversation_id,
+                    or_(Run.ended_at.is_(None), Run.ended_at >= began),
+                ),
+            )
+        ],
+    )
     if found["spent"] is not None and away.spent_before:
         found["spent"] = round(max(0.0, found["spent"] - away.spent_before), 6)
     return found
@@ -344,8 +429,10 @@ def over(session: Session, away: AwayRun, at: datetime | None = None) -> str | N
     if away.money is not None:
         found = spent(session, away)
         if found["spent"] is not None and found["spent"] >= away.money:
-            return (f"Stopped at {money(found['spent'])} of {money(away.money)} "
-                    f"{found['currency']}, the spend limit.")
+            return (
+                f"Stopped at {money(found['spent'])} of {money(away.money)} "
+                f"{found['currency']}, the spend limit."
+            )
     return None
 
 
@@ -353,6 +440,7 @@ def unattended(session: Session) -> tuple[int, int | None]:
     """B-413: the minutes with nothing moving that end a turn nobody watches, and the hours a
     night's job or a To-do task's turn works at most (None: no ceiling) - as Settings › The app
     has them; a row out of its range is held to it, one that is no whole number is the default."""
+
     def read(name: str, low_high: tuple[int, int], default: int | None) -> int | None:
         row = session.get(Flag, name)
         if row is None:
@@ -363,8 +451,11 @@ def unattended(session: Session) -> tuple[int, int | None]:
             return min(low_high[1], max(low_high[0], int(row.value)))
         except ValueError:
             return default
-    return (read(STUCK_FLAG, STUCK_RANGE, STUCK_MINUTES) or STUCK_MINUTES,
-            read(CEILING_FLAG, CEILING_RANGE, CEILING_HOURS))
+
+    return (
+        read(STUCK_FLAG, STUCK_RANGE, STUCK_MINUTES) or STUCK_MINUTES,
+        read(CEILING_FLAG, CEILING_RANGE, CEILING_HOURS),
+    )
 
 
 def too_long(hours: int) -> str:
@@ -374,19 +465,27 @@ def too_long(hours: int) -> str:
 def job_over(session: Session, cid: str, at: datetime | None = None) -> str | None:
     """Why a job's turn at work is cut: it has worked its ceiling's hours (`unattended`)."""
     hours = unattended(session)[1]
-    began = session.scalar(select(Run.started_at).where(
-        Run.conversation_id == cid, Run.status.not_in(backlog.ENDED)).limit(1))
-    return too_long(hours) if hours and began and (at or now()) - began >= timedelta(
-        hours=hours) else None
+    began = session.scalar(
+        select(Run.started_at)
+        .where(Run.conversation_id == cid, Run.status.not_in(backlog.ENDED))
+        .limit(1)
+    )
+    return (
+        too_long(hours)
+        if hours and began and (at or now()) - began >= timedelta(hours=hours)
+        else None
+    )
 
 
 def _cut_over(session: Session, working: list[BacklogTask], runner, at: datetime | None) -> None:
     """The turns of the jobs at work that have worked their ceiling's hours are cut (`job_over`)."""
     for task in working:  # (a long command takes no step: the clock looks too)
         if task.conversation_id and (why := job_over(session, task.conversation_id, at)):
-            for run_id in session.scalars(select(Run.id).where(
-                    Run.conversation_id == task.conversation_id,
-                    Run.status.not_in(backlog.ENDED))):
+            for run_id in session.scalars(
+                select(Run.id).where(
+                    Run.conversation_id == task.conversation_id, Run.status.not_in(backlog.ENDED)
+                )
+            ):
                 runner.cut(run_id, why)
 
 
@@ -420,12 +519,19 @@ def go_on(session: Session, project_id: str, runner, at: datetime | None = None)
         if task.conversation_id is None:
             _start(session, away, task, runner)
         else:
-            error = session.scalar(select(Run.error).where(
-                Run.conversation_id == task.conversation_id).order_by(Run.created_at.desc()))
+            error = session.scalar(
+                select(Run.error)
+                .where(Run.conversation_id == task.conversation_id)
+                .order_by(Run.created_at.desc())
+            )
             task.status = "doing"
-            backlog.say(session, session.get_one(Conversation, task.conversation_id),
-                        RETRY.format(why=ENDED.get(error, error) or "no reason given"),
-                        runner.bus, runner.start)
+            backlog.say(
+                session,
+                session.get_one(Conversation, task.conversation_id),
+                RETRY.format(why=ENDED.get(error, error) or "no reason given"),
+                runner.bus,
+                runner.start,
+            )
         return True
     except Exception:
         log.exception("project %s: the next job of the night did not start", project_id)
@@ -439,9 +545,16 @@ def go_on(session: Session, project_id: str, runner, at: datetime | None = None)
 def _chat_at_work(session: Session, away: AwayRun) -> bool:
     """The chat the user went away from still at its turn: To-do waits for it - not for one
     that waits for the user's word."""
-    return session.scalar(select(Run.id).where(
-        Run.conversation_id == away.conversation_id,
-        Run.status.in_(("running", "queued"))).limit(1)) is not None
+    return (
+        session.scalar(
+            select(Run.id)
+            .where(
+                Run.conversation_id == away.conversation_id, Run.status.in_(("running", "queued"))
+            )
+            .limit(1)
+        )
+        is not None
+    )
 
 
 def _looked_at(session: Session, away: AwayRun) -> None:
@@ -452,8 +565,15 @@ def _looked_at(session: Session, away: AwayRun) -> None:
     _told_looked_at.add(away.id)
     project = session.get_one(Project, away.project_id)
     if project.notify_url or project.notify_desktop:
-        send((project.name, project.notify_url, project.notify_format, project.notify_desktop,
-              f"Every To-do task was looked at. {line(session, away)}."))
+        send(
+            (
+                project.name,
+                project.notify_url,
+                project.notify_format,
+                project.notify_desktop,
+                f"Every To-do task was looked at. {line(session, away)}.",
+            )
+        )
 
 
 # The Aways whose "looked at" was told (`_looked_at`): this process's, as its loop's tasks.
@@ -469,30 +589,44 @@ def _start(session: Session, away: AwayRun, task: BacklogTask, runner) -> None:
     job = next(job for job in away.jobs if job.get("task_id") == task.id)
     evening = session.get_one(Conversation, away.conversation_id)
     team = session.scalar(select(Team).where(Team.name == job["team"])) if job.get("team") else None
-    recipe = session.scalar(select(Recipe).where(Recipe.name == job["recipe"])) if job.get(
-        "recipe") else None
+    recipe = (
+        session.scalar(select(Recipe).where(Recipe.name == job["recipe"]))
+        if job.get("recipe")
+        else None
+    )
 
     def shape(chat: Conversation) -> None:
         # (The lower of the chat gone from's level and the To-do page's, `backlog.start`'s.)
-        chat.permission_mode = min(chat.permission_mode, evening.permission_mode,
-                                   key=LEVELS.index)
+        chat.permission_mode = min(chat.permission_mode, evening.permission_mode, key=LEVELS.index)
         chat.provider_id, chat.model_id = evening.provider_id, evening.model_id
         if team is not None:
             chat.teams_mode = "manual"
-            chat.teams = [ConversationTeam(team_id=team.id, recipe_id=recipe and recipe.id,
-                                           picked_by="user", position=0)]
+            chat.teams = [
+                ConversationTeam(
+                    team_id=team.id, recipe_id=recipe and recipe.id, picked_by="user", position=0
+                )
+            ]
         elif evening.teams_mode == "manual":  # (the teams the user picked there)
             chat.teams_mode = "manual"
-            chat.teams = [ConversationTeam(team_id=one.team_id, recipe_id=one.recipe_id,
-                                           picked_by=one.picked_by, position=one.position)
-                          for one in evening.teams]
+            chat.teams = [
+                ConversationTeam(
+                    team_id=one.team_id,
+                    recipe_id=one.recipe_id,
+                    picked_by=one.picked_by,
+                    position=one.position,
+                )
+                for one in evening.teams
+            ]
 
     backlog.start(session, task, runner.bus, runner.start, shape, night=True)
 
 
 def job_of(session: Session, cid: str) -> BacklogTask | None:
-    return session.scalar(select(BacklogTask).where(
-        BacklogTask.conversation_id == cid, BacklogTask.away_run_id.is_not(None)).limit(1))
+    return session.scalar(
+        select(BacklogTask)
+        .where(BacklogTask.conversation_id == cid, BacklogTask.away_run_id.is_not(None))
+        .limit(1)
+    )
 
 
 def night_of(session: Session, cid: str) -> AwayRun | None:
@@ -518,17 +652,29 @@ def turn_ended(session: Session, run: Run, status: str) -> bool:
     if status == "completed":
         # B-122: one its Lead says needs the project itself (what its copy leaves out) waits.
         needs = needs_project(backlog.last_word(session, run))
-        task.away_state, task.away_why = ("waits", f"{backlog.NEEDS_PROJECT} {needs}") if (
-            needs) else ("done", None)
-    elif status == "failed" and away is not None and away.status == "running" and (
+        task.away_state, task.away_why = (
+            ("waits", f"{backlog.NEEDS_PROJECT} {needs}") if (needs) else ("done", None)
+        )
+    elif (
+        status == "failed"
+        and away is not None
+        and away.status == "running"
+        and (
             session.scalar(
-            select(func.count()).select_from(Run).where(
-                Run.conversation_id == run.conversation_id, Run.status == "failed")) or 0) < TRIES:
+                select(func.count())
+                .select_from(Run)
+                .where(Run.conversation_id == run.conversation_id, Run.status == "failed")
+            )
+            or 0
+        )
+        < TRIES
+    ):
         task.away_state = None  # (`go_on` tries it again)
     elif task.away_state != "stopped":  # (cut by the night's stop: `stop`)
         task.away_state = "failed"
-        task.away_why = ENDED.get(run.error, run.error) or backlog.HOW.get(
-            status, "was stopped").capitalize()
+        task.away_why = (
+            ENDED.get(run.error, run.error) or backlog.HOW.get(status, "was stopped").capitalize()
+        )
     return True
 
 
@@ -539,20 +685,37 @@ def after_the_night(session: Session, run: Run) -> Message | None:
     task = job_of(session, run.conversation_id)
     away = session.get(AwayRun, task.away_run_id) if task and task.away_run_id else None
     # (Only the night's own turn, gone on after it: a later message in the job's chat is not its.)
-    if away is None or away.status != "ended" or away.ended_at is None or (
-            run.created_at.replace(tzinfo=None) > away.ended_at.replace(tzinfo=None)):
+    if (
+        away is None
+        or away.status != "ended"
+        or away.ended_at is None
+        or (run.created_at.replace(tzinfo=None) > away.ended_at.replace(tzinfo=None))
+    ):
         return None
     away.ended_at = now()
     # Its own line: written at its end, before a later night of the chat started (one runs at a
     # time) - not the newest, which may be that later night's.
-    later = session.scalar(select(AwayRun.started_at).where(
-        AwayRun.conversation_id == away.conversation_id, AwayRun.id != away.id,
-        AwayRun.started_at > away.started_at).order_by(AwayRun.started_at).limit(1))
-    said = session.scalar(select(Message).where(
-        Message.conversation_id == away.conversation_id, Message.role == "away",
-        Message.created_at >= away.started_at,
-        *([Message.created_at < later] if later is not None else [])).order_by(
-        Message.created_at.desc()).limit(1))
+    later = session.scalar(
+        select(AwayRun.started_at)
+        .where(
+            AwayRun.conversation_id == away.conversation_id,
+            AwayRun.id != away.id,
+            AwayRun.started_at > away.started_at,
+        )
+        .order_by(AwayRun.started_at)
+        .limit(1)
+    )
+    said = session.scalar(
+        select(Message)
+        .where(
+            Message.conversation_id == away.conversation_id,
+            Message.role == "away",
+            Message.created_at >= away.started_at,
+            *([Message.created_at < later] if later is not None else []),
+        )
+        .order_by(Message.created_at.desc())
+        .limit(1)
+    )
     if said is not None:
         said.content = line(session, away)
     return said
@@ -581,36 +744,84 @@ def asks(session: Session, run_id: str) -> list[dict]:
     """What a turn waits for that a yes or a no answers - a command, a change, a request or
     an agent to open - with its endpoint's kind; else the newest call still open (a question,
     a folder, a secret), answered in its chat."""
-    names = {one.id: one.name
-             for one in session.scalars(select(Agent).where(Agent.run_id == run_id))}
+    names = {
+        one.id: one.name for one in session.scalars(select(Agent).where(Agent.run_id == run_id))
+    }
     found = [
-        *({"kind": "commands", "id": one.id, "text": f"{names.get(one.agent_id) or 'An agent'} "
-           f"asks to run {quoted(one.command)}"} for one in session.scalars(select(Command).where(
-               Command.run_id == run_id, Command.status == "proposed"))),
-        *({"kind": "file-changes", "id": one.id, "text": f"{names.get(one.agent_id) or 'An agent'}"
-           f" asks to change {one.path}"} for one in session.scalars(select(FileChange).where(
-               FileChange.run_id == run_id, FileChange.status == "proposed"))),
-        *({"kind": "web-requests", "id": one.id, "text": f"{names.get(one.agent_id) or 'An agent'}"
-           f" asks to reach {one.target}"} for one in session.scalars(select(WebRequest).where(
-               WebRequest.run_id == run_id, WebRequest.status == "proposed"))),
-        *({"kind": "agents", "id": one.id, "text": f"{one.role_name} waits to be opened"}
-          for one in session.scalars(select(Agent).where(
-              Agent.run_id == run_id, Agent.status == "proposed"))),
+        *(
+            {
+                "kind": "commands",
+                "id": one.id,
+                "text": f"{names.get(one.agent_id) or 'An agent'} "
+                f"asks to run {quoted(one.command)}",
+            }
+            for one in session.scalars(
+                select(Command).where(Command.run_id == run_id, Command.status == "proposed")
+            )
+        ),
+        *(
+            {
+                "kind": "file-changes",
+                "id": one.id,
+                "text": f"{names.get(one.agent_id) or 'An agent'} asks to change {one.path}",
+            }
+            for one in session.scalars(
+                select(FileChange).where(
+                    FileChange.run_id == run_id, FileChange.status == "proposed"
+                )
+            )
+        ),
+        *(
+            {
+                "kind": "web-requests",
+                "id": one.id,
+                "text": f"{names.get(one.agent_id) or 'An agent'} asks to reach {one.target}",
+            }
+            for one in session.scalars(
+                select(WebRequest).where(
+                    WebRequest.run_id == run_id, WebRequest.status == "proposed"
+                )
+            )
+        ),
+        *(
+            {"kind": "agents", "id": one.id, "text": f"{one.role_name} waits to be opened"}
+            for one in session.scalars(
+                select(Agent).where(Agent.run_id == run_id, Agent.status == "proposed")
+            )
+        ),
     ]
     if found:
         return found
-    call = session.scalar(select(ToolCall).where(
-        ToolCall.run_id == run_id, ToolCall.status.in_(("pending", "running")),
-        ToolCall.name.in_(("ask_user", "ask_folder", "ask_secret", "spawn_agent", "create_role",
-                           "add_skill"))).order_by(ToolCall.seq.desc()).limit(1))
+    call = session.scalar(
+        select(ToolCall)
+        .where(
+            ToolCall.run_id == run_id,
+            ToolCall.status.in_(("pending", "running")),
+            ToolCall.name.in_(
+                ("ask_user", "ask_folder", "ask_secret", "spawn_agent", "create_role", "add_skill")
+            ),
+        )
+        .order_by(ToolCall.seq.desc())
+        .limit(1)
+    )
     if call is None:
         return []
-    return [{"kind": None, "id": call.id,
-             "text": f"{names.get(call.agent_id) or 'An agent'} asks you something ({call.name})"}]
+    return [
+        {
+            "kind": None,
+            "id": call.id,
+            "text": f"{names.get(call.agent_id) or 'An agent'} asks you something ({call.name})",
+        }
+    ]
 
 
-def kept_out(away: AwayRun | None, path: str | None = None, command: str | None = None,
-             root: str | tuple[str, ...] | None = None, cwd: str | None = None) -> str | None:
+def kept_out(
+    away: AwayRun | None,
+    path: str | None = None,
+    command: str | None = None,
+    root: str | tuple[str, ...] | None = None,
+    cwd: str | None = None,
+) -> str | None:
     """The place kept out that a path of the project is in (relative, or a full one under
     `root`), or that a word of a command names as a path - as written, and from the folder it
     runs in (`cwd`, relative): `del secret\\pay.py`, `--out=db/x`, `echo x>db\\y`, `rm s*`,
@@ -618,19 +829,49 @@ def kept_out(away: AwayRun | None, path: str | None = None, command: str | None 
     if away is None or not away.kept_out:
         return None
     if path is None:
-        words = [piece for word in _words(command or "")
-                 for piece in re.split(r"[=,;:<>|&()]+(?![/\\])", word) if piece]
+        words = [
+            piece
+            for word in _words(command or "")
+            for piece in re.split(r"[=,;:<>|&()]+(?![/\\])", word)
+            if piece
+        ]
         here = clean(cwd or "", root)
-        return next(filter(None, (kept_out(away, one, root=root) for word in words for one in (
-            word, *([posixpath.join(here, word.replace("\\", "/"))] if here else [])))), None)
+        return next(
+            filter(
+                None,
+                (
+                    kept_out(away, one, root=root)
+                    for word in words
+                    for one in (
+                        word,
+                        *([posixpath.join(here, word.replace("\\", "/"))] if here else []),
+                    )
+                ),
+            ),
+            None,
+        )
     named = clean(path, root).casefold()
     if re.search(r"[*?\[]", named):  # (a pattern: each of its parts may match a kept place's)
         parts = named.split("/")
-        return next((one for one in away.kept_out if all(
-            fnmatch.fnmatchcase(kept, part) for kept, part in zip(
-                one.casefold().split("/"), parts, strict=False))), None)
-    return next((one for one in away.kept_out
-                 if named == one.casefold() or named.startswith(one.casefold() + "/")), None)
+        return next(
+            (
+                one
+                for one in away.kept_out
+                if all(
+                    fnmatch.fnmatchcase(kept, part)
+                    for kept, part in zip(one.casefold().split("/"), parts, strict=False)
+                )
+            ),
+            None,
+        )
+    return next(
+        (
+            one
+            for one in away.kept_out
+            if named == one.casefold() or named.startswith(one.casefold() + "/")
+        ),
+        None,
+    )
 
 
 def tried(session: Session, away: AwayRun, task_id: str | None, what: str) -> None:
@@ -639,20 +880,32 @@ def tried(session: Session, away: AwayRun, task_id: str | None, what: str) -> No
     session.commit()
 
 
-def stop(session: Session, away: AwayRun, why: str, runner, ends: bool = True,
-         waiting: bool = False) -> None:
+def stop(
+    session: Session, away: AwayRun, why: str, runner, ends: bool = True, waiting: bool = False
+) -> None:
     """Stop all (`waiting`), or a limit reached: the night ends, and a job at work is cut - its
     copy kept (`AgentRunner.cut`) and stopped, not failed (B-148). One that waits for the user's
     word waits on at a limit; Stop all stops it too. Not `ends`: Stop everything
     (`app.api.hold`) - the night stays, and its next job waits for Resume (`go_on`); a job that
     waits for the user's word is stopped too, as every turn is then."""
     # (The chat gone from at its turn too: Stop all stops everything of Away.)
-    cut = list(session.scalars(select(Run.id).where(
-        Run.conversation_id == away.conversation_id, Run.status.not_in(backlog.ENDED))))
+    cut = list(
+        session.scalars(
+            select(Run.id).where(
+                Run.conversation_id == away.conversation_id, Run.status.not_in(backlog.ENDED)
+            )
+        )
+    )
     for task in tasks_of(session, away):
         if at_work(session, task) or (waiting or not ends) and task.away_state == "waits":
-            open_runs = list(session.scalars(select(Run.id).where(
-                Run.conversation_id == task.conversation_id, Run.status.not_in(backlog.ENDED))))
+            open_runs = list(
+                session.scalars(
+                    select(Run.id).where(
+                        Run.conversation_id == task.conversation_id,
+                        Run.status.not_in(backlog.ENDED),
+                    )
+                )
+            )
             if open_runs:  # (one that waits as done - it needs the project - has none)
                 task.away_state, task.away_why = "stopped", why
                 cut.extend(open_runs)
@@ -666,28 +919,39 @@ def stop(session: Session, away: AwayRun, why: str, runner, ends: bool = True,
 
 def counts(session: Session, away: AwayRun) -> dict[str, int]:
     tasks = tasks_of(session, away)
-    return {state: sum(1 for task in tasks if task.away_state == state)
-            for state in ("done", "waits", "failed", "stopped")} | {
-        "not_started": sum(1 for task in tasks if task.conversation_id is None)}
+    return {
+        state: sum(1 for task in tasks if task.away_state == state)
+        for state in ("done", "waits", "failed", "stopped")
+    } | {"not_started": sum(1 for task in tasks if task.conversation_id is None)}
 
 
 def decided(session: Session, away: AwayRun) -> list[str]:
     """What the Orchestrator decided for the user while they were away, in its chats - the
     cards it answered, and the commands their own words let run (K-yargıç) - oldest first."""
-    chats = [away.conversation_id, *(task.conversation_id for task in tasks_of(session, away)
-                                     if task.conversation_id)]
+    chats = [
+        away.conversation_id,
+        *(task.conversation_id for task in tasks_of(session, away) if task.conversation_id),
+    ]
     began = (away.started_at or now()).replace(tzinfo=None)
-    window = [Run.conversation_id.in_(chats), *(
-        [] if away.ended_at is None else [Run.created_at <= away.ended_at.replace(tzinfo=None)])]
-    answered = session.execute(select(Question.question, Question.answer, Question.created_at)
-                               .join(Run, Run.id == Question.run_id).where(
-        *window, Question.lead_why.is_not(None), Question.created_at >= began)).all()
-    ran = session.execute(select(Command.command, Command.judged, Command.created_at)
-                          .join(Run, Run.id == Command.run_id).where(
-        *window, Command.judged.is_not(None), Command.created_at >= began)).all()
+    window = [
+        Run.conversation_id.in_(chats),
+        *([] if away.ended_at is None else [Run.created_at <= away.ended_at.replace(tzinfo=None)]),
+    ]
+    answered = session.execute(
+        select(Question.question, Question.answer, Question.created_at)
+        .join(Run, Run.id == Question.run_id)
+        .where(*window, Question.lead_why.is_not(None), Question.created_at >= began)
+    ).all()
+    ran = session.execute(
+        select(Command.command, Command.judged, Command.created_at)
+        .join(Run, Run.id == Command.run_id)
+        .where(*window, Command.judged.is_not(None), Command.created_at >= began)
+    ).all()
     said = [(at, f"{quoted(asked[:120])}: {answer}") for asked, answer, at in answered] + [
-        (at, f"ran {quoted(command[:120])} (your words)") for command, judged, at in ran
-        if (judged or {}).get("verdict") == "run"]
+        (at, f"ran {quoted(command[:120])} (your words)")
+        for command, judged, at in ran
+        if (judged or {}).get("verdict") == "run"
+    ]
     return [text for _at, text in sorted(said, key=lambda one: one[0])]
 
 
@@ -697,19 +961,28 @@ def line(session: Session, away: AwayRun) -> str:
     found, ended = counts(session, away), away.ended_at or now()
     began = away.started_at or ended
     said = [f"{found['done']} of {len(away.jobs)} To-do done"] + [
-        f"{n} {words}" for n, words in (
-            (len(decided(session, away)), "decided for you"), (found["waits"], "waits"),
-            (found["failed"], "could not be done"), (found["stopped"], "stopped"),
-            (found["not_started"], "not started")) if n]
+        f"{n} {words}"
+        for n, words in (
+            (len(decided(session, away)), "decided for you"),
+            (found["waits"], "waits"),
+            (found["failed"], "could not be done"),
+            (found["stopped"], "stopped"),
+            (found["not_started"], "not started"),
+        )
+        if n
+    ]
     cost = spent(session, away)
     if cost["spent"]:
         said.append(f"{money(cost['spent'])} {cost['currency'] or 'USD'}")
-    return (f"While you were away ({began.astimezone():%H:%M} – {ended.astimezone():%H:%M}): "
-            + " · ".join(said))
+    return (
+        f"While you were away ({began.astimezone():%H:%M} – {ended.astimezone():%H:%M}): "
+        + " · ".join(said)
+    )
 
 
-def _close(session: Session, away: AwayRun, why: str | None,
-           notify: bool = True) -> tuple[Message, tuple | None]:
+def _close(
+    session: Session, away: AwayRun, why: str | None, notify: bool = True
+) -> tuple[Message, tuple | None]:
     """Away on record as over, with why, and its one summary at the bottom of the chat it was
     gone from; and the notification for it, where the project has an address (not for the
     user's own coming back: `notify` False). Not committed."""
@@ -720,14 +993,25 @@ def _close(session: Session, away: AwayRun, why: str | None,
         if task.id not in made and task.conversation_id is None:
             task.away_run_id = None
     said = line(session, away)
-    last = session.scalar(select(Run.id).where(Run.conversation_id == away.conversation_id)
-                          .order_by(Run.created_at.desc()).limit(1)) or away.run_id
-    message = Message(conversation_id=away.conversation_id, run_id=last, role="away",
-                      content=said)
+    last = (
+        session.scalar(
+            select(Run.id)
+            .where(Run.conversation_id == away.conversation_id)
+            .order_by(Run.created_at.desc())
+            .limit(1)
+        )
+        or away.run_id
+    )
+    message = Message(conversation_id=away.conversation_id, run_id=last, role="away", content=said)
     session.add(message)
     project = session.get_one(Project, away.project_id)
-    note = (project.name, project.notify_url, project.notify_format, project.notify_desktop,
-            f"{why or 'You are back.'} {said}.")
+    note = (
+        project.name,
+        project.notify_url,
+        project.notify_format,
+        project.notify_desktop,
+        f"{why or 'You are back.'} {said}.",
+    )
     return message, note if notify and (project.notify_url or project.notify_desktop) else None
 
 
@@ -754,13 +1038,18 @@ _sending: set[asyncio.Task] = set()
 
 async def _notify(name: str, url: str | None, form: str, on_desktop: bool, text: str) -> None:
     ways = ([("desktop", web.show(f"KOLONİ — {name}", text))] if on_desktop else []) + (
-        [("address", web.notify(url, text, form))] if url else [])
+        [("address", web.notify(url, text, form))] if url else []
+    )
     for way, sending in ways:
         try:
             await sending
         except Exception as exc:  # (never the address in the log: it may hold a key)
-            log.warning("a notification of %s was not sent to the %s: %s", name, way,
-                        exc if isinstance(exc, web.WebError) else type(exc).__name__)
+            log.warning(
+                "a notification of %s was not sent to the %s: %s",
+                name,
+                way,
+                exc if isinstance(exc, web.WebError) else type(exc).__name__,
+            )
 
 
 def settle(session: Session, notes: list | None = None) -> None:
@@ -778,28 +1067,50 @@ def settle(session: Session, notes: list | None = None) -> None:
 
 def kept_copies(session: Session, cid: str) -> list[Merge]:
     """A job's work, kept for the user's Take in."""
-    return list(session.scalars(select(Merge).join(Run, Run.id == Merge.run_id).where(
-        Run.conversation_id == cid, Merge.status == "interrupted", Merge.kept_in.is_not(None))
-        .order_by(Merge.created_at)))
+    return list(
+        session.scalars(
+            select(Merge)
+            .join(Run, Run.id == Merge.run_id)
+            .where(
+                Run.conversation_id == cid,
+                Merge.status == "interrupted",
+                Merge.kept_in.is_not(None),
+            )
+            .order_by(Merge.created_at)
+        )
+    )
 
 
 def taken_in(session: Session, away: AwayRun, cid: str) -> list[str]:
     """A job's files the user took into the project from its kept copy (B-123): of its turns
     of the night - not of later work in its chat."""
     night = [Run.created_at >= (away.started_at or now()).replace(tzinfo=None)] + (
-        [Run.created_at <= away.ended_at.replace(tzinfo=None)] if away.ended_at else [])
-    return sorted({str(one["path"]) for merge in session.scalars(
-        select(Merge).join(Run, Run.id == Merge.run_id).where(
-            Run.conversation_id == cid, Merge.status == "applied", *night))
-        for one in merge.files if one["state"] == "applied"})
+        [Run.created_at <= away.ended_at.replace(tzinfo=None)] if away.ended_at else []
+    )
+    return sorted(
+        {
+            str(one["path"])
+            for merge in session.scalars(
+                select(Merge)
+                .join(Run, Run.id == Merge.run_id)
+                .where(Run.conversation_id == cid, Merge.status == "applied", *night)
+            )
+            for one in merge.files
+            if one["state"] == "applied"
+        }
+    )
 
 
 def doing_now(session: Session, cid: str) -> str | None:
     """What a job's agents do right now, as the canvas says it (slice 84d): the newest tool
     of its chat that runs - "Coder · editing a.py"; None while none does."""
-    call = session.scalar(select(ToolCall).join(Run, Run.id == ToolCall.run_id).where(
-        Run.conversation_id == cid, ToolCall.status == "running").order_by(
-        ToolCall.started_at.desc()).limit(1))
+    call = session.scalar(
+        select(ToolCall)
+        .join(Run, Run.id == ToolCall.run_id)
+        .where(Run.conversation_id == cid, ToolCall.status == "running")
+        .order_by(ToolCall.started_at.desc())
+        .limit(1)
+    )
     if call is None:
         return None
     try:
@@ -807,8 +1118,13 @@ def doing_now(session: Session, cid: str) -> str | None:
     except ValueError:
         args = {}
     args = args if isinstance(args, dict) else {}
-    said = (f"editing {args.get('path')}" if call.name in ("write_file", "edit_file")
-            else str(args.get("command")) if call.name == "run_command" else call.name)
+    said = (
+        f"editing {args.get('path')}"
+        if call.name in ("write_file", "edit_file")
+        else str(args.get("command"))
+        if call.name == "run_command"
+        else call.name
+    )
     who = session.get(Agent, call.agent_id)
     return f"{who.name or who.role_name} · {said}" if who is not None else said
 
@@ -817,9 +1133,15 @@ def checks(session: Session, cid: str) -> list[str]:
     """What a job's reviews last said, role by role, as far as its agents reported (as Ready
     for you says it): "Reviewer: no findings", "Tester: 2 findings left", "Reviewer: 1
     suggestion" (B-192: one that sends no work back)."""
-    said = {agent.role_name: agent.findings or [] for agent in session.scalars(
-        select(Agent).join(Run, Run.id == Agent.run_id).where(
-            Run.conversation_id == cid, Agent.findings.is_not(None)).order_by(Agent.created_at))}
+    said = {
+        agent.role_name: agent.findings or []
+        for agent in session.scalars(
+            select(Agent)
+            .join(Run, Run.id == Agent.run_id)
+            .where(Run.conversation_id == cid, Agent.findings.is_not(None))
+            .order_by(Agent.created_at)
+        )
+    }
 
     def counted(n: int, word: str) -> str:
         return f"{n} {word}{'s' if n > 1 else ''}"
@@ -828,14 +1150,19 @@ def checks(session: Session, cid: str) -> list[str]:
     for role, found in said.items():
         left = sum(1 for f in found if f.get("blocking", True))
         parts = ([f"{counted(left, 'finding')} left"] if left else []) + (
-            [counted(len(found) - left, "suggestion")] if len(found) > left else [])
+            [counted(len(found) - left, "suggestion")] if len(found) > left else []
+        )
         lines.append(f"{role}: {', '.join(parts) or 'no findings'}")
     # S11 (decision 18): a job whose tests still fail is not taken in - its Checked line says so.
-    note = session.scalar(select(Message.blocks).where(
-        Message.conversation_id == cid, Message.role == "checked").order_by(
-        Message.created_at.desc()).limit(1))
-    lines += [row["text"] for row in (note or {}).get("rows") or []
-              if row.get("kind") == "not_taken"]
+    note = session.scalar(
+        select(Message.blocks)
+        .where(Message.conversation_id == cid, Message.role == "checked")
+        .order_by(Message.created_at.desc())
+        .limit(1)
+    )
+    lines += [
+        row["text"] for row in (note or {}).get("rows") or [] if row.get("kind") == "not_taken"
+    ]
     return lines
 
 
@@ -853,20 +1180,36 @@ def report(session: Session, away: AwayRun) -> dict:
             kept = kept_copies(session, cid) if cid else []
             files = sorted({str(f["path"]) for merge in kept for f in merge.files})
             state = task.away_state or ("working" if at_work(session, task) else "next")
-            run_id = session.scalar(select(Run.id).where(Run.conversation_id == cid).order_by(
-                Run.created_at.desc()).limit(1)) if cid else None
-            one |= {"conversation_id": cid, "state": state, "why": task.away_why,
-                    "assessment": task.assessment, "kept": [merge.id for merge in kept],
-                    "files": files, "taken": taken_in(session, away, cid) if cid else [],
-                    # What its copy changed where the user said not to, refused or not (a
-                    # command that wrote there without naming it): for them to see first.
-                    "kept_out": [path for path in files if kept_out(away, path, root=root)],
-                    "asks": asks(session, run_id) if state == "waits" and run_id else [],
-                    "now": doing_now(session, cid) if state == "working" and cid else None,
-                    "checks": checks(session, cid) if cid else [],
-                    "spent": spend(session, [Conversation.id == cid])["spent"] if cid else None}
-            slipped += [{"task_id": task.id, "what": f"{task.title}: changed {path} in its copy"}
-                        for path in one["kept_out"]]
+            run_id = (
+                session.scalar(
+                    select(Run.id)
+                    .where(Run.conversation_id == cid)
+                    .order_by(Run.created_at.desc())
+                    .limit(1)
+                )
+                if cid
+                else None
+            )
+            one |= {
+                "conversation_id": cid,
+                "state": state,
+                "why": task.away_why,
+                "assessment": task.assessment,
+                "kept": [merge.id for merge in kept],
+                "files": files,
+                "taken": taken_in(session, away, cid) if cid else [],
+                # What its copy changed where the user said not to, refused or not (a
+                # command that wrote there without naming it): for them to see first.
+                "kept_out": [path for path in files if kept_out(away, path, root=root)],
+                "asks": asks(session, run_id) if state == "waits" and run_id else [],
+                "now": doing_now(session, cid) if state == "working" and cid else None,
+                "checks": checks(session, cid) if cid else [],
+                "spent": spend(session, [Conversation.id == cid])["spent"] if cid else None,
+            }
+            slipped += [
+                {"task_id": task.id, "what": f"{task.title}: changed {path} in its copy"}
+                for path in one["kept_out"]
+            ]
             if state == "done":
                 for path in files:
                     by_file.setdefault(path, []).append(task.title)
@@ -875,22 +1218,47 @@ def report(session: Session, away: AwayRun) -> dict:
         if one.get("state") == "done":
             one["shared"] = [path for path in one["files"] if len(by_file.get(path, ())) > 1]
     found = spent(session, away)  # (not started: nothing, in the prices' currency)
-    proposed = list(session.scalars(select(BacklogTask).where(
-        BacklogTask.project_id == away.project_id, BacklogTask.status == "proposed",
-        BacklogTask.created_at >= away.started_at.replace(tzinfo=None),
-        *([BacklogTask.created_at <= away.ended_at.replace(tzinfo=None)] if away.ended_at
-          else []))).all()) if away.started_at else []
+    proposed = (
+        list(
+            session.scalars(
+                select(BacklogTask).where(
+                    BacklogTask.project_id == away.project_id,
+                    BacklogTask.status == "proposed",
+                    BacklogTask.created_at >= away.started_at.replace(tzinfo=None),
+                    *(
+                        [BacklogTask.created_at <= away.ended_at.replace(tzinfo=None)]
+                        if away.ended_at
+                        else []
+                    ),
+                )
+            ).all()
+        )
+        if away.started_at
+        else []
+    )
     return {
-        "id": away.id, "project_id": away.project_id, "conversation_id": away.conversation_id,
-        "run_id": away.run_id, "status": away.status, "jobs": jobs, "kept_out": away.kept_out,
-        "until": away.until, "money": away.money, "started_at": away.started_at,
-        "ended_at": away.ended_at, "why": away.why, "seen_at": away.seen_at,
-        "tried": away.tried, "slipped": slipped,
+        "id": away.id,
+        "project_id": away.project_id,
+        "conversation_id": away.conversation_id,
+        "run_id": away.run_id,
+        "status": away.status,
+        "jobs": jobs,
+        "kept_out": away.kept_out,
+        "until": away.until,
+        "money": away.money,
+        "started_at": away.started_at,
+        "ended_at": away.ended_at,
+        "why": away.why,
+        "seen_at": away.seen_at,
+        "tried": away.tried,
+        "slipped": slipped,
         "spent": found["spent"] if away.started_at else None,
-        "currency": found["currency"] or "USD", "at_least": bool(found["at_least"]),
-        "counts": counts(session, away), "proposed": proposed,
-        "decided": decided(session, away), "job_minutes": (
-            None if (hours := unattended(session)[1]) is None else hours * 60),
+        "currency": found["currency"] or "USD",
+        "at_least": bool(found["at_least"]),
+        "counts": counts(session, away),
+        "proposed": proposed,
+        "decided": decided(session, away),
+        "job_minutes": (None if (hours := unattended(session)[1]) is None else hours * 60),
         "on_plan": on_plan(session, away),
     }
 
@@ -901,4 +1269,3 @@ def on_plan(session: Session, away: AwayRun) -> str | None:
     evening = session.get(Conversation, away.conversation_id)
     provider = would_run(session, find_role(session, LEAD), evening).provider
     return provider.name if provider is not None and provider.plan else None
-

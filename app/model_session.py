@@ -50,8 +50,10 @@ PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")  # what this server speak
 LINE_LIMIT = 2**24  # one line can hold a whole file being written
 KEY_WAIT_SECONDS = 10.0
 # B-304: why a session ends when a second program presents its tool server's key.
-SECOND_BRIDGE = ("a second connection with this run's key was turned away (another program "
-                 "had it, or the CLI started KOLONİ's bridge again), so the run is stopped")
+SECOND_BRIDGE = (
+    "a second connection with this run's key was turned away (another program "
+    "had it, or the CLI started KOLONİ's bridge again), so the run is stopped"
+)
 INIT_WAIT_SECONDS = 10.0
 # K-altajan-saglayici: how long a model may stay queued (Qoder's free models, `queued`) before
 # the session is given up as unavailable - its opener then moves a sub-agent to the next of
@@ -154,17 +156,26 @@ def copilot_counts(usage: dict | None) -> SessionResult:
     models' counts, summed (one per model it used); only the snapshot's modelMetrics: its
     agentMetrics and providerModelMetrics say the same again. inputTokens holds what it read
     from and wrote to its cache. None where it said nothing: never a made-up 0."""
-    used = [_dict(_dict(one).get("usage")) for one in _dict(_dict(_dict(usage).get(
-        "accountingSnapshot")).get("modelMetrics")).values()]
+    used = [
+        _dict(_dict(one).get("usage"))
+        for one in _dict(_dict(_dict(usage).get("accountingSnapshot")).get("modelMetrics")).values()
+    ]
 
     def total(name: str) -> int | None:
         return reduce(_sum, (one.get(name) for one in used), None)
+
     premium = _dict(usage).get("totalPremiumRequests")
     return SessionResult(
-        total("inputTokens"), total("outputTokens"), None, total("cacheReadTokens"),
-        total("cacheWriteTokens"), nano_aiu=count_of(_dict(usage).get("totalNanoAiu")),
-        premium_requests=premium if isinstance(premium, int | float)
-        and not isinstance(premium, bool) else None)
+        total("inputTokens"),
+        total("outputTokens"),
+        None,
+        total("cacheReadTokens"),
+        total("cacheWriteTokens"),
+        nano_aiu=count_of(_dict(usage).get("totalNanoAiu")),
+        premium_requests=premium
+        if isinstance(premium, int | float) and not isinstance(premium, bool)
+        else None,
+    )
 
 
 # Tools whose calls do not wait for one another.
@@ -178,8 +189,7 @@ class ToolServer:
     with a reason the session's owner gets to see.
     """
 
-    def __init__(self, tools: list[dict], call_tool: CallTool | CallShowing,
-                 alone: bool = True):
+    def __init__(self, tools: list[dict], call_tool: CallTool | CallShowing, alone: bool = True):
         self._tools = tools
         self._call_tool = call_tool
         self.key = secrets.token_urlsafe(24)
@@ -204,9 +214,7 @@ class ToolServer:
         self.last_reply = time.monotonic()
 
     async def start(self) -> None:
-        self._server = await asyncio.start_server(
-            self._serve, "127.0.0.1", 0, limit=LINE_LIMIT
-        )
+        self._server = await asyncio.start_server(self._serve, "127.0.0.1", 0, limit=LINE_LIMIT)
         self.port = self._server.sockets[0].getsockname()[1]
 
     async def close(self) -> None:
@@ -250,8 +258,13 @@ class ToolServer:
             try:
                 result = await self._handle(request.get("method"), _dict(request.get("params")))
             except _UnknownMethod as exc:
-                await send({"jsonrpc": "2.0", "id": request_id,
-                            "error": {"code": -32601, "message": str(exc)}})
+                await send(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "error": {"code": -32601, "message": str(exc)},
+                    }
+                )
                 return
             await send({"jsonrpc": "2.0", "id": request_id, "result": result})
 
@@ -387,8 +400,7 @@ def bridge_file(server: ToolServer, workdir: Path) -> Path:
     """The session's port and key in its folder's bridge.json, which only its bridge
     (`mcp_bridge`) is pointed at: never on a command line, nor in a CLI's own config."""
     server.file = workdir / "bridge.json"
-    server.file.write_text(json.dumps({"port": server.port, "key": server.key}),
-                           encoding="utf-8")
+    server.file.write_text(json.dumps({"port": server.port, "key": server.key}), encoding="utf-8")
     return server.file
 
 
@@ -407,8 +419,7 @@ class CliSessionClient(CliStepClient):
     # `session.error`) and not the text of its answer, which can be the model's words.
     result_is_its_error = False
 
-    async def stream_step(self, model_id, messages, tools, on_delta, on_thinking=None,
-                          effort=None):
+    async def stream_step(self, model_id, messages, tools, on_delta, on_thinking=None, effort=None):
         raise OwnStop(f"{self.label} runs as a session, not step by step")
 
     def _session_arguments(self, config: Path, allowed: list[str]) -> list[str]:
@@ -419,10 +430,14 @@ class CliSessionClient(CliStepClient):
 
     def _mcp_config(self, server: "ToolServer", workdir: Path) -> dict:
         """What the CLI is told about its one MCP server, KOLONİ's."""
-        return {"mcpServers": {SERVER: {
-            "command": sys.executable,
-            "args": [str(Path(mcp_bridge.__file__)), str(bridge_file(server, workdir))],
-        }}}
+        return {
+            "mcpServers": {
+                SERVER: {
+                    "command": sys.executable,
+                    "args": [str(Path(mcp_bridge.__file__)), str(bridge_file(server, workdir))],
+                }
+            }
+        }
 
     def _translate(self, event: dict) -> list[dict]:
         """One line of the CLI's stream, as the events this client reads (those of
@@ -462,11 +477,23 @@ class CliSessionClient(CliStepClient):
             config.write_text(json.dumps(self._mcp_config(server, workdir)), encoding="utf-8")
             command, shim = self._command()
             arguments, prompt = await asyncio.to_thread(  # (its pictures are read)
-                self._given, self._leveled(self._session_arguments(config, allowed), effort),
-                build_session_prompt(messages), messages, workdir)
+                self._given,
+                self._leveled(self._session_arguments(config, allowed), effort),
+                build_session_prompt(messages),
+                messages,
+                workdir,
+            )
             return await self._converse(
-                [*command, *arguments], shim, prompt, workdir, server, allowed, on_text,
-                on_message, on_live, queue_wait,
+                [*command, *arguments],
+                shim,
+                prompt,
+                workdir,
+                server,
+                allowed,
+                on_text,
+                on_message,
+                on_live,
+                queue_wait,
             )
         finally:
             await server.close()
@@ -474,8 +501,17 @@ class CliSessionClient(CliStepClient):
                 shutil.rmtree(workdir, ignore_errors=True)
 
     async def _converse(  # noqa: C901
-        self, argv, shim, prompt, workdir, server: ToolServer, allowed: list[str], on_text,
-        on_message=None, on_live=None, queue_wait: float | None = QUEUE_WAIT_SECONDS,
+        self,
+        argv,
+        shim,
+        prompt,
+        workdir,
+        server: ToolServer,
+        allowed: list[str],
+        on_text,
+        on_message=None,
+        on_live=None,
+        queue_wait: float | None = QUEUE_WAIT_SECONDS,
     ) -> SessionResult:
         try:
             process, job = await self._start(argv, shim, workdir, self._session_env(workdir))
@@ -539,11 +575,7 @@ class CliSessionClient(CliStepClient):
                 heard = time.monotonic()
                 written = raw.decode("utf-8", errors="replace")
                 feed("stdout", written, (server.key,))
-                for event in (
-                    told
-                    for line in _events(written)
-                    for told in self._translate(line)
-                ):
+                for event in (told for line in _events(written) for told in self._translate(line)):
                     kind = event.get("type")
                     if in_queue and kind != "system" and on_live:
                         # Its model is at work (words, a tool call, its result): queued no more.
@@ -576,11 +608,15 @@ class CliSessionClient(CliStepClient):
                         in_queue = queued(event)
                         if on_live:
                             on_live({"queue": in_queue})
-                        if in_queue and queue_wait is not None and (
-                                in_queue["elapsed_s"] or 0) >= queue_wait:
+                        if (
+                            in_queue
+                            and queue_wait is not None
+                            and (in_queue["elapsed_s"] or 0) >= queue_wait
+                        ):
                             raise ModelUnavailable(
                                 f"{self.label} kept its model queued for "
-                                f"{round(in_queue['elapsed_s'] / 60)} min")
+                                f"{round(in_queue['elapsed_s'] / 60)} min"
+                            )
                     elif kind in ("assistant", "result") and not vetted.is_set():
                         raise OwnStop(
                             f"{self.label} did not say which tools it started with; "
@@ -601,8 +637,9 @@ class CliSessionClient(CliStepClient):
                                 # Two pieces of text in one message are two paragraphs.
                                 await on_text(("\n\n" if text_open else "") + block["text"])
                                 text_open = True
-                            elif (block.get("type") == "tool_use"
-                                  and str(block.get("name", "")).startswith(PREFIX)):
+                            elif block.get("type") == "tool_use" and str(
+                                block.get("name", "")
+                            ).startswith(PREFIX):
                                 text_open = False
                                 async with caught_up:
                                     announced += 1
@@ -633,8 +670,7 @@ class CliSessionClient(CliStepClient):
                 try:
                     talking.result()
                 except ValueError:
-                    raise ModelUnavailable(
-                        f"{self.label} sent a line too long to read") from None
+                    raise ModelUnavailable(f"{self.label} sent a line too long to read") from None
         except ModelUnavailable as exc:
             exc.model, exc.picked_why = reported, picked_why  # (B-410: its pick, on record)
             raise
@@ -666,7 +702,8 @@ class CliSessionClient(CliStepClient):
             reason = _brief(self._hide(str(result.get("result") or result.get("errors"))))
             failed = ModelUnavailable(f"{self.label} reported an error: {reason}")
             failed.failure = classed(limited, own_word) or (
-                None if self.result_is_its_error else RESULT_TEXT)
+                None if self.result_is_its_error else RESULT_TEXT
+            )
             failed.model, failed.picked_why = reported, picked_why
             raise failed
         if counted is not None:
@@ -692,14 +729,19 @@ class ClaudeSessionClient(CliSessionClient):
     def _session_arguments(self, config: Path, allowed: list[str]) -> list[str]:
         arguments = [
             "-p",
-            "--tools", "",  # none of its own tools
+            "--tools",
+            "",  # none of its own tools
             "--strict-mcp-config",  # no MCP server but KOLONİ's
-            "--mcp-config", str(config),
+            "--mcp-config",
+            str(config),
             "--no-session-persistence",
-            "--setting-sources", "",
-            "--output-format", "stream-json",
+            "--setting-sources",
+            "",
+            "--output-format",
+            "stream-json",
             "--verbose",
-            "--system-prompt", SYSTEM_LINE,
+            "--system-prompt",
+            SYSTEM_LINE,
         ]
         if allowed:
             arguments += ["--allowedTools", ",".join(allowed)]
@@ -761,13 +803,18 @@ class QoderSessionClient(CliSessionClient):
         # own (no Task, no Skill) nothing can start them.
         arguments = [
             "-p",
-            "--tools", "",
+            "--tools",
+            "",
             "--strict-mcp-config",
-            "--mcp-config", str(config),
+            "--mcp-config",
+            str(config),
             "--no-session-persistence",
-            "--setting-sources", "",
-            "-o", "stream-json",
-            "--system-prompt", SYSTEM_LINE,
+            "--setting-sources",
+            "",
+            "-o",
+            "stream-json",
+            "--system-prompt",
+            SYSTEM_LINE,
         ]
         for name in allowed:
             arguments += ["--allowed-tools", name]
@@ -806,8 +853,10 @@ def _finds(said: dict, key: str) -> bool:
 # (`AutoTier`; its integrator-only `fast` left out) and Fusion's (`FusionTier`: several models
 # try each turn and one is kept; High and Max cost more). Each by its model's name, sent as its
 # flag to a session and as session.create's `capi` field natively - never both of them.
-ROUTINGS = {"auto": ("efficiency", "balance", "intelligence"),
-            "fusion": ("standard", "high", "max")}
+ROUTINGS = {
+    "auto": ("efficiency", "balance", "intelligence"),
+    "fusion": ("standard", "high", "max"),
+}
 ROUTE_FLAGS = {"auto": ("--auto-tier", "autoTier"), "fusion": ("--fusion-tier", "fusionTier")}
 
 
@@ -860,8 +909,9 @@ class CopilotSessionClient(CliSessionClient):
         self._base_url, self._api_key, self._options = base_url, api_key, dict(options or {})
         self._context = context  # the model row's tier (K-copilot-baglam)
         # The model row's routing: only its auto's or fusion's own, only on GitHub's account.
-        self._routing = routing if not base_url and routing in ROUTINGS.get(
-            str(model), ()) else None
+        self._routing = (
+            routing if not base_url and routing in ROUTINGS.get(str(model), ()) else None
+        )
         # Its `auto` on GitHub takes no level (`level_in_name`): none is sent.
         self.level_named = not base_url and level_in_name("copilot_cli", model)
         if self.level_named:
@@ -886,7 +936,8 @@ class CopilotSessionClient(CliSessionClient):
         # shortcut: without a token it signs in by gh's stored login (measured); a gh login
         # held only in GH_TOKEN is stripped here - pass it on if a user signs in that way.
         return {
-            name: value for name, value in super()._inherited(pass_env).items()
+            name: value
+            for name, value in super()._inherited(pass_env).items()
             if not name.upper().startswith("COPILOT_")
             and name.upper() not in ("GH_TOKEN", "GITHUB_TOKEN")
         }
@@ -895,11 +946,16 @@ class CopilotSessionClient(CliSessionClient):
         return text.replace(self._api_key, "[key]") if self._api_key else text
 
     def _mcp_config(self, server: ToolServer, workdir: Path) -> dict:
-        return {"mcpServers": {SERVER: {
-            "type": "local", "command": sys.executable,
-            "args": [str(Path(mcp_bridge.__file__)), str(bridge_file(server, workdir))],
-            "tools": ["*"],
-        }}}
+        return {
+            "mcpServers": {
+                SERVER: {
+                    "type": "local",
+                    "command": sys.executable,
+                    "args": [str(Path(mcp_bridge.__file__)), str(bridge_file(server, workdir))],
+                    "tools": ["*"],
+                }
+            }
+        }
 
     def _session_env(self, workdir: Path) -> dict[str, str]:
         # A home of its own, empty, either way: none of the user's Copilot plugins,
@@ -926,8 +982,10 @@ class CopilotSessionClient(CliSessionClient):
         }
         if self._api_key:
             env["COPILOT_PROVIDER_API_KEY"] = self._api_key
-        for name, variable in (("max_prompt_tokens", "COPILOT_PROVIDER_MAX_PROMPT_TOKENS"),
-                               ("max_output_tokens", "COPILOT_PROVIDER_MAX_OUTPUT_TOKENS")):
+        for name, variable in (
+            ("max_prompt_tokens", "COPILOT_PROVIDER_MAX_PROMPT_TOKENS"),
+            ("max_output_tokens", "COPILOT_PROVIDER_MAX_OUTPUT_TOKENS"),
+        ):
             if self._options.get(name):
                 env[variable] = str(self._options[name])
         if self._options.get("offline", True):
@@ -937,9 +995,12 @@ class CopilotSessionClient(CliSessionClient):
     def _session_arguments(self, config: Path, allowed: list[str]) -> list[str]:
         names = [COPILOT_PREFIX + name.removeprefix(PREFIX) for name in allowed]
         arguments = [
-            "--output-format", "json",
-            "--allow-tool", SERVER,  # permission for KOLONİ's server and nothing else
-            "--additional-mcp-config", f"@{config}",
+            "--output-format",
+            "json",
+            "--allow-tool",
+            SERVER,  # permission for KOLONİ's server and nothing else
+            "--additional-mcp-config",
+            f"@{config}",
             "--disable-builtin-mcps",
             "--no-custom-instructions",
             "--no-auto-update",
@@ -970,8 +1031,9 @@ class CopilotSessionClient(CliSessionClient):
         2026): `session.model.getCurrent` keeps it (Fusion Standard as Auto Balance), both at once
         is refused, and a tier the plan lacks is refused at session.create (`CopilotNativeClient`).
         shortcut: protocol 3's flat `capi` is not measured (no 1.0.105 left to run it on)."""
-        return {"capi": {ROUTE_FLAGS[str(self._model)][1]: self._routing}} if (
-            self._routing) else {}
+        return (
+            {"capi": {ROUTE_FLAGS[str(self._model)][1]: self._routing}} if (self._routing) else {}
+        )
 
     def context_arguments(self) -> list[str]:
         """Copilot's long context window, where the model's row asks for it; nothing for the
@@ -981,25 +1043,35 @@ class CopilotSessionClient(CliSessionClient):
         then - say "choose Default" for it once that error has been seen.
         shortcut: `--model auto` with the long tier is not measured (whether auto then picks
         only models that offer it); measure with one cheap call before trusting it."""
-        return (["--context", "long_context"]
-                if self._context == "long_context" and not self._base_url else [])
+        return (
+            ["--context", "long_context"]
+            if self._context == "long_context" and not self._base_url
+            else []
+        )
 
     def _translate(self, event: dict) -> list[dict]:
         kind, data = event.get("type"), _dict(event.get("data"))
         if kind == "session.tools_updated":
             # It has settled what it starts with; its own tools are off by the flags
             # above, and any use of one is caught below.
-            return [{"type": "system", "subtype": "init", "tools": [],
-                     "model": data.get("model")}]
+            return [{"type": "system", "subtype": "init", "tools": [], "model": data.get("model")}]
         if kind == "model.call_start":  # (under auto: the model it picked - 1.0.105, 7 Nov 2026)
             return [{"type": "model", "model": data.get("model")}]
         if kind == "session.auto_mode_resolved":  # its auto has picked a model, and says why
-            return [{"type": "model", "model": data.get("chosenModel"),
-                     "why": data.get("selectionReason")}]
+            return [
+                {
+                    "type": "model",
+                    "model": data.get("chosenModel"),
+                    "why": data.get("selectionReason"),
+                }
+            ]
         if kind == "session.usage_checkpoint":  # (its tokens and AI credits, as natively)
             return [{"type": "koloni.usage", "counted": copilot_counts(data)}]
-        if kind == "tool.execution_start" and data.get("mcpServerName") != SERVER and not (
-                _finds(data, "toolName")):
+        if (
+            kind == "tool.execution_start"
+            and data.get("mcpServerName") != SERVER
+            and not (_finds(data, "toolName"))
+        ):
             raise OwnStop(
                 f"{self.label} used a tool of its own ({data.get('toolName')}); "
                 "the session was stopped"
@@ -1027,20 +1099,38 @@ class CopilotSessionClient(CliSessionClient):
         return []
 
     async def run_session(
-        self, model_id, messages, tools, call_tool, on_text, on_message=None, effort=None,
-        on_live=None, queue_wait=QUEUE_WAIT_SECONDS,
+        self,
+        model_id,
+        messages,
+        tools,
+        call_tool,
+        on_text,
+        on_message=None,
+        effort=None,
+        on_live=None,
+        queue_wait=QUEUE_WAIT_SECONDS,
     ) -> SessionResult:
         try:
             return await super().run_session(
-                model_id, messages, tools, call_tool, on_text, on_message, effort, on_live,
-                queue_wait)
+                model_id,
+                messages,
+                tools,
+                call_tool,
+                on_text,
+                on_message,
+                effort,
+                on_live,
+                queue_wait,
+            )
         except ModelUnavailable as exc:
             # Whatever the CLI or the server said, the key is not repeated.
             if self._api_key and self._api_key in str(exc):
                 # (Still what it was: KOLONİ's own stop or the provider's, with its class.)
                 hidden = type(exc)(str(exc).replace(self._api_key, "[key]"))
                 hidden.failure, hidden.model, hidden.picked_why = (
-                    exc.failure, exc.model, exc.picked_why)
+                    exc.failure,
+                    exc.model,
+                    exc.picked_why,
+                )
                 raise hidden from None
             raise
-

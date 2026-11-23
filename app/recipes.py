@@ -38,23 +38,37 @@ START_NAME = "Your message"
 END_NAMES = {"in": "Ask me, then in", "report": "Tell me what was found"}
 NO_NAME = "A step with no name"
 # B-388: a candidate's model the spawn would refuse (`team.ONLY_IN_THE_PROJECT`), said to the user.
-NOT_IN_A_COPY = ("{provider} works with tools of its own in the project itself, so it can't run in "
-                 "a recipe's copy")
+NOT_IN_A_COPY = (
+    "{provider} works with tools of its own in the project itself, so it can't run in "
+    "a recipe's copy"
+)
 # How `problems`' parts say what they found: at a node's id (None: the whole recipe), and what.
 Say = Callable[[str | None, str], None]
 
 
-def model_refused(session: Session, provider_id: str, model_id: str | None,
-                  guided: list[Entry] | None = None, *, providers: Providers,
-                  tools: Iterable[str] | None) -> str | None:
+def model_refused(
+    session: Session,
+    provider_id: str,
+    model_id: str | None,
+    guided: list[Entry] | None = None,
+    *,
+    providers: Providers,
+    tools: Iterable[str] | None,
+) -> str | None:
     """K-evrim-model: why a candidate's model in a recipe cannot be had now - its provider is
     gone or not one agents may use, a model it does not let agents pick (as an agent's pick is
     held: `choose`), one it may not run (`not_listed`), or (B-388) one that works with tools of
     its own in the project, not a recipe's copy, for a role of these `tools` (`only_in_project`,
     as the spawn refuses it). None: it can. Asked as the recipe is saved and starts, and as each
     candidate opens (the user may untick it mid-run). `guided`: the team guide, read already."""
-    entry = next((e for e in (guide(list_providers(session)) if guided is None else guided)
-                  if e.provider_id == provider_id), None)
+    entry = next(
+        (
+            e
+            for e in (guide(list_providers(session)) if guided is None else guided)
+            if e.provider_id == provider_id
+        ),
+        None,
+    )
     if entry is None:
         return "its provider is gone, or agents may not use it"
     try:
@@ -78,9 +92,12 @@ def problems(session: Session, graph: RecipeGraph, providers: Providers) -> list
     steps = {step.id: step for step in graph.steps}
     groups = {group.id: group for group in graph.groups}
     ends = {end.id: end for end in graph.ends}
-    names = {START: START_NAME, **{i: s.name or NO_NAME for i, s in steps.items()},
-             **{i: g.name or NO_NAME for i, g in groups.items()},
-             **{i: END_NAMES[end.then] for i, end in ends.items()}}
+    names = {
+        START: START_NAME,
+        **{i: s.name or NO_NAME for i, s in steps.items()},
+        **{i: g.name or NO_NAME for i, g in groups.items()},
+        **{i: END_NAMES[end.then] for i, end in ends.items()},
+    }
     found: list[dict] = []
 
     def say(at: str | None, msg: str) -> None:
@@ -103,8 +120,13 @@ def problems(session: Session, graph: RecipeGraph, providers: Providers) -> list
     return found
 
 
-def _drawn(graph: RecipeGraph, steps: dict[str, RecipeStep], groups: dict[str, RecipeGroup],
-           ends: dict[str, RecipeEnd], say: Say) -> None:
+def _drawn(
+    graph: RecipeGraph,
+    steps: dict[str, RecipeStep],
+    groups: dict[str, RecipeGroup],
+    ends: dict[str, RecipeEnd],
+    say: Say,
+) -> None:
     """`problems`: every part named, no id twice, every step's group drawn and every group with
     a step."""
     for part in [*graph.steps, *graph.groups]:
@@ -121,8 +143,13 @@ def _drawn(graph: RecipeGraph, steps: dict[str, RecipeStep], groups: dict[str, R
             say(group.id, f"{group.name} has no step")
 
 
-def _arrows(graph: RecipeGraph, steps: dict[str, RecipeStep], ends: dict[str, RecipeEnd],
-            names: dict[str, str], say: Say) -> dict[str, list[str]]:
+def _arrows(
+    graph: RecipeGraph,
+    steps: dict[str, RecipeStep],
+    ends: dict[str, RecipeEnd],
+    names: dict[str, str],
+    say: Say,
+) -> dict[str, list[str]]:
     """`problems`: the arrows, as what each part goes on to."""
     # Arrows join the start, steps outside a group, groups and ends.
     # K-tarif-kol: and, inside a group, its own steps into branches - each one line of steps.
@@ -132,19 +159,29 @@ def _arrows(graph: RecipeGraph, steps: dict[str, RecipeStep], ends: dict[str, Re
         here, there = steps.get(arrow.from_), steps.get(arrow.to)
         if here and there and here.group is not None and here.group == there.group:
             if arrow.from_ in inner or arrow.to in inner.values():
-                say(arrow.from_, f"{here.name}: a branch of its group is one line of steps - "
-                                 "one arrow out of a step and one into it")
+                say(
+                    arrow.from_,
+                    f"{here.name}: a branch of its group is one line of steps - "
+                    "one arrow out of a step and one into it",
+                )
             else:
                 inner[arrow.from_] = arrow.to
         elif arrow.from_ in steps and steps[arrow.from_].group is not None:
-            say(arrow.from_, f"{steps[arrow.from_].name} goes on with its group, not by an "
-                             "arrow of its own")
+            say(
+                arrow.from_,
+                f"{steps[arrow.from_].name} goes on with its group, not by an arrow of its own",
+            )
         elif arrow.from_ not in names or arrow.from_ in ends:
             say(None, f"An arrow from {arrow.from_} starts at nothing that goes on")
-        elif arrow.to not in names or arrow.to == START or (
-                arrow.to in steps and steps[arrow.to].group is not None):
-            say(arrow.from_, f"{names[arrow.from_]}: its arrow to {arrow.to} leads to nothing "
-                             "drawn that starts")
+        elif (
+            arrow.to not in names
+            or arrow.to == START
+            or (arrow.to in steps and steps[arrow.to].group is not None)
+        ):
+            say(
+                arrow.from_,
+                f"{names[arrow.from_]}: its arrow to {arrow.to} leads to nothing drawn that starts",
+            )
         elif arrow.to in nexts.get(arrow.from_, []):
             say(arrow.from_, f"{names[arrow.from_]}: two arrows to {names[arrow.to]}")
         else:
@@ -154,8 +191,10 @@ def _arrows(graph: RecipeGraph, steps: dict[str, RecipeStep], ends: dict[str, Re
         while at in inner and at != one and left:
             at, left = inner[at], left - 1
         if at == one:
-            say(one, f"{steps[one].name}: the arrows in its group go round; a branch has a "
-                     "first step")
+            say(
+                one,
+                f"{steps[one].name}: the arrows in its group go round; a branch has a first step",
+            )
     return nexts
 
 
@@ -172,9 +211,14 @@ def _candidate_groups(graph: RecipeGraph, say: Say) -> None:
             say(group.id, f"{group.name}: a group with candidates waits for all its branches")
 
 
-def _reached(steps: dict[str, RecipeStep], groups: dict[str, RecipeGroup],
-             ends: dict[str, RecipeEnd], names: dict[str, str], nexts: dict[str, list[str]],
-             say: Say) -> set[str]:
+def _reached(
+    steps: dict[str, RecipeStep],
+    groups: dict[str, RecipeGroup],
+    ends: dict[str, RecipeEnd],
+    names: dict[str, str],
+    nexts: dict[str, list[str]],
+    say: Say,
+) -> set[str]:
     """`problems`: the parts reached from the start."""
     # From the start along the arrows. An arrow back to a part on the way here goes round with
     # no limit: going back is a loop's, which has one.
@@ -187,21 +231,31 @@ def _reached(steps: dict[str, RecipeStep], groups: dict[str, RecipeGroup],
     return reached
 
 
-def _walk(at: str, nexts: dict[str, list[str]], names: dict[str, str], way: dict[str, bool],
-          say: Say) -> None:
+def _walk(
+    at: str, nexts: dict[str, list[str]], names: dict[str, str], way: dict[str, bool], say: Say
+) -> None:
     way[at] = True
     for one in nexts.get(at, []):
         if way.get(one):
-            say(at, f"{names[at]}: its arrow back to {names[one]} makes a loop with no "
-                    "round limit; use Loop back")
+            say(
+                at,
+                f"{names[at]}: its arrow back to {names[one]} makes a loop with no "
+                "round limit; use Loop back",
+            )
         elif one not in way:
             _walk(one, nexts, names, way, say)
     way[at] = False
 
 
-def _ending(steps: dict[str, RecipeStep], groups: dict[str, RecipeGroup],
-            ends: dict[str, RecipeEnd], names: dict[str, str], nexts: dict[str, list[str]],
-            reached: set[str], say: Say) -> dict[str, list[str]]:
+def _ending(
+    steps: dict[str, RecipeStep],
+    groups: dict[str, RecipeGroup],
+    ends: dict[str, RecipeEnd],
+    names: dict[str, str],
+    nexts: dict[str, list[str]],
+    reached: set[str],
+    say: Say,
+) -> dict[str, list[str]]:
     """`problems`: every part reached gets to an end; what comes before each part."""
     # Back from the ends: what cannot get to one would stop the recipe halfway.
     befores: dict[str, list[str]] = {}
@@ -236,8 +290,14 @@ def _leads(start: str, to: str, nexts: dict[str, list[str]]) -> bool:
     return to in seen
 
 
-def _loops(graph: RecipeGraph, steps: dict[str, RecipeStep], groups: dict[str, RecipeGroup],
-           names: dict[str, str], nexts: dict[str, list[str]], say: Say) -> None:
+def _loops(
+    graph: RecipeGraph,
+    steps: dict[str, RecipeStep],
+    groups: dict[str, RecipeGroup],
+    names: dict[str, str],
+    nexts: dict[str, list[str]],
+    say: Say,
+) -> None:
     """`problems`: every loop back goes back, with a round limit."""
     looped: set[str] = set()
     for loop in graph.loops:
@@ -286,22 +346,36 @@ def _whos(session: Session, graph: RecipeGraph, providers: Providers, say: Say) 
         # spawn may part for a capped role; judge by the turn's at start if that is seen.
         tried = find_agent_role(session, role) if isinstance(picks, list) and role else None
         for n, pick in enumerate(picks if isinstance(picks, list) else [], 1):
-            if why := model_refused(session, pick.provider_id, pick.model_id, guided,
-                                    providers=providers, tools=tried.tools if tried else None):
+            if why := model_refused(
+                session,
+                pick.provider_id,
+                pick.model_id,
+                guided,
+                providers=providers,
+                tools=tried.tools if tried else None,
+            ):
                 say(step.id, f"{step.name}: candidate {n}'s model: {why}")
         for one in room or ([role] if role is not None else []):
             found_role = find_agent_role(session, one)
             # (The Lead is no step's role: "the Lead picks" is.)
             if found_role is None or (found_role.builtin and found_role.name == LEAD):
                 say(step.id, f"{step.name}: “{one}” is no role here")
-        if team is not None and session.scalar(
-                select(Team.id).where(func.lower(Team.name) == team.lower())) is None:
+        if (
+            team is not None
+            and session.scalar(select(Team.id).where(func.lower(Team.name) == team.lower())) is None
+        ):
             say(step.id, f"{step.name}: “{team}” is no team here")
 
 
-def _ways(graph: RecipeGraph, groups: dict[str, RecipeGroup], names: dict[str, str],
-          nexts: dict[str, list[str]], befores: dict[str, list[str]], found: list[dict],
-          say: Say) -> None:
+def _ways(
+    graph: RecipeGraph,
+    groups: dict[str, RecipeGroup],
+    names: dict[str, str],
+    nexts: dict[str, list[str]],
+    befores: dict[str, list[str]],
+    found: list[dict],
+    say: Say,
+) -> None:
     """`problems`, of a drawing that runs: the ways from a part with more than one arrow."""
     from app.recipe_run import ways  # (it reads this module's START)
 
@@ -313,25 +387,44 @@ def _ways(graph: RecipeGraph, groups: dict[str, RecipeGroup], names: dict[str, s
         before, stops = len(found), {stop for _line, stop in lines}
         for line, stop in lines:
             if len(befores.get(stop, [])) == 1 and len(nexts.get(stop, [])) > 1:
-                say(stop, f"{names[stop]} forks again on a way from {names[at]}: each way "
-                          "goes on in one line to where they meet")
+                say(
+                    stop,
+                    f"{names[stop]} forks again on a way from {names[at]}: each way "
+                    "goes on in one line to where they meet",
+                )
             elif not line:
-                say(at, f"{names[at]}: its arrow to {names[stop]} runs nothing beside its "
-                        "other ways")
+                say(
+                    at,
+                    f"{names[at]}: its arrow to {names[stop]} runs nothing beside its other ways",
+                )
             elif len(line) > 1 and any(one in groups for one in line):
-                say(line[0], f"{names[line[0]]}: a way from {names[at]} is one group or "
-                             "steps one after another, not both")
+                say(
+                    line[0],
+                    f"{names[line[0]]}: a way from {names[at]} is one group or "
+                    "steps one after another, not both",
+                )
         if len(found) == before and len(stops) > 1:
-            say(at, f"{names[at]}: its ways run at once and meet again at one part, which "
-                    "waits for all of them (an end may be it)")
+            say(
+                at,
+                f"{names[at]}: its ways run at once and meet again at one part, which "
+                "waits for all of them (an end may be it)",
+            )
         elif len(found) == before and sum(a.to in stops for a in graph.arrows) > len(lines):
             join = stops.pop()
-            say(join, f"{names[join]} waits for the ways from {names[at]}, and an arrow "
-                      "from beside them comes to it too")
+            say(
+                join,
+                f"{names[join]} waits for the ways from {names[at]}, and an arrow "
+                "from beside them comes to it too",
+            )
 
 
-def _beside_ways(graph: RecipeGraph, steps: dict[str, RecipeStep],
-                 groups: dict[str, RecipeGroup], names: dict[str, str], say: Say) -> None:
+def _beside_ways(
+    graph: RecipeGraph,
+    steps: dict[str, RecipeStep],
+    groups: dict[str, RecipeGroup],
+    names: dict[str, str],
+    say: Say,
+) -> None:
     """`problems`, of a drawing that runs: what may not be on a way beside others, and the
     checks and conditions of its steps."""
     from app.recipe_run import (  # (it reads this module's START)
@@ -344,8 +437,11 @@ def _beside_ways(graph: RecipeGraph, steps: dict[str, RecipeStep],
     on_ways = {one for lines, _join in forks(graph).values() for line in lines for one in line}
     for loop in graph.loops:
         if _node(loop.from_, steps, groups) in on_ways or _node(loop.to, steps, groups) in on_ways:
-            say(loop.from_, f"{names[loop.from_]}: its loop is on a way beside others; loop "
-                            "back from where they meet")
+            say(
+                loop.from_,
+                f"{names[loop.from_]}: its loop is on a way beside others; loop "
+                "back from where they meet",
+            )
     for step in graph.steps:
         if getattr(step.who, "room", None) is not None and step.id in on_ways:
             say(step.id, f"{step.name}: a room meets on its own, not at once with other steps")
@@ -370,7 +466,8 @@ def folder_recipes(root: str) -> tuple[list[tuple[str, RecipeIn]], list[str]]:
         listed = project_files.listing(root, FOLDER)
     except Refused as refused:  # (no such folder: there are none)
         return [], [] if str(refused) == "no such folder" else [
-            f"{FOLDER} is not read - it is a link, or leads where KOLONİ does not look"]
+            f"{FOLDER} is not read - it is a link, or leads where KOLONİ does not look"
+        ]
     found, broken = [], []
     for entry in listed:
         if entry["kind"] != "file" or not entry["name"].endswith(".json"):
@@ -379,8 +476,10 @@ def folder_recipes(root: str) -> tuple[list[tuple[str, RecipeIn]], list[str]]:
         stem = entry["name"].removesuffix(".json")
         # (One the page could not change or delete is not shown as if it could.)
         if not FILE_NAME.fullmatch(stem) or DEVICES.fullmatch(stem):
-            broken.append(f"{rel} is not read - its file name is not letters, digits and "
-                          "dashes, or is one Windows keeps for a device")
+            broken.append(
+                f"{rel} is not read - its file name is not letters, digits and "
+                "dashes, or is one Windows keeps for a device"
+            )
             continue
         text, why = koloni._text(root, rel)
         if text is not None:
@@ -395,8 +494,15 @@ def folder_recipes(root: str) -> tuple[list[tuple[str, RecipeIn]], list[str]]:
 
 def write_file(root: str, file: str, recipe: RecipeIn | None) -> None:
     """Write (None: remove) a recipe's file of the folder, as KOLONİ's page alone does."""
-    koloni.write(root, f"recipes/{file}.json", None if recipe is None else json.dumps(
-        recipe.model_dump(mode="json", by_alias=True), indent=2, ensure_ascii=False))
+    koloni.write(
+        root,
+        f"recipes/{file}.json",
+        None
+        if recipe is None
+        else json.dumps(
+            recipe.model_dump(mode="json", by_alias=True), indent=2, ensure_ascii=False
+        ),
+    )
 
 
 # shortcut: a draft never has a step that runs only if a problem was found (`when`): the user
@@ -407,20 +513,20 @@ DRAW = (
     'nothing else: {"name": a short name, "graph": {"version": 1, "steps": [{"id", "name", '
     '"who", "done_when", "if_fails", "ask_me", "group"}], "groups": [{"id", "name"}], "ends": '
     '[{"id", "then"}], "arrows": [{"from", "to"}], "loops": [{"from", "to", "rounds"}]}}. '
-    "Ids are short words of letters, digits, - or _. \"who\" is {\"role\": a role's name} - "
-    "with \"most\": 2 to 5 where the sentence wants up to that many of it at once, each on a "
+    'Ids are short words of letters, digits, - or _. "who" is {"role": a role\'s name} - '
+    'with "most": 2 to 5 where the sentence wants up to that many of it at once, each on a '
     "part of the work -, "
-    "{\"team\": a team's name} (its stages in order), {\"lead\": true} (the Orchestrator picks), "
-    "{\"room\": 2 to 6 roles' names} (they meet in one room; never in a group), "
-    "{\"experts\": \"all\"} (the team's experts, at once), {\"experts\": \"stale\"} (those "
-    "of them whose guide is old: they learn) or {\"experts\": \"learned\"} (those that have "
+    '{"team": a team\'s name} (its stages in order), {"lead": true} (the Orchestrator picks), '
+    '{"room": 2 to 6 roles\' names} (they meet in one room; never in a group), '
+    '{"experts": "all"} (the team\'s experts, at once), {"experts": "stale"} (those '
+    'of them whose guide is old: they learn) or {"experts": "learned"} (those that have '
     "learned; none: the step is passed). "
     '"done_when" is "done", or "no_findings" for a review. "if_fails" is "ask" or "stop". '
     '"ask_me": true where the user approves the step\'s work before it goes on. Steps that '
     'run at the same time share a group ("group": its id); arrows go to and from the group, '
     'never from a step in it. The first arrow is from "start", the user\'s message. "then" '
     'is "in" (ask the user, then take the change into the project) or "report" (tell the '
-    'user what was found). A loop goes from a review back to the step that fixes, at most '
+    "user what was found). A loop goes from a review back to the step that fixes, at most "
     '"rounds" times (1 to 5): each loop the sentence names ("at most 2 rounds back to the '
     'Coder") is one of "loops", with its rounds. Name only the roles and teams listed. The '
     "sentence is the "
@@ -430,8 +536,10 @@ DRAW = (
 
 def draw_question(session: Session, sentence: str, roles: list[str]) -> str:
     teams = session.scalars(select(Team.name).order_by(Team.created_at)).all()
-    return (f"{DRAW}\n\nThe roles: {quoted(', '.join(roles))}\nThe teams: "
-            f"{quoted(', '.join(teams))}\n\nThe sentence:\n{quoted(sentence)}")
+    return (
+        f"{DRAW}\n\nThe roles: {quoted(', '.join(roles))}\nThe teams: "
+        f"{quoted(', '.join(teams))}\n\nThe sentence:\n{quoted(sentence)}"
+    )
 
 
 def drafted(said: str) -> RecipeIn:
@@ -440,7 +548,7 @@ def drafted(said: str) -> RecipeIn:
     start, end = said.find("{"), said.rfind("}")
     if start < 0 or end < start:
         raise ValueError("it holds no JSON object")
-    return _read(said[start:end + 1])
+    return _read(said[start : end + 1])
 
 
 def _read(text: str) -> RecipeIn:

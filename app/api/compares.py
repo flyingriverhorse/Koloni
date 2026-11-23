@@ -65,42 +65,58 @@ def cost_of(rows: list[dict]) -> list[dict] | None:
     for currency in dict.fromkeys(cost["currency"] for cost in costs):
         mine = [cost for cost in costs if cost["currency"] == currency]
         short = unpriced or any(cost.get("at_least") or cost.get("cache_unpriced") for cost in mine)
-        sums.append({"amount": round(sum(cost["amount"] for cost in mine), 6),
-                     "currency": currency, **({"at_least": True} if short else {})})
+        sums.append(
+            {
+                "amount": round(sum(cost["amount"] for cost in mine), 6),
+                "currency": currency,
+                **({"at_least": True} if short else {}),
+            }
+        )
     return sums
 
 
 def _kept(session: Session, run_id: str) -> Merge | None:
     """A side's kept copy while it waits for the user's choice."""
     return session.scalar(
-        select(Merge).where(Merge.run_id == run_id, Merge.status == "interrupted",
-                            Merge.kept_in.is_not(None))
+        select(Merge).where(
+            Merge.run_id == run_id, Merge.status == "interrupted", Merge.kept_in.is_not(None)
+        )
     )
 
 
 def _side(session: Session, side: dict) -> dict:
     run = session.get_one(Run, side["run_id"])
-    lead = session.scalar(
-        select(Agent.id).where(Agent.run_id == run.id, Agent.depth == 0).limit(1))
+    lead = session.scalar(select(Agent.id).where(Agent.run_id == run.id, Agent.depth == 0).limit(1))
     answer = AgentRunner.last_answer(session, run.id, lead) if lead else None
     merge = session.scalar(
-        select(Merge).where(Merge.run_id == run.id).order_by(Merge.created_at.desc()).limit(1))
+        select(Merge).where(Merge.run_id == run.id).order_by(Merge.created_at.desc()).limit(1)
+    )
     # (Without a card: what is in its copy still - not what a stopped side's copy held.)
-    recorded = session.scalars(select(FileChange.path).where(
-        FileChange.run_id == run.id, FileChange.status == "in_copy"))
-    changed = [one["path"] for one in merge.files] if merge else sorted(
-        {path for path in recorded if not in_scratch(path)})
+    recorded = session.scalars(
+        select(FileChange.path).where(FileChange.run_id == run.id, FileChange.status == "in_copy")
+    )
+    changed = (
+        [one["path"] for one in merge.files]
+        if merge
+        else sorted({path for path in recorded if not in_scratch(path)})
+    )
     spent = usage(run_id=run.id, session=session)
     total = spent["by_conversation"][0] if spent["by_conversation"] else {}
     return {
-        "run_id": run.id, "provider_id": side["provider_id"],
-        "model_id": run.model_id or side["model_id"], "status": run.status,
-        "answer": answer.content if answer else "", "error": run.error,
-        "changed_files": changed, "kept": _kept(session, run.id) is not None,
-        "input_tokens": total.get("input_tokens"), "output_tokens": total.get("output_tokens"),
+        "run_id": run.id,
+        "provider_id": side["provider_id"],
+        "model_id": run.model_id or side["model_id"],
+        "status": run.status,
+        "answer": answer.content if answer else "",
+        "error": run.error,
+        "changed_files": changed,
+        "kept": _kept(session, run.id) is not None,
+        "input_tokens": total.get("input_tokens"),
+        "output_tokens": total.get("output_tokens"),
         "cost": cost_of(spent["by_model"]),
         "seconds": (run.ended_at - run.started_at).total_seconds()
-        if run.ended_at and run.started_at else None,
+        if run.ended_at and run.started_at
+        else None,
     }
 
 
@@ -110,13 +126,17 @@ def compare_out(session: Session, compare: Compare) -> dict:
     if status == "open":
         status = "ready" if all(side["status"] in TERMINAL for side in sides) else "running"
     return {
-        "id": compare.id, "conversation_id": compare.conversation_id, "status": status,
-        "chosen_run_id": compare.chosen_run_id, "sides": sides,
+        "id": compare.id,
+        "conversation_id": compare.conversation_id,
+        "status": status,
+        "chosen_run_id": compare.chosen_run_id,
+        "sides": sides,
     }
 
 
-def _sides(session: Session, request: Request, conversation: Conversation,
-           body: CompareIn) -> tuple[list[dict], list[Provider]]:
+def _sides(
+    session: Session, request: Request, conversation: Conversation, body: CompareIn
+) -> tuple[list[dict], list[Provider]]:
     """The sides asked for, each with its model, and their providers; 422 for one that cannot
     be a side."""
     sides, spends = [], []
@@ -130,8 +150,11 @@ def _sides(session: Session, request: Request, conversation: Conversation,
             raise HTTPException(422, str(refused))
         client = request.app.state.providers.client(provider, model_id)
         # Refused before anything starts, with why: what the side's turn would refuse.
-        why = OUTSIDE_A_COPY if outside_a_copy(client) else needs_full_auto(
-            client, conversation.permission_mode)
+        why = (
+            OUTSIDE_A_COPY
+            if outside_a_copy(client)
+            else needs_full_auto(client, conversation.permission_mode)
+        )
         if why:
             raise HTTPException(422, why.format(provider=shown_name(provider.name)))
         sides.append({"provider_id": provider.id, "model_id": model_id})
@@ -140,11 +163,15 @@ def _sides(session: Session, request: Request, conversation: Conversation,
 
 
 @router.post(
-    "/conversations/{conversation_id}/compare", response_model=CompareStarted,
-    status_code=201, dependencies=[Depends(require_own_origin)],
+    "/conversations/{conversation_id}/compare",
+    response_model=CompareStarted,
+    status_code=201,
+    dependencies=[Depends(require_own_origin)],
 )
 async def start(
-    conversation_id: str, body: CompareIn, request: Request,
+    conversation_id: str,
+    body: CompareIn,
+    request: Request,
     session: Session = Depends(get_session),
 ):
     """The user's own, from the app's page: two models are set to work on their message."""
@@ -152,8 +179,11 @@ async def start(
     if conversation is None:
         raise HTTPException(404, "conversation not found")
     if conversation.project_id is None:
-        raise HTTPException(409, "each side of a comparison works in a copy of the chat's "
-                                 "folder: this chat has no folder")
+        raise HTTPException(
+            409,
+            "each side of a comparison works in a copy of the chat's "
+            "folder: this chat has no folder",
+        )
     content = body.content.strip()
     if not content:
         raise HTTPException(422, "message is empty")
@@ -163,12 +193,16 @@ async def start(
     over = over_budget(session, session.get_one(Project, conversation.project_id), spends=spends)
     if over and not body.over_budget:
         raise HTTPException(409, f"this project is {over}: say to go on over it")
-    first = session.scalar(
-        select(Message.id).where(Message.conversation_id == conversation_id).limit(1)
-    ) is None
+    first = (
+        session.scalar(
+            select(Message.id).where(Message.conversation_id == conversation_id).limit(1)
+        )
+        is None
+    )
     try:
         topic, new = topics.for_message(
-            session, conversation_id, content, body.topic_id, body.new_topic)
+            session, conversation_id, content, body.topic_id, body.new_topic
+        )
     except topics.Refused as exc:
         raise HTTPException(422, str(exc)) from None
     compare = Compare(conversation_id=conversation_id, sides=[])
@@ -178,8 +212,16 @@ async def start(
     # on its own and neither waiting for a file the other holds.
     turns = []
     for side in sides:
-        turns.append(new_turn(session, conversation_id, topic.id, content,
-                              compare_id=compare.id, model_id=side["model_id"]))
+        turns.append(
+            new_turn(
+                session,
+                conversation_id,
+                topic.id,
+                content,
+                compare_id=compare.id,
+                model_id=side["model_id"],
+            )
+        )
         side["run_id"] = turns[-1][0].id
     compare.sides = sides
     if first:
@@ -217,11 +259,14 @@ def _decided(session: Session, compare_id: str, ended: bool = True) -> Compare:
 
 
 @router.post(
-    "/compares/{compare_id}/choose", response_model=CompareOut,
+    "/compares/{compare_id}/choose",
+    response_model=CompareOut,
     dependencies=[Depends(require_own_origin)],
 )
 async def choose(
-    compare_id: str, body: CompareChoice, request: Request,
+    compare_id: str,
+    body: CompareChoice,
+    request: Request,
     session: Session = Depends(get_session),
 ):
     """Take the chosen side's changes into the project and throw the other's copy away.
@@ -248,7 +293,8 @@ async def choose(
 
 
 @router.post(
-    "/compares/{compare_id}/discard", response_model=CompareOut,
+    "/compares/{compare_id}/discard",
+    response_model=CompareOut,
     dependencies=[Depends(require_own_origin)],
 )
 async def discard(compare_id: str, request: Request, session: Session = Depends(get_session)):

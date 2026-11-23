@@ -79,9 +79,11 @@ SAY_LINE = re.compile(r"^\*{0,2}Say:\*{0,2}\s*(.+)$")
 
 # R179: what the chat is told once, a Codex Lead in native mode at a chat with a recipe. R188: it
 # may open the team's roles over MCP, and then the recipe runs - only it often does not.
-CODEX_NATIVE_NO_RECIPE = ("Codex in native mode often does the work itself instead of running "
-                          "this chat's teams and recipes — for them to run every time, switch its "
-                          "'How it runs' to step on the Models page.")
+CODEX_NATIVE_NO_RECIPE = (
+    "Codex in native mode often does the work itself instead of running "
+    "this chat's teams and recipes — for them to run every time, switch its "
+    "'How it runs' to step on the Models page."
+)
 
 ROLE_REJECTED = (
     "rejected: the user declined to create the role {name}. This is their decision, not a "
@@ -93,8 +95,10 @@ ROLE_REJECTED = (
 def _taken(session: Session, role: Role) -> str:
     """What an agent that would make a role of a name already taken is told."""
     if is_team_lead(session, role):  # (slice 63a: no agent is opened in one yet)
-        return (f"there is already a role named {role.name}: a team's coordinator - "
-                f"{LEADS_LATER}. Make no role for it")
+        return (
+            f"there is already a role named {role.name}: a team's coordinator - "
+            f"{LEADS_LATER}. Make no role for it"
+        )
     return f"there is already a role named {role.name}; open a sub-agent in it with spawn_agent"
 
 
@@ -155,8 +159,9 @@ class RoomsMixin:
         Stop ends the room as "cancelled" and takes nothing of it (the turn's end throws
         its copy away); so does a failure to open it, which fails the turn."""
         with self._factory() as session:
-            room_id = session.scalar(select(Room.id).where(
-                Room.run_id == lead.run_id, Room.status == "sharing"))
+            room_id = session.scalar(
+                select(Room.id).where(Room.run_id == lead.run_id, Room.status == "sharing")
+            )
         if room_id is None:
             return
         room = self._rooms[lead.run_id] = _Room(room_id, lead)
@@ -181,8 +186,9 @@ class RoomsMixin:
         else:
             self._following[lead.agent_id] = room
             with self._factory() as session:
-                goal = session.scalar(select(Message.id).where(
-                    Message.run_id == lead.run_id, Message.role == "user"))
+                goal = session.scalar(
+                    select(Message.id).where(Message.run_id == lead.run_id, Message.role == "user")
+                )
             # (After the turn's message, its goal - where it stays, step after step. What is said
             # in the room it is given as an opener is: as wait_for_room's answer.)
             self._nudges.setdefault(lead.agent_id, []).append((goal, rooms.LET_FOLLOW))
@@ -197,11 +203,20 @@ class RoomsMixin:
             return
         with self._factory() as session:
             provider = session.get(Provider, ctx.provider_id or "")
-            if provider is None or provider.kind != "codex_cli" or not self._rows(
-                    session, ctx.cid) or session.scalar(
-                    select(Message.id).where(
-                        Message.conversation_id == ctx.cid, Message.role == "koloni",
-                        Message.content == CODEX_NATIVE_NO_RECIPE).limit(1)):
+            if (
+                provider is None
+                or provider.kind != "codex_cli"
+                or not self._rows(session, ctx.cid)
+                or session.scalar(
+                    select(Message.id)
+                    .where(
+                        Message.conversation_id == ctx.cid,
+                        Message.role == "koloni",
+                        Message.content == CODEX_NATIVE_NO_RECIPE,
+                    )
+                    .limit(1)
+                )
+            ):
                 return
         self._koloni_line(ctx.cid, ctx.run_id, CODEX_NATIVE_NO_RECIPE)
 
@@ -248,8 +263,11 @@ class RoomsMixin:
             if room.outcome is None:
                 room.status = "working"
                 self._set_room(room, status="working")
-                await self._in_room(room, self._work, [
-                    member for member in room.members.values() if member.state == "in"])
+                await self._in_room(
+                    room,
+                    self._work,
+                    [member for member in room.members.values() if member.state == "in"],
+                )
         except BaseException:
             self._room_cut(room)
             raise
@@ -258,8 +276,13 @@ class RoomsMixin:
         """A room came to no end of its own: Stop, the app going down, or a failure."""
         self._stop_clock(room)
         self._set_room(
-            room, status="interrupted" if self._closing else "cancelled", paused=False,
-            ended_at=now(), seconds=room.seconds, clock_since=None, lead_follows="off",
+            room,
+            status="interrupted" if self._closing else "cancelled",
+            paused=False,
+            ended_at=now(),
+            seconds=room.seconds,
+            clock_since=None,
+            lead_follows="off",
         )
 
     def _open_members(self: "AgentRunner", room: _Room) -> None:
@@ -275,7 +298,8 @@ class RoomsMixin:
             conversation = session.get_one(Conversation, lead.cid)
             goal = session.get_one(Room, room.id).goal
             rows = session.scalars(
-                select(RoomMember).where(RoomMember.room_id == room.id)
+                select(RoomMember)
+                .where(RoomMember.room_id == room.id)
                 .order_by(RoomMember.position)
             ).all()
             room.between = tuple(self._between(session, lead, [row.role for row in rows], []))
@@ -284,30 +308,64 @@ class RoomsMixin:
                 most = settings_of(session, conversation).spawn_max_agents
                 if len(rows) > most:
                     raise ValueError(
-                        f"this conversation lets a turn open {most} sub-agent(s) at most")
+                        f"this conversation lets a turn open {most} sub-agent(s) at most"
+                    )
                 for row in rows:
                     named = session.get(Provider, row.provider_id) if row.provider_id else None
                     if row.provider_id and named is None:
                         raise ValueError(f"the provider named for the {row.role} is gone")
                     role, tools, provider, model_name, moved = rooms.member_model(
-                        session, conversation, row.role, named.name if named else None,
-                        row.model_id, lead.tools, by_user=True,
+                        session,
+                        conversation,
+                        row.role,
+                        named.name if named else None,
+                        row.model_id,
+                        lead.tools,
+                        by_user=True,
                     )
-                    plans.append((
-                        row.id, role.name, tools, role.instructions, provider.name,
-                        provider.id, model_name, self.providers.client(provider, model_name),
-                        moved,
-                    ))
+                    plans.append(
+                        (
+                            row.id,
+                            role.name,
+                            tools,
+                            role.instructions,
+                            provider.name,
+                            provider.id,
+                            model_name,
+                            self.providers.client(provider, model_name),
+                            moved,
+                        )
+                    )
             except ValueError as exc:
                 raise OwnStop(f"the room could not be opened: {exc}") from None
-        for (row_id, role, tools, instructions, provider, provider_id, model_name, model,
-             moved) in plans:
+        for (
+            row_id,
+            role,
+            tools,
+            instructions,
+            provider,
+            provider_id,
+            model_name,
+            model,
+            moved,
+        ) in plans:
             ctx = self._open_agent(
-                lead.run_id, lead.cid, lead.root, lead.agent_id, role,
+                lead.run_id,
+                lead.cid,
+                lead.root,
+                lead.agent_id,
+                role,
                 [*rooms.talk_only(tools, room.between), *rooms.TOOLS],
-                goal, lead.depth + 1, status="waiting", instructions=instructions,
-                parent_role="user", provider_name=provider, model=model,
-                model_name=model_name, provider_id=provider_id, chosen_why=moved,
+                goal,
+                lead.depth + 1,
+                status="waiting",
+                instructions=instructions,
+                parent_role="user",
+                provider_name=provider,
+                model=model,
+                model_name=model_name,
+                provider_id=provider_id,
+                chosen_why=moved,
             )
             if room.between:
                 ctx = self._talk_only(room, ctx)
@@ -318,8 +376,9 @@ class RoomsMixin:
                 session.commit()
         self._set_room(room)
 
-    async def _open_room(self: "AgentRunner", ctx: Ctx, call_id: str,
-                         args: dict) -> tuple[str, str]:
+    async def _open_room(
+        self: "AgentRunner", ctx: Ctx, call_id: str, args: dict
+    ) -> tuple[str, str]:
         """An agent opens a room (`open_room`), and waits for it: the room's record is the
         call's answer. Its members are opened as sub-agents are, each under every limit
         and rule `_propose` holds a sub-agent to; where the user is asked for one of them
@@ -346,8 +405,10 @@ class RoomsMixin:
                 return sorted(" ".join(one.split()).casefold() for one in roles)
 
             if at and names(wanted) != names(at[1]):
-                raise ToolError(f"the {at[0]} step is a room of {', '.join(at[1])}: open it "
-                                "with all of them, each once")
+                raise ToolError(
+                    f"the {at[0]} step is a room of {', '.join(at[1])}: open it "
+                    "with all of them, each once"
+                )
             conversation = session.get_one(Conversation, ctx.cid)
             if not at:  # (R178 review: a room of six past the turn's allowance is said up front)
                 self._open_room_allowance(session, ctx, conversation, wanted)
@@ -382,8 +443,11 @@ class RoomsMixin:
                 raise ToolError(rooms.TURNED_DOWN.format(role=turned_down))
             with self._factory() as session:
                 row = Room(
-                    run_id=ctx.run_id, goal=goal, agent_id=ctx.agent_id,
-                    max_posts=limits["posts"], max_tokens=limits["tokens"],
+                    run_id=ctx.run_id,
+                    goal=goal,
+                    agent_id=ctx.agent_id,
+                    max_posts=limits["posts"],
+                    max_tokens=limits["tokens"],
                     max_minutes=limits["minutes"],
                 )
                 session.add(row)
@@ -394,8 +458,8 @@ class RoomsMixin:
             self._room_asked.discard(ctx.run_id)
         self.bus.emit(ctx.cid, ctx.run_id, "room.created", payload)
         if at:  # (B-120: the room its Room step opened, which its Take in is on record as)
-            def opened(row: ConversationTeam, team: Team, lead: Role | None,
-                       state: dict) -> bool:
+
+            def opened(row: ConversationTeam, team: Team, lead: Role | None, state: dict) -> bool:
                 if ids[0] not in state["agents"]:
                     return False
                 state["room"] = room.id
@@ -413,25 +477,28 @@ class RoomsMixin:
         if recipe and self._recipes_over(ctx):
             # (K-r146 lets a follow-up agent in after it, not a room: the room's copy would
             # be the recipe's, held till the turn ends.)
-            raise ToolError("no room after this turn's recipe has ended: its copy is held "
-                            "till the turn ends - open the agents you need with spawn_agent")
-        if not recipe and session.scalar(
-            select(Room.id).where(Room.run_id == ctx.run_id).limit(1)
-        ):
+            raise ToolError(
+                "no room after this turn's recipe has ended: its copy is held "
+                "till the turn ends - open the agents you need with spawn_agent"
+            )
+        if not recipe and session.scalar(select(Room.id).where(Room.run_id == ctx.run_id).limit(1)):
             raise ToolError(rooms.ONE_A_TURN)
 
-    def _open_room_allowance(self: "AgentRunner", session, ctx: Ctx, conversation,
-                             wanted) -> None:
+    def _open_room_allowance(self: "AgentRunner", session, ctx: Ctx, conversation, wanted) -> None:
         """`_open_room`: a room of more members than the turn may still open, raised."""
         left = settings_of(session, conversation).spawn_max_agents - self._opened_this_turn(
-            session, ctx.run_id)
+            session, ctx.run_id
+        )
         if len(wanted) > left:
-            raise ToolError(f"this turn may open {max(left, 0)} more agents; the room "
-                            f"needs {len(wanted)}. Open a smaller room, or do the rest "
-                            "yourself")
+            raise ToolError(
+                f"this turn may open {max(left, 0)} more agents; the room "
+                f"needs {len(wanted)}. Open a smaller room, or do the rest "
+                "yourself"
+            )
 
-    def _open_room_plans(self: "AgentRunner", session, ctx: Ctx, conversation, at, wanted,
-                         named) -> tuple[list, set]:
+    def _open_room_plans(
+        self: "AgentRunner", session, ctx: Ctx, conversation, at, wanted, named
+    ) -> tuple[list, set]:
         """`_open_room`: each wanted member's role and model, and the teams' coordinators
         among them (their ids)."""
         plans, leads = [], set()
@@ -440,28 +507,39 @@ class RoomsMixin:
             lead = None if at else self._team_lead(session, ctx, name)
             try:
                 role, _tools, provider, model_name, moved = rooms.member_model(
-                    session, conversation, name, None, None, ctx.tools, named_roles=named,
-                    lead=lead)
+                    session, conversation, name, None, None, ctx.tools, named_roles=named, lead=lead
+                )
             except (ValueError, OwnStop) as exc:
                 raise ToolError(str(exc)) from None
             if lead is not None:
                 # (Its team waits for the room: not one it runs at the same time.)
-                if busy := session.scalar(select(Agent.name).where(
-                        Agent.run_id == ctx.run_id, Agent.role_name == lead.name,
-                        Agent.status.not_in(AGENT_TERMINAL)).limit(1)):
+                if busy := session.scalar(
+                    select(Agent.name)
+                    .where(
+                        Agent.run_id == ctx.run_id,
+                        Agent.role_name == lead.name,
+                        Agent.status.not_in(AGENT_TERMINAL),
+                    )
+                    .limit(1)
+                ):
                     raise ToolError(rooms.COORDINATOR_AT_WORK.format(lead=busy))
                 leads.add(lead.id)
-            plans.append((role, provider, model_name,
-                          self.providers.client(provider, model_name), moved))
+            plans.append(
+                (role, provider, model_name, self.providers.client(provider, model_name), moved)
+            )
         return plans, leads
 
-    def _open_room_between(self: "AgentRunner", session, ctx: Ctx, at, plans, leads, door,
-                           named) -> list:
+    def _open_room_between(
+        self: "AgentRunner", session, ctx: Ctx, at, plans, leads, door, named
+    ) -> list:
         """`_open_room`: the teams a room is between, after each member is held to the door
         it opens by (raised where one may not be)."""
         # (A recipe's Room step is its row's: within its team.)
-        between = [] if at else self._between(
-            session, ctx, [role.name for role, *_rest in plans], [ctx.agent_id])
+        between = (
+            []
+            if at
+            else self._between(session, ctx, [role.name for role, *_rest in plans], [ctx.agent_id])
+        )
         # B-141: the Lead names a room between teams' members itself - it only talks: not
         # "hand it to its lead" for each.
         if between and not ctx.depth:
@@ -480,17 +558,24 @@ class RoomsMixin:
         """`_open_room`: what the room may spend - what was asked, never past the settings; its
         tokens never below their least either (B-414: raised, not refused - the most wins)."""
         own = settings_of(session, conversation)
-        asked = {**asked, "tokens": max(asked["tokens"], own.room_min_tokens or 0)} if (
-            "tokens" in asked) else asked
+        asked = (
+            {**asked, "tokens": max(asked["tokens"], own.room_min_tokens or 0)}
+            if ("tokens" in asked)
+            else asked
+        )
         limits = {}
         for key in ("posts", "tokens", "minutes"):
             most = getattr(own, f"room_{key}")
-            limits[key] = most if key not in asked else (
-                asked[key] if most is None else min(asked[key], most))
+            limits[key] = (
+                most
+                if key not in asked
+                else (asked[key] if most is None else min(asked[key], most))
+            )
         return limits
 
-    def _open_room_members(self: "AgentRunner", ctx: Ctx, call_id: str, goal, plans,
-                           leads) -> tuple[list[tuple[Ctx, str]], bool]:
+    def _open_room_members(
+        self: "AgentRunner", ctx: Ctx, call_id: str, goal, plans, leads
+    ) -> tuple[list[tuple[Ctx, str]], bool]:
         """`_open_room`: each member proposed as a sub-agent is; and whether the user is asked.
         One that fails leaves none of them opened."""
         members: list[tuple[Ctx, str]] = []
@@ -498,8 +583,18 @@ class RoomsMixin:
         try:
             for role, provider, model_name, model, moved in plans:
                 child, its = self._propose(
-                    ctx, call_id, role, goal, provider, model_name, model, False, None,
-                    why=moved or "", tiered=moved is not None)
+                    ctx,
+                    call_id,
+                    role,
+                    goal,
+                    provider,
+                    model_name,
+                    model,
+                    False,
+                    None,
+                    why=moved or "",
+                    tiered=moved is not None,
+                )
                 members.append((child, role.name))
                 if role.id not in leads:  # (a coordinator here speaks for its team: no run)
                     self._in_run(ctx, child, role)
@@ -509,8 +604,7 @@ class RoomsMixin:
             raise
         return members, asks
 
-    async def _open_room_follow(self: "AgentRunner", ctx: Ctx, room,
-                                args: dict) -> tuple[str, str]:
+    async def _open_room_follow(self: "AgentRunner", ctx: Ctx, room, args: dict) -> tuple[str, str]:
         """`_open_room`, once the room is open: its opener follows it, or waits for its record."""
         # K-oda-lead: it follows the room unless it asked not to - or is a CLI's session, whose
         # tools were given once, before it opened any room.
@@ -563,14 +657,26 @@ class RoomsMixin:
         `rooms.said` frames it, with how the room stands. Once the room is over (or `to_end`,
         whatever is said), its record instead, the one time: from then on it is at its own work
         again, with its role's tools."""
+
         def new() -> bool:  # (what wakes it: `_post_room`)
             with self._factory() as session:
-                return session.scalar(select(RoomPost.id).where(
-                    RoomPost.room_id == room.id, RoomPost.number > room.seen,
-                    or_(RoomPost.agent_id.is_(None), RoomPost.agent_id != ctx.agent_id),
-                    or_(RoomPost.agent_id.is_(None), RoomPost.type == "question",
-                        RoomPost.to_agent_id == ctx.agent_id),
-                ).limit(1)) is not None
+                return (
+                    session.scalar(
+                        select(RoomPost.id)
+                        .where(
+                            RoomPost.room_id == room.id,
+                            RoomPost.number > room.seen,
+                            or_(RoomPost.agent_id.is_(None), RoomPost.agent_id != ctx.agent_id),
+                            or_(
+                                RoomPost.agent_id.is_(None),
+                                RoomPost.type == "question",
+                                RoomPost.to_agent_id == ctx.agent_id,
+                            ),
+                        )
+                        .limit(1)
+                    )
+                    is not None
+                )
 
         life = cast(asyncio.Task, room.life)
         # With few of its steps left it follows no further: it waits for the record, and keeps
@@ -586,8 +692,7 @@ class RoomsMixin:
         # (Its members only wait - for it, nobody else is at work: it is told so, once a time.)
         states = [member.state for member in room.members.values()]
         alone = "in" not in states and "waiting" in states and room.alone_at != room.seen
-        if room.outcome is None and not life.done() and not to_end and not off and (
-                new() or alone):
+        if room.outcome is None and not life.done() and not to_end and not off and (new() or alone):
             told = self._followed(ctx, room)
             room.alone_at = room.seen if alone else room.alone_at
             return told
@@ -597,8 +702,9 @@ class RoomsMixin:
                 room.heard.clear()
                 heard = asyncio.ensure_future((room.follow if off else room.heard).wait())
                 try:
-                    await asyncio.wait([life] if to_end else [life, heard],
-                                       return_when=asyncio.FIRST_COMPLETED)
+                    await asyncio.wait(
+                        [life] if to_end else [life, heard], return_when=asyncio.FIRST_COMPLETED
+                    )
                 finally:
                     heard.cancel()
             if room.outcome is not None or life.done():
@@ -627,28 +733,46 @@ class RoomsMixin:
         with self._factory() as session:
             row = session.get_one(Room, room.id)
             items, questions, names = self._room_lists(session, room, ctx.agent_id)
-            posts = session.scalars(select(RoomPost).where(
-                RoomPost.room_id == room.id, RoomPost.number > room.seen,
-            ).order_by(RoomPost.number)).all()
+            posts = session.scalars(
+                select(RoomPost)
+                .where(
+                    RoomPost.room_id == room.id,
+                    RoomPost.number > room.seen,
+                )
+                .order_by(RoomPost.number)
+            ).all()
             spent = room_spent(session, row)
-            budget = {"posts": row.max_posts, "tokens": row.max_tokens,
-                      "minutes": row.max_minutes}
+            budget = {"posts": row.max_posts, "tokens": row.max_tokens, "minutes": row.max_minutes}
         room.seen = posts[-1].number if posts else room.seen
-        said = [rooms.said(post.number, names.get(post.agent_id or ""), post.type,
-                           names.get(post.to_agent_id or ""), post.reply_to, post.text)
-                for post in posts if post.agent_id != ctx.agent_id]
+        said = [
+            rooms.said(
+                post.number,
+                names.get(post.agent_id or ""),
+                post.type,
+                names.get(post.to_agent_id or ""),
+                post.reply_to,
+                post.text,
+            )
+            for post in posts
+            if post.agent_id != ctx.agent_id
+        ]
         members = [(one.ctx.name, one.state) for one in room.members.values()]
-        told = rooms.followed(said, rooms.now(
-            room.status, items, members, questions, spent, budget, opener=True))
+        told = rooms.followed(
+            said, rooms.now(room.status, items, members, questions, spent, budget, opener=True)
+        )
         return self._noted_posts(ctx, posts, names, told)
 
     def _noted_posts(self: "AgentRunner", ctx: Ctx, posts, names: dict, told: str) -> str:
         """What its reader is told of a room's posts, after KOLONİ's note where a member's
         reads like orders - the user is warned (93-A4). The user's own words and what KOLONİ
         wrote of one that left are never looked at, as `_hand_posts` looks at none."""
-        heard = [(f"a room post by {names.get(post.agent_id, 'a member')}", rules)
-                 for post in posts if post.agent_id not in (None, ctx.agent_id)
-                 and post.type != "left" and (rules := injection.scan(post.text, "agent"))]
+        heard = [
+            (f"a room post by {names.get(post.agent_id, 'a member')}", rules)
+            for post in posts
+            if post.agent_id not in (None, ctx.agent_id)
+            and post.type != "left"
+            and (rules := injection.scan(post.text, "agent"))
+        ]
         for where, rules in heard:
             self._warn(ctx, rules, "agent", where)
         return f"{injection.NOTE}\n{told}" if heard else told
@@ -691,8 +815,11 @@ class RoomsMixin:
                 return
             yes = decided.result() == "approve"
             self._paid_heard(agent_id, yes)
-            self._set_agent(ctx.cid, agent_id, **(
-                {"status": "waiting"} if yes else {"status": "rejected", "ended_at": now()}))
+            self._set_agent(
+                ctx.cid,
+                agent_id,
+                **({"status": "waiting"} if yes else {"status": "rejected", "ended_at": now()}),
+            )
             left.discard(agent_id)
             if not word.done() and (not yes or not left):
                 word.set_result("" if yes else self._ctxs[agent_id].name)
@@ -713,9 +840,12 @@ class RoomsMixin:
         are on record as turned down with it - as `_close_agents` leaves one - and so use up
         none of the turn's sub-agents, nor a place in a recipe's step."""
         with self._factory() as session:
-            still = session.scalars(select(Agent.id).where(
-                Agent.id.in_([child.agent_id for child in children]),
-                Agent.status.not_in(AGENT_TERMINAL))).all()
+            still = session.scalars(
+                select(Agent.id).where(
+                    Agent.id.in_([child.agent_id for child in children]),
+                    Agent.status.not_in(AGENT_TERMINAL),
+                )
+            ).all()
         for agent_id in still:
             self._set_agent(ctx.cid, agent_id, status="rejected", ended_at=now())
         for child in children:
@@ -736,7 +866,8 @@ class RoomsMixin:
         the room's tools, last in its order, waiting for its part."""
         with self._factory() as session:
             row = RoomMember(
-                room_id=room.id, position=len(room.members), role=role, agent_id=child.agent_id)
+                room_id=room.id, position=len(room.members), role=role, agent_id=child.agent_id
+            )
             session.add(row)
             session.commit()
             row_id = row.id
@@ -749,8 +880,9 @@ class RoomsMixin:
         self._set_room(room)
         return member
 
-    async def _in_room(self: "AgentRunner", room: _Room, work: Callable,
-                       members: list[_Member]) -> None:
+    async def _in_room(
+        self: "AgentRunner", room: _Room, work: Callable, members: list[_Member]
+    ) -> None:
         """Do a part of a room's work for these members at once, each as a task of its
         own that the room's end stops (`_end_room`): a member stopped that way just ends
         there, and what it left open is settled when the room is closed. Stop, or one
@@ -788,8 +920,14 @@ class RoomsMixin:
         anything, and no tool of an MCP server. What it says without a tool stays in its
         own conversation. A member whose model fails here has left the room."""
         ctx = member.ctx
-        turn = replace(ctx, max_steps=1, mcp=(), tools=tuple(
-            tool for tool in ctx.tools if tool in rooms.SHARING_READS or tool in rooms.SHARING))
+        turn = replace(
+            ctx,
+            max_steps=1,
+            mcp=(),
+            tools=tuple(
+                tool for tool in ctx.tools if tool in rooms.SHARING_READS or tool in rooms.SHARING
+            ),
+        )
         async with self._working(turn, queued=True):
             self._set_agent(ctx.cid, ctx.agent_id, status="running", started_at=now())
             status, error = await self._run_child(turn)
@@ -835,7 +973,8 @@ class RoomsMixin:
                 self._member_left(room, member, error, last)
                 return
             self._set_agent(
-                ctx.cid, ctx.agent_id, status="completed", report=last or None, ended_at=now())
+                ctx.cid, ctx.agent_id, status="completed", report=last or None, ended_at=now()
+            )
             self._leaves(room, member, "done", last or "(it said nothing)")
             await member.wake.wait()
             member.wake.clear()
@@ -847,11 +986,16 @@ class RoomsMixin:
         """A member failed - its model, or a limit it stopped at: it is out of the room."""
         ctx = member.ctx
         why = (
-            f"It stopped after {self._app_steps()} steps." if error == "step_limit"
+            f"It stopped after {self._app_steps()} steps."
+            if error == "step_limit"
             else f"It failed: {self._told(ctx.agent_id, error)}"
         )
         self._set_agent(
-            ctx.cid, ctx.agent_id, status="failed", error=error, report=last or None,
+            ctx.cid,
+            ctx.agent_id,
+            status="failed",
+            error=error,
+            report=last or None,
             ended_at=now(),
         )
         self._leaves(room, member, "left", why)
@@ -862,10 +1006,13 @@ class RoomsMixin:
         type), and whether the room can go on is looked at."""
         agent_id = member.ctx.agent_id
         with self._factory() as session:
-            held = session.scalars(select(RoomItem).where(
-                RoomItem.room_id == room.id, RoomItem.holder_agent_id == agent_id,
-                RoomItem.status == "taken",
-            )).all()
+            held = session.scalars(
+                select(RoomItem).where(
+                    RoomItem.room_id == room.id,
+                    RoomItem.holder_agent_id == agent_id,
+                    RoomItem.status == "taken",
+                )
+            ).all()
             for item in held:
                 item.status, item.holder_agent_id = "open", None
             session.commit()
@@ -884,9 +1031,15 @@ class RoomsMixin:
         still = False
         if woken is not None and state == "done":
             with self._factory() as session:
-                still = bool(session.scalar(select(RoomPost.open).where(
-                    RoomPost.room_id == room.id, RoomPost.number == woken,
-                    RoomPost.to_agent_id == agent_id)))
+                still = bool(
+                    session.scalar(
+                        select(RoomPost.open).where(
+                            RoomPost.room_id == room.id,
+                            RoomPost.number == woken,
+                            RoomPost.to_agent_id == agent_id,
+                        )
+                    )
+                )
         self._post_room(room, agent_id, state, said, reply_to=woken if still else None)
         if state == "done" and (asked := self._unread(room, member, question=True)):
             # A question for it came while it took its last step: it goes back to work.
@@ -908,8 +1061,9 @@ class RoomsMixin:
             # "agreed": too few - none - are left to answer it. (S3: but its opener, reading
             # the room, may answer one for it or for nobody in particular.)
             with self._factory() as session:
-                unanswered = session.scalars(select(RoomPost.to_agent_id).where(
-                    RoomPost.room_id == room.id, RoomPost.open)).all()
+                unanswered = session.scalars(
+                    select(RoomPost.to_agent_id).where(RoomPost.room_id == room.id, RoomPost.open)
+                ).all()
             if room.reads and any(to in (None, room.lead.agent_id) for to in unanswered):
                 return
             if unanswered:
@@ -917,25 +1071,39 @@ class RoomsMixin:
             else:
                 self._end_room(room, "agreed")
 
-    def _unread(self: "AgentRunner", room: _Room, member: _Member,
-                question: bool = False) -> int | None:
+    def _unread(
+        self: "AgentRunner", room: _Room, member: _Member, question: bool = False
+    ) -> int | None:
         """The number of something said in a room that this member has not been given yet -
         `question`: an open question that is for it, or for nobody in particular; None:
         nothing."""
         me = member.ctx.agent_id
         asked = (
-            RoomPost.type == "question", RoomPost.open,
-            or_(RoomPost.to_agent_id.is_(None), RoomPost.to_agent_id == me),
-        ) if question else ()
+            (
+                RoomPost.type == "question",
+                RoomPost.open,
+                or_(RoomPost.to_agent_id.is_(None), RoomPost.to_agent_id == me),
+            )
+            if question
+            else ()
+        )
         seen = select(RoomMember.seen).where(RoomMember.id == member.row).scalar_subquery()
         with self._factory() as session:
-            return session.scalar(select(RoomPost.number).where(
-                RoomPost.room_id == room.id, RoomPost.number > seen,
-                or_(RoomPost.agent_id.is_(None), RoomPost.agent_id != me), *asked,
-            ).order_by(RoomPost.number).limit(1))
+            return session.scalar(
+                select(RoomPost.number)
+                .where(
+                    RoomPost.room_id == room.id,
+                    RoomPost.number > seen,
+                    or_(RoomPost.agent_id.is_(None), RoomPost.agent_id != me),
+                    *asked,
+                )
+                .order_by(RoomPost.number)
+                .limit(1)
+            )
 
-    def _end_room(self: "AgentRunner", room: _Room, outcome: str,
-                  reached: str | None = None) -> bool:
+    def _end_room(
+        self: "AgentRunner", room: _Room, outcome: str, reached: str | None = None
+    ) -> bool:
         """A room ends here, unless it has already: how is kept, its clock stands and
         what its members are doing is stopped - they are settled, and the room put on
         record as over, when the turn gets back to it (`_close_room`). Nothing here
@@ -967,12 +1135,23 @@ class RoomsMixin:
                 status = session.get_one(Agent, ctx.agent_id).status
             if status not in AGENT_TERMINAL:
                 self._settle_session(ctx)
-                self._set_agent(ctx.cid, ctx.agent_id, ended_at=now(), status=(
-                    "rejected" if status == "proposed" else "completed"))
+                self._set_agent(
+                    ctx.cid,
+                    ctx.agent_id,
+                    ended_at=now(),
+                    status=("rejected" if status == "proposed" else "completed"),
+                )
         room.status = "ended"
         self._set_room(
-            room, status="ended", outcome=room.outcome, why=room.reached, ended_at=now(),
-            seconds=room.seconds, clock_since=None, paused=False, lead_follows="off",
+            room,
+            status="ended",
+            outcome=room.outcome,
+            why=room.reached,
+            ended_at=now(),
+            seconds=room.seconds,
+            clock_since=None,
+            paused=False,
+            lead_follows="off",
         )
         copy = self._copies.get(lead.agent_id)
         not_taken = ""
@@ -981,36 +1160,51 @@ class RoomsMixin:
         # worked in the recipe's copy, whoever opened it: it waits there for the user's Take
         # in, at Ready for you - never taken in here.
         if self._in_a_recipe(lead):
-            not_taken = ("The room's changes are in the recipe's copy: they go into the project "
-                         "only with the user's Take in, at the recipe's end.")
+            not_taken = (
+                "The room's changes are in the recipe's copy: they go into the project "
+                "only with the user's Take in, at the recipe's end."
+            )
         elif copy is not None and lead.depth == 0:
             not_taken = await self._into_project(
-                replace(lead, name="the room"), copy,
-                "completed" if room.outcome == "agreed" else "failed", lambda: None,
+                replace(lead, name="the room"),
+                copy,
+                "completed" if room.outcome == "agreed" else "failed",
+                lambda: None,
             )
         for member in room.members.values():
             ctx = self._ctxs[member.ctx.agent_id]
             self._ctxs[ctx.agent_id] = replace(
-                ctx, tools=tuple(tool for tool in ctx.tools if tool not in rooms.TOOLS))
+                ctx, tools=tuple(tool for tool in ctx.tools if tool not in rooms.TOOLS)
+            )
         if room.between:
             # K-not-oda: what it decided reaches every team's agents, their leads among them, on
             # the notebook; each team applies it in its own work.
             with self._factory() as session:
                 goal = session.get_one(Room, room.id).goal
                 items, _questions, _names = self._room_lists(session, room, None)
-                ended = session.scalar(select(RoomPost.text).where(
-                    RoomPost.room_id == room.id, RoomPost.type == "ended"))
+                ended = session.scalar(
+                    select(RoomPost.text).where(
+                        RoomPost.room_id == room.id, RoomPost.type == "ended"
+                    )
+                )
             decided = rooms.decided(
-                room.between, room.outcome or "", goal, items, ended, room.reached)
+                room.between, room.outcome or "", goal, items, ended, room.reached
+            )
             team_requests.decided(self, lead, room.between, goal, decided)  # (K-ortak-klasor)
             try:
-                self._write_note(lead.run_id, lead.cid, None, board.cut(
-                    decided, board.MAX_NOTE_CHARS), koloni=True)
+                self._write_note(
+                    lead.run_id,
+                    lead.cid,
+                    None,
+                    board.cut(decided, board.MAX_NOTE_CHARS),
+                    koloni=True,
+                )
                 told = rooms.TOLD_BETWEEN
             except ToolError:  # (a full notebook: the opener is told it is not there)
                 told = rooms.NOT_NOTED
-            not_taken = " ".join(filter(None, [
-                not_taken, told.format(teams=", ".join(room.between))]))
+            not_taken = " ".join(
+                filter(None, [not_taken, told.format(teams=", ".join(room.between))])
+            )
         del self._rooms[lead.run_id]
         record = self._room_record(room, not_taken)
         with self._factory() as session:
@@ -1022,8 +1216,9 @@ class RoomsMixin:
             self._set_room(room, told=record)
         return record
 
-    def _room_lists(self: "AgentRunner", session, room: _Room,
-                    reader: str | None) -> tuple[list, list, dict]:
+    def _room_lists(
+        self: "AgentRunner", session, room: _Room, reader: str | None
+    ) -> tuple[list, list, dict]:
         """A room's items and its open questions as an agent is told them, and its
         members' names by their ids: "you" for the agent that reads them."""
         names = {
@@ -1033,17 +1228,30 @@ class RoomsMixin:
         # (K-oda-lead: its opener, which may post while it follows it)
         names[room.lead.agent_id] = "you" if room.lead.agent_id == reader else room.lead.name
         items = [
-            (item.number, item.title, item.paths, item.status,
-             names.get(item.holder_agent_id or ""), item.result)
+            (
+                item.number,
+                item.title,
+                item.paths,
+                item.status,
+                names.get(item.holder_agent_id or ""),
+                item.result,
+            )
             for item in session.scalars(
-                select(RoomItem).where(RoomItem.room_id == room.id).order_by(RoomItem.number))
+                select(RoomItem).where(RoomItem.room_id == room.id).order_by(RoomItem.number)
+            )
         ]
         questions = [
-            (post.number, names.get(post.agent_id or "", board.USER),
-             names.get(post.to_agent_id or ""), post.text)
+            (
+                post.number,
+                names.get(post.agent_id or "", board.USER),
+                names.get(post.to_agent_id or ""),
+                post.text,
+            )
             for post in session.scalars(
-                select(RoomPost).where(RoomPost.room_id == room.id, RoomPost.open)
-                .order_by(RoomPost.number))
+                select(RoomPost)
+                .where(RoomPost.room_id == room.id, RoomPost.open)
+                .order_by(RoomPost.number)
+            )
         ]
         return items, questions, names
 
@@ -1060,10 +1268,10 @@ class RoomsMixin:
             row = session.get_one(Room, room.id)
             items, questions, _names = self._room_lists(session, room, ctx.agent_id)
             spent = room_spent(session, row)
-            budget = {
-                "posts": row.max_posts, "tokens": row.max_tokens, "minutes": row.max_minutes}
+            budget = {"posts": row.max_posts, "tokens": row.max_tokens, "minutes": row.max_minutes}
         others = [
-            (other.ctx.name, other.state) for other in room.members.values() if other is not member]
+            (other.ctx.name, other.state) for other in room.members.values() if other is not member
+        ]
         stands = repr((room.status, items, others, questions))
         if changed and stands == member.told:
             return ""
@@ -1082,8 +1290,12 @@ class RoomsMixin:
             ).all()
             posts = [
                 rooms.said(
-                    post.number, names.get(post.agent_id or ""), post.type,
-                    names.get(post.to_agent_id or ""), post.reply_to, post.text,
+                    post.number,
+                    names.get(post.agent_id or ""),
+                    post.type,
+                    names.get(post.to_agent_id or ""),
+                    post.reply_to,
+                    post.text,
                 )
                 for post in rows
             ]
@@ -1093,11 +1305,22 @@ class RoomsMixin:
             size += len(posts[fits])
         if fits:
             posts = [f"[{fits} earlier post(s) are not shown]", *posts[fits:]]
-        return self._noted_posts(room.lead, rows[fits:], names, rooms.record(
-            [member.ctx.name for member in room.members.values()], room.outcome or "",
-            room.reached, items, posts, questions, not_taken, mine,
-            followed=room.lead.agent_id in self._following,
-        ))
+        return self._noted_posts(
+            room.lead,
+            rows[fits:],
+            names,
+            rooms.record(
+                [member.ctx.name for member in room.members.values()],
+                room.outcome or "",
+                room.reached,
+                items,
+                posts,
+                questions,
+                not_taken,
+                mine,
+                followed=room.lead.agent_id in self._following,
+            ),
+        )
 
     def _hand_posts(self: "AgentRunner", ctx: Ctx) -> list[str]:
         """Hand a member of a room what was said in it since it was last handed any:
@@ -1111,7 +1334,8 @@ class RoomsMixin:
         with self._factory() as session:
             row = session.get_one(RoomMember, member.row)
             posts = session.scalars(
-                select(RoomPost).where(RoomPost.room_id == room.id, RoomPost.number > row.seen)
+                select(RoomPost)
+                .where(RoomPost.room_id == room.id, RoomPost.number > row.seen)
                 .order_by(RoomPost.number)
             ).all()
             if not posts:
@@ -1124,21 +1348,35 @@ class RoomsMixin:
             names[room.lead.agent_id] = room.lead.name  # (K-oda-lead: its opener's posts)
             # A member's words may carry what it read elsewhere (93-A4); the user's and what
             # KOLONİ wrote of one that left are never looked at.
-            heard = {post.id: (f"a room post by {names.get(post.agent_id or '', 'a member')}",
-                               rules)
-                     for post in posts if post.agent_id not in (None, ctx.agent_id)
-                     and post.type != "left" and (rules := injection.scan(post.text, "agent"))}
+            heard = {
+                post.id: (f"a room post by {names.get(post.agent_id or '', 'a member')}", rules)
+                for post in posts
+                if post.agent_id not in (None, ctx.agent_id)
+                and post.type != "left"
+                and (rules := injection.scan(post.text, "agent"))
+            }
             rows = [
                 Message(
-                    conversation_id=ctx.cid, run_id=ctx.run_id, agent_id=ctx.agent_id,
-                    from_agent_id=post.agent_id, role="agent", status="complete",
-                    delivered_at=now(), room_post_id=post.id,
-                    content=(f"{injection.NOTE}\n" if post.id in heard else "") + rooms.handed(
-                        post.number, names.get(post.agent_id or ""), post.type,
-                        names.get(post.to_agent_id or ""), post.reply_to, post.text,
+                    conversation_id=ctx.cid,
+                    run_id=ctx.run_id,
+                    agent_id=ctx.agent_id,
+                    from_agent_id=post.agent_id,
+                    role="agent",
+                    status="complete",
+                    delivered_at=now(),
+                    room_post_id=post.id,
+                    content=(f"{injection.NOTE}\n" if post.id in heard else "")
+                    + rooms.handed(
+                        post.number,
+                        names.get(post.agent_id or ""),
+                        post.type,
+                        names.get(post.to_agent_id or ""),
+                        post.reply_to,
+                        post.text,
                     ),
                 )
-                for post in posts if post.agent_id != ctx.agent_id
+                for post in posts
+                if post.agent_id != ctx.agent_id
             ]
             session.add_all(rows)
             session.commit()
@@ -1150,8 +1388,13 @@ class RoomsMixin:
         return [payload["content"] for payload in payloads]
 
     def _post_room(
-        self: "AgentRunner", room: _Room, agent_id: str | None, kind: str, text: str,
-        to: str | None = None, reply_to: int | None = None,
+        self: "AgentRunner",
+        room: _Room,
+        agent_id: str | None,
+        kind: str,
+        text: str,
+        to: str | None = None,
+        reply_to: int | None = None,
     ) -> dict:
         """Put something said into a room, under the next number (the user's, with no
         agent). A reply to an open question of somebody else's closes it. Whoever waits
@@ -1160,16 +1403,31 @@ class RoomsMixin:
         replies to a post that is not there. Nothing here waits: a post's number is
         taken and written in one go."""
         with self._factory() as session:
-            target = session.scalar(select(RoomPost).where(
-                RoomPost.room_id == room.id, RoomPost.number == reply_to,
-            )) if reply_to is not None else None
+            target = (
+                session.scalar(
+                    select(RoomPost).where(
+                        RoomPost.room_id == room.id,
+                        RoomPost.number == reply_to,
+                    )
+                )
+                if reply_to is not None
+                else None
+            )
             if reply_to is not None and target is None:
                 raise ToolError(f"there is no post {reply_to} in the room")
-            last = session.scalar(
-                select(func.max(RoomPost.number)).where(RoomPost.room_id == room.id)) or 0
+            last = (
+                session.scalar(select(func.max(RoomPost.number)).where(RoomPost.room_id == room.id))
+                or 0
+            )
             post = RoomPost(
-                room_id=room.id, number=last + 1, agent_id=agent_id, type=kind, text=text,
-                to_agent_id=to, reply_to=reply_to, open=kind == "question",
+                room_id=room.id,
+                number=last + 1,
+                agent_id=agent_id,
+                type=kind,
+                text=text,
+                to_agent_id=to,
+                reply_to=reply_to,
+                open=kind == "question",
             )
             session.add(post)
             closes = target is not None and target.open and target.agent_id != agent_id
@@ -1184,7 +1442,8 @@ class RoomsMixin:
         # K-oda-lead: its opener, where it follows it, is woken for a question, for what is
         # said to it and for the user's word - not for every post (S7: each is a step of its).
         if agent_id != room.lead.agent_id and (
-                agent_id is None or kind == "question" or to == room.lead.agent_id):
+            agent_id is None or kind == "question" or to == room.lead.agent_id
+        ):
             room.heard.set()
         asker = room.members.get(target.agent_id or "") if target is not None and closes else None
         if agent_id == room.lead.agent_id and asker is not None and asker.state == "done":
@@ -1204,16 +1463,22 @@ class RoomsMixin:
                 self._set_member(room, member, "in")
         return payload
 
-    def _hold_room_to(self: "AgentRunner", run_id: str, what: str,
-                      agent_id: str | None = None) -> bool:
+    def _hold_room_to(
+        self: "AgentRunner", run_id: str, what: str, agent_id: str | None = None
+    ) -> bool:
         """A room's members have spent something - "posts" or "tokens": the page is told
         how much, and where that limit of the room's budget is reached, the room ends.
         Whether it ended here. `agent_id`: whose spending it was - only a member's own
         counts (not a sub-agent's of its opening)."""
         room = self._rooms.get(run_id)
-        if room is None or room.outcome is not None or (
-            agent_id is not None and agent_id not in room.members
-            and agent_id not in self._following
+        if (
+            room is None
+            or room.outcome is not None
+            or (
+                agent_id is not None
+                and agent_id not in room.members
+                and agent_id not in self._following
+            )
         ):
             return False
         with self._factory() as session:
@@ -1222,8 +1487,12 @@ class RoomsMixin:
             payload = room_out(session, row)
         self.bus.emit(room.lead.cid, run_id, "room.updated", payload)
         spent = payload["spent"][what]  # (None: nothing reported, nothing held to)
-        return limit is not None and spent is not None and spent >= limit and self._end_room(
-            room, "budget", what)
+        return (
+            limit is not None
+            and spent is not None
+            and spent >= limit
+            and self._end_room(room, "budget", what)
+        )
 
     def _stop_clock(self: "AgentRunner", room: _Room) -> None:
         if room.since is not None:
@@ -1308,8 +1577,11 @@ class RoomsMixin:
         with self._factory() as session:
             row = session.get_one(Room, room_id)
             # (Opened a moment ago, its turn has not taken it up yet: not "over".)
-            if room is None and row.status in rooms.RUNNING and all(
-                    one.id != room_id for one in self._rooms.values()):
+            if (
+                room is None
+                and row.status in rooms.RUNNING
+                and all(one.id != room_id for one in self._rooms.values())
+            ):
                 raise ValueError(rooms.STARTING)
             if room is None:
                 return None
@@ -1335,8 +1607,9 @@ class RoomsMixin:
         with self._factory() as session:
             return room_out(session, session.get_one(Room, room.id))
 
-    def more_for_room(self: "AgentRunner", room_id: str,
-                      more: dict[str, int | None]) -> dict | None:
+    def more_for_room(
+        self: "AgentRunner", room_id: str, more: dict[str, int | None]
+    ) -> dict | None:
         """The user adds to a running room's budget ("posts", "tokens", "minutes"); None
         if it is over. A limit the room does not have stays none."""
         room = self._running_room(room_id)
@@ -1355,8 +1628,13 @@ class RoomsMixin:
         return payload
 
     async def _room_call(
-        self: "AgentRunner", ctx: Ctx, call_id: str, room: _Room, member: _Member, name: str,
-        args: dict
+        self: "AgentRunner",
+        ctx: Ctx,
+        call_id: str,
+        room: _Room,
+        member: _Member,
+        name: str,
+        args: dict,
     ) -> tuple[str, str]:
         """One of the room's own tools, for a member of it. Returns the call's status and
         its text. Nothing of a room that is over does anything."""
@@ -1395,10 +1673,18 @@ class RoomsMixin:
                 told = (
                     f"added as item {item.number}. It is nobody's yet: "
                     f"take_item({item.number}) makes it yours."
-                ) + rooms.looks_like(title, [
-                    (one.number, one.title,
-                     self._name_of(one.holder_agent_id) if one.holder_agent_id else None)
-                    for one in items if one.status in ("open", "taken")])
+                ) + rooms.looks_like(
+                    title,
+                    [
+                        (
+                            one.number,
+                            one.title,
+                            self._name_of(one.holder_agent_id) if one.holder_agent_id else None,
+                        )
+                        for one in items
+                        if one.status in ("open", "taken")
+                    ],
+                )
             else:
                 item = next((one for one in items if one.number == number), None)
                 if item is None:
@@ -1426,12 +1712,18 @@ class RoomsMixin:
         owner = self._copy_owner(ctx)
         to = owner if owner and owner != ctx.agent_id and self._copies.get(owner) else None
         self.claims.hand_on(
-            ctx.agent_id, to, lambda key: any(rooms.covers(one, key[1]) for one in under))
+            ctx.agent_id, to, lambda key: any(rooms.covers(one, key[1]) for one in under)
+        )
         self._claims_changed(ctx.root, ctx.cid)
 
     def _hold_item(
-        self: "AgentRunner", session, ctx: Ctx, items: list[RoomItem], item: RoomItem, name: str,
-        args: dict
+        self: "AgentRunner",
+        session,
+        ctx: Ctx,
+        items: list[RoomItem],
+        item: RoomItem,
+        name: str,
+        args: dict,
     ) -> str:
         """Take an item, or close one that is held - in the caller's transaction. An
         item has one holder: one somebody holds is refused, by that agent's name, and so
@@ -1443,7 +1735,8 @@ class RoomsMixin:
             if item.status != "taken" or item.holder_agent_id != me:
                 raise ToolError(
                     f"item {number} is not yours: only an item you hold is finished or "
-                    "dropped (take_item)")
+                    "dropped (take_item)"
+                )
             item.status, item.result = "done" if name == "finish_item" else "dropped", said
             return f"item {number} is {item.status}."
         if item.status == "taken" and item.holder_agent_id == me:
@@ -1451,20 +1744,23 @@ class RoomsMixin:
         if item.status == "taken":
             raise ToolError(
                 f"item {number} is held by {self._name_of(item.holder_agent_id or '')}: an "
-                "item has one holder. Take another, or add one for what is still to be done")
+                "item has one holder. Take another, or add one for what is still to be done"
+            )
         if item.status != "open":
             raise ToolError(f"item {number} is {item.status}: nothing of it is left to take")
         mine = _places(ctx.folder, item.paths)
         for other in items:
             if (
-                other.status == "taken" and other.holder_agent_id != me
+                other.status == "taken"
+                and other.holder_agent_id != me
                 and rooms.overlap(mine, _places(ctx.folder, other.paths))
             ):
                 raise ToolError(
                     f"item {number} covers files that item {other.number}, held by "
                     f"{self._name_of(other.holder_agent_id or '')}, covers too "
                     f"({', '.join(other.paths)}): two items over the same files are not "
-                    "held at the same time")
+                    "held at the same time"
+                )
         item.status, item.holder_agent_id = "taken", me
         over = f" You change files under it: {', '.join(item.paths)}." if item.paths else ""
         return f"item {number} is yours: {board.as_data(item.title)}.{over}"
@@ -1480,45 +1776,52 @@ class RoomsMixin:
         if room.outcome is not None:
             raise ToolError(rooms.OVER)
         with self._factory() as session:
-            held = session.scalars(select(RoomItem.paths).where(
-                RoomItem.room_id == room.id, RoomItem.status == "taken",
-                RoomItem.holder_agent_id == member.ctx.agent_id,
-            )).all()
+            held = session.scalars(
+                select(RoomItem.paths).where(
+                    RoomItem.room_id == room.id,
+                    RoomItem.status == "taken",
+                    RoomItem.holder_agent_id == member.ctx.agent_id,
+                )
+            ).all()
         file = _places(ctx.folder, [path])
         over = [one for paths in held for one in _places(ctx.folder, paths)]
         if not file or not any(rooms.covers(one, file[0]) for one in over):
             raise ToolError(rooms.NO_ITEM.format(path=path))
 
-    async def _say(self: "AgentRunner", room: _Room, ctx: Ctx, call_id: str,
-                   args: dict) -> tuple[str, str]:
+    async def _say(
+        self: "AgentRunner", room: _Room, ctx: Ctx, call_id: str, args: dict
+    ) -> tuple[str, str]:
         """A member posts to its room. With a post that reaches the room's budget of
         them, the room ends. "blocked" asks the user, as `ask_user` does - the call
         waits for their answer, which goes into the room as their word on that post."""
         kind, said, to, reply_to = rooms.plan_post(args)
         to_id = None
         if to is not None:
-            others = [
-                one.ctx for one in room.members.values() if one.ctx.agent_id != ctx.agent_id]
+            others = [one.ctx for one in room.members.values() if one.ctx.agent_id != ctx.agent_id]
             if room.reads and room.lead.agent_id != ctx.agent_id:
                 others.append(room.lead)  # (K-oda-lead: its opener, which reads it)
             to_id = next(
-                (one.agent_id for one in others if one.name.casefold() == to.casefold()), None)
+                (one.agent_id for one in others if one.name.casefold() == to.casefold()), None
+            )
             if to_id is None:
                 raise ToolError(
                     f"there is no other member named {to} in the room. The others: "
-                    f"{', '.join(one.name for one in others)}")
+                    f"{', '.join(one.name for one in others)}"
+                )
         number = self._post_room(room, ctx.agent_id, kind, said, to_id, reply_to)["number"]
         if self._hold_room_to(ctx.run_id, "posts"):
             return "succeeded", (
                 f"posted as post {number}. With it the room's budget of posts is reached: "
-                "the room ends here.")
+                "the room ends here."
+            )
         if kind != "blocked":
             return "succeeded", f"posted as post {number}: the others read it at their next step."
         # (As `ask_user`: a member's question is the Lead's to answer for the user, the Lead's
         # own never - B-181. The room gets the answer as given; the member hears whose it was.)
         ids: list[str] = []
-        status, answer = await self._ask_user(ctx, call_id, {"question": said}, ids=ids,
-                                              kind="ask_user" if ctx.depth else None)
+        status, answer = await self._ask_user(
+            ctx, call_id, {"question": said}, ids=ids, kind="ask_user" if ctx.depth else None
+        )
         if room.outcome is None:
             with self._factory() as session:
                 word = session.get_one(Question, ids[0]).answer
@@ -1543,23 +1846,43 @@ class RoomsMixin:
             named = self._names_past(session, ctx)
             try:
                 role, _tools, provider, model_name, moved = rooms.member_model(
-                    session, session.get_one(Conversation, ctx.cid), wanted, None, None,
-                    opener.tools, named_roles=named)
+                    session,
+                    session.get_one(Conversation, ctx.cid),
+                    wanted,
+                    None,
+                    None,
+                    opener.tools,
+                    named_roles=named,
+                )
             except (ValueError, OwnStop) as exc:
                 raise ToolError(str(exc)) from None
             # (In a recipe's step, as the room's opener would open it: one of the step's.)
             if shut := closed(role, self._door(session, opener), named):
                 raise ToolError(shut)
             # (K-not-oda: its members kept their write tools; a recipe's room is its row's.)
-            if not room.between and not self._in_a_recipe(opener) and self._between(
-                    session, opener, [*(m.ctx.role for m in room.members.values()), role.name],
-                    []):
+            if (
+                not room.between
+                and not self._in_a_recipe(opener)
+                and self._between(
+                    session, opener, [*(m.ctx.role for m in room.members.values()), role.name], []
+                )
+            ):
                 raise ToolError(rooms.NOT_INTO.format(role=role.name))
             model = self.providers.client(provider, model_name)
         task = goal + (f"\n\n{ctx.name} asked you in: {kept.one_line(why)}" if why else "")
         child, asks = self._propose(
-            opener, call_id, role, task, provider, model_name, model, False, None,
-            why=moved or "", tiered=moved is not None)
+            opener,
+            call_id,
+            role,
+            task,
+            provider,
+            model_name,
+            model,
+            False,
+            None,
+            why=moved or "",
+            tiered=moved is not None,
+        )
         self._in_run(opener, child, role)
         turned_down = await self._users_no(ctx, [child.agent_id]) if asks else None
         if asks:
@@ -1608,8 +1931,15 @@ class RoomsMixin:
                 if role.name.casefold() in have or closed(role, door, named):
                     continue
                 with contextlib.suppress(ValueError, OwnStop):
-                    rooms.member_model(session, conversation, role.name, None, None,
-                                       room.lead.tools, named_roles=named)
+                    rooms.member_model(
+                        session,
+                        conversation,
+                        role.name,
+                        None,
+                        None,
+                        room.lead.tools,
+                        named_roles=named,
+                    )
                     roles.append(role)
             provider = session.get(Provider, lead.provider_id or "") if lead else None
             # (Over the turn's or the month's budget, or the provider's limits: KOLONİ asks
@@ -1617,10 +1947,11 @@ class RoomsMixin:
             project = project_of(session, conversation)
             limit = project.turn_token_limit if project is not None else None
             spent = (
-                "the turn's token limit is reached" if limit and self._turn_spent(
-                    session, ctx.run_id)[0] > limit
+                "the turn's token limit is reached"
+                if limit and self._turn_spent(session, ctx.run_id)[0] > limit
                 else over_month(session, project)
-                or (past_its_limit(session, provider) if provider else None))
+                or (past_its_limit(session, provider) if provider else None)
+            )
         names = [role.name for role in roles]
         if not roles:
             raise ToolError(rooms.NONE_TO_PICK)
@@ -1628,15 +1959,37 @@ class RoomsMixin:
             # (The Lead itself, following its room: its own model is not asked what it knows.)
             raise ToolError(rooms.NAME_A_ROLE.format(roles=", ".join(names)))
         if lead is None or lead.model is None or provider is None or mode_of(provider) or spent:
-            raise ToolError(rooms.LEAD_CANNOT_PICK.format(
-                why=spent or ("the Orchestrator works on a CLI" if provider and mode_of(provider)
-                              else "no Orchestrator is at work"), roles=", ".join(names)))
-        asked = [{"role": "user", "content": rooms.PICK.format(
-            who=ctx.name, goal=quoted(goal), why=quoted(why),
-            members=", ".join(member.ctx.name for member in room.members.values()),
-            roles="\n".join(f"- {role.name}" + (f": {quoted(kept.one_line(role.description))}"
-                                                 if kept.one_line(role.description) else "")
-                            for role in roles))}]
+            raise ToolError(
+                rooms.LEAD_CANNOT_PICK.format(
+                    why=spent
+                    or (
+                        "the Orchestrator works on a CLI"
+                        if provider and mode_of(provider)
+                        else "no Orchestrator is at work"
+                    ),
+                    roles=", ".join(names),
+                )
+            )
+        asked = [
+            {
+                "role": "user",
+                "content": rooms.PICK.format(
+                    who=ctx.name,
+                    goal=quoted(goal),
+                    why=quoted(why),
+                    members=", ".join(member.ctx.name for member in room.members.values()),
+                    roles="\n".join(
+                        f"- {role.name}"
+                        + (
+                            f": {quoted(kept.one_line(role.description))}"
+                            if kept.one_line(role.description)
+                            else ""
+                        )
+                        for role in roles
+                    ),
+                ),
+            }
+        ]
         asking = lead
         try:
             model_id = lead.model_name or (await lead.model.info()).model_id
@@ -1649,9 +2002,12 @@ class RoomsMixin:
                 raise
             self._own_request(lead, asking, mode_of(provider), answer)
         except Exception as exc:  # (not Stop: the asker stays in the room, told why)
-            raise ToolError(rooms.LEAD_CANNOT_PICK.format(
-                why=f"it did not answer: {exc}" if str(exc) else "it did not answer",
-                roles=", ".join(names))) from None
+            raise ToolError(
+                rooms.LEAD_CANNOT_PICK.format(
+                    why=f"it did not answer: {exc}" if str(exc) else "it did not answer",
+                    roles=", ".join(names),
+                )
+            ) from None
         picked = lead_pick(_answer(said), names)
         if picked is None:
             raise ToolError(rooms.NOT_PICKED.format(roles=", ".join(names)))
@@ -1671,11 +2027,20 @@ class RoomsMixin:
         me = member.ctx.agent_id
         others = [other for other in room.members.values() if other is not member]
         with self._factory() as session:
-            asked = session.scalar(select(RoomPost.id).where(
-                RoomPost.room_id == room.id, RoomPost.type == "question", RoomPost.open,
-                RoomPost.agent_id != me,
-                or_(RoomPost.to_agent_id.is_(None), RoomPost.to_agent_id == me),
-            ).limit(1)) is not None
+            asked = (
+                session.scalar(
+                    select(RoomPost.id)
+                    .where(
+                        RoomPost.room_id == room.id,
+                        RoomPost.type == "question",
+                        RoomPost.open,
+                        RoomPost.agent_id != me,
+                        or_(RoomPost.to_agent_id.is_(None), RoomPost.to_agent_id == me),
+                    )
+                    .limit(1)
+                )
+                is not None
+            )
             minutes = session.get_one(Room, room.id).max_minutes
         # (One that waits for a file this member holds is not at work: it waits for it.)
         # shortcut: members that all wait for a post, with no question open, wait for the
@@ -1684,13 +2049,17 @@ class RoomsMixin:
         alone = not any(
             other.state == "in"
             and not any(wait.holder == me for wait in self.claims.waiting(other.ctx.agent_id))
-            for other in others)
+            for other in others
+        )
         # (S3: its opener, reading the room, is one more at work - and is woken to look, for
         # nobody else will say anything.)
         # shortcut: one that then only waits too leaves them waiting for the user, the End
         # button or the room's minutes, as members that all wait do (above).
-        if alone and not room.reads and (
-                asked or minutes is None or not any(other.state == "waiting" for other in others)):
+        if (
+            alone
+            and not room.reads
+            and (asked or minutes is None or not any(other.state == "waiting" for other in others))
+        ):
             raise ToolError(rooms.NOBODY_AT_WORK)
         if alone and room.reads:
             room.heard.set()
@@ -1704,8 +2073,9 @@ class RoomsMixin:
                 return await self._wait_for_post(room, member, ctx)
         return "something was said in the room: it follows."
 
-    async def _wait_for_item(self: "AgentRunner", room: _Room, member: _Member, ctx: Ctx,
-                             args: dict) -> str:
+    async def _wait_for_item(
+        self: "AgentRunner", room: _Room, member: _Member, ctx: Ctx, args: dict
+    ) -> str:
         """A member waits for an item another member holds to be finished or dropped, and
         is given what came of it (`wait_for_item`) - at once for one closed already. Refused
         for its own item, for one nobody holds and for one whose holder is not at work
@@ -1715,8 +2085,9 @@ class RoomsMixin:
 
         def looked() -> RoomItem:
             with self._factory() as session:
-                found = session.scalar(select(RoomItem).where(
-                    RoomItem.room_id == room.id, RoomItem.number == number))
+                found = session.scalar(
+                    select(RoomItem).where(RoomItem.room_id == room.id, RoomItem.number == number)
+                )
             if found is None:
                 raise ToolError(f"there is no item {number} on the room's list")
             return found
@@ -1734,11 +2105,15 @@ class RoomsMixin:
         if holder.state != "in" or any(
             wait.holder == me for wait in self.claims.waiting(holder.ctx.agent_id)
         ):
-            state = "waiting for a file you hold" if holder.state == "in" else (
-                rooms.STATE[holder.state])
+            state = (
+                "waiting for a file you hold"
+                if holder.state == "in"
+                else (rooms.STATE[holder.state])
+            )
             raise ToolError(
                 f"item {number} is held by {holder.ctx.name}, which is not at work itself "
-                f"({state}): nobody would close it. Ask it with post_to_room")
+                f"({state}): nobody would close it. Ask it with post_to_room"
+            )
         # B-201: as `_wait_for_post`'s, cleared before the record is looked at.
         # shortcut: a close is woken for only from `awaits` on, set after `closed` was read;
         # set it first too if an await is ever put between them.
@@ -1760,17 +2135,21 @@ class RoomsMixin:
         if said := self._item_closed(number, item):
             return said
         if item.status == "open":
-            return (f"item {number} is nobody's again: its holder's part in the room is over. "
-                    "Take it yourself, or go on with your part.")
+            return (
+                f"item {number} is nobody's again: its holder's part in the room is over. "
+                "Take it yourself, or go on with your part."
+            )
         return f"something was said in the room before item {number} was closed: it follows."
 
     def _item_closed(self: "AgentRunner", number: int, item: RoomItem) -> str | None:
         """`_wait_for_item`: what came of an item that is closed, or None for one that is not."""
         if item.status not in ("done", "dropped"):
             return None
-        return (f"item {number} is {item.status} by "
-                f"{self._name_of(item.holder_agent_id or '')}. What came of it: "
-                f"{board.as_data(item.result or '')}")
+        return (
+            f"item {number} is {item.status} by "
+            f"{self._name_of(item.holder_agent_id or '')}. What came of it: "
+            f"{board.as_data(item.result or '')}"
+        )
 
     def decide_spawn(self: "AgentRunner", agent_id: str, decision: str) -> bool:
         """Deliver the user's approve/reject for a proposed sub-agent."""
@@ -1780,11 +2159,15 @@ class RoomsMixin:
         future.set_result(decision)
         return True
 
-    def _channel(self: "AgentRunner", ctx: Ctx, sender: str, receiver: str, kind: str,
-                 content: str) -> None:
+    def _channel(
+        self: "AgentRunner", ctx: Ctx, sender: str, receiver: str, kind: str, content: str
+    ) -> None:
         with self._factory() as session:
             message = ChannelMessage(
-                run_id=ctx.run_id, from_agent_id=sender, to_agent_id=receiver, kind=kind,
+                run_id=ctx.run_id,
+                from_agent_id=sender,
+                to_agent_id=receiver,
+                kind=kind,
                 content=content,
             )
             session.add(message)
@@ -1798,9 +2181,12 @@ class RoomsMixin:
         return session.scalar(
             select(Message)
             .where(
-                Message.agent_id == agent_id, Message.run_id == run_id,
-                Message.role == "assistant", Message.content != "",
-                Message.discussion_id.is_(None), Message.board_post_id.is_(None),
+                Message.agent_id == agent_id,
+                Message.run_id == run_id,
+                Message.role == "assistant",
+                Message.content != "",
+                Message.discussion_id.is_(None),
+                Message.board_post_id.is_(None),
                 Message.room_post_id.is_(None),
             )
             .order_by(Message.created_at.desc(), literal_column("messages.rowid").desc())
@@ -1815,8 +2201,13 @@ class RoomsMixin:
             message = self.last_answer(session, run_id, ctx.agent_id)
             if message is None:
                 return
-            run.plan = {"text": message.content, "status": "proposed", "model_id": run.model_id,
-                        "strongest": strongest, "why": None}
+            run.plan = {
+                "text": message.content,
+                "status": "proposed",
+                "model_id": run.model_id,
+                "strongest": strongest,
+                "why": None,
+            }
             session.commit()
 
     def _take_say(self: "AgentRunner", run_id: str, ctx: Ctx) -> None:
@@ -1840,8 +2231,9 @@ class RoomsMixin:
             session.commit()
             self.bus.emit(ctx.cid, run_id, "message.completed", message_out(message))
 
-    def _last_text(self: "AgentRunner", agent_id: str, final_only: bool,
-                   after: str | None = None) -> str:
+    def _last_text(
+        self: "AgentRunner", agent_id: str, final_only: bool, after: str | None = None
+    ) -> str:
         """What an agent has to show for its work.
 
         For one that finished, its final answer and nothing else: what it said along
@@ -1849,7 +2241,8 @@ class RoomsMixin:
         only what it wrote since that message counts.
         """
         query = select(Message.content).where(
-            Message.agent_id == agent_id, Message.role == "assistant",
+            Message.agent_id == agent_id,
+            Message.role == "assistant",
             Message.discussion_id.is_(None),  # said to a discussion, not reported
         )
         if not final_only:
@@ -1867,8 +2260,9 @@ class RoomsMixin:
             )
         return (content or "").strip()
 
-    async def _create_role(self: "AgentRunner", ctx: Ctx, call_id: str,
-                           args: dict) -> tuple[str, str]:
+    async def _create_role(
+        self: "AgentRunner", ctx: Ctx, call_id: str, args: dict
+    ) -> tuple[str, str]:
         """Add a role to the user's list; in ask mode only after they agree."""
         description, instructions = args.get("description", ""), args.get("instructions", "")
         if not isinstance(description, str) or not isinstance(instructions, str):
@@ -1879,14 +2273,19 @@ class RoomsMixin:
         # card lists the sources).
         reads_web = bool(known) and knowledge.reads_web(known)
         if known and (missing := knowledge.web_tools(known) - set(ctx.tools)):
-            raise ToolError(f"an address or a topic to learn from is a web request "
-                            f"({', '.join(sorted(missing))}), and the {ctx.role} role makes none: "
-                            "give the expert files of the project, or none")
+            raise ToolError(
+                f"an address or a topic to learn from is a web request "
+                f"({', '.join(sorted(missing))}), and the {ctx.role} role makes none: "
+                "give the expert files of the project, or none"
+            )
         with self._factory() as session:
             existing = find_role(session, name)
             project_id = session.get_one(Conversation, ctx.cid).project_id
-            taken = existing and _taken(session, existing) or (
-                known and knows.folder_taken(session, project_id, known))
+            taken = (
+                existing
+                and _taken(session, existing)
+                or (known and knows.folder_taken(session, project_id, known))
+            )
             mode = session.get_one(Conversation, ctx.cid).permission_mode
         if taken:
             raise ToolError(taken)
@@ -1897,9 +2296,14 @@ class RoomsMixin:
 
         if mode == "ask" or (reads_web and mode != "full_auto"):
             proposal = {
-                "tool_call_id": call_id, "run_id": ctx.run_id, "agent_id": ctx.agent_id,
-                "name": name, "description": description.strip(),
-                "instructions": instructions.strip(), "tools": tools, "knowledge": known,
+                "tool_call_id": call_id,
+                "run_id": ctx.run_id,
+                "agent_id": ctx.agent_id,
+                "name": name,
+                "description": description.strip(),
+                "instructions": instructions.strip(),
+                "tools": tools,
+                "knowledge": known,
             }
             decision = await self._create_role_card(ctx, call_id, proposal)
             if decision == "reject":
@@ -1915,8 +2319,11 @@ class RoomsMixin:
             # user chose with a role of any tools; the user puts it in one on the Agents page.
             held = chat_teams(session, session.get_one(Conversation, ctx.cid)).teams
             role = Role(
-                name=name, description=description.strip(), instructions=instructions.strip(),
-                tools=tools, created_by_agent=True,
+                name=name,
+                description=description.strip(),
+                instructions=instructions.strip(),
+                tools=tools,
+                created_by_agent=True,
                 kind=landing_kind(session, "plan") if known else landing_kind(session),
             )
             if known:  # (K-bilgi: the chat's project's knowledge; in a chat with no folder, every
@@ -1929,12 +2336,17 @@ class RoomsMixin:
             session.commit()
             payload = role_out(role)
         self.bus.emit(ctx.cid, ctx.run_id, "role.created", payload)
-        opened = ("It is in no team, and this chat keeps to its teams: it is opened only once the "
-                  "user names it or puts it in one of them." if held else
-                  "Open a sub-agent in it with spawn_agent.")
+        opened = (
+            "It is in no team, and this chat keeps to its teams: it is opened only once the "
+            "user names it or puts it in one of them."
+            if held
+            else "Open a sub-agent in it with spawn_agent."
+        )
         if known:
-            opened += (" It is an expert: it learns its sources when it is asked to (learn), or "
-                       "on its Knowledge tab.")
+            opened += (
+                " It is an expert: it learns its sources when it is asked to (learn), or "
+                "on its Knowledge tab."
+            )
         return "succeeded", f'created role "{name}" with tools: {", ".join(tools)}. {opened}'
 
     def _create_role_args(self: "AgentRunner", args: dict) -> tuple[str, list[str], dict | None]:
@@ -1943,10 +2355,20 @@ class RoomsMixin:
             name = check_name(args.get("name"))
             tools = check_tools(args.get("tools", []))
             # K-uzman: an expert - what it knows and where it reads it; it reads only.
-            known = None if args.get("sources") is None and args.get("knows") is None else (
-                knowledge.checked(Knowledge.model_validate(
-                    {"topic": args.get("knows") or name, "sources": args.get("sources") or []}
-                ).model_dump()))
+            known = (
+                None
+                if args.get("sources") is None and args.get("knows") is None
+                else (
+                    knowledge.checked(
+                        Knowledge.model_validate(
+                            {
+                                "topic": args.get("knows") or name,
+                                "sources": args.get("sources") or [],
+                            }
+                        ).model_dump()
+                    )
+                )
+            )
             expert_tools(tools, known)
         except ValidationError as exc:
             raise ToolError(f"knows and sources: {exc.errors()[0]['msg']}") from None
@@ -1954,8 +2376,7 @@ class RoomsMixin:
             raise ToolError(str(exc)) from None
         return name, tools, known
 
-    async def _create_role_card(self: "AgentRunner", ctx: Ctx, call_id: str,
-                                proposal: dict) -> str:
+    async def _create_role_card(self: "AgentRunner", ctx: Ctx, call_id: str, proposal: dict) -> str:
         """`_create_role`'s card: the role put before the user, and their word on it."""
         future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
         self._role_requests[call_id] = (ctx.cid, proposal, future)
@@ -1981,9 +2402,15 @@ class RoomsMixin:
     def _mapped(self: "AgentRunner", ctx: Ctx) -> list[dict]:
         """K-bilgi part 4: the knowledge its role uses as a map where it works."""
         with self._factory() as session:
-            return [knows.knowledge_of(row) for row in knows.used_here(
-                session, find_role(session, ctx.role),
-                session.get_one(Conversation, ctx.cid).project_id, knows.MAP_MODE)]
+            return [
+                knows.knowledge_of(row)
+                for row in knows.used_here(
+                    session,
+                    find_role(session, ctx.role),
+                    session.get_one(Conversation, ctx.cid).project_id,
+                    knows.MAP_MODE,
+                )
+            ]
 
     async def _lookup(self: "AgentRunner", ctx: Ctx, args: dict) -> str:
         """K-bilgi part 3: a question looked up in the pages of the knowledge its role uses here
@@ -1996,9 +2423,14 @@ class RoomsMixin:
         if topic is not None and not isinstance(topic, str):
             raise ToolError("topic: a knowledge's topic, as text")
         with self._factory() as session:
-            known = [knows.knowledge_of(row) for row in knows.used_here(
-                session, find_role(session, ctx.role),
-                session.get_one(Conversation, ctx.cid).project_id)]
+            known = [
+                knows.knowledge_of(row)
+                for row in knows.used_here(
+                    session,
+                    find_role(session, ctx.role),
+                    session.get_one(Conversation, ctx.cid).project_id,
+                )
+            ]
         if not known:
             raise ToolError(f"the {ctx.role} role uses no knowledge here any more")
         # (In a thread: it reads every page each knowledge kept.)
@@ -2012,30 +2444,41 @@ class RoomsMixin:
         trigger names, and where the trigger lets it write (it writes `.koloni/knowledge`), and
         never from a project whose network is off."""
         if LEARN not in ctx.tools:  # (no role lists it: the role's gate does not hold it)
-            raise ToolError("learn is not available while answering a message: if your guide "
-                            "is old, say so")
+            raise ToolError(
+                "learn is not available while answering a message: if your guide is old, say so"
+            )
         with self._factory() as session:
             project = self._project(session, ctx.cid)
-            known = knows.known_here(session, find_role(session, ctx.role),
-                                     project.id if project is not None else None)
+            known = knows.known_here(
+                session, find_role(session, ctx.role), project.id if project is not None else None
+            )
             if known is None:
                 raise ToolError(f"the {ctx.role} role has no sources to learn")
             # (Checked as it runs too: its sources may have changed since the step offered it.)
             if not knowledge.learns_itself(known):
-                raise ToolError("this guide is learned only on the Knowledge page: say yours is "
-                                "old or not learned yet")
-            no_network = project is not None and project.exec_location == "docker" and (
-                not project.docker_network)
+                raise ToolError(
+                    "this guide is learned only on the Knowledge page: say yours is "
+                    "old or not learned yet"
+                )
+            no_network = (
+                project is not None
+                and project.exec_location == "docker"
+                and (not project.docker_network)
+            )
             searching = knowledge.searching(project)
             chosen, provider, model = self._learn_with(session, ctx, known)
             name, mode, key = provider.name, mode_of(provider), provider.api_key
         if switched := sorted(knowledge.web_tools(known) & self._off()):
-            raise ToolError(f"nothing was learned: {', '.join(switched)} is switched off on the "
-                            "Tools page; only the user can switch it on")
+            raise ToolError(
+                f"nothing was learned: {', '.join(switched)} is switched off on the "
+                "Tools page; only the user can switch it on"
+            )
         urls = [one for one in known["sources"] if one.startswith(("http://", "https://"))]
         if knowledge.reads_web(known) and no_network:
-            raise ToolError("this project's network access is off (its commands run in Docker "
-                            "without a network): only the user can switch it on")
+            raise ToolError(
+                "this project's network access is off (its commands run in Docker "
+                "without a network): only the user can switch it on"
+            )
         refused = self._learn_refused(ctx, known, urls)
         if refused:
             return "failed", refused
@@ -2054,17 +2497,20 @@ class RoomsMixin:
             raise ToolError(str(exc)) from None
         self._learned_now.add(once)
         record = await self._learn_now(
-            ctx, known, client, model, provider, name, mode, key, searching, added)
-        return "succeeded", (f"{knowledge.said_of(record)}. Your guide, as written now, is in "
-                             "your instructions from your next step.")
+            ctx, known, client, model, provider, name, mode, key, searching, added
+        )
+        return "succeeded", (
+            f"{knowledge.said_of(record)}. Your guide, as written now, is in "
+            "your instructions from your next step."
+        )
 
-    def _learn_with(self: "AgentRunner", session: Session, ctx: Ctx,
-                    known: dict) -> tuple[dict | None, Provider, str | None]:
+    def _learn_with(
+        self: "AgentRunner", session: Session, ctx: Ctx, known: dict
+    ) -> tuple[dict | None, Provider, str | None]:
         """`_learn`'s model: the one chosen for its sources (and that), else its own - with its
         provider."""
         chosen = known.get("learn_with")
-        provider = session.get(Provider, chosen["provider_id"] if chosen else ctx.provider_id
-                               or "")
+        provider = session.get(Provider, chosen["provider_id"] if chosen else ctx.provider_id or "")
         if provider is None:
             raise ToolError("the model it learns with is gone: the user chooses another")
         model = chosen["model_id"] if chosen else ctx.model_name
@@ -2082,14 +2528,24 @@ class RoomsMixin:
         refused = self._nobody_to_ask(ctx, "write", "write its guide in .koloni/knowledge")
         for url in urls:
             refused = refused or self._nobody_to_ask(
-                ctx, "host", f"read {web.rule_of(url)} to learn", host=web.rule_of(url))
+                ctx, "host", f"read {web.rule_of(url)} to learn", host=web.rule_of(url)
+            )
         if "web_search" in knowledge.web_tools(known):
             refused = refused or self._nobody_to_ask(ctx, "web", "search the web to learn")
         return refused
 
     async def _learn_now(
-        self: "AgentRunner", ctx: Ctx, known: dict, client, model: str | None,
-        provider: Provider, name: str, mode: str | None, key: str | None, searching, added,
+        self: "AgentRunner",
+        ctx: Ctx,
+        known: dict,
+        client,
+        model: str | None,
+        provider: Provider,
+        name: str,
+        mode: str | None,
+        key: str | None,
+        searching,
+        added,
     ):
         """`_learn`'s learning itself, begun by its caller: the record of what was learned."""
 
@@ -2102,8 +2558,11 @@ class RoomsMixin:
 
         def may(url: str) -> str | None:
             """Unwatched, a page a search found is read only on a site the trigger names."""
-            return None if self._nobody_to_ask(ctx, "host", "", host=web.rule_of(url)) in (
-                None, "") else "the trigger does not name this site"
+            return (
+                None
+                if self._nobody_to_ask(ctx, "host", "", host=web.rule_of(url)) in (None, "")
+                else "the trigger does not name this site"
+            )
 
         try:
             model = model or (await client.info()).model_id
@@ -2121,8 +2580,9 @@ class RoomsMixin:
                     raise knowledge.LearnError(str(exc)) from None
                 answer = None
                 try:
-                    said, answer = await ask_once(client, model, messages,
-                                                  **knowledge.most_written(client))
+                    said, answer = await ask_once(
+                        client, model, messages, **knowledge.most_written(client)
+                    )
                     return said, answer
                 finally:  # (what it spent is this agent's, under the model asked)
                     self._own_request(ctx, cast(Ctx, asking), mode, answer)
@@ -2131,9 +2591,19 @@ class RoomsMixin:
             # copy made before it, `search` reads the parts as they were - read the copy's own
             # if that is met.
             record = await knowledge.learn(
-                ctx.folder, known, ask, price, f"{name} · {model}", search, may, added,
+                ctx.folder,
+                known,
+                ask,
+                price,
+                f"{name} · {model}",
+                search,
+                may,
+                added,
                 # (nobody clicked: only what changed is written again)
-                extend=False, write_in=write_in, tree=tree)
+                extend=False,
+                write_in=write_in,
+                tree=tree,
+            )
         except knowledge.LearnError as exc:
             raise ToolError(f"nothing was learned: {exc}") from None
         except ModelUnavailable as exc:  # (one it may not run says why: `NotListed`)

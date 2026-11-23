@@ -22,8 +22,9 @@ ORIGIN = {"Origin": "http://127.0.0.1:8790"}
 def setup(client, project_dir, *titles):
     client.headers.update(ORIGIN)
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    return pid, [client.post(f"/api/projects/{pid}/backlog", json={"title": t}).json()["id"]
-                 for t in titles]
+    return pid, [
+        client.post(f"/api/projects/{pid}/backlog", json={"title": t}).json()["id"] for t in titles
+    ]
 
 
 def titles(client, pid):
@@ -59,8 +60,11 @@ def test_each_decision_and_what_an_agent_is_refused(client, project_dir):
     (project_dir.parent / "theirs").mkdir()
     other, _ = setup(client, project_dir.parent / "theirs", "theirs")
     for name, args in (
-        ("add_task", {}), ("add_task", {"title": " "}), ("add_task", {"title": "x", "priority": "soon"}),
-        ("add_task", {"title": "x" * 201}), ("change_task", {"task_id": mine}),
+        ("add_task", {}),
+        ("add_task", {"title": " "}),
+        ("add_task", {"title": "x", "priority": "soon"}),
+        ("add_task", {"title": "x" * 201}),
+        ("change_task", {"task_id": mine}),
         ("change_task", {"task_id": mine, "status": "proposed"}),
         # doing and review are Work the backlog's
         ("change_task", {"task_id": mine, "status": "doing"}),
@@ -74,24 +78,31 @@ def test_each_decision_and_what_an_agent_is_refused(client, project_dir):
     with pytest.raises(backlog.Refused):  # a task of another project is none of this one's
         agent(client, other, "assess_task", task_id=mine, text="fine")
     agent(client, pid, "add_task", title="proposed one")
-    (proposed,) = [t for t in client.get(f"/api/projects/{pid}/backlog").json() if t["status"] == "proposed"]
+    (proposed,) = [
+        t for t in client.get(f"/api/projects/{pid}/backlog").json() if t["status"] == "proposed"
+    ]
     with pytest.raises(backlog.Refused):  # a proposal waits for the user as it is
         agent(client, pid, "change_task", task_id=proposed["id"], title="other")
     agent(client, pid, "change_task", task_id=mine, title="first")
     agent(client, pid, "change_task", task_id=mine, status="blocked")  # the newer one stands
     listed = agent(client, pid, "read_backlog").splitlines()
     assert [line.split("] ", 1)[1] for line in listed[1:]] == [
-        '"mine"; a change waits for the user', '"proposed one"']
+        '"mine"; a change waits for the user',
+        '"proposed one"',
+    ]
     assert listed[1].startswith(f"- {mine} [todo, normal, 20")
     assert agent(client, other, "read_backlog").count("\n- ") == 1  # its own task only
     whole = agent(client, pid, "read_backlog", task_id=mine)
-    assert 'Title: "mine"' in whole and 'A change waiting for the user: {"status": "blocked"}' in whole
+    assert (
+        'Title: "mine"' in whole and 'A change waiting for the user: {"status": "blocked"}' in whole
+    )
     assert client.get(f"/api/projects/{pid}/board").json()["backlog_waiting"] == 2
     decide = f"/api/backlog/{mine}/decide"
     assert client.post(decide, json={"decision": "reject"}).status_code == 200
     seen = client.get(f"/api/projects/{pid}/backlog").json()
     assert [(t["title"], t["status"], t["pending"]) for t in seen if t["id"] == mine] == [
-        ("mine", "todo", None)]
+        ("mine", "todo", None)
+    ]
     assert client.post(decide, json={"decision": "approve"}).status_code == 409  # nothing waits
     assert client.post(decide, json={"decision": "maybe"}).status_code == 422
     rejected = client.post(f"/api/backlog/{proposed['id']}/decide", json={"decision": "reject"})
@@ -106,12 +117,20 @@ def test_a_task_like_one_not_done_is_still_proposed_and_said_like_it_and_criteri
     haiku's criteria came with their line breaks written out as \\n."""
     pid, (average, done) = setup(client, project_dir, "Fix calc.average", "Add calc.median")
     client.patch(f"/api/backlog/{done}", json={"status": "done"})
-    said = agent(client, pid, "add_task", title="calc.average: divides by the wrong count",
-                 criteria="average([1, 2]) is 1.5\\n- AverageTest passes")
-    assert said.endswith(f'. It looks like task {average}: "Fix calc.average" - if it is the '
-                         "same work, tell the user, who can reject this one")
-    (proposed,) = [t for t in client.get(f"/api/projects/{pid}/backlog").json()
-                   if t["status"] == "proposed"]
+    said = agent(
+        client,
+        pid,
+        "add_task",
+        title="calc.average: divides by the wrong count",
+        criteria="average([1, 2]) is 1.5\\n- AverageTest passes",
+    )
+    assert said.endswith(
+        f'. It looks like task {average}: "Fix calc.average" - if it is the '
+        "same work, tell the user, who can reject this one"
+    )
+    (proposed,) = [
+        t for t in client.get(f"/api/projects/{pid}/backlog").json() if t["status"] == "proposed"
+    ]
     assert proposed["criteria"] == "average([1, 2]) is 1.5\n- AverageTest passes"
     # Nothing like it, or like only a task that is done: nothing more is said.
     assert "looks like" not in agent(client, pid, "add_task", title="dark mode")
@@ -152,7 +171,9 @@ def test_done_tasks_are_listed_last(client, project_dir):
             agent(client, pid, "read_backlog", **{"from": wrong})
 
 
-def test_work_opens_no_folder_a_task_names_and_says_who_wrote_it(make_client, project_dir, tmp_path):
+def test_work_opens_no_folder_a_task_names_and_says_who_wrote_it(
+    make_client, project_dir, tmp_path
+):
     client, _model = make_client([text("ok"), text("ok")])
     outside = tmp_path / "outside"
     outside.mkdir()
@@ -167,13 +188,21 @@ def test_work_opens_no_folder_a_task_names_and_says_who_wrote_it(make_client, pr
     assert "proposed by an agent, approved by you" in snap["messages"][0]["content"]
     # the same words from the user open it (what was kept from before)
     own = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    client.post(f"/api/conversations/{own}/messages", json={"content": f"Look in `{outside}` first."})
-    assert client.get(f"/api/conversations/{own}").json()["conversation"]["read_in"] == [str(outside)]
+    client.post(
+        f"/api/conversations/{own}/messages", json={"content": f"Look in `{outside}` first."}
+    )
+    assert client.get(f"/api/conversations/{own}").json()["conversation"]["read_in"] == [
+        str(outside)
+    ]
 
 
-def test_a_tasks_chat_is_named_by_its_whole_title_and_listed_as_the_tasks(make_client, wait_run, project_dir):
+def test_a_tasks_chat_is_named_by_its_whole_title_and_listed_as_the_tasks(
+    make_client, wait_run, project_dir
+):
     client, _model = make_client([text("ok")])
-    title = "Let the notes page export every note as CSV, with its tags and its dates kept as they are"
+    title = (
+        "Let the notes page export every note as CSV, with its tags and its dates kept as they are"
+    )
     pid, (tid,) = setup(client, project_dir, title)
     own = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     cid = client.post(f"/api/projects/{pid}/backlog/next").json()["conversation_id"]
@@ -213,9 +242,11 @@ def test_the_lead_of_an_existing_database_is_given_the_backlogs_tools(tmp_path):
     cfg = _config(db)
     command.upgrade(cfg, _migration.down_revision)
     with sqlite3.connect(db) as conn:
-        conn.execute("INSERT INTO roles (id, name, description, instructions, tools, builtin, "
-                     "created_by_agent, created_at, updated_at, skills) VALUES ('l', 'Lead', '', "
-                     "'', '[\"read_file\"]', 1, 0, '2026-10-20', '2026-10-20', '[]')")
+        conn.execute(
+            "INSERT INTO roles (id, name, description, instructions, tools, builtin, "
+            "created_by_agent, created_at, updated_at, skills) VALUES ('l', 'Lead', '', "
+            "'', '[\"read_file\"]', 1, 0, '2026-10-20', '2026-10-20', '[]')"
+        )
     command.upgrade(cfg, _migration.revision)
     with sqlite3.connect(db) as conn:
         tools = json.loads(conn.execute("SELECT tools FROM roles").fetchone()[0])
@@ -225,19 +256,34 @@ def test_the_lead_of_an_existing_database_is_given_the_backlogs_tools(tmp_path):
         assert json.loads(conn.execute("SELECT tools FROM roles").fetchone()[0]) == ["read_file"]
 
 
-def test_a_task_whose_turn_waits_for_the_user_is_at_work_while_another_agent_of_it_works(make_client, project_dir):
+def test_a_task_whose_turn_waits_for_the_user_is_at_work_while_another_agent_of_it_works(
+    make_client, project_dir
+):
     # (The review of B-147, S8: a turn waiting for an approval may still have an agent at work.)
     from app.db.models import Agent
+
     client, _model = make_client([])
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     with client.app.state.runner._factory() as session:
-        session.add(BacklogTask(project_id=pid, title="night job", status="doing", position=0, conversation_id=cid,
-                                created_by="user"))
+        session.add(
+            BacklogTask(
+                project_id=pid,
+                title="night job",
+                status="doing",
+                position=0,
+                conversation_id=cid,
+                created_by="user",
+            )
+        )
         session.add(Run(id="r", conversation_id=cid, status="waiting_approval"))
         session.flush()
-        session.add_all([Agent(id="a", run_id="r", role_name="Lead", tools=[], status="waiting"),
-                         Agent(id="b", run_id="r", role_name="Coder", tools=[], depth=1, status="running")])
+        session.add_all(
+            [
+                Agent(id="a", run_id="r", role_name="Lead", tools=[], status="waiting"),
+                Agent(id="b", run_id="r", role_name="Coder", tools=[], depth=1, status="running"),
+            ]
+        )
         session.commit()
         assert backlog.busy(session, pid, waiting=True) is not None
         session.get_one(Agent, "b").status = "waiting_approval"

@@ -29,8 +29,13 @@ def start(make_client, project_dir, scripts):
     client.headers["Origin"] = ORIGIN
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    assert client.patch(f"/api/conversations/{cid}", json={
-        "permission_mode": "full_auto", "spawn_approval": "never"}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/conversations/{cid}",
+            json={"permission_mode": "full_auto", "spawn_approval": "never"},
+        ).status_code
+        == 200
+    )
     return client, model, cid
 
 
@@ -46,17 +51,22 @@ def say(client, wait_run, cid, content, **spoken):
 def test_the_lead_is_asked_for_a_line_to_say_and_it_is_kept_beside_the_written_answer(
     make_client, wait_run, project_dir
 ):
-    client, model, cid = start(make_client, project_dir, {
-        "Lead": [step(call("spawn_agent", {"role": "Coder", "task": "look at the tax"}, "sp")),
-                 text(WRITTEN + "\n\nSay: It adds the tax once, twenty percent.")],
-        "Coder": [text("The tax is added once.")],
-    })
-    snap = say(client, wait_run, cid, "how is the total worked out?",
-               language="en-US", style=STYLE)
+    client, model, cid = start(
+        make_client,
+        project_dir,
+        {
+            "Lead": [
+                step(call("spawn_agent", {"role": "Coder", "task": "look at the tax"}, "sp")),
+                text(WRITTEN + "\n\nSay: It adds the tax once, twenty percent."),
+            ],
+            "Coder": [text("The tax is added once.")],
+        },
+    )
+    snap = say(client, wait_run, cid, "how is the total worked out?", language="en-US", style=STYLE)
     answer = snap["messages"][-1]
-    assert answer["content"] == WRITTEN                         # the line is off the written answer
+    assert answer["content"] == WRITTEN  # the line is off the written answer
     assert answer["spoken"] == "It adds the tax once, twenty percent."
-    assert snap["messages"][0]["spoken"] is None                # the user's own message has none
+    assert snap["messages"][0]["spoken"] is None  # the user's own message has none
     # the lead was told what to end with, in which language and in the user's manner
     told = json.dumps(model.calls_of["Lead"][0])
     assert "Say:" in told and "en-US" in told and STYLE in told
@@ -77,8 +87,11 @@ def test_where_no_spoken_answer_was_asked_for_nothing_is_taken_off(
 def test_a_lead_that_wrote_no_line_to_say_leaves_the_place_empty(
     make_client, wait_run, project_dir
 ):
-    client, _model, cid = start(make_client, project_dir, {
-        "Lead": [text("Say: this is not the last line.\n\nIt adds the tax once.")]})
+    client, _model, cid = start(
+        make_client,
+        project_dir,
+        {"Lead": [text("Say: this is not the last line.\n\nIt adds the tax once.")]},
+    )
     snap = say(client, wait_run, cid, "how is the total worked out?", language="tr-TR")
     answer = snap["messages"][-1]
     # only a last line is the line to say: nothing is made up, nothing is cut out of the middle
@@ -89,7 +102,11 @@ def test_a_lead_that_wrote_no_line_to_say_leaves_the_place_empty(
 def test_what_may_be_asked_for(make_client, project_dir):
     client, _model, cid = start(make_client, project_dir, {"Lead": [text("x")]})
     send = f"/api/conversations/{cid}/messages"
-    for bad in ({"language": "English please"}, {"language": ""}, {},
-                {"language": "en-US", "style": "x" * 301},
-                {"language": "en-US", "voice": "anything else"}):
+    for bad in (
+        {"language": "English please"},
+        {"language": ""},
+        {},
+        {"language": "en-US", "style": "x" * 301},
+        {"language": "en-US", "voice": "anything else"},
+    ):
         assert client.post(send, json={"content": "hi", "spoken": bad}).status_code == 422, bad

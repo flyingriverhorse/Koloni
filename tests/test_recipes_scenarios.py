@@ -51,20 +51,36 @@ END = {"id": "end", "then": "in"}
 
 
 def graph(steps, arrows, loops=(), groups=(), ends=(END,)):
-    return {"version": 1, "steps": list(steps), "groups": list(groups), "ends": list(ends),
-            "arrows": [{"from": a, "to": b} for a, b in arrows], "loops": list(loops)}
+    return {
+        "version": 1,
+        "steps": list(steps),
+        "groups": list(groups),
+        "ends": list(ends),
+        "arrows": [{"from": a, "to": b} for a, b in arrows],
+        "loops": list(loops),
+    }
 
 
 def step(id, name, who=None, **more):
     # (Whole, as the server gives it back.)
-    return {"id": id, "name": name, "who": who or {"lead": True}, "done_when": "done",
-            "if_fails": "ask", "ask_me": False, "group": None, **more}
+    return {
+        "id": id,
+        "name": name,
+        "who": who or {"lead": True},
+        "done_when": "done",
+        "if_fails": "ask",
+        "ask_me": False,
+        "group": None,
+        **more,
+    }
 
 
 # Build it, review it, back to the build at most twice, then ask me before it goes in.
 SMALL = graph(
-    [step("a", "Build it", {"role": "Coder"}),
-     step("b", "Review it", {"role": "Reviewer"}, done_when="no_findings")],
+    [
+        step("a", "Build it", {"role": "Coder"}),
+        step("b", "Review it", {"role": "Reviewer"}, done_when="no_findings"),
+    ],
     [("start", "a"), ("a", "b"), ("b", "end")],
     loops=[{"from": "b", "to": "a", "rounds": 2}],
 )
@@ -115,8 +131,9 @@ def test_three_ready_recipes_come_first_and_hold(make_client):
 def test_a_ready_recipe_is_copied_never_changed_or_deleted(make_client):
     client, _ = make_client([])
     feature = by_name(client)["Feature"]
-    changed = client.put(f"/api/recipes/{feature['id']}",
-                         json={"name": "Feature", "graph": SMALL}, headers=OWN)
+    changed = client.put(
+        f"/api/recipes/{feature['id']}", json={"name": "Feature", "graph": SMALL}, headers=OWN
+    )
     assert changed.status_code == 409 and "copy" in changed.json()["detail"]
     assert client.delete(f"/api/recipes/{feature['id']}", headers=OWN).status_code == 409
     assert by_name(client)["Feature"]["graph"] == feature["graph"]
@@ -134,8 +151,9 @@ def test_a_drawn_recipe_is_saved_changed_and_deleted_from_the_page_alone(make_cl
     assert (mine["name"], mine["ready"], mine["graph"]) == ("Mine", False, SMALL)
     assert save(client, "mine", SMALL).status_code == 409  # one recipe a name
     assert save(client, "Feature", SMALL).status_code == 409
-    renamed = client.put(f"/api/recipes/{mine['id']}", json={"name": "Mine too", "graph": SMALL},
-                         headers=OWN)
+    renamed = client.put(
+        f"/api/recipes/{mine['id']}", json={"name": "Mine too", "graph": SMALL}, headers=OWN
+    )
     assert renamed.status_code == 200 and renamed.json()["name"] == "Mine too"
     assert client.delete(f"/api/recipes/{mine['id']}").status_code == 403
     assert client.delete(f"/api/recipes/{mine['id']}", headers=OWN).status_code == 204
@@ -144,46 +162,75 @@ def test_a_drawn_recipe_is_saved_changed_and_deleted_from_the_page_alone(make_cl
 
 def test_a_recipe_needs_a_start_and_an_end_and_every_step_reached(make_client):
     client, _ = make_client([])
-    found = problems(save(client, "Broken", graph(
-        [step("a", "Build it"), step("b", "Lost one")], [("a", "end")], ends=())))
+    found = problems(
+        save(
+            client,
+            "Broken",
+            graph([step("a", "Build it"), step("b", "Lost one")], [("a", "end")], ends=()),
+        )
+    )
     assert ("start", "Your message leads nowhere: draw an arrow from it to the first step") in found
     assert (None, "The recipe has no end: add one (+ Ask me)") in found
     assert ("b", "Lost one is not reached from Your message") in found
     # An arrow to an end that is not drawn: said, not taken for one.
-    found = problems(save(client, "Broken", graph([step("a", "Build it")], [("start", "a")])
-                          | {"arrows": [{"from": "start", "to": "a"}, {"from": "a", "to": "x"}],
-                             "ends": []}))
+    found = problems(
+        save(
+            client,
+            "Broken",
+            graph([step("a", "Build it")], [("start", "a")])
+            | {"arrows": [{"from": "start", "to": "a"}, {"from": "a", "to": "x"}], "ends": []},
+        )
+    )
     assert any(at == "a" and "x" in msg for at, msg in found)
 
 
 def test_a_step_with_no_name_is_said_with_the_rest_that_keeps_it_from_running(make_client):
     # R57 (small): the request's own check said the empty name alone; the others came only after it.
     client, _ = make_client([])
-    found = problems(save(client, "Nameless", graph(
-        [step("a", " "), step("b", "Lost one")], [("start", "a"), ("a", "end")])))
+    found = problems(
+        save(
+            client,
+            "Nameless",
+            graph([step("a", " "), step("b", "Lost one")], [("start", "a"), ("a", "end")]),
+        )
+    )
     assert ("a", "A step's name is 1 to 60 printable characters") in found
     assert ("b", "Lost one is not reached from Your message") in found
     # two of them: each said so, and not as two steps of one name
-    found = problems(save(client, "Nameless", graph(
-        [step("a", ""), step("b", "")], [("start", "a"), ("a", "b"), ("b", "end")])))
-    assert sorted(found) == [("a", "A step's name is 1 to 60 printable characters"),
-                             ("b", "A step's name is 1 to 60 printable characters")]
+    found = problems(
+        save(
+            client,
+            "Nameless",
+            graph([step("a", ""), step("b", "")], [("start", "a"), ("a", "b"), ("b", "end")]),
+        )
+    )
+    assert sorted(found) == [
+        ("a", "A step's name is 1 to 60 printable characters"),
+        ("b", "A step's name is 1 to 60 printable characters"),
+    ]
 
 
 def test_every_loop_has_a_round_limit_of_one_to_five(make_client):
     client, _ = make_client([])
     no_limit = {**SMALL, "loops": [{"from": "b", "to": "a"}]}
     assert ("b", "Review it: its loop back to Build it has no round limit (1 to 5)") in problems(
-        save(client, "Loops", no_limit))
+        save(client, "Loops", no_limit)
+    )
     too_many = {**SMALL, "loops": [{"from": "b", "to": "a", "rounds": 6}]}
     assert save(client, "Loops", too_many).status_code == 422
 
 
 def test_every_who_is_a_role_or_team_here_or_the_lead(make_client):
     client, _ = make_client([])
-    body = graph([step("a", "Build it", {"role": "Wizard"}), step("b", "Check it", {"team": "Nope"}),
-                  step("c", "Lead it", {"role": "Lead"}), step("d", "Team", {"team": "Web app"})],
-                 [("start", "a"), ("a", "b"), ("b", "c"), ("c", "d"), ("d", "end")])
+    body = graph(
+        [
+            step("a", "Build it", {"role": "Wizard"}),
+            step("b", "Check it", {"team": "Nope"}),
+            step("c", "Lead it", {"role": "Lead"}),
+            step("d", "Team", {"team": "Web app"}),
+        ],
+        [("start", "a"), ("a", "b"), ("b", "c"), ("c", "d"), ("d", "end")],
+    )
     found = problems(save(client, "Who", body))
     assert ("a", "Build it: “Wizard” is no role here") in found
     assert ("b", "Check it: “Nope” is no team here") in found
@@ -197,9 +244,11 @@ def test_every_who_is_a_role_or_team_here_or_the_lead(make_client):
 def test_steps_at_the_same_time_go_on_together(make_client):
     client, _ = make_client([])
     body = graph(
-        [step("a", "Build it", {"role": "Coder"}),
-         step("r1", "Code review", {"role": "Reviewer"}, group="g"),
-         step("r2", "Security review", {"role": "Security reviewer"}, group="g")],
+        [
+            step("a", "Build it", {"role": "Coder"}),
+            step("r1", "Code review", {"role": "Reviewer"}, group="g"),
+            step("r2", "Security review", {"role": "Security reviewer"}, group="g"),
+        ],
         [("start", "a"), ("a", "g"), ("g", "end")],
         loops=[{"from": "g", "to": "a", "rounds": 1}],
         groups=[{"id": "g", "name": "All at once, wait for all"}],
@@ -216,10 +265,17 @@ def test_steps_at_the_same_time_go_on_together(make_client):
 
 def test_an_arrow_back_is_a_loop_with_no_limit_and_refused(make_client):
     client, _ = make_client([])
-    body = {**SMALL, "loops": [], "arrows": [{"from": a, "to": b} for a, b in (
-        ("start", "a"), ("a", "b"), ("b", "a"), ("b", "end"))]}
-    assert ("b", "Review it: its arrow back to Build it makes a loop with no round limit; use "
-                 "Loop back") in problems(save(client, "Circle", body))
+    body = {
+        **SMALL,
+        "loops": [],
+        "arrows": [
+            {"from": a, "to": b} for a, b in (("start", "a"), ("a", "b"), ("b", "a"), ("b", "end"))
+        ],
+    }
+    assert (
+        "b",
+        "Review it: its arrow back to Build it makes a loop with no round limit; use Loop back",
+    ) in problems(save(client, "Circle", body))
 
 
 def test_a_loop_goes_back_once_from_a_part_and_never_inside_its_own_group(make_client):
@@ -228,15 +284,30 @@ def test_a_loop_goes_back_once_from_a_part_and_never_inside_its_own_group(make_c
     assert ("a", "Build it: its loop goes forward to Review it; a loop goes back") in found
     found = problems(save(client, "L", {**SMALL, "loops": [{"from": "b", "to": "b", "rounds": 2}]}))
     assert ("b", "Review it: its loop goes back to itself") in found
-    found = problems(save(client, "L", {**SMALL, "loops": [
-        {"from": "b", "to": "a", "rounds": 1}, {"from": "b", "to": "a", "rounds": 2}]}))
+    found = problems(
+        save(
+            client,
+            "L",
+            {
+                **SMALL,
+                "loops": [
+                    {"from": "b", "to": "a", "rounds": 1},
+                    {"from": "b", "to": "a", "rounds": 2},
+                ],
+            },
+        )
+    )
     assert ("b", "Review it has two loops back; keep one") in found
-    found = problems(save(client, "L", {**SMALL, "arrows": [*SMALL["arrows"],
-                                                             {"from": "a", "to": "b"}]}))
+    found = problems(
+        save(client, "L", {**SMALL, "arrows": [*SMALL["arrows"], {"from": "a", "to": "b"}]})
+    )
     assert ("a", "Build it: two arrows to Review it") in found
     together = graph(
-        [step("a", "Build it"), step("r1", "Code review", group="g"),
-         step("r2", "UI review", group="g")],
+        [
+            step("a", "Build it"),
+            step("r1", "Code review", group="g"),
+            step("r2", "UI review", group="g"),
+        ],
         [("start", "a"), ("a", "g"), ("g", "end")],
         loops=[{"from": "r1", "to": "r2", "rounds": 1}],
         groups=[{"id": "g", "name": "At once"}],
@@ -245,15 +316,18 @@ def test_a_loop_goes_back_once_from_a_part_and_never_inside_its_own_group(make_c
     assert ("r1", "Code review: its loop back stays inside its group") in found
     together["loops"] = [{"from": "r1", "to": "g", "rounds": 1}]
     assert ("r1", "Code review: its loop back stays inside its group") in problems(
-        save(client, "L", together))
+        save(client, "L", together)
+    )
     together["loops"] = [{"from": "r1", "to": "a", "rounds": 1}]  # back out of it: a loop
     assert save(client, "L", together).status_code == 201
 
 
 def test_every_step_leads_to_an_end(make_client):
     client, _ = make_client([])
-    body = graph([step("a", "Build it"), step("b", "Lost one")],
-                 [("start", "a"), ("start", "b"), ("a", "end")])
+    body = graph(
+        [step("a", "Build it"), step("b", "Lost one")],
+        [("start", "a"), ("start", "b"), ("a", "end")],
+    )
     found = problems(save(client, "Dead", body))
     assert ("b", "Lost one leads to no end") in found
     assert not any(at == "a" for at, _ in found)
@@ -262,11 +336,14 @@ def test_every_step_leads_to_an_end(make_client):
 def test_two_steps_of_one_name_are_refused_each_at_its_step(make_client):
     """B-108: two "New step"s were saved; which one the recipe means would not be told."""
     client, _ = make_client([])
-    body = graph([step("a", "Review it"), step("b", "review  it")],
-                 [("start", "a"), ("a", "b"), ("b", "end")])
+    body = graph(
+        [step("a", "Review it"), step("b", "review  it")],
+        [("start", "a"), ("a", "b"), ("b", "end")],
+    )
     assert problems(save(client, "Twice", body)) == {
         ("a", "Two steps are named Review it: give each its own name"),
-        ("b", "Two steps are named review it: give each its own name")}
+        ("b", "Two steps are named review it: give each its own name"),
+    }
 
 
 def test_a_drawing_is_kept_as_drawn(make_client):
@@ -281,23 +358,36 @@ def test_where_a_part_was_dragged_is_kept_and_only_a_number_on_the_board(make_cl
     # nothing (an old recipe) is given back as it was, with no pos.
     client, _ = make_client([])
     a, b = SMALL["steps"]
-    placed = {**SMALL, "steps": [{**a, "pos": {"x": 12, "y": -40.5}}, b],
-              "ends": [{**END, "pos": {"x": 0, "y": 300}}]}
+    placed = {
+        **SMALL,
+        "steps": [{**a, "pos": {"x": 12, "y": -40.5}}, b],
+        "ends": [{**END, "pos": {"x": 0, "y": 300}}],
+    }
     made = save(client, "Placed", placed)
     assert made.status_code == 201, made.text
-    assert made.json()["graph"] == {**placed, "steps": [{**a, "pos": {"x": 12.0, "y": -40.5}}, b],
-                                    "ends": [{**END, "pos": {"x": 0.0, "y": 300.0}}]}
+    assert made.json()["graph"] == {
+        **placed,
+        "steps": [{**a, "pos": {"x": 12.0, "y": -40.5}}, b],
+        "ends": [{**END, "pos": {"x": 0.0, "y": 300.0}}],
+    }
     assert save(client, "Old one", SMALL).json()["graph"] == SMALL
-    for bad in ({"x": "12", "y": 0}, {"x": True, "y": 0}, {"x": 1e6, "y": 0}, {"x": 0},
-                {"x": 0, "y": 0, "z": 0}, [0, 0]):
+    for bad in (
+        {"x": "12", "y": 0},
+        {"x": True, "y": 0},
+        {"x": 1e6, "y": 0},
+        {"x": 0},
+        {"x": 0, "y": 0, "z": 0},
+        [0, 0],
+    ):
         odd = {**SMALL, "steps": [{**a, "pos": bad}, b]}
         assert save(client, f"Odd {bad}", odd).status_code == 422, bad
     # NaN and Infinity, which no JSON encoder writes but a hand-made body can hold.
     for word in ("NaN", "Infinity", "-Infinity"):
         body = json.dumps({"name": "Odd", "graph": placed}).replace('"x": 12,', f'"x": {word},')
         assert word in body
-        sent = client.post("/api/recipes", content=body, headers={
-            **OWN, "Content-Type": "application/json"})
+        sent = client.post(
+            "/api/recipes", content=body, headers={**OWN, "Content-Type": "application/json"}
+        )
         assert sent.status_code == 422, word
 
 
@@ -315,15 +405,21 @@ def test_a_recipe_kept_in_the_folder_is_written_read_and_removed(make_client, pr
     assert (made.json()["project_id"], made.json()["file"]) == (pid, "ship-it")
     kept = project_dir / ".koloni" / "recipes" / "ship-it.json"
     assert json.loads(kept.read_text(encoding="utf-8")) == {"name": "Ship it", "graph": SMALL}
-    assert client.post(path, json={"name": "Ship  IT", "graph": SMALL},
-                       headers=OWN).status_code == 409  # the same file
+    assert (
+        client.post(path, json={"name": "Ship  IT", "graph": SMALL}, headers=OWN).status_code == 409
+    )  # the same file
     # Not every folder's: listed with this project only.
     assert "Ship it" in by_name(client, project_id=pid) and "Ship it" not in by_name(client)
     # Checked as KOLONİ's own are.
-    assert client.post(path, json={"name": "Bad", "graph": {**SMALL, "arrows": []}},
-                       headers=OWN).status_code == 422
-    changed = client.put(f"{path}/ship-it", json={"name": "Ship it now", "graph": SMALL},
-                         headers=OWN)
+    assert (
+        client.post(
+            path, json={"name": "Bad", "graph": {**SMALL, "arrows": []}}, headers=OWN
+        ).status_code
+        == 422
+    )
+    changed = client.put(
+        f"{path}/ship-it", json={"name": "Ship it now", "graph": SMALL}, headers=OWN
+    )
     assert changed.status_code == 200 and changed.json()["name"] == "Ship it now"
     assert client.delete(f"{path}/ship-it", headers=OWN).status_code == 204
     assert not (project_dir / ".koloni").exists()
@@ -335,16 +431,19 @@ def test_a_broken_recipe_file_is_said_and_not_used(make_client, project_dir):
     folder = project_dir / ".koloni" / "recipes"
     folder.mkdir(parents=True)
     (folder / "broken.json").write_text("{not json", encoding="utf-8")
-    (folder / "wrong.json").write_text(json.dumps({"name": "Wrong", "graph": {"version": 9}}),
-                                       encoding="utf-8")
-    (folder / "good.json").write_text(json.dumps({"name": "Good", "graph": SMALL}),
-                                      encoding="utf-8")
+    (folder / "wrong.json").write_text(
+        json.dumps({"name": "Wrong", "graph": {"version": 9}}), encoding="utf-8"
+    )
+    (folder / "good.json").write_text(
+        json.dumps({"name": "Good", "graph": SMALL}), encoding="utf-8"
+    )
     (folder / "notes.txt").write_text("not a recipe", encoding="utf-8")
     read = listed(client, project_id=pid)
     assert [r["name"] for r in read["recipes"] if r["project_id"]] == ["Good"]
     assert len(read["broken"]) == 2
-    assert all(line.startswith(".koloni/recipes/") and " is not read - " in line
-               for line in read["broken"])
+    assert all(
+        line.startswith(".koloni/recipes/") and " is not read - " in line for line in read["broken"]
+    )
 
 
 def test_a_file_the_page_could_not_change_is_said_not_listed(make_client, project_dir):
@@ -358,19 +457,23 @@ def test_a_file_the_page_could_not_change_is_said_not_listed(make_client, projec
     (folder / "huge.json").write_text(" " * (300 * 1024) + whole, encoding="utf-8")
     read = listed(client, project_id=pid)
     assert [r for r in read["recipes"] if r["project_id"]] == []
-    named = [line for line in read["broken"] if "its file name is not letters, digits and dashes"
-             in line]
+    named = [
+        line for line in read["broken"] if "its file name is not letters, digits and dashes" in line
+    ]
     assert len(named) == 3
-    assert any(line.startswith(".koloni/recipes/huge.json") and "larger than 256 KiB" in line
-               for line in read["broken"])
+    assert any(
+        line.startswith(".koloni/recipes/huge.json") and "larger than 256 KiB" in line
+        for line in read["broken"]
+    )
 
 
 @pytest.mark.parametrize("name", ["CON", "nul", "Com1", "LPT¹"])
 def test_a_name_windows_keeps_for_a_device_is_said(make_client, project_dir, name):
     client, _ = make_client([])
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    made = client.post(f"/api/projects/{pid}/recipes", json={"name": name, "graph": SMALL},
-                       headers=OWN)
+    made = client.post(
+        f"/api/projects/{pid}/recipes", json={"name": name, "graph": SMALL}, headers=OWN
+    )
     assert made.status_code == 422 and "Windows keeps" in made.json()["detail"]
 
 
@@ -380,8 +483,7 @@ def test_a_recipes_folder_that_leads_elsewhere_is_said(make_client, project_dir,
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
-    (elsewhere / "x.json").write_text(json.dumps({"name": "Far", "graph": SMALL}),
-                                      encoding="utf-8")
+    (elsewhere / "x.json").write_text(json.dumps({"name": "Far", "graph": SMALL}), encoding="utf-8")
     (project_dir / ".koloni").mkdir()
     junction(project_dir / ".koloni" / "recipes", elsewhere)
     read = listed(client, project_id=pid)
@@ -401,25 +503,33 @@ def test_an_agent_never_writes_a_recipe_into_the_folder_unasked(make_client, pro
 def test_a_recipes_name_never_leaves_the_folder(make_client, project_dir, name):
     client, _ = make_client([])
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    made = client.post(f"/api/projects/{pid}/recipes", json={"name": name, "graph": SMALL},
-                       headers=OWN)
+    made = client.post(
+        f"/api/projects/{pid}/recipes", json={"name": name, "graph": SMALL}, headers=OWN
+    )
     if made.status_code == 201:
         assert (project_dir / ".koloni" / "recipes" / f"{made.json()['file']}.json").is_file()
     else:
         assert made.status_code == 422
     assert not list(project_dir.parent.glob("*.json")) and not list(project_dir.glob("*.json"))
     assert not list((project_dir / ".koloni").glob("*.json"))
-    assert client.put(f"/api/projects/{pid}/recipes/..%2F..%2Fx", json={
-        "name": "x", "graph": SMALL}, headers=OWN).status_code in (404, 405, 422)
+    assert client.put(
+        f"/api/projects/{pid}/recipes/..%2F..%2Fx", json={"name": "x", "graph": SMALL}, headers=OWN
+    ).status_code in (404, 405, 422)
 
 
 # --- "Or write it" -------------------------------------------------------------------------------
 
 
-DRAWN = {"name": "Spec then code", "graph": graph(
-    [step("s", "Write the spec", {"role": "Spec writer"}, ask_me=True),
-     step("c", "Code it", {"role": "Coder"})],
-    [("start", "s"), ("s", "c"), ("c", "end")])}
+DRAWN = {
+    "name": "Spec then code",
+    "graph": graph(
+        [
+            step("s", "Write the spec", {"role": "Spec writer"}, ask_me=True),
+            step("c", "Code it", {"role": "Coder"}),
+        ],
+        [("start", "s"), ("s", "c"), ("c", "end")],
+    ),
+}
 
 
 def test_or_write_it_asks_the_leads_model_once_and_saves_nothing(make_client):
@@ -443,8 +553,11 @@ def test_or_write_it_asks_the_first_balanced_model_and_keeps_the_loops_named(tea
     """B-69: drawn by the strongest model, and "at most 2 rounds back to Coder" left out."""
     client, default, fast = team([], [text(json.dumps(DRAWN))])
     tiered(team, client)  # balanced: Fast · deep
-    drawn = client.post("/api/recipes/draft", json={"text": "Coder, then Reviewer, at most 2 "
-                                                     "rounds back to Coder"}, headers=OWN)
+    drawn = client.post(
+        "/api/recipes/draft",
+        json={"text": "Coder, then Reviewer, at most 2 rounds back to Coder"},
+        headers=OWN,
+    )
     assert drawn.status_code == 200, drawn.text
     assert (drawn.json()["provider_name"], drawn.json()["model_id"]) == ("Fast", "deep")
     assert default.calls == [] and len(fast.calls) == 1
@@ -454,8 +567,13 @@ def test_or_write_it_asks_the_first_balanced_model_and_keeps_the_loops_named(tea
 def local_first(team, client):  # noqa: F811
     """Balanced: Local · big-model (its server on this machine) first, then Fast · deep."""
     local, _fast = tiered(team, client)
-    assert client.patch(f"/api/providers/{local['id']}", json={
-        "models": [{"name": "big-model", "tier": "balanced"}]}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/providers/{local['id']}",
+            json={"models": [{"name": "big-model", "tier": "balanced"}]},
+        ).status_code
+        == 200
+    )
     return local
 
 
@@ -463,7 +581,7 @@ UNREACHABLE = ModelUnavailable("model server unreachable: All connection attempt
 
 
 def test_or_write_it_passes_over_a_local_server_not_running_and_says_whom_it_asks(
-    team  # noqa: F811
+    team,  # noqa: F811
 ):
     """K-tarif-yaz (the user's report): Local's server looked down when last read - the next
     balanced model is asked, and the note under "Or write it" names it before the press."""
@@ -500,15 +618,20 @@ def test_or_write_it_with_every_model_down_names_each_one_it_asked(team):  # noq
     assert drawn.json()["detail"] == (
         "No model answered: Local · big-model (not running), Fast · deep (model server returned "
         "500: overloaded), Fast · quick (model server returned 500: overloaded). Start Local on "
-        "the Models page, give a model a tier there, or pick a model in the chat.")
+        "the Models page, give a model a tier there, or pick a model in the chat."
+    )
 
 
 def chat_on(client, project_dir, provider_id, model):
     """A chat whose model picker chose `provider_id` · `model`: its id."""
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    assert client.patch(f"/api/conversations/{cid}", json={
-        "provider_id": provider_id, "model_id": model}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/conversations/{cid}", json={"provider_id": provider_id, "model_id": model}
+        ).status_code
+        == 200
+    )
     return pid, cid
 
 
@@ -521,42 +644,62 @@ def test_or_write_it_asks_the_model_of_the_chat_it_is_opened_from(team, project_
         local = session.query(models.Provider).filter_by(name="Local").one()
         looked_down(session)[local.id] = ("not answering", None)
     assert listed(client, conversation_id=cid)["writer"]["asks"] == (
-        "the Orchestrator's model: Fast · deep")
-    drawn = client.post("/api/recipes/draft", json={"text": "Coder, then Reviewer",
-                                                    "conversation_id": cid}, headers=OWN)
+        "the Orchestrator's model: Fast · deep"
+    )
+    drawn = client.post(
+        "/api/recipes/draft",
+        json={"text": "Coder, then Reviewer", "conversation_id": cid},
+        headers=OWN,
+    )
     assert drawn.status_code == 200, drawn.text
     assert (drawn.json()["provider_name"], drawn.json()["model_id"]) == ("Fast", "deep")
     assert default.calls == [] and len(fast.calls) == 1
     # (with no chat: the app's own default, Local - not running -, and how to fix it; found not
     # running only as it is asked: "No model answered: Local (not running). Start Local …")
-    why = ("There is no model to ask: Local is not running. Start Local on the Models page, give "
-           "a model a tier there, or pick a model in the chat.")
+    why = (
+        "There is no model to ask: Local is not running. Start Local on the Models page, give "
+        "a model a tier there, or pick a model in the chat."
+    )
     assert listed(client)["writer"] == {"why": why, "asks": None}
     drawn = client.post("/api/recipes/draft", json={"text": "Coder, then Reviewer"}, headers=OWN)
     assert drawn.status_code == 409 and drawn.json()["detail"] == why, drawn.text
     # (a chat of another project, or none such: as with no chat)
     from app.api.recipes import chat_of
+
     with client.app.state.session_factory() as session:
         assert chat_of(session, cid, "another") is None and chat_of(session, "gone") is None
         assert chat_of(session, cid) is not None and chat_of(session, None) is None
 
 
-def test_or_write_it_with_no_chat_asks_every_tier_then_the_newest_chats_model(
-        team, project_dir):  # noqa: F811
+def test_or_write_it_with_no_chat_asks_every_tier_then_the_newest_chats_model(team, project_dir):  # noqa: F811
     """No balanced model: the fast tier's next; the newest chat's model after the Lead's."""
-    client, default, fast = team([], [ModelUnavailable("model server returned 500: overloaded"),
-                                      text(json.dumps(DRAWN))])
+    client, default, fast = team(
+        [], [ModelUnavailable("model server returned 500: overloaded"), text(json.dumps(DRAWN))]
+    )
     fast_id = team.providers["Fast"]["id"]
-    assert client.patch(f"/api/providers/{fast_id}", json={
-        "models": [{"name": "quick", "tier": "fast"}, {"name": "deep"}]},
-        headers={"Origin": ORIGIN}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/providers/{fast_id}",
+            json={"models": [{"name": "quick", "tier": "fast"}, {"name": "deep"}]},
+            headers={"Origin": ORIGIN},
+        ).status_code
+        == 200
+    )
     _pid, cid = chat_on(client, project_dir, fast_id, "deep")
     with client.app.state.session_factory() as session:
         # (a turn of that chat ran on Fast · deep - its Orchestrator as it was last used)
         session.add(models.Run(id="r1", conversation_id=cid, status="completed"))
         session.flush()
-        session.add(models.Agent(id="a1", run_id="r1", role_name="Orchestrator", tools=[],
-                                 provider_name="Fast", model_id="deep"))
+        session.add(
+            models.Agent(
+                id="a1",
+                run_id="r1",
+                role_name="Orchestrator",
+                tools=[],
+                provider_name="Fast",
+                model_id="deep",
+            )
+        )
         local = session.query(models.Provider).filter_by(name="Local").one()
         looked_down(session)[local.id] = ("not answering", None)
         session.commit()
@@ -565,7 +708,6 @@ def test_or_write_it_with_no_chat_asks_every_tier_then_the_newest_chats_model(
     assert drawn.status_code == 200, drawn.text
     # (Fast · quick overloaded; Local passed over - not running -; the newest chat's: Fast · deep)
     assert (drawn.json()["provider_name"], drawn.json()["model_id"]) == ("Fast", "deep")
-
 
 
 def test_a_projects_draft_asks_only_its_own_chats_newest_model(team, project_dir):  # noqa: F811
@@ -577,10 +719,19 @@ def test_a_projects_draft_asks_only_its_own_chats_newest_model(team, project_dir
     with client.app.state.session_factory() as session:
         session.add(models.Run(id="r1", conversation_id=cid, status="completed"))
         session.flush()
-        session.add(models.Agent(id="a1", run_id="r1", role_name="Orchestrator", tools=[],
-                                 provider_name="Fast", model_id="deep"))
+        session.add(
+            models.Agent(
+                id="a1",
+                run_id="r1",
+                role_name="Orchestrator",
+                tools=[],
+                provider_name="Fast",
+                model_id="deep",
+            )
+        )
         session.commit()
         from app.api.recipes import _newest_chats
+
         assert _newest_chats(session, pid)[1] == "deep"
         assert _newest_chats(session) is not None  # (no project: the Agents page's own)
         assert _newest_chats(session, "another") is None
@@ -588,11 +739,16 @@ def test_a_projects_draft_asks_only_its_own_chats_newest_model(team, project_dir
 
 def test_or_write_it_may_draw_a_role_step_of_more_than_one(make_client):
     """K-rol-cogul: "at most N" of a role (`most`) is told, and a draft with it is read."""
-    two = {"name": "Two coders", "graph": graph([step("c", "Code it", {"role": "Coder", "most": 2})],
-                                                [("start", "c"), ("c", "end")])}
+    two = {
+        "name": "Two coders",
+        "graph": graph(
+            [step("c", "Code it", {"role": "Coder", "most": 2})], [("start", "c"), ("c", "end")]
+        ),
+    }
     client, model = make_client([text(json.dumps(two))])
-    drawn = client.post("/api/recipes/draft", json={"text": "two coders at once, each a part"},
-                        headers=OWN)
+    drawn = client.post(
+        "/api/recipes/draft", json={"text": "two coders at once, each a part"}, headers=OWN
+    )
     assert drawn.status_code == 200, drawn.text
     assert drawn.json()["graph"]["steps"][0]["who"] == {"role": "Coder", "most": 2}
     assert '"most": 2 to 5' in model.calls[0][0]["content"]
@@ -607,8 +763,14 @@ def test_an_answer_that_is_no_recipe_is_said(make_client):
 def test_with_no_model_the_lead_may_run_on_or_write_it_says_why(make_client):
     client, model = make_client([text("never")])
     local = client.get("/api/providers").json()[0]
-    assert client.patch(f"/api/providers/{local['id']}", json={
-        "models": [{"name": "other"}], "only_listed": True}, headers=OWN).status_code == 200
+    assert (
+        client.patch(
+            f"/api/providers/{local['id']}",
+            json={"models": [{"name": "other"}], "only_listed": True},
+            headers=OWN,
+        ).status_code
+        == 200
+    )
     why = listed(client)["writer"]["why"]
     assert why and "Models page" in why
     drawn = client.post("/api/recipes/draft", json={"text": "do it"}, headers=OWN)
@@ -638,19 +800,23 @@ def test_a_teams_default_recipe_is_kept_and_goes_with_the_recipe(make_client):
     web = client.post("/api/teams", json={"name": "Art"}, headers=OWN).json()
     assert web["default_recipe_id"] is None
     mine = save(client, "Mine", SMALL).json()
-    set_ = client.patch(f"/api/teams/{web['id']}", json={"default_recipe_id": mine["id"]},
-                        headers=OWN)
+    set_ = client.patch(
+        f"/api/teams/{web['id']}", json={"default_recipe_id": mine["id"]}, headers=OWN
+    )
     assert set_.status_code == 200 and set_.json()["default_recipe_id"] == mine["id"]
     # Its other settings are left as they were, and an unknown recipe is not one.
     renamed = client.patch(f"/api/teams/{web['id']}", json={"lead_on": False}, headers=OWN)
     assert renamed.json()["default_recipe_id"] == mine["id"]
-    assert client.patch(f"/api/teams/{web['id']}", json={"default_recipe_id": "nope"},
-                        headers=OWN).status_code == 422
+    assert (
+        client.patch(
+            f"/api/teams/{web['id']}", json={"default_recipe_id": "nope"}, headers=OWN
+        ).status_code
+        == 422
+    )
     assert client.delete(f"/api/recipes/{mine['id']}", headers=OWN).status_code == 204
     web = next(t for t in client.get("/api/teams").json() if t["name"] == "Art")
     assert web["default_recipe_id"] is None
     feature = by_name(client)["Feature"]
     client.patch(f"/api/teams/{web['id']}", json={"default_recipe_id": feature["id"]}, headers=OWN)
-    cleared = client.patch(f"/api/teams/{web['id']}", json={"default_recipe_id": None},
-                           headers=OWN)
+    cleared = client.patch(f"/api/teams/{web['id']}", json={"default_recipe_id": None}, headers=OWN)
     assert cleared.json()["default_recipe_id"] is None

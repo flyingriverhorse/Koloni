@@ -32,16 +32,20 @@ WAITS = frozenset(("wait_for_room",))
 WAIT_INSTANT = 5.0
 # A message to one of the last this many it wrote to is no move.
 RECENT = 3
-IDLE = ("its last {count} calls each repeated one it had made, with the same result, with no "
-        "change of this turn on record and no command of its own succeeding in between.")
+IDLE = (
+    "its last {count} calls each repeated one it had made, with the same result, with no "
+    "change of this turn on record and no command of its own succeeding in between."
+)
 FAILED = "failed {count} times with the same arguments and the same error"
 SAME = "returned the same result {count} times with the same arguments"
 # What a sign that stood before something moved is said with, from then on.
 EARLIER = "Earlier in its work: "
 # G4.2: edit_file failed this often on one file in the turn, whatever it was given.
-EDIT_MISSES = ("\n\n[KOLONİ: edit_file failed {count} times on {path} in this turn. Read the "
-               "file again with read_file and copy its lines exactly, or write it whole with "
-               "write_file.]")
+EDIT_MISSES = (
+    "\n\n[KOLONİ: edit_file failed {count} times on {path} in this turn. Read the "
+    "file again with read_file and copy its lines exactly, or write it whole with "
+    "write_file.]"
+)
 # A clock time, a duration (KOLONİ's own "exit code 1 (0.3s)" too) and a process number.
 # (A number is tried from its first digit only: tried from each, a long run of digits held the
 # loop for seconds - every tool result comes here.)
@@ -63,7 +67,8 @@ def same_error(error: str) -> str:
 def sign(kind: str, tool: str, count: int) -> dict:
     said = (FAILED if kind == "same_failure" else SAME).format(count=count)
     return {
-        "kind": kind, "count": count,
+        "kind": kind,
+        "count": count,
         # Only what the records show: a change made outside KOLONİ is not seen.
         "text": f"{tool} {said}, with no change of this turn on record and no command of "
         "its own succeeding in between.",
@@ -117,8 +122,9 @@ class Counts:
             return True
         return False
 
-    def heard(self, tool: str, arguments: str, said: str, step: object = None,
-              waited: bool = False) -> None:
+    def heard(
+        self, tool: str, arguments: str, said: str, step: object = None, waited: bool = False
+    ) -> None:
         """A call's result: one that repeats a call and its result since something moved adds
         to `idle`; a wait that waited (`waited`), or a call already heard in this `step`, leaves
         it as it is; any other sets it back to 0."""

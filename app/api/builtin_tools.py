@@ -19,8 +19,9 @@ def builtin_tools(session: Session = Depends(get_session)):
     return [{"name": name, "on": name not in off} for name in SWITCHABLE]
 
 
-@router.put("/{name}", response_model=list[BuiltinToolOut],
-            dependencies=[Depends(require_own_origin)])
+@router.put(
+    "/{name}", response_model=list[BuiltinToolOut], dependencies=[Depends(require_own_origin)]
+)
 def switch_tool(name: str, body: BuiltinToolIn, session: Session = Depends(get_session)):
     if name not in SWITCHABLE:
         raise HTTPException(404, f"{name} is not one of the tools switched here")

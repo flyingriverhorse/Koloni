@@ -3,6 +3,7 @@
 Revision ID: 0029
 Revises: 0028
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -15,8 +16,9 @@ depends_on = None
 def upgrade() -> None:
     # Off for a project from before this: the user has not said agy may search for it.
     with op.batch_alter_table("projects") as batch:
-        batch.add_column(sa.Column(
-            "search_agy", sa.Boolean(), server_default=sa.false(), nullable=False))
+        batch.add_column(
+            sa.Column("search_agy", sa.Boolean(), server_default=sa.false(), nullable=False)
+        )
 
 
 def downgrade() -> None:

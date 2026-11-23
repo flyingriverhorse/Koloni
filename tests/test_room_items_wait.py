@@ -26,13 +26,22 @@ def agent(snap, name):
 
 def test_a_member_waits_for_an_item_and_is_given_its_result(make_client, wait_run, project_dir):
     held = Gate()
-    client, _model, cid, run_id, _room = start(make_client, project_dir, {
-        "Coder": [step(add("Find why the greeting is wrong", None, "a1"), take(1, "t1")),
-                  held.step(step(finish(1, "it printed hi: a typo", "f"))), text("Done.")],
-        "Reviewer": [step(add("Write the notes", None, "a2"), take(2, "t2")),
-                     step(wait_for(9, "w9"), wait_for(2, "w2"), wait_for(1, "w1")),
-                     text("Done.")],
-    })
+    client, _model, cid, run_id, _room = start(
+        make_client,
+        project_dir,
+        {
+            "Coder": [
+                step(add("Find why the greeting is wrong", None, "a1"), take(1, "t1")),
+                held.step(step(finish(1, "it printed hi: a typo", "f"))),
+                text("Done."),
+            ],
+            "Reviewer": [
+                step(add("Write the notes", None, "a2"), take(2, "t2")),
+                step(wait_for(9, "w9"), wait_for(2, "w2"), wait_for(1, "w1")),
+                text("Done."),
+            ],
+        },
+    )
     until(client, cid, lambda s: agent(s, "Reviewer")["status"] == "waiting", timeout=LONG)
     held.release()
     snap = wait_run(client, cid, run_id, timeout=LONG)
@@ -46,12 +55,23 @@ def test_a_member_waits_for_an_item_and_is_given_its_result(make_client, wait_ru
 def test_an_item_that_is_done_already_is_given_at_once_and_an_open_one_is_refused(
     make_client, wait_run, project_dir
 ):
-    client, _model, cid, run_id, _room = start(make_client, project_dir, {
-        "Coder": [step(add("Find why", None, "a1"), take(1, "t1"), add("Nobody's", None, "a2")),
-                  step(finish(1, "found it", "f")), text("Done.")],
-        "Reviewer": [text("Nothing to add."), step(wait_for(2, "w2")),
-                     step(wait_for(1, "w1")), text("Done.")],
-    })
+    client, _model, cid, run_id, _room = start(
+        make_client,
+        project_dir,
+        {
+            "Coder": [
+                step(add("Find why", None, "a1"), take(1, "t1"), add("Nobody's", None, "a2")),
+                step(finish(1, "found it", "f")),
+                text("Done."),
+            ],
+            "Reviewer": [
+                text("Nothing to add."),
+                step(wait_for(2, "w2")),
+                step(wait_for(1, "w1")),
+                text("Done."),
+            ],
+        },
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     nobodys, done = results(snap, "Reviewer", "wait_for_item")
     assert nobodys[0] == "failed" and "nobody holds" in nobodys[1]
@@ -61,12 +81,24 @@ def test_an_item_that_is_done_already_is_given_at_once_and_an_open_one_is_refuse
 def test_an_item_like_one_on_the_list_is_added_and_the_adder_is_asked(
     make_client, wait_run, project_dir
 ):
-    client, _model, cid, run_id, _room = start(make_client, project_dir, {
-        "Coder": [step(add("Fix the greeting in hello.py", None, "a1"), take(1, "t1")),
-                  step(finish(1, "fixed", "f")), text("Done.")],
-        "Reviewer": [step(add("Fix greeting of hello.py", None, "a2"),
-                          add("Write the release notes", None, "a3")), text("Done.")],
-    })
+    client, _model, cid, run_id, _room = start(
+        make_client,
+        project_dir,
+        {
+            "Coder": [
+                step(add("Fix the greeting in hello.py", None, "a1"), take(1, "t1")),
+                step(finish(1, "fixed", "f")),
+                text("Done."),
+            ],
+            "Reviewer": [
+                step(
+                    add("Fix greeting of hello.py", None, "a2"),
+                    add("Write the release notes", None, "a3"),
+                ),
+                text("Done."),
+            ],
+        },
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     like, other = results(snap, "Reviewer", "add_item")
     assert like[0] == "succeeded" and "added as item 2" in like[1]
@@ -82,10 +114,14 @@ def test_the_wait_ends_when_the_holders_part_is_over_with_the_item_open(
     make_client, wait_run, project_dir
 ):
     held = Gate()
-    client, _model, cid, run_id, _room = start(make_client, project_dir, {
-        "Coder": [step(add("Find why", None, "a1"), take(1, "t1")), held.step(text("Done."))],
-        "Reviewer": [text("Nothing to add."), step(wait_for(1)), text("Done.")],
-    })
+    client, _model, cid, run_id, _room = start(
+        make_client,
+        project_dir,
+        {
+            "Coder": [step(add("Find why", None, "a1"), take(1, "t1")), held.step(text("Done."))],
+            "Reviewer": [text("Nothing to add."), step(wait_for(1)), text("Done.")],
+        },
+    )
     waiting(client, cid, "Reviewer")
     held.release()
     snap = wait_run(client, cid, run_id, timeout=LONG)
@@ -95,12 +131,19 @@ def test_the_wait_ends_when_the_holders_part_is_over_with_the_item_open(
 
 def test_a_post_ends_the_wait_before_the_item_is_closed(make_client, wait_run, project_dir):
     says, closes = Gate(), Gate()
-    client, _model, cid, run_id, _room = start(make_client, project_dir, {
-        "Coder": [step(add("Find why", None, "a1"), take(1, "t1")),
-                  says.step(step(post("result", "halfway there"))),
-                  closes.step(step(finish(1, "found it"))), text("Done.")],
-        "Reviewer": [text("Nothing to add."), step(wait_for(1)), text("Done.")],
-    })
+    client, _model, cid, run_id, _room = start(
+        make_client,
+        project_dir,
+        {
+            "Coder": [
+                step(add("Find why", None, "a1"), take(1, "t1")),
+                says.step(step(post("result", "halfway there"))),
+                closes.step(step(finish(1, "found it"))),
+                text("Done."),
+            ],
+            "Reviewer": [text("Nothing to add."), step(wait_for(1)), text("Done.")],
+        },
+    )
     waiting(client, cid, "Reviewer")
     says.release()
     until(client, cid, waited, timeout=LONG)
@@ -112,11 +155,19 @@ def test_a_post_ends_the_wait_before_the_item_is_closed(make_client, wait_run, p
 
 def test_a_holder_that_waits_itself_is_not_waited_for(make_client, wait_run, project_dir):
     held = Gate()
-    client, _model, cid, run_id, _room = start(make_client, project_dir, {
-        "Coder": [step(add("Find why", None, "a1"), take(1, "t1")), wait(), text("Done.")],
-        "Reviewer": [text("Nothing to add."), held.step(step(wait_for(1))),
-                     step(post("result", "go on")), text("Done.")],
-    })
+    client, _model, cid, run_id, _room = start(
+        make_client,
+        project_dir,
+        {
+            "Coder": [step(add("Find why", None, "a1"), take(1, "t1")), wait(), text("Done.")],
+            "Reviewer": [
+                text("Nothing to add."),
+                held.step(step(wait_for(1))),
+                step(post("result", "go on")),
+                text("Done."),
+            ],
+        },
+    )
     waiting(client, cid, "Coder")
     held.release()
     snap = wait_run(client, cid, run_id, timeout=LONG)
@@ -128,25 +179,41 @@ def test_a_holder_that_waits_for_a_file_of_the_waiters_is_not_waited_for(
     make_client, wait_run, project_dir
 ):
     held, reads = Gate(), Gate()
-    client, _model, cid, run_id, _room = start(make_client, project_dir, {
-        "Coder": [step(add("Find why", None, "a1"), take(1, "t1")),
-                  held.step(step(finish(1, "found it"))), text("Done.")],
-        "Reviewer": [text("Nothing to add."), reads.step(step(wait_for(1))), text("Done.")],
-    })
+    client, _model, cid, run_id, _room = start(
+        make_client,
+        project_dir,
+        {
+            "Coder": [
+                step(add("Find why", None, "a1"), take(1, "t1")),
+                held.step(step(finish(1, "found it"))),
+                text("Done."),
+            ],
+            "Reviewer": [text("Nothing to add."), reads.step(step(wait_for(1))), text("Done.")],
+        },
+    )
     runner = client.app.state.runner
     real = runner.claims.waiting
 
     def stuck(agent_id):  # the Coder waits for a file the Reviewer holds
         if runner._name_of(agent_id) != "Coder":
             return real(agent_id)
-        return [SimpleNamespace(holder=next(
-            one for one, ctx in runner._ctxs.items() if ctx.name == "Reviewer"))]
+        return [
+            SimpleNamespace(
+                holder=next(one for one, ctx in runner._ctxs.items() if ctx.name == "Reviewer")
+            )
+        ]
 
     runner.claims.waiting = stuck
     held.wait_partial()  # the Coder holds item 1
     reads.release()  # (the Reviewer's wait comes only now that `stuck` is in place)
-    until(client, cid, lambda s: [status for status, _ in results(
-        s, "Reviewer", "wait_for_item")][:1] == ["failed"], timeout=LONG)
+    until(
+        client,
+        cid,
+        lambda s: (
+            [status for status, _ in results(s, "Reviewer", "wait_for_item")][:1] == ["failed"]
+        ),
+        timeout=LONG,
+    )
     runner.claims.waiting = real
     held.release()
     snap = wait_run(client, cid, run_id, timeout=LONG)
@@ -156,12 +223,19 @@ def test_a_holder_that_waits_for_a_file_of_the_waiters_is_not_waited_for(
 
 def test_a_post_not_read_yet_is_handed_over_before_any_wait(make_client, wait_run, project_dir):
     reads, says, closes = Gate(), Gate(), Gate()
-    client, _model, cid, run_id, _room = start(make_client, project_dir, {
-        "Coder": [step(add("Find why", None, "a1"), take(1, "t1")),
-                  says.step(step(post("question", "which file?"))),
-                  closes.step(step(finish(1, "found it"))), text("Done.")],
-        "Reviewer": [text("Nothing to add."), reads.step(step(wait_for(1))), text("Done.")],
-    })
+    client, _model, cid, run_id, _room = start(
+        make_client,
+        project_dir,
+        {
+            "Coder": [
+                step(add("Find why", None, "a1"), take(1, "t1")),
+                says.step(step(post("question", "which file?"))),
+                closes.step(step(finish(1, "found it"))),
+                text("Done."),
+            ],
+            "Reviewer": [text("Nothing to add."), reads.step(step(wait_for(1))), text("Done.")],
+        },
+    )
     reads.wait_partial()
     says.release()  # said while the Reviewer's step is under way: not given to it yet
     until(client, cid, lambda s: s["room_posts"], timeout=LONG)
@@ -174,11 +248,18 @@ def test_a_post_not_read_yet_is_handed_over_before_any_wait(make_client, wait_ru
 
 
 def test_no_item_is_waited_for_while_the_work_is_shared_out(make_client, wait_run, project_dir):
-    client, _model, cid, run_id, _room = start(make_client, project_dir, {
-        "Coder": [step(add("Find why", None, "a1"), take(1, "t1")),
-                  step(finish(1, "found it")), text("Done.")],
-        "Reviewer": [step(wait_for(1)), text("Done.")],
-    })
+    client, _model, cid, run_id, _room = start(
+        make_client,
+        project_dir,
+        {
+            "Coder": [
+                step(add("Find why", None, "a1"), take(1, "t1")),
+                step(finish(1, "found it")),
+                text("Done."),
+            ],
+            "Reviewer": [step(wait_for(1)), text("Done.")],
+        },
+    )
     snap = wait_run(client, cid, run_id, timeout=LONG)
     ((status, said),) = results(snap, "Reviewer", "wait_for_item")
     assert status == "failed" and "not available while the work is shared out" in said

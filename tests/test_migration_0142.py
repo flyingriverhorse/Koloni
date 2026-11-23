@@ -9,7 +9,9 @@ from tests.test_migration_0002 import _config
 
 def _tables(db) -> set[str]:
     with sqlite3.connect(db) as conn:
-        return {name for (name,) in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+        return {
+            name for (name,) in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+        }
 
 
 def test_the_offers_table_comes_and_goes(tmp_path):

@@ -42,20 +42,24 @@ def native_app(settings_env, tmp_path):
     plan = tmp_path / "plan.json"
 
     def write_plan(script, **more):
-        plan.write_text(json.dumps({"record": str(record), "script": script, **more}),
-                        encoding="utf-8")
+        plan.write_text(
+            json.dumps({"record": str(record), "script": script, **more}), encoding="utf-8"
+        )
 
     def make(script, default_steps=(), timeout=30, **more):
         write_plan(script, **more)
         cli = CodexNativeClient(launcher=FAKE, timeout=timeout, env={"FAKE_CLI_PLAN": str(plan)})
         default = ScriptedModel(
-            default_steps if isinstance(default_steps, dict) else list(default_steps), model_id="big-model")
+            default_steps if isinstance(default_steps, dict) else list(default_steps),
+            model_id="big-model",
+        )
         app = create_app(load_settings(settings_env), model=default, clients={"Codex": cli})
         client = TestClient(app, base_url="http://127.0.0.1:8790")
         client.__enter__()
         opened.append(client)
-        provider = client.post("/api/providers", json={
-            "name": "Codex", "kind": "codex_cli", "mode": "native"})
+        provider = client.post(
+            "/api/providers", json={"name": "Codex", "kind": "codex_cli", "mode": "native"}
+        )
         assert provider.status_code == 201, provider.text
         return client, provider.json(), default
 
@@ -77,10 +81,15 @@ def start(client, project_dir, provider, mode="full_auto", content="fix the gree
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     # (and Codex is the Lead that writes here: K-48 refuses one that hands code on)
-    client.patch(f"/api/conversations/{cid}",
-                 json={"permission_mode": mode, "provider_id": provider["id"] if provider else None,
-                       "lead_hands_code": False},
-                 headers={"Origin": "http://127.0.0.1:8790"})  # a level is raised from the app's page
+    client.patch(
+        f"/api/conversations/{cid}",
+        json={
+            "permission_mode": mode,
+            "provider_id": provider["id"] if provider else None,
+            "lead_hands_code": False,
+        },
+        headers={"Origin": "http://127.0.0.1:8790"},
+    )  # a level is raised from the app's page
     run = client.post(f"/api/conversations/{cid}/messages", json={"content": content}).json()["run"]
     return cid, run["id"]
 
@@ -88,40 +97,64 @@ def start(client, project_dir, provider, mode="full_auto", content="fix the gree
 def test_what_codex_does_with_its_own_tools_is_recorded_as_its_own(
     native_app, wait_run, project_dir
 ):
-    client, provider, default = native_app([
-        {"say": "I will fix it."},
-        {"write": "hello.py", "content": "print('hello')\n"}, {"pause": 0.3},
-        {"run": "python hello.py", "output": "hello\n", "exit": 0}, {"pause": 0.3},
-        {"write": "notes/new.txt", "content": "done\n"}, {"pause": 0.3},
-        {"say": "Fixed and checked."},
-    ])
+    client, provider, default = native_app(
+        [
+            {"say": "I will fix it."},
+            {"write": "hello.py", "content": "print('hello')\n"},
+            {"pause": 0.3},
+            {"run": "python hello.py", "output": "hello\n", "exit": 0},
+            {"pause": 0.3},
+            {"write": "notes/new.txt", "content": "done\n"},
+            {"pause": 0.3},
+            {"say": "Fixed and checked."},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
 
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     # (Not what KOLONİ checked at the turn's end: in the turn's foot, `test_proof_end_scenarios`.)
-    assert [m["content"] for m in snap["messages"][1:] if m["content"] and m["role"] != "checked"] == [
-        "I will fix it.", "Fixed and checked.",
-        "In the project: hello.py and notes/new.txt: +2 −1 in all."]  # (B-205: KOLONİ's line)
+    assert [
+        m["content"] for m in snap["messages"][1:] if m["content"] and m["role"] != "checked"
+    ] == [
+        "I will fix it.",
+        "Fixed and checked.",
+        "In the project: hello.py and notes/new.txt: +2 −1 in all.",
+    ]  # (B-205: KOLONİ's line)
     agent = snap["agents"][0]
     assert (agent["provider_name"], agent["status"]) == ("Codex", "completed")
     assert (agent["input_tokens"], agent["output_tokens"]) == (4000, 120)
 
     edit, run, add = snap["tool_calls"]
     assert [(t["name"], t["status"], t["origin"]) for t in snap["tool_calls"]] == [
-        ("edit_file", "succeeded", "cli"), ("run_command", "succeeded", "cli"),
-        ("write_file", "succeeded", "cli")]
+        ("edit_file", "succeeded", "cli"),
+        ("run_command", "succeeded", "cli"),
+        ("write_file", "succeeded", "cli"),
+    ]
     assert json.loads(edit["arguments"]) == {"path": "hello.py"}
     assert "exit code 0" in run["result"] and "hello" in run["result"]
 
     changed, created = snap["file_changes"]
     assert (changed["path"], changed["kind"], changed["status"], changed["origin"]) == (
-        "hello.py", "modify", "applied", "cli")
+        "hello.py",
+        "modify",
+        "applied",
+        "cli",
+    )
     assert "-print('hi')" in changed["diff"] and "+print('hello')" in changed["diff"]
-    assert (created["path"], created["kind"], created["origin"]) == ("notes/new.txt", "create", "cli")
+    assert (created["path"], created["kind"], created["origin"]) == (
+        "notes/new.txt",
+        "create",
+        "cli",
+    )
     (ran,) = snap["commands"]
     assert (ran["command"], ran["status"], ran["exit_code"], ran["output"], ran["origin"]) == (
-        "python hello.py", "exited", 0, "hello\n", "cli")
+        "python hello.py",
+        "exited",
+        0,
+        "hello\n",
+        "cli",
+    )
     assert ran["started_at"] and ran["ended_at"]
     # where its shell stood is on record only as the CLI said it: Codex's approval request
     # names its cwd (the root here, "."); one that says none (Claude Code) stays None
@@ -135,7 +168,10 @@ def test_what_codex_does_with_its_own_tools_is_recorded_as_its_own(
     # it asks before every command and patch, in a thread nothing is kept of
     thread = seen["thread"]
     assert (thread["approvalPolicy"], thread["sandbox"], thread["ephemeral"]) == (
-        "untrusted", "workspace-write", True)
+        "untrusted",
+        "workspace-write",
+        True,
+    )
     assert Path(thread["cwd"]) == project_dir  # it works in the project
     assert Path(seen["cwd"]) == project_dir
     assert "--disable" not in argv  # its own tools are what it works with here
@@ -143,8 +179,9 @@ def test_what_codex_does_with_its_own_tools_is_recorded_as_its_own(
     assert [(a["method"], a["answer"]) for a in seen["answers"]] == [
         ("item/fileChange/requestApproval", {"decision": "accept"}),
         ("item/commandExecution/requestApproval", {"decision": "accept"}),
-        ("item/fileChange/requestApproval", {"decision": "accept"})]
-    document = json.loads(seen["stdin"][seen["stdin"].index("\n\n{") + 2:])
+        ("item/fileChange/requestApproval", {"decision": "accept"}),
+    ]
+    document = json.loads(seen["stdin"][seen["stdin"].index("\n\n{") + 2 :])
     assert document["conversation"] == [{"role": "user", "content": "fix the greeting"}]
     # it is told where the project is: its sandbox may start its shell somewhere else
     assert f'The project folder is "{project_dir}".' in seen["stdin"]
@@ -170,15 +207,18 @@ def test_native_codex_runs_below_full_auto_now_that_it_asks(native_app, wait_run
     assert (project_dir / "hello.py").read_bytes() == b"x"
 
 
-def test_codex_reaches_other_agents_and_the_user_through_koloni(
-    native_app, wait_run, project_dir
-):
+def test_codex_reaches_other_agents_and_the_user_through_koloni(native_app, wait_run, project_dir):
     client, provider, default = native_app(
-        [{"koloni": "ask_user", "args": {"question": "Strict or lenient?",
-                                         "options": ["strict", "lenient"]}},
-         {"koloni": "spawn_agent", "args": {"role": "Reviewer", "task": "Review hello.py"}},
-         {"say": "All done."}],
-        default_steps=[text("Looks fine.")])
+        [
+            {
+                "koloni": "ask_user",
+                "args": {"question": "Strict or lenient?", "options": ["strict", "lenient"]},
+            },
+            {"koloni": "spawn_agent", "args": {"role": "Reviewer", "task": "Review hello.py"}},
+            {"say": "All done."},
+        ],
+        default_steps=[text("Looks fine.")],
+    )
     local = client.get("/api/providers").json()[0]
     client.patch(f"/api/roles/{role_id(client, 'Reviewer')}", json={"provider_id": local["id"]})
     cid, run_id = start(client, project_dir, provider)
@@ -192,58 +232,91 @@ def test_codex_reaches_other_agents_and_the_user_through_koloni(
     asked, spawned = snap["tool_calls"]
     # KOLONİ's own tools are KOLONİ's records, once each
     assert [(t["name"], t["status"], t["origin"]) for t in snap["tool_calls"]] == [
-        ("ask_user", "succeeded", "koloni"), ("spawn_agent", "succeeded", "koloni")]
+        ("ask_user", "succeeded", "koloni"),
+        ("spawn_agent", "succeeded", "koloni"),
+    ]
     assert [a["provider_name"] for a in snap["agents"]] == ["Codex", "Local"]
     assert [m["kind"] for m in snap["channel_messages"]] == ["task", "report"]
     seen = native_app.record()
     # nothing else is offered
     assert seen["tools"] == [
-        "spawn_agent", "create_role", "ask_user", "ask_folder", "message_agent", "discuss",
-        "read_backlog", "add_task", "change_task", "assess_task", "offer_away", "post_note",
+        "spawn_agent",
+        "create_role",
+        "ask_user",
+        "ask_folder",
+        "message_agent",
+        "discuss",
+        "read_backlog",
+        "add_task",
+        "change_task",
+        "assess_task",
+        "offer_away",
+        "post_note",
         "read_notes",
-        "remember", "recall", "recall_output"]
+        "remember",
+        "recall",
+        "recall_output",
+    ]
     assert [reported(r["content"][0]["text"]) for r in seen["results"]] == [
-        "The user answered: strict", "Reviewer finished.\n\nLooks fine."]
+        "The user answered: strict",
+        "Reviewer finished.\n\nLooks fine.",
+    ]
 
 
 def test_other_tools_of_its_own_are_noted(native_app, wait_run, project_dir):
-    client, provider, _ = native_app([
-        {"mcp": {"server": "sonarqube", "tool": "scan", "arguments": {"path": "."},
-                 "result": "2 issues"}},
-        {"mcp": {"server": "sonarqube", "tool": "scan", "error": "token expired"}},
-        {"web": "python print"},
-        # (A write outside the project is asked about now, as Claude Code's is.)
-        {"delete": "hello.py"},
-    ])
+    client, provider, _ = native_app(
+        [
+            {
+                "mcp": {
+                    "server": "sonarqube",
+                    "tool": "scan",
+                    "arguments": {"path": "."},
+                    "result": "2 issues",
+                }
+            },
+            {"mcp": {"server": "sonarqube", "tool": "scan", "error": "token expired"}},
+            {"web": "python print"},
+            # (A write outside the project is asked about now, as Claude Code's is.)
+            {"delete": "hello.py"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     calls = [(t["name"], t["status"], t["origin"]) for t in snap["tool_calls"]]
     assert calls == [
-        ("sonarqube__scan", "succeeded", "cli"), ("sonarqube__scan", "failed", "cli"),
-        ("web_search", "succeeded", "cli"), ("delete_file", "succeeded", "cli")]
+        ("sonarqube__scan", "succeeded", "cli"),
+        ("sonarqube__scan", "failed", "cli"),
+        ("web_search", "succeeded", "cli"),
+        ("delete_file", "succeeded", "cli"),
+    ]
     assert "hello.py" in snap["tool_calls"][3]["result"]
     assert snap["tool_calls"][0]["result"] == "2 issues"
     assert "token expired" in snap["tool_calls"][1]["result"]
     # what KOLONİ knew the deleted file held is kept, so it can be put back
     (gone,) = snap["file_changes"]
     assert (gone["path"], gone["kind"], gone["status"], gone["origin"]) == (
-        "hello.py", "delete", "applied", "cli")
+        "hello.py",
+        "delete",
+        "applied",
+        "cli",
+    )
     assert "-print('hi')" in gone["diff"]
     assert client.post(f"/api/file-changes/{gone['id']}/revert").json()["status"] == "reverted"
     assert (project_dir / "hello.py").read_bytes() == b"print('hi')\n"
 
 
-def test_a_change_whose_earlier_content_is_not_known_has_no_diff(
-    native_app, wait_run, project_dir
-):
+def test_a_change_whose_earlier_content_is_not_known_has_no_diff(native_app, wait_run, project_dir):
     # Dependency folders are not read when the agent starts, so what a file there held
     # before is not known; the change is still noted.
     vendored = project_dir / "node_modules" / "pkg"
     vendored.mkdir(parents=True)
     (vendored / "a.js").write_bytes(b"old\n")
-    client, provider, _ = native_app([
-        {"write": "node_modules/pkg/a.js", "content": "new\n", "kind": "update"},
-        {"run": "pytest", "output": "1 failed\n", "exit": 1, "no_start": True}])
+    client, provider, _ = native_app(
+        [
+            {"write": "node_modules/pkg/a.js", "content": "new\n", "kind": "update"},
+            {"run": "pytest", "output": "1 failed\n", "exit": 1, "no_start": True},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     edit, run = snap["tool_calls"]
@@ -257,9 +330,12 @@ def test_a_secret_codexs_own_command_prints_is_hidden_in_the_record(
     native_app, wait_run, project_dir, monkeypatch
 ):
     monkeypatch.setenv("DEPLOY_TOKEN", "made-up-value-0123456789")
-    client, provider, _ = native_app([
-        {"run": "env", "output": "DEPLOY_TOKEN=made-up-value-0123456789\nHOME=/x\n"},
-        {"say": "Done."}])
+    client, provider, _ = native_app(
+        [
+            {"run": "env", "output": "DEPLOY_TOKEN=made-up-value-0123456789\nHOME=/x\n"},
+            {"say": "Done."},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     stored, result = snap["commands"][0]["output"], snap["tool_calls"][0]["result"]
@@ -268,8 +344,9 @@ def test_a_secret_codexs_own_command_prints_is_hidden_in_the_record(
 
 
 def test_stop_ends_codex_and_settles_what_it_was_doing(native_app, wait_run, project_dir):
-    client, provider, _ = native_app([
-        {"say": "Running the tests."}, {"run": "pytest", "hold": 120}])
+    client, provider, _ = native_app(
+        [{"say": "Running the tests."}, {"run": "pytest", "hold": 120}]
+    )
     cid, run_id = start(client, project_dir, provider)
     for _ in range(300):
         snap = client.get(f"/api/conversations/{cid}").json()
@@ -289,9 +366,12 @@ def test_stop_ends_codex_and_settles_what_it_was_doing(native_app, wait_run, pro
 def test_a_codex_failure_fails_the_turn_and_leaves_nothing_running(
     native_app, wait_run, project_dir
 ):
-    client, provider, _ = native_app([
-        {"write": "hello.py", "content": "print('hello')\n"},
-        {"error": "You have hit your usage limit"}])
+    client, provider, _ = native_app(
+        [
+            {"write": "hello.py", "content": "print('hello')\n"},
+            {"error": "You have hit your usage limit"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "failed"
@@ -300,19 +380,27 @@ def test_a_codex_failure_fails_the_turn_and_leaves_nothing_running(
 
 
 def test_the_next_turn_hands_codex_what_it_did_before(native_app, wait_run, project_dir):
-    client, provider, _ = native_app([
-        {"write": "hello.py", "content": "print('hello')\n"}, {"say": "Changed."}])
+    client, provider, _ = native_app(
+        [{"write": "hello.py", "content": "print('hello')\n"}, {"say": "Changed."}]
+    )
     cid, run_id = start(client, project_dir, provider)
     wait_run(client, cid, run_id)
     native_app.rescript([{"say": "Nothing more to do."}])
     second = client.post(f"/api/conversations/{cid}/messages", json={"content": "and now?"}).json()
     wait_run(client, cid, second["run"]["id"])
     seen = native_app.record()["stdin"]
-    conversation = json.loads(seen[seen.index("\n\n{") + 2:])["conversation"]
+    conversation = json.loads(seen[seen.index("\n\n{") + 2 :])["conversation"]
     # (and before the new message, KOLONİ's record of the turn (K-gecmis-zengin) and its
     # note of it: G7)
     assert [m["role"] for m in conversation] == [
-        "user", "assistant", "tool", "assistant", "user", "user", "user"]
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+        "user",
+        "user",
+    ]
     assert conversation[-3]["content"].endswith('- files changed: "hello.py" (+1 -1)')
     assert conversation[-2]["content"].startswith(PUSHED)
     assert conversation[1]["tool_calls"][0]["function"]["name"] == "edit_file"
@@ -322,34 +410,57 @@ def test_the_next_turn_hands_codex_what_it_did_before(native_app, wait_run, proj
 def test_codex_can_be_a_sub_agent_that_works_natively(native_app, wait_run, project_dir):
     client, provider, default = native_app(
         [{"write": "hello.py", "content": "print('hello')\n"}, {"say": "Changed the greeting."}],
-        default_steps=[spawn("Coder", "Change the greeting"), text("The coder did it.")])
+        default_steps=[spawn("Coder", "Change the greeting"), text("The coder did it.")],
+    )
     client.patch(f"/api/roles/{role_id(client, 'Coder')}", json={"provider_id": provider["id"]})
     cid, run_id = start(client, project_dir, None)
     snap = wait_run(client, cid, run_id)
     lead, coder = snap["agents"]
     assert (coder["provider_name"], coder["status"], coder["report"]) == (
-        "Codex", "completed", "Changed the greeting.")
+        "Codex",
+        "completed",
+        "Changed the greeting.",
+    )
     assert snap["file_changes"][0]["agent_id"] == coder["id"]
     assert reported(default.calls[1][-1]["content"]) == "Coder finished.\n\nChanged the greeting."
 
 
 def test_codex_may_run_natively_and_as_a_session(client):
-    native = client.post("/api/providers", json={
-        "name": "Codex native", "kind": "codex_cli", "mode": "native"})
+    native = client.post(
+        "/api/providers", json={"name": "Codex native", "kind": "codex_cli", "mode": "native"}
+    )
     assert native.status_code == 201 and native.json()["mode"] == "native"
-    assert client.post("/api/providers", json={
-        "name": "Codex", "kind": "codex_cli"}).json()["mode"] == "session"  # the default
+    assert (
+        client.post("/api/providers", json={"name": "Codex", "kind": "codex_cli"}).json()["mode"]
+        == "session"
+    )  # the default
     # Since 7 Nov 2026 a session too, its patch tool declined (`CodexSessionClient`).
-    assert client.post("/api/providers", json={
-        "name": "C2", "kind": "codex_cli", "mode": "session"}).json()["mode"] == "session"
+    assert (
+        client.post(
+            "/api/providers", json={"name": "C2", "kind": "codex_cli", "mode": "session"}
+        ).json()["mode"]
+        == "session"
+    )
     # Claude Code can: it asks KOLONİ before a tool of its own needs leave. So may Qoder, over
     # the same protocol (B-306: what was measured is in `QoderNativeClient`).
-    assert client.post("/api/providers", json={
-        "name": "Cl", "kind": "claude_cli", "mode": "native"}).status_code == 201
-    assert client.post("/api/providers", json={
-        "name": "Q", "kind": "qoder_cli", "mode": "native"}).status_code == 201
-    assert client.post("/api/providers", json={
-        "name": "Q2", "kind": "qoder_cli", "mode": "step"}).status_code == 422
+    assert (
+        client.post(
+            "/api/providers", json={"name": "Cl", "kind": "claude_cli", "mode": "native"}
+        ).status_code
+        == 201
+    )
+    assert (
+        client.post(
+            "/api/providers", json={"name": "Q", "kind": "qoder_cli", "mode": "native"}
+        ).status_code
+        == 201
+    )
+    assert (
+        client.post(
+            "/api/providers", json={"name": "Q2", "kind": "qoder_cli", "mode": "step"}
+        ).status_code
+        == 422
+    )
 
 
 def test_migration_0007_and_back(tmp_path):
@@ -374,11 +485,17 @@ def test_the_diff_is_against_what_the_file_held_when_the_agent_started(
     # a second change to the same file is diffed against the first.
     # (Each change must be looked at before the next write to its file: if it is not, the
     # two are one change. A busy machine took more than 0.4 s, so the pause there is long.)
-    client, provider, _ = native_app([
-        {"write": "hello.py", "content": "print('hello')\n"}, {"pause": 1.5},
-        {"write": "hello.py", "content": "print('hello, world')\n"}, {"pause": 0.4},
-        {"write": "brand_new.py", "content": "x = 1\n"}, {"pause": 1.5},
-        {"write": "brand_new.py", "content": "x = 2\n"}])
+    client, provider, _ = native_app(
+        [
+            {"write": "hello.py", "content": "print('hello')\n"},
+            {"pause": 1.5},
+            {"write": "hello.py", "content": "print('hello, world')\n"},
+            {"pause": 0.4},
+            {"write": "brand_new.py", "content": "x = 1\n"},
+            {"pause": 1.5},
+            {"write": "brand_new.py", "content": "x = 2\n"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)
     first, second, created, edited = wait_run(client, cid, run_id)["file_changes"]
     assert "-print('hi')" in first["diff"] and "+print('hello')" in first["diff"]
@@ -390,9 +507,12 @@ def test_the_diff_is_against_what_the_file_held_when_the_agent_started(
 def test_two_changes_seen_as_one_are_not_recorded_twice(native_app, wait_run, project_dir):
     # Written back to back, the first change is already overwritten when it is seen.
     # The records then show the whole difference once, not a second, empty change.
-    client, provider, _ = native_app([
-        {"write": "hello.py", "content": "print('a')\n"},
-        {"write": "hello.py", "content": "print('b')\n"}])
+    client, provider, _ = native_app(
+        [
+            {"write": "hello.py", "content": "print('a')\n"},
+            {"write": "hello.py", "content": "print('b')\n"},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     changes = snap["file_changes"]
@@ -407,11 +527,18 @@ def test_files_a_command_changed_are_seen_even_though_codex_does_not_say_so(
     # Codex often edits with a shell command instead of its patch tool; its event
     # stream then says only that a command ran.
     (project_dir / "old.txt").write_bytes(b"x\n")
-    client, provider, _ = native_app([
-        {"run": "sed -i s/hi/hello/ hello.py", "output": "", "exit": 0,
-         "touches": {"hello.py": "print('hello')\n", "made.txt": "new\n"},
-         "removes": ["old.txt"]},
-        {"say": "Done."}])
+    client, provider, _ = native_app(
+        [
+            {
+                "run": "sed -i s/hi/hello/ hello.py",
+                "output": "",
+                "exit": 0,
+                "touches": {"hello.py": "print('hello')\n", "made.txt": "new\n"},
+                "removes": ["old.txt"],
+            },
+            {"say": "Done."},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     changes = {c["path"]: c for c in snap["file_changes"]}
@@ -420,16 +547,18 @@ def test_files_a_command_changed_are_seen_even_though_codex_does_not_say_so(
     assert "-print('hi')" in changes["hello.py"]["diff"]
     assert (changes["made.txt"]["kind"], changes["made.txt"]["origin"]) == ("create", "cli")
     names = [(t["name"], json.loads(t["arguments"]).get("path")) for t in snap["tool_calls"][1:]]
-    assert sorted(names, key=str) == [("delete_file", "old.txt"), ("edit_file", "hello.py"),
-                                      ("write_file", "made.txt")]
+    assert sorted(names, key=str) == [
+        ("delete_file", "old.txt"),
+        ("edit_file", "hello.py"),
+        ("write_file", "made.txt"),
+    ]
     assert "a command the CLI ran" in snap["tool_calls"][1]["result"]
 
 
-def test_what_was_changed_just_before_a_stop_is_still_on_record(
-    native_app, wait_run, project_dir
-):
-    client, provider, _ = native_app([
-        {"run": "long job", "hold": 120, "no_start": False}], )
+def test_what_was_changed_just_before_a_stop_is_still_on_record(native_app, wait_run, project_dir):
+    client, provider, _ = native_app(
+        [{"run": "long job", "hold": 120, "no_start": False}],
+    )
     cid, run_id = start(client, project_dir, provider)
     for _ in range(300):
         snap = client.get(f"/api/conversations/{cid}").json()
@@ -466,7 +595,8 @@ def test_a_role_that_may_not_write_or_run_works_on_native_codex_read_only(
     # it, and what it asks to write is refused.
     client, provider, default = native_app(
         [{"write": "hello.py", "content": "print('rewritten')\n"}],
-        default_steps=[spawn("Reviewer", "Review hello.py"), text("carrying on")])
+        default_steps=[spawn("Reviewer", "Review hello.py"), text("carrying on")],
+    )
     client.patch(f"/api/roles/{role_id(client, 'Reviewer')}", json={"provider_id": provider["id"]})
     cid, run_id = start(client, project_dir, None)
     snap = wait_run(client, cid, run_id)
@@ -480,13 +610,19 @@ def test_a_role_that_may_not_write_or_run_works_on_native_codex_read_only(
 def test_the_first_files_of_an_empty_project_are_recorded(native_app, wait_run, tmp_path):
     empty = tmp_path / "empty"
     (empty / "node_modules").mkdir(parents=True)
-    client, provider, _ = native_app([
-        {"write": "app.py", "content": "print(1)\n"}, {"pause": 0.3},
-        {"run": "touch", "touches": {"b.py": "x = 1\n"}}])
+    client, provider, _ = native_app(
+        [
+            {"write": "app.py", "content": "print(1)\n"},
+            {"pause": 0.3},
+            {"run": "touch", "touches": {"b.py": "x = 1\n"}},
+        ]
+    )
     cid, run_id = start(client, empty, provider)
     snap = wait_run(client, cid, run_id)
     assert [(c["path"], c["kind"]) for c in snap["file_changes"]] == [
-        ("app.py", "create"), ("b.py", "create")]
+        ("app.py", "create"),
+        ("b.py", "create"),
+    ]
     assert all("already shown" not in (t["result"] or "") for t in snap["tool_calls"])
 
 
@@ -496,27 +632,41 @@ def test_what_a_sub_agent_changed_is_not_also_put_down_to_the_native_agent(
     from tests.test_spawn import call, step
 
     client, provider, default = native_app(
-        [{"koloni": "spawn_agent", "args": {"role": "Coder", "task": "make a file"}},
-         {"pause": 0.3}, {"run": "pytest", "output": "ok\n"}, {"say": "Done."}],
-        default_steps=[step(call("write_file", {"path": "made.txt", "content": "new\n"})),
-                       text("made it")],
+        [
+            {"koloni": "spawn_agent", "args": {"role": "Coder", "task": "make a file"}},
+            {"pause": 0.3},
+            {"run": "pytest", "output": "ok\n"},
+            {"say": "Done."},
+        ],
+        default_steps=[
+            step(call("write_file", {"path": "made.txt", "content": "new\n"})),
+            text("made it"),
+        ],
         # (its sub-agent's report, read in a run after its turn: K-paralel-spawn)
-        later_script=[{"say": "Done."}], later_when="Message from Coder")
+        later_script=[{"say": "Done."}],
+        later_when="Message from Coder",
+    )
     local = client.get("/api/providers").json()[0]
     client.patch(f"/api/roles/{role_id(client, 'Coder')}", json={"provider_id": local["id"]})
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     lead, coder = snap["agents"]
     assert [(c["path"], c["origin"], c["agent_id"]) for c in snap["file_changes"]] == [
-        ("made.txt", "koloni", coder["id"])]
+        ("made.txt", "koloni", coder["id"])
+    ]
 
 
 def test_a_command_without_a_start_event_does_not_upset_the_silence_clock(
     native_app, wait_run, project_dir
 ):
-    client, provider, _ = native_app([
-        {"run": "quick", "output": "", "no_start": True},
-        {"run": "slow tests", "output": "ok\n", "hold": 5}, {"say": "Done."}], timeout=2)
+    client, provider, _ = native_app(
+        [
+            {"run": "quick", "output": "", "no_start": True},
+            {"run": "slow tests", "output": "ok\n", "hold": 5},
+            {"say": "Done."},
+        ],
+        timeout=2,
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id, timeout=30)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
@@ -550,8 +700,9 @@ def test_many_files_changed_at_once_are_kept_in_bounds(native_app, wait_run, pro
 
 
 def test_a_relative_path_in_an_event_is_taken_from_the_project(native_app, wait_run, project_dir):
-    client, provider, _ = native_app([
-        {"write": "hello.py", "content": "print('hello')\n", "relative": True}])
+    client, provider, _ = native_app(
+        [{"write": "hello.py", "content": "print('hello')\n", "relative": True}]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert [c["path"] for c in snap["file_changes"]] == ["hello.py"]
@@ -628,8 +779,9 @@ def test_a_file_koloni_may_not_read_is_named_not_passed_over(
         return real(self, path, size)
 
     monkeypatch.setattr(project_view.ProjectView, "_read", locked)
-    client, provider, _ = native_app([
-        {"run": "make", "touches": {"locked.txt": "x\n", "open.txt": "y\n"}}])
+    client, provider, _ = native_app(
+        [{"run": "make", "touches": {"locked.txt": "x\n", "open.txt": "y\n"}}]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert [c["path"] for c in snap["file_changes"]] == ["open.txt"]
@@ -642,19 +794,26 @@ def test_a_file_koloni_may_not_read_is_named_not_passed_over(
 
 def test_native_codex_messages_a_sub_agent(native_app, wait_run, project_dir):
     client, provider, default = native_app(
-        [{"koloni": "spawn_agent", "args": {"role": "Reviewer", "task": "Review hello.py"}},
-         {"koloni": "message_agent", "args": {"to": "Reviewer", "message": "And the tests?"}},
-         {"say": "All done."}],
-        default_steps=[text("Looks fine."), text("There are none.")])
+        [
+            {"koloni": "spawn_agent", "args": {"role": "Reviewer", "task": "Review hello.py"}},
+            {"koloni": "message_agent", "args": {"to": "Reviewer", "message": "And the tests?"}},
+            {"say": "All done."},
+        ],
+        default_steps=[text("Looks fine."), text("There are none.")],
+    )
     local = client.get("/api/providers").json()[0]
     client.patch(f"/api/roles/{role_id(client, 'Reviewer')}", json={"provider_id": local["id"]})
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     assert [reported(r["content"][0]["text"]) for r in native_app.record()["results"]] == [
-        "Reviewer finished.\n\nLooks fine.", "Reviewer replied:\n\nThere are none."]
+        "Reviewer finished.\n\nLooks fine.",
+        "Reviewer replied:\n\nThere are none.",
+    ]
     assert [(t["name"], t["origin"]) for t in snap["tool_calls"]] == [
-        ("spawn_agent", "koloni"), ("message_agent", "koloni")]
+        ("spawn_agent", "koloni"),
+        ("message_agent", "koloni"),
+    ]
 
 
 def test_a_native_child_is_continued_by_its_parent_and_never_asked_to_answer(
@@ -669,12 +828,13 @@ def test_a_native_child_is_continued_by_its_parent_and_never_asked_to_answer(
         [{"write": "hello.py", "content": "print('hello')\n"}, {"say": "Changed the greeting."}],
         default_steps=[
             spawn("Coder", "Change the greeting", id="s1"),
-            message("Coder", "m1"),            # its parent: Codex works on
+            message("Coder", "m1"),  # its parent: Codex works on
             spawn("Reviewer", "Review it", id="s2"),
-            message("Coder", "m2"),            # the Reviewer: Codex cannot be held to reading
+            message("Coder", "m2"),  # the Reviewer: Codex cannot be held to reading
             text("reviewed"),
             text("done"),
-        ])
+        ],
+    )
     local = client.get("/api/providers").json()[0]
     client.patch(f"/api/roles/{role_id(client, 'Coder')}", json={"provider_id": provider["id"]})
     client.patch(f"/api/roles/{role_id(client, 'Reviewer')}", json={"provider_id": local["id"]})
@@ -683,14 +843,17 @@ def test_a_native_child_is_continued_by_its_parent_and_never_asked_to_answer(
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     first, second = [t for t in snap["tool_calls"] if t["name"] == "message_agent"]
     assert (first["status"], first["result"]) == (
-        "succeeded", "Coder replied:\n\nChanged the greeting.")
+        "succeeded",
+        "Coder replied:\n\nChanged the greeting.",
+    )
     assert second["status"] == "failed"
     assert "Coder cannot be messaged by you" in second["result"]
     assert "tools of its own" in second["result"]
     assert "Message from Lead (the agent you work for)" in native_app.record()["stdin"]
     # the Reviewer is not told it could reach the Coder
-    offered = next(t["function"] for t in default.tool_args[3]
-                   if t["function"]["name"] == "message_agent")
+    offered = next(
+        t["function"] for t in default.tool_args[3] if t["function"]["name"] == "message_agent"
+    )
     assert "- Coder" not in offered["description"] and "- Lead" in offered["description"]
 
 
@@ -719,17 +882,30 @@ def test_a_siblings_write_is_not_put_down_to_the_native_agent(
     client, provider, default = native_app(
         [{"pause": 1.5}, {"say": "Nothing to change."}],
         default_steps={
-            "Lead": [step(
-                call("spawn_agent", {"role": "Coder", "task": "look around"}, "s1"),
-                call("spawn_agent", {"role": "Writer", "task": "make a file"}, "s2"),
-            ), text("done")],
-            "Writer": [gate.step(step(call("write_file", {"path": "made.txt", "content": "new\n"}))),
-                       text("made it")],
-        })
+            "Lead": [
+                step(
+                    call("spawn_agent", {"role": "Coder", "task": "look around"}, "s1"),
+                    call("spawn_agent", {"role": "Writer", "task": "make a file"}, "s2"),
+                ),
+                text("done"),
+            ],
+            "Writer": [
+                gate.step(step(call("write_file", {"path": "made.txt", "content": "new\n"}))),
+                text("made it"),
+            ],
+        },
+    )
     local = client.get("/api/providers").json()[0]
-    made = client.post("/api/roles", json={
-        "name": "Writer", "description": "", "instructions": "",
-        "tools": ["read_file", "write_file"], "provider_id": local["id"]})
+    made = client.post(
+        "/api/roles",
+        json={
+            "name": "Writer",
+            "description": "",
+            "instructions": "",
+            "tools": ["read_file", "write_file"],
+            "provider_id": local["id"],
+        },
+    )
     assert made.status_code == 201, made.text
     _roles_on(client, provider, "Coder")
     cid, run_id = start(client, project_dir, None)
@@ -744,7 +920,8 @@ def test_a_siblings_write_is_not_put_down_to_the_native_agent(
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     by = {a["id"]: a["name"] for a in snap["agents"]}
     assert [(c["path"], c["origin"], by[c["agent_id"]]) for c in snap["file_changes"]] == [
-        ("made.txt", "koloni", "Writer")]
+        ("made.txt", "koloni", "Writer")
+    ]
 
 
 def test_two_native_agents_each_in_a_copy_of_its_own_work_at_once(
@@ -755,10 +932,17 @@ def test_two_native_agents_each_in_a_copy_of_its_own_work_at_once(
     go, runs = tmp_path / "go", tmp_path / "runs.log"
     client, provider, default = native_app(
         [{"wait_for": str(go)}, {"say": "Done."}],
-        default_steps={"Lead": [step(
-            call("spawn_agent", {"role": "Coder", "task": "A"}, "s1"),
-            call("spawn_agent", {"role": "Coder", "task": "B"}, "s2"),
-        ), text("done")]}, runs=str(runs))
+        default_steps={
+            "Lead": [
+                step(
+                    call("spawn_agent", {"role": "Coder", "task": "A"}, "s1"),
+                    call("spawn_agent", {"role": "Coder", "task": "B"}, "s2"),
+                ),
+                text("done"),
+            ]
+        },
+        runs=str(runs),
+    )
     _roles_on(client, provider, "Coder")
     cid, run_id = start(client, project_dir, None)
     # B-199: told apart by their copies, both CLIs are started before either may end.
@@ -775,16 +959,25 @@ def test_a_codex_leads_two_spawns_on_codex_work_at_the_same_time(
     # lasting till its Coder was done. The stand-in calls KOLONİ's tools one after another.
     go = tmp_path / "go"
     client, provider, _default = native_app(
-        [{"koloni": "spawn_agent", "args": {"role": "Coder", "task": "task-1"}},
-         {"koloni": "spawn_agent", "args": {"role": "Coder", "task": "task-2"}},
-         {"say": "Both at work."}],
-        task_scripts={f"task-{n}": [{"wait_for": str(go)}, {"say": f"kid-{n} done"}]
-                      for n in (1, 2)},
-        later_script=[{"say": "Both done."}], later_when="Message from Coder")
+        [
+            {"koloni": "spawn_agent", "args": {"role": "Coder", "task": "task-1"}},
+            {"koloni": "spawn_agent", "args": {"role": "Coder", "task": "task-2"}},
+            {"say": "Both at work."},
+        ],
+        task_scripts={
+            f"task-{n}": [{"wait_for": str(go)}, {"say": f"kid-{n} done"}] for n in (1, 2)
+        },
+        later_script=[{"say": "Both done."}],
+        later_when="Message from Coder",
+    )
     _roles_on(client, provider, "Coder")
     cid, run_id = start(client, project_dir, provider)
-    until(client, cid, lambda s: _names(s) == {
-        "Lead": "waiting", "Coder": "running", "Coder 2": "running"}, timeout=20)
+    until(
+        client,
+        cid,
+        lambda s: _names(s) == {"Lead": "waiting", "Coder": "running", "Coder 2": "running"},
+        timeout=20,
+    )
     go.write_text("")
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
@@ -798,16 +991,30 @@ def test_a_third_codex_coder_waits_in_line_at_the_chats_two(
 ):
     go = tmp_path / "go"
     client, provider, _default = native_app(
-        [*({"koloni": "spawn_agent", "args": {"role": "Coder", "task": f"task-{n}"}}
-           for n in (1, 2, 3)), {"say": "All at work."}],
-        task_scripts={f"task-{n}": [{"wait_for": str(go)}, {"say": f"kid-{n} done"}]
-                      for n in (1, 2, 3)},
-        later_script=[{"say": "All done."}], later_when="Message from Coder")
+        [
+            *(
+                {"koloni": "spawn_agent", "args": {"role": "Coder", "task": f"task-{n}"}}
+                for n in (1, 2, 3)
+            ),
+            {"say": "All at work."},
+        ],
+        task_scripts={
+            f"task-{n}": [{"wait_for": str(go)}, {"say": f"kid-{n} done"}] for n in (1, 2, 3)
+        },
+        later_script=[{"say": "All done."}],
+        later_when="Message from Coder",
+    )
     _roles_on(client, provider, "Coder")
     cid, run_id = start(client, project_dir, provider)
-    until(client, cid, lambda s: _names(s) == {
-        "Lead": "waiting", "Coder": "running", "Coder 2": "running", "Coder 3": "queued"},
-        timeout=20)
+    until(
+        client,
+        cid,
+        lambda s: (
+            _names(s)
+            == {"Lead": "waiting", "Coder": "running", "Coder 2": "running", "Coder 3": "queued"}
+        ),
+        timeout=20,
+    )
     go.write_text("")
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
@@ -824,10 +1031,17 @@ def test_two_native_agents_whose_copies_cannot_be_made_take_turns(
     runs = project_dir.parent / "runs.log"
     client, provider, default = native_app(
         [{"pause": 0.8}, {"say": "Done."}],
-        default_steps={"Lead": [step(
-            call("spawn_agent", {"role": "Coder", "task": "A"}, "s1"),
-            call("spawn_agent", {"role": "Coder", "task": "B"}, "s2"),
-        ), text("done")]}, runs=str(runs))
+        default_steps={
+            "Lead": [
+                step(
+                    call("spawn_agent", {"role": "Coder", "task": "A"}, "s1"),
+                    call("spawn_agent", {"role": "Coder", "task": "B"}, "s2"),
+                ),
+                text("done"),
+            ]
+        },
+        runs=str(runs),
+    )
     _roles_on(client, provider, "Coder")
     cid, run_id = start(client, project_dir, None)
     snap = wait_run(client, cid, run_id)
@@ -840,7 +1054,11 @@ def test_two_native_agents_whose_copies_cannot_be_made_take_turns(
         time.sleep(0.02)
     logged = [line.split() for line in runs.read_text(encoding="utf-8").splitlines()]
     assert [what for what, _pid, _at in sorted(logged, key=lambda one: float(one[2]))] == [
-        "start", "end", "start", "end"]
+        "start",
+        "end",
+        "start",
+        "end",
+    ]
 
 
 def test_a_codex_lead_waits_for_a_codex_coder_whose_copy_cannot_be_made(
@@ -850,9 +1068,10 @@ def test_a_codex_lead_waits_for_a_codex_coder_whose_copy_cannot_be_made(
     monkeypatch.setattr(copies, "MAX_FILES", 0)
     runs = tmp_path / "runs.log"
     client, provider, _default = native_app(
-        [{"koloni": "spawn_agent", "args": {"role": "Coder", "task": "task-1"}},
-         {"say": "Done."}],
-        task_scripts={"task-1": [{"say": "kid done"}]}, runs=str(runs))
+        [{"koloni": "spawn_agent", "args": {"role": "Coder", "task": "task-1"}}, {"say": "Done."}],
+        task_scripts={"task-1": [{"say": "kid done"}]},
+        runs=str(runs),
+    )
     _roles_on(client, provider, "Coder")
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
@@ -867,23 +1086,29 @@ def test_a_codex_leads_own_command_is_not_put_down_to_its_coder_at_work_beside_i
 ):
     go, lead_go, runs = tmp_path / "go", tmp_path / "lead-go", tmp_path / "runs.log"
     client, provider, _default = native_app(
-        [{"koloni": "spawn_agent", "args": {"role": "Coder", "task": "task-1"}},
-         {"wait_for": str(lead_go)}, {"run": "make", "touches": {"lead.txt": "x\n"}},
-         {"say": "Made it."}],
+        [
+            {"koloni": "spawn_agent", "args": {"role": "Coder", "task": "task-1"}},
+            {"wait_for": str(lead_go)},
+            {"run": "make", "touches": {"lead.txt": "x\n"}},
+            {"say": "Made it."},
+        ],
         task_scripts={"task-1": [{"wait_for": str(go)}, {"say": "kid done"}]},
-        later_script=[{"say": "Read it."}], later_when="Message from Coder", runs=str(runs))
+        later_script=[{"say": "Read it."}],
+        later_when="Message from Coder",
+        runs=str(runs),
+    )
     _roles_on(client, provider, "Coder")
     cid, run_id = start(client, project_dir, provider)
     until(client, cid, lambda s: _runs_of(runs).count("start") == 2, timeout=20)
     lead_go.write_text("")  # the Lead's command, once the Coder is at work in its copy
-    until(client, cid, lambda s: any(c["path"] == "lead.txt" for c in s["file_changes"]),
-          timeout=20)
+    until(
+        client, cid, lambda s: any(c["path"] == "lead.txt" for c in s["file_changes"]), timeout=20
+    )
     go.write_text("")
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     by = {a["id"]: a["name"] for a in snap["agents"]}
-    assert [by[c["agent_id"]] for c in snap["file_changes"] if c["path"] == "lead.txt"] == [
-        "Lead"]
+    assert [by[c["agent_id"]] for c in snap["file_changes"] if c["path"] == "lead.txt"] == ["Lead"]
 
 
 def test_a_native_agent_cannot_be_left_a_note(native_app, wait_run, project_dir, gate):
@@ -892,14 +1117,19 @@ def test_a_native_agent_cannot_be_left_a_note(native_app, wait_run, project_dir,
     client, provider, default = native_app(
         [{"pause": 1.5}, {"say": "Done."}],
         default_steps={
-            "Lead": [step(
-                call("spawn_agent", {"role": "Coder", "task": "A"}, "s1"),
-                call("spawn_agent", {"role": "Reviewer", "task": "B"}, "s2"),
-            ), text("done")],
+            "Lead": [
+                step(
+                    call("spawn_agent", {"role": "Coder", "task": "A"}, "s1"),
+                    call("spawn_agent", {"role": "Reviewer", "task": "B"}, "s2"),
+                ),
+                text("done"),
+            ],
             "Reviewer": [
                 step(call("message_agent", {"to": "Coder", "message": "careful"}, "n")),
-                text("reviewed")],
-        })
+                text("reviewed"),
+            ],
+        },
+    )
     local = client.get("/api/providers").json()[0]
     _roles_on(client, provider, "Coder")
     _roles_on(client, local, "Reviewer")
@@ -918,13 +1148,24 @@ def test_a_native_agent_can_open_a_native_sub_agent(native_app, wait_run, projec
     # one native agent works at a time there, so the Coder's call waits for the report.
     runs = tmp_path / "runs.log"
     client, provider, default = native_app(
-        [{"koloni": "spawn_agent", "args": {"role": "Coder", "task": "go deeper"}},
-         {"say": "Done."}], runs=str(runs),
-        later_script=[{"say": "Read it."}], later_when="Message from Coder")
+        [
+            {"koloni": "spawn_agent", "args": {"role": "Coder", "task": "go deeper"}},
+            {"say": "Done."},
+        ],
+        runs=str(runs),
+        later_script=[{"say": "Read it."}],
+        later_when="Message from Coder",
+    )
     client.patch(f"/api/roles/{role_id(client, 'Coder')}", json={"provider_id": None})
     # (B-385: its sub-agents run on its CLI, which the user opens to agents)
-    assert client.patch(f"/api/providers/{provider['id']}", json={"for_agents": True},
-                        headers={"Origin": "http://127.0.0.1:8790"}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/providers/{provider['id']}",
+            json={"for_agents": True},
+            headers={"Origin": "http://127.0.0.1:8790"},
+        ).status_code
+        == 200
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id, timeout=40)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
@@ -943,12 +1184,16 @@ def test_what_a_sub_agents_command_made_is_not_put_down_to_its_native_parent(
     from tests.test_spawn import call, step
 
     client, provider, default = native_app(
-        [{"koloni": "spawn_agent", "args": {"role": "Coder", "task": "make files"}},
-         {"say": "Done."}],
+        [
+            {"koloni": "spawn_agent", "args": {"role": "Coder", "task": "make files"}},
+            {"say": "Done."},
+        ],
         default_steps=[
             step(call("run_command", {"command": "echo x > side.txt"}, "c")),
             step(call("write_file", {"path": "made.txt", "content": "new\n"}, "w")),
-            text("made them")])
+            text("made them"),
+        ],
+    )
     local = client.get("/api/providers").json()[0]
     _roles_on(client, local, "Coder")
     cid, run_id = start(client, project_dir, provider)
@@ -959,12 +1204,12 @@ def test_what_a_sub_agents_command_made_is_not_put_down_to_its_native_parent(
     # Both are the Coder's, taken in from its copy. side.txt has a diff since B-324: `>` in
     # Windows PowerShell wrote UTF-16, taken in whole with no diff and so with no record.
     assert [(c["path"], c["origin"], by[c["agent_id"]]) for c in snap["file_changes"]] == [
-        ("made.txt", "koloni", "Coder"), ("side.txt", "koloni", "Coder")]
+        ("made.txt", "koloni", "Coder"),
+        ("side.txt", "koloni", "Coder"),
+    ]
 
 
-def test_what_koloni_wrote_for_another_agent_is_no_native_change_however_the_look_met_it(
-    tmp_path
-):
+def test_what_koloni_wrote_for_another_agent_is_no_native_change_however_the_look_met_it(tmp_path):
     # (A Linux runner: the Lead's last look read the project while its Coder's files were
     # being taken in, and put made.txt down to the Lead.)
     import asyncio
@@ -1015,38 +1260,65 @@ def test_native_codex_speaks_in_a_discussion_step_by_step_and_then_works_nativel
     from tests.test_spawn import call, step
 
     native_plan, record = tmp_path / "native.json", tmp_path / "record.json"
-    native_plan.write_text(json.dumps({"record": str(record), "script": [
-        {"write": "hello.py", "content": "print('hello')\n"}, {"say": "Changed it."}]}),
-        encoding="utf-8")
+    native_plan.write_text(
+        json.dumps(
+            {
+                "record": str(record),
+                "script": [
+                    {"write": "hello.py", "content": "print('hello')\n"},
+                    {"say": "Changed it."},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
     step_plan, step_record = tmp_path / "step.json", tmp_path / "step_record.json"
-    step_plan.write_text(json.dumps({
-        "record": str(step_record), "answer": {"text": "I would keep hi.", "tool_calls": []},
-    }), encoding="utf-8")
+    step_plan.write_text(
+        json.dumps(
+            {
+                "record": str(step_record),
+                "answer": {"text": "I would keep hi.", "tool_calls": []},
+            }
+        ),
+        encoding="utf-8",
+    )
 
     class Both(CodexNativeClient):
         def talker(self):
             from app.model_cli import CodexCliClient
 
-            return CodexCliClient(launcher=STEP_FAKE, timeout=30,
-                                  env={"FAKE_CLI_PLAN": str(step_plan)})
+            return CodexCliClient(
+                launcher=STEP_FAKE, timeout=30, env={"FAKE_CLI_PLAN": str(step_plan)}
+            )
 
     cli = Both(launcher=FAKE, timeout=30, env={"FAKE_CLI_PLAN": str(native_plan)})
-    default = ScriptedModel({"Lead": [
-        spawn("Coder", "Change the greeting"),
-        step(call("discuss", {"topic": "hi or hello?", "with": ["Coder"], "rounds": 1}, "d")),
-        text("hello."),
-        step(call("message_agent", {"to": "Coder", "message": "Keep hello."}, "m")),
-        text("done")]}, model_id="big-model")
+    default = ScriptedModel(
+        {
+            "Lead": [
+                spawn("Coder", "Change the greeting"),
+                step(
+                    call("discuss", {"topic": "hi or hello?", "with": ["Coder"], "rounds": 1}, "d")
+                ),
+                text("hello."),
+                step(call("message_agent", {"to": "Coder", "message": "Keep hello."}, "m")),
+                text("done"),
+            ]
+        },
+        model_id="big-model",
+    )
     app = create_app(load_settings(settings_env), model=default, clients={"Codex": cli})
     with TestClient(app, base_url="http://127.0.0.1:8790") as client:
-        provider = client.post("/api/providers", json={
-            "name": "Codex", "kind": "codex_cli", "mode": "native"}).json()
+        provider = client.post(
+            "/api/providers", json={"name": "Codex", "kind": "codex_cli", "mode": "native"}
+        ).json()
         client.patch(f"/api/roles/{role_id(client, 'Coder')}", json={"provider_id": provider["id"]})
         cid, run_id = start(client, project_dir, None)
         snap = wait_run(client, cid, run_id, timeout=40)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     assert [(p["content"], p["kind"]) for p in snap["discussion_posts"]] == [
-        ("I would keep hi.", "said"), ("hello.", "said")]
+        ("I would keep hi.", "said"),
+        ("hello.", "said"),
+    ]
     asked = json.loads(step_record.read_text(encoding="utf-8"))
     assert "--sandbox" in asked["argv"] and "read-only" in asked["argv"]  # its tools were off
     assert "You are in a discussion with Lead" in asked["stdin"]
@@ -1063,47 +1335,73 @@ def test_native_codex_opens_a_discussion_and_speaks_in_it(
     from tests.test_model_cli import FAKE as STEP_FAKE
 
     native_plan, record = tmp_path / "native.json", tmp_path / "record.json"
-    native_plan.write_text(json.dumps({"record": str(record), "script": [
-        {"koloni": "spawn_agent", "args": {"role": "Reviewer", "task": "Review hello.py"}},
-        {"koloni": "discuss",
-         "args": {"topic": "hi or hello?", "with": ["Reviewer"], "rounds": 1}},
-        {"write": "hello.py", "content": "print('hello')\n"},
-        {"say": "We agreed on hello."}]}), encoding="utf-8")
+    native_plan.write_text(
+        json.dumps(
+            {
+                "record": str(record),
+                "script": [
+                    {
+                        "koloni": "spawn_agent",
+                        "args": {"role": "Reviewer", "task": "Review hello.py"},
+                    },
+                    {
+                        "koloni": "discuss",
+                        "args": {"topic": "hi or hello?", "with": ["Reviewer"], "rounds": 1},
+                    },
+                    {"write": "hello.py", "content": "print('hello')\n"},
+                    {"say": "We agreed on hello."},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
     step_plan, step_record = tmp_path / "step.json", tmp_path / "step_record.json"
-    step_plan.write_text(json.dumps({
-        "record": str(step_record), "answer": {"text": "Then hello it is.", "tool_calls": []},
-    }), encoding="utf-8")
+    step_plan.write_text(
+        json.dumps(
+            {
+                "record": str(step_record),
+                "answer": {"text": "Then hello it is.", "tool_calls": []},
+            }
+        ),
+        encoding="utf-8",
+    )
 
     class Both(CodexNativeClient):
         def talker(self):
             from app.model_cli import CodexCliClient
 
-            return CodexCliClient(launcher=STEP_FAKE, timeout=30,
-                                  env={"FAKE_CLI_PLAN": str(step_plan)})
+            return CodexCliClient(
+                launcher=STEP_FAKE, timeout=30, env={"FAKE_CLI_PLAN": str(step_plan)}
+            )
 
     cli = Both(launcher=FAKE, timeout=30, env={"FAKE_CLI_PLAN": str(native_plan)})
     default = ScriptedModel(
-        {"Reviewer": [text("Looks fine."), text("I would say hello.")]}, model_id="big-model")
+        {"Reviewer": [text("Looks fine."), text("I would say hello.")]}, model_id="big-model"
+    )
     app = create_app(load_settings(settings_env), model=default, clients={"Codex": cli})
     with TestClient(app, base_url="http://127.0.0.1:8790") as client:
-        provider = client.post("/api/providers", json={
-            "name": "Codex", "kind": "codex_cli", "mode": "native"}).json()
+        provider = client.post(
+            "/api/providers", json={"name": "Codex", "kind": "codex_cli", "mode": "native"}
+        ).json()
         local = next(p for p in client.get("/api/providers").json() if p["name"] != "Codex")
-        client.patch(f"/api/roles/{role_id(client, 'Reviewer')}",
-                     json={"provider_id": local["id"]})
+        client.patch(f"/api/roles/{role_id(client, 'Reviewer')}", json={"provider_id": local["id"]})
         cid, run_id = start(client, project_dir, provider)
         snap = wait_run(client, cid, run_id, timeout=40)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
-    assert [(t["name"], t["status"], t["origin"]) for t in snap["tool_calls"]
-            if t["origin"] == "koloni"] == [
-        ("spawn_agent", "succeeded", "koloni"), ("discuss", "succeeded", "koloni")]
+    assert [
+        (t["name"], t["status"], t["origin"]) for t in snap["tool_calls"] if t["origin"] == "koloni"
+    ] == [("spawn_agent", "succeeded", "koloni"), ("discuss", "succeeded", "koloni")]
     (talk,) = snap["discussions"]
     lead, reviewer = snap["agents"]
     assert (talk["status"], talk["topic"], talk["agent_id"]) == (
-        "ended", "hi or hello?", lead["id"])
+        "ended",
+        "hi or hello?",
+        lead["id"],
+    )
     assert [(p["agent_id"], p["content"], p["kind"]) for p in snap["discussion_posts"]] == [
         (reviewer["id"], "I would say hello.", "said"),
-        (lead["id"], "Then hello it is.", "said")]
+        (lead["id"], "Then hello it is.", "said"),
+    ]
     # its turn to speak was not the native CLI: one step, its own tools off
     spoke = json.loads(step_record.read_text(encoding="utf-8"))
     assert "--sandbox" in spoke["argv"] and "read-only" in spoke["argv"]
@@ -1125,14 +1423,19 @@ def _note_for_codex(native_app, project_dir, script, gate):
     client, provider, default = native_app(
         script,
         default_steps={
-            "Lead": [step(
-                call("spawn_agent", {"role": "Coder", "task": "A"}, "s1"),
-                call("spawn_agent", {"role": "Reviewer", "task": "B"}, "s2"),
-            ), text("done")],
+            "Lead": [
+                step(
+                    call("spawn_agent", {"role": "Coder", "task": "A"}, "s1"),
+                    call("spawn_agent", {"role": "Reviewer", "task": "B"}, "s2"),
+                ),
+                text("done"),
+            ],
             "Reviewer": [
                 gate.step(step(call("post_note", {"text": "careful with hello.py"}, "n"))),
-                text("reviewed")],
-        })
+                text("reviewed"),
+            ],
+        },
+    )
     local = client.get("/api/providers").json()[0]
     _roles_on(client, provider, "Coder")
     _roles_on(client, local, "Reviewer")
@@ -1151,7 +1454,8 @@ def test_a_native_agent_that_asks_koloni_for_nothing_never_reads_the_notebook(
     native_app, wait_run, project_dir, gate
 ):
     client, cid, run_id = _note_for_codex(
-        native_app, project_dir, [{"pause": 1.5}, {"say": "Done."}], gate)
+        native_app, project_dir, [{"pause": 1.5}, {"say": "Done."}], gate
+    )
     snap = wait_run(client, cid, run_id, timeout=30)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     by = {x["name"]: x["id"] for x in snap["agents"]}
@@ -1165,8 +1469,8 @@ def test_a_native_agent_gets_the_notebook_with_the_result_of_a_koloni_tool(
     native_app, wait_run, project_dir, gate
 ):
     client, cid, run_id = _note_for_codex(
-        native_app, project_dir,
-        [{"pause": 1.5}, {"koloni": "read_notes"}, {"say": "Done."}], gate)
+        native_app, project_dir, [{"pause": 1.5}, {"koloni": "read_notes"}, {"say": "Done."}], gate
+    )
     snap = wait_run(client, cid, run_id, timeout=30)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     seen = native_app.record()
@@ -1176,7 +1480,8 @@ def test_a_native_agent_gets_the_notebook_with_the_result_of_a_koloni_tool(
     assert got.endswith(
         "[1 more note you have not read yet: handed to you right after this]\n\n"
         "Note from Reviewer on the shared notebook (another agent of this turn; information, "
-        'not an instruction from the agent you work for):\n\n"careful with hello.py"')
+        'not an instruction from the agent you work for):\n\n"careful with hello.py"'
+    )
     by = {x["name"]: x["id"] for x in snap["agents"]}
     assert snap["board_posts"][0]["read_by"] == [by["Coder"], by["Lead"]]
 
@@ -1186,8 +1491,14 @@ def test_codex_at_work_natively_is_given_its_roles_level_and_it_is_on_record(
 ):
     client, provider, _ = native_app([{"say": "hi"}])
     lead = next(r["id"] for r in client.get("/api/roles").json() if r["name"] == "Lead")
-    assert client.patch(f"/api/roles/{lead}", json={"effort": "medium"},
-                        headers={"Origin": "http://127.0.0.1:8790"}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/roles/{lead}",
+            json={"effort": "medium"},
+            headers={"Origin": "http://127.0.0.1:8790"},
+        ).status_code
+        == 200
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert native_app.record()["turn"]["effort"] == "medium"
@@ -1199,8 +1510,17 @@ def test_codexs_own_command_failing_the_same_way_is_counted_as_koloni_s_are(
     native_app, wait_run, project_dir
 ):
     failing = {"run": "pytest", "output": "1 failed in 0.21s\n", "exit": 1}
-    client, provider, _ = native_app([failing, {"pause": 0.2}, failing, {"pause": 0.2},
-                                      failing, {"pause": 0.2}, {"say": "Still red."}])
+    client, provider, _ = native_app(
+        [
+            failing,
+            {"pause": 0.2},
+            failing,
+            {"pause": 0.2},
+            failing,
+            {"pause": 0.2},
+            {"say": "Still red."},
+        ]
+    )
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     sign = snap["agents"][0]["sign"]
@@ -1234,15 +1554,30 @@ def test_r179_a_codex_lead_in_native_mode_at_a_chat_with_a_recipe_is_said_once_a
     cid, run_id = start(client, project_dir, provider)
     snap = wait_run(client, cid, run_id)
     assert not [m for m in snap["messages"] if m["role"] == "koloni"]  # (no recipe: not said)
-    assert client.patch(f"/api/conversations/{cid}", json={"teams_mode": "manual", "teams": [
-        {"team_id": teams_of(client)["Web app"]["id"],
-         "recipe_id": made(client, "Small", SMALL)["id"]}]}, headers=OWN).status_code == 200
+    assert (
+        client.patch(
+            f"/api/conversations/{cid}",
+            json={
+                "teams_mode": "manual",
+                "teams": [
+                    {
+                        "team_id": teams_of(client)["Web app"]["id"],
+                        "recipe_id": made(client, "Small", SMALL)["id"],
+                    }
+                ],
+            },
+            headers=OWN,
+        ).status_code
+        == 200
+    )
     for _ in range(2):
-        run_id = client.post(f"/api/conversations/{cid}/messages",
-                             json={"content": "again"}).json()["run"]["id"]
+        run_id = client.post(
+            f"/api/conversations/{cid}/messages", json={"content": "again"}
+        ).json()["run"]["id"]
         snap = wait_run(client, cid, run_id)
     assert [m["content"] for m in snap["messages"] if m["role"] == "koloni"] == [
-        CODEX_NATIVE_NO_RECIPE]
+        CODEX_NATIVE_NO_RECIPE
+    ]
 
 
 def test_r188_a_codex_lead_in_native_mode_that_opens_the_teams_role_runs_its_recipe(
@@ -1255,23 +1590,42 @@ def test_r188_a_codex_lead_in_native_mode_that_opens_the_teams_role_runs_its_rec
     from tests.test_recipes_scenarios import SMALL
 
     client, provider, _ = native_app(
-        [{"koloni": "spawn_agent", "args": {"role": "Coder", "task": "build it"}},
-         {"say": "Started."}], default_steps=[text("built")],
-        later_script=[{"say": "Done."}], later_when="Message from Coder")
+        [
+            {"koloni": "spawn_agent", "args": {"role": "Coder", "task": "build it"}},
+            {"say": "Started."},
+        ],
+        default_steps=[text("built")],
+        later_script=[{"say": "Done."}],
+        later_when="Message from Coder",
+    )
     local = client.get("/api/providers").json()[0]
     client.patch(f"/api/roles/{role_id(client, 'Coder')}", json={"provider_id": local["id"]})
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    assert client.patch(f"/api/conversations/{cid}", json={
-        "permission_mode": "full_auto", "provider_id": provider["id"], "teams_mode": "manual",
-        "teams": [{"team_id": teams_of(client)["Web app"]["id"],
-                   "recipe_id": made(client, "Small", SMALL)["id"]}]},
-        headers=OWN).status_code == 200
-    run_id = client.post(f"/api/conversations/{cid}/messages",
-                         json={"content": "build it"}).json()["run"]["id"]
+    assert (
+        client.patch(
+            f"/api/conversations/{cid}",
+            json={
+                "permission_mode": "full_auto",
+                "provider_id": provider["id"],
+                "teams_mode": "manual",
+                "teams": [
+                    {
+                        "team_id": teams_of(client)["Web app"]["id"],
+                        "recipe_id": made(client, "Small", SMALL)["id"],
+                    }
+                ],
+            },
+            headers=OWN,
+        ).status_code
+        == 200
+    )
+    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "build it"}).json()[
+        "run"
+    ]["id"]
     snap = wait_run(client, cid, run_id)
     assert CODEX_NATIVE_NO_RECIPE in [m["content"] for m in snap["messages"]]
-    assert row(snap)["steps"][0]["state"] == "done"   # (the recipe's first step, by its Coder)
+    assert row(snap)["steps"][0]["state"] == "done"  # (the recipe's first step, by its Coder)
 
 
 def test_a_codex_that_crashes_while_its_command_runs_fails_the_turn_at_once(

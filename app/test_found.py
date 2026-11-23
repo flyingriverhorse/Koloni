@@ -18,6 +18,7 @@ from app.workspace import secret_in_project
 
 class Counts(NamedTuple):
     """What a run's summary says: passed, failed (errors with them), skipped - of `unit`."""
+
     passed: int
     failed: int
     skipped: int
@@ -48,14 +49,22 @@ def _pytest_like(text: str) -> Counts | None:
     if not lines:
         return None
     last = lines[-1]
-    return Counts(_words(last, "passed"), _words(last, "failed") + _words(last, "errors?"),
-                  _words(last, "skipped"))
+    return Counts(
+        _words(last, "passed"),
+        _words(last, "failed") + _words(last, "errors?"),
+        _words(last, "skipped"),
+    )
 
 
 def _vitest(text: str) -> Counts | None:
     found = [line for line in text.splitlines() if re.match(r"\s*Tests\s{2,}\d", line)]
-    return None if not found else Counts(_words(found[-1], "passed"), _words(found[-1], "failed"),
-                                         _words(found[-1], "skipped"))
+    return (
+        None
+        if not found
+        else Counts(
+            _words(found[-1], "passed"), _words(found[-1], "failed"), _words(found[-1], "skipped")
+        )
+    )
 
 
 # go: a package that did not build or set up ran no test; one with "[no tests to run]" ran none.
@@ -63,13 +72,16 @@ _GO_NONE = re.compile(r"\[(?:build failed|setup failed|no tests to run)\]")
 
 
 def _go(text: str) -> Counts | None:
-    tests = tuple(len(re.findall(rf"^\s*--- {word}", text, re.M))
-                  for word in ("PASS", "FAIL", "SKIP"))
+    tests = tuple(
+        len(re.findall(rf"^\s*--- {word}", text, re.M)) for word in ("PASS", "FAIL", "SKIP")
+    )
     if any(tests):
         return Counts(tests[0], tests[1], tests[2])
     lines = [line for line in text.splitlines() if not _GO_NONE.search(line)]
-    packages = (sum(bool(re.match(r"ok\s+\S", line)) for line in lines),
-                sum(bool(re.match(r"FAIL\s+\S+\s", line)) for line in lines))
+    packages = (
+        sum(bool(re.match(r"ok\s+\S", line)) for line in lines),
+        sum(bool(re.match(r"FAIL\s+\S+\s", line)) for line in lines),
+    )
     return Counts(*packages, 0, "packages") if any(packages) else None
 
 
@@ -109,6 +121,7 @@ def _last(pattern: str, make: Callable[[re.Match], Counts]) -> Callable[[str], C
     def read(text: str) -> Counts | None:
         found = list(re.finditer(pattern, text))
         return make(found[-1]) if found else None
+
     return read
 
 
@@ -118,25 +131,68 @@ def _last(pattern: str, make: Callable[[re.Match], Counts]) -> Callable[[str], C
 # pytest's, jest's and vitest's; a summary seen worded otherwise is "no count", never invented.
 PARSERS: tuple[tuple[Callable[[str], Counts | None], bool], ...] = (
     (_cargo, True),
-    (_last(r"Failed:\s+(?P<f>\d+), Passed:\s+(?P<p>\d+), Skipped:\s+(?P<s>\d+)",  # dotnet
-           lambda m: Counts(_n(m, "p"), _n(m, "f"), _n(m, "s"))), False),
-    (_last(r"Test summary: total: \d+, failed: (?P<f>\d+), succeeded: (?P<p>\d+), "  # dotnet 9
-           r"skipped: (?P<s>\d+)", lambda m: Counts(_n(m, "p"), _n(m, "f"), _n(m, "s"))), False),
-    (_last(r"Tests run: (?P<r>\d+), Failures: (?P<f>\d+), Errors: (?P<e>\d+), "  # maven
-           r"Skipped: (?P<s>\d+)", lambda m: Counts(
-               _n(m, "r") - _n(m, "f") - _n(m, "e") - _n(m, "s"), _n(m, "f") + _n(m, "e"),
-               _n(m, "s"))), False),
-    (_last(r"(?P<r>\d+) tests completed(?:, (?P<f>\d+) failed)?(?:, (?P<s>\d+) skipped)?",  # gradle
-           lambda m: Counts(_n(m, "r") - _n(m, "f") - _n(m, "s"), _n(m, "f"), _n(m, "s"))), False),
-    (_last(r"(?P<r>\d+) examples?, (?P<f>\d+) failures?(?:, (?P<s>\d+) pending)?",  # rspec
-           lambda m: Counts(_n(m, "r") - _n(m, "f") - _n(m, "s"), _n(m, "f"), _n(m, "s"))), False),
+    (
+        _last(
+            r"Failed:\s+(?P<f>\d+), Passed:\s+(?P<p>\d+), Skipped:\s+(?P<s>\d+)",  # dotnet
+            lambda m: Counts(_n(m, "p"), _n(m, "f"), _n(m, "s")),
+        ),
+        False,
+    ),
+    (
+        _last(
+            r"Test summary: total: \d+, failed: (?P<f>\d+), succeeded: (?P<p>\d+), "  # dotnet 9
+            r"skipped: (?P<s>\d+)",
+            lambda m: Counts(_n(m, "p"), _n(m, "f"), _n(m, "s")),
+        ),
+        False,
+    ),
+    (
+        _last(
+            r"Tests run: (?P<r>\d+), Failures: (?P<f>\d+), Errors: (?P<e>\d+), "  # maven
+            r"Skipped: (?P<s>\d+)",
+            lambda m: Counts(
+                _n(m, "r") - _n(m, "f") - _n(m, "e") - _n(m, "s"),
+                _n(m, "f") + _n(m, "e"),
+                _n(m, "s"),
+            ),
+        ),
+        False,
+    ),
+    (
+        _last(
+            # gradle
+            r"(?P<r>\d+) tests completed(?:, (?P<f>\d+) failed)?(?:, (?P<s>\d+) skipped)?",
+            lambda m: Counts(_n(m, "r") - _n(m, "f") - _n(m, "s"), _n(m, "f"), _n(m, "s")),
+        ),
+        False,
+    ),
+    (
+        _last(
+            r"(?P<r>\d+) examples?, (?P<f>\d+) failures?(?:, (?P<s>\d+) pending)?",  # rspec
+            lambda m: Counts(_n(m, "r") - _n(m, "f") - _n(m, "s"), _n(m, "f"), _n(m, "s")),
+        ),
+        False,
+    ),
     (_unittest, False),
-    (_last(r"OK \((?P<r>\d+) tests?, \d+ assertions?\)",  # phpunit, passing
-           lambda m: Counts(_n(m, "r"), 0, 0)), False),
+    (
+        _last(
+            r"OK \((?P<r>\d+) tests?, \d+ assertions?\)",  # phpunit, passing
+            lambda m: Counts(_n(m, "r"), 0, 0),
+        ),
+        False,
+    ),
     (_phpunit, False),
-    (_last(r"Tests:\s+(?P<line>.*\d+ total)",  # jest
-           lambda m: Counts(_words(m["line"], "passed"), _words(m["line"], "failed"),
-                            _words(m["line"], "skipped"))), False),
+    (
+        _last(
+            r"Tests:\s+(?P<line>.*\d+ total)",  # jest
+            lambda m: Counts(
+                _words(m["line"], "passed"),
+                _words(m["line"], "failed"),
+                _words(m["line"], "skipped"),
+            ),
+        ),
+        False,
+    ),
     (_vitest, False),
     (_go, True),
     (_pytest_like, False),
@@ -152,21 +208,48 @@ def counts(output: str, command: str = "") -> Counts | None:
     read = ledger.read_test(command) if command else None
     if read is not None and read[0] == "pytest" and (own := _pytest_like(tail)) is not None:
         return own
-    return next((found for parse, whole in PARSERS
-                 if (found := parse(output if whole else tail)) is not None), None)
+    return next(
+        (
+            found
+            for parse, whole in PARSERS
+            if (found := parse(output if whole else tail)) is not None
+        ),
+        None,
+    )
 
 
 MOST_LINE = 200  # characters of a command line tried
 # Plan decision 11 / review of S1b: the only lines of an agent's or the look's that are tried as the
 # project's test command - the forms KOLONİ's own guesses take, each with at most `-q` or `-v`.
 # Nothing else: no prefix, no shell, no option with a value, no path, no file of tests.
-TRIED = frozenset({
-    "pytest", "python -m pytest", "npx vitest run", "npx jest", "npm test",
-    "yarn test", "pnpm test", "bun test", "tox", "nox", "go test ./...", "cargo test",
-    "dotnet test", "mvn test", "gradle test", "./gradlew test", "bundle exec rspec",
-    "composer test", "vendor/bin/phpunit", "mix test", "swift test", "ctest",
-    "ctest --test-dir build", "make test",
-})
+TRIED = frozenset(
+    {
+        "pytest",
+        "python -m pytest",
+        "npx vitest run",
+        "npx jest",
+        "npm test",
+        "yarn test",
+        "pnpm test",
+        "bun test",
+        "tox",
+        "nox",
+        "go test ./...",
+        "cargo test",
+        "dotnet test",
+        "mvn test",
+        "gradle test",
+        "./gradlew test",
+        "bundle exec rspec",
+        "composer test",
+        "vendor/bin/phpunit",
+        "mix test",
+        "swift test",
+        "ctest",
+        "ctest --test-dir build",
+        "make test",
+    }
+)
 
 
 def tryable(command: str) -> bool:
@@ -200,8 +283,12 @@ def said_runs(said: str, root: Path) -> tuple[list[tuple[str, str]], int]:
         command = one.get("command") if isinstance(one, dict) else None
         folder = one.get("folder", ".") if isinstance(one, dict) else None
         named += isinstance(command, str)
-        if isinstance(command, str) and isinstance(folder, str) and tryable(command.strip()) and (
-                (place := inside(root, folder)) is not None):
+        if (
+            isinstance(command, str)
+            and isinstance(folder, str)
+            and tryable(command.strip())
+            and ((place := inside(root, folder)) is not None)
+        ):
             out.append((" ".join(command.split()), place))
     return out[:MOST_SAID], named - len(out[:MOST_SAID])
 
@@ -239,13 +326,44 @@ def _linked(place: Path) -> bool:
 
 
 # What the look is shown of the project: its test files by these names, and the head of these notes.
-TEST_FILES = ("test_*.py", "*_test.py", "*_test.go", "*.test.[jt]s", "*.test.[jt]sx",
-              "*.spec.[jt]s", "*.spec.[jt]sx", "*Test.java", "*Tests.cs", "*_spec.rb",
-              "*Test.php", "*_test.exs", "*Tests.swift")
-NOTES = ("README.md", "README.rst", "README", "CONTRIBUTING.md", "Makefile", "justfile",
-         "tox.ini", "noxfile.py")
-SKIP = {".git", ".venv", "venv", "node_modules", "dist", "build", "target", ".koloni",
-        "__pycache__", ".tox", ".nox"}
+TEST_FILES = (
+    "test_*.py",
+    "*_test.py",
+    "*_test.go",
+    "*.test.[jt]s",
+    "*.test.[jt]sx",
+    "*.spec.[jt]s",
+    "*.spec.[jt]sx",
+    "*Test.java",
+    "*Tests.cs",
+    "*_spec.rb",
+    "*Test.php",
+    "*_test.exs",
+    "*Tests.swift",
+)
+NOTES = (
+    "README.md",
+    "README.rst",
+    "README",
+    "CONTRIBUTING.md",
+    "Makefile",
+    "justfile",
+    "tox.ini",
+    "noxfile.py",
+)
+SKIP = {
+    ".git",
+    ".venv",
+    "venv",
+    "node_modules",
+    "dist",
+    "build",
+    "target",
+    ".koloni",
+    "__pycache__",
+    ".tox",
+    ".nox",
+}
 MOST_FILES, MOST_NOTE, MOST_FOLDERS = 40, 1500, 2000
 
 
@@ -254,12 +372,14 @@ def _test_files(root: Path) -> list[str]:
     or junction, past `SKIP`, MOST_FOLDERS folders at most; no secret file named."""
     found: list[str] = []
     for walked, (top, folders, files) in enumerate(os.walk(root), 1):
-        folders[:] = sorted(name for name in folders
-                            if name not in SKIP and not _linked(Path(top) / name))
+        folders[:] = sorted(
+            name for name in folders if name not in SKIP and not _linked(Path(top) / name)
+        )
         for name in sorted(files):
             rel = (Path(top) / name).relative_to(root).as_posix()
             if not secret_in_project(rel) and any(
-                    PurePosixPath(name).match(pattern) for pattern in TEST_FILES):
+                PurePosixPath(name).match(pattern) for pattern in TEST_FILES
+            ):
                 found.append(f"- {rel}")
         if len(found) >= MOST_FILES or walked >= MOST_FOLDERS:
             break
@@ -271,8 +391,12 @@ def _note(root: Path, name: str) -> str | None:
     the project, is a secret file by its name, or has another name too (a hard link: its other
     name may be anywhere)."""
     place = root / name
-    if _linked(place) or not place.is_file() or not _within(root, place) or (
-            secret_in_project(name)):
+    if (
+        _linked(place)
+        or not place.is_file()
+        or not _within(root, place)
+        or (secret_in_project(name))
+    ):
         return None
     try:
         if place.stat().st_nlink > 1:
@@ -287,15 +411,25 @@ def digest(root: Path, found: dict | None) -> str:
     """The project as the look reads it - its parts and languages (the map's), the test files it
     has, and the head of its notes (`NOTES`): KOLONİ reads, the model reads only this.
     shortcut: a walk by name, not git's view of the folder; skip what git ignores if that is met."""
-    parts = [f"- {part['path']} ({part.get('language') or 'no language known'}, "
-             f"{part.get('files', '?')} files)" for part in (found or {}).get("parts", [])]
-    notes = [f"--- {name} ---\n{text}" for name in NOTES
-             if (text := _note(root, name)) is not None]
-    return "\n".join(["Parts of the project:", *(parts or ["- none found"]),
-                      "Test files:", *(_test_files(root) or ["- none found"]), *notes])
+    parts = [
+        f"- {part['path']} ({part.get('language') or 'no language known'}, "
+        f"{part.get('files', '?')} files)"
+        for part in (found or {}).get("parts", [])
+    ]
+    notes = [f"--- {name} ---\n{text}" for name in NOTES if (text := _note(root, name)) is not None]
+    return "\n".join(
+        [
+            "Parts of the project:",
+            *(parts or ["- none found"]),
+            "Test files:",
+            *(_test_files(root) or ["- none found"]),
+            *notes,
+        ]
+    )
 
 
 def fingerprint(found: dict | None) -> str:
     """The map's parts and languages, as one line: the look is not asked again while they stand."""
-    return json.dumps(sorted((part.get("path"), part.get("language"))
-                             for part in (found or {}).get("parts", [])))
+    return json.dumps(
+        sorted((part.get("path"), part.get("language")) for part in (found or {}).get("parts", []))
+    )

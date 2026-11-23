@@ -24,8 +24,17 @@ class Session(ScriptedModel):
         super().__init__([])
         self.lead, self.tells, self.lead_runs, self.results = lead, tells, [], []
 
-    async def run_session(self, model_id, messages, tools, call_tool, on_text, on_message=None,
-                          effort=None, on_live=None):
+    async def run_session(
+        self,
+        model_id,
+        messages,
+        tools,
+        call_tool,
+        on_text,
+        on_message=None,
+        effort=None,
+        on_live=None,
+    ):
         if "Your name here is Coder" in str(messages[0]["content"]):
             await asyncio.sleep(0.3)  # (its opener has gone on: it is answered "started")
             if self.tells:
@@ -39,11 +48,16 @@ class Session(ScriptedModel):
 
 def run(settings_env, wait_run, project_dir, lead, lead_steps, tells=None):
     cli = Session(lead, tells)
-    with TestClient(create_app(load_settings(settings_env), model=cli),
-                    base_url="http://127.0.0.1:8790") as client:
+    with TestClient(
+        create_app(load_settings(settings_env), model=cli), base_url="http://127.0.0.1:8790"
+    ) as client:
         client.headers["Origin"] = ORIGIN
-        assert client.patch(f"/api/roles/{role_id(client, 'Lead')}",
-                            json={"max_steps": lead_steps}).status_code == 200
+        assert (
+            client.patch(
+                f"/api/roles/{role_id(client, 'Lead')}", json={"max_steps": lead_steps}
+            ).status_code
+            == 200
+        )
         cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
         return cli, wait_run(client, cid, run_id)
 
@@ -81,8 +95,9 @@ def test_a_lead_cut_at_its_limit_before_it_read_its_coders_answer_keeps_it_on_re
     assert not [m for m in snap["messages"] if "was not delivered" in m["content"]]
     (note,) = [m for m in snap["messages"] if m["from_agent_id"] == coder["id"]]
     assert note["content"].startswith("Coder finished.\n\nCoder: done, tests pass.")
-    assert [c["kind"] for c in snap["channel_messages"]
-            if c["from_agent_id"] == coder["id"]] == ["report"]
+    assert [c["kind"] for c in snap["channel_messages"] if c["from_agent_id"] == coder["id"]] == [
+        "report"
+    ]
 
 
 def test_a_report_after_the_leads_summary_is_followed_by_a_word_to_give_the_summary_again(
@@ -124,4 +139,5 @@ def test_a_lead_that_answered_its_coder_after_its_summary_still_ends_on_the_summ
     assert len(cli.lead_runs) == 3 and "came after your answer" in cli.lead_runs[2][-1]["content"]
     lead_id = snap["agents"][0]["id"]
     assert [m["content"] for m in snap["messages"] if m["agent_id"] == lead_id][-1] == (
-        "Lead answer 3")
+        "Lead answer 3"
+    )

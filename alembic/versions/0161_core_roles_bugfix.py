@@ -16,6 +16,7 @@ have given since.
 Revision ID: 0161
 Revises: 0159
 """
+
 import json
 
 import sqlalchemy as sa
@@ -41,8 +42,16 @@ CORE = {
 
 
 def _step(id, name, role, **more):
-    return {"id": id, "name": name, "who": {"role": role}, "done_when": "done",
-            "if_fails": "ask", "ask_me": False, "group": None, **more}
+    return {
+        "id": id,
+        "name": name,
+        "who": {"role": role},
+        "done_when": "done",
+        "if_fails": "ask",
+        "ask_me": False,
+        "group": None,
+        **more,
+    }
 
 
 def _bugfix(first: str, loops: list[dict]) -> dict:
@@ -58,38 +67,55 @@ def _bugfix(first: str, loops: list[dict]) -> dict:
         ],
         "groups": [],
         "ends": [{"id": "end", "then": "in"}],
-        "arrows": [{"from": a, "to": b} for a, b in (
-            ("start", "reproduce"), ("reproduce", "fix"), ("fix", "test"), ("test", "review"),
-            ("review", "end"))],
+        "arrows": [
+            {"from": a, "to": b}
+            for a, b in (
+                ("start", "reproduce"),
+                ("reproduce", "fix"),
+                ("fix", "test"),
+                ("test", "review"),
+                ("review", "end"),
+            )
+        ],
         "loops": loops,
     }
 
 
 REVIEW_LOOP = {"from": "review", "to": "fix", "rounds": 2}
 WAS = _bugfix("Reproduce it", [REVIEW_LOOP])
-NOW = _bugfix("Reproduce it with a failing test",
-              [REVIEW_LOOP, {"from": "test", "to": "fix", "rounds": 2}])
+NOW = _bugfix(
+    "Reproduce it with a failing test", [REVIEW_LOOP, {"from": "test", "to": "fix", "rounds": 2}]
+)
 
 
 def _swap(was: dict, now: dict) -> None:
     bind = op.get_bind()
-    for id_, graph in bind.execute(sa.text(
-            "SELECT id, graph FROM recipes WHERE name = 'Bugfix' AND ready = 1")):
+    for id_, graph in bind.execute(
+        sa.text("SELECT id, graph FROM recipes WHERE name = 'Bugfix' AND ready = 1")
+    ):
         # (Compared as data: the same drawing whatever its JSON's spacing.)
         if (json.loads(graph) if isinstance(graph, str) else graph) == was:
-            bind.execute(sa.text("UPDATE recipes SET graph = :graph WHERE id = :id"),
-                         {"graph": json.dumps(now), "id": id_})
+            bind.execute(
+                sa.text("UPDATE recipes SET graph = :graph WHERE id = :id"),
+                {"graph": json.dumps(now), "id": id_},
+            )
 
 
 def _core_roles() -> None:
     bind = op.get_bind()
     for name, needs in CORE.items():
-        for id_, held in bind.execute(sa.text(
-                "SELECT id, tools FROM roles WHERE builtin = 1 AND name = :name"), {"name": name}):
+        for id_, held in bind.execute(
+            sa.text("SELECT id, tools FROM roles WHERE builtin = 1 AND name = :name"),
+            {"name": name},
+        ):
             tools = json.loads(held) if isinstance(held, str) else held
-            bind.execute(sa.text("UPDATE roles SET enabled = 1, tools = :tools WHERE id = :id"),
-                         {"tools": json.dumps([*tools, *(one for one in needs if one not in tools)]),
-                          "id": id_})
+            bind.execute(
+                sa.text("UPDATE roles SET enabled = 1, tools = :tools WHERE id = :id"),
+                {
+                    "tools": json.dumps([*tools, *(one for one in needs if one not in tools)]),
+                    "id": id_,
+                },
+            )
 
 
 def upgrade() -> None:

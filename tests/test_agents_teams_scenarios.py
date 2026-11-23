@@ -47,7 +47,9 @@ def role(client, name):
 
 
 def patch_role(client, name, **body):
-    return client.patch(f"/api/roles/{role_id(client, name)}", json=body, headers={"Origin": ORIGIN})
+    return client.patch(
+        f"/api/roles/{role_id(client, name)}", json=body, headers={"Origin": ORIGIN}
+    )
 
 
 # --- kind, on / off ---------------------------------------------------------------------------
@@ -56,10 +58,20 @@ def patch_role(client, name, **body):
 def test_ready_roles_come_in_their_kind_of_work_with_no_tier(team):  # noqa: F811
     client, _default, _fast = team([], [])
     kinds = {r["name"]: r["kind"] for r in client.get("/api/roles").json()}
-    assert (kinds["Planner"], kinds["Coder"], kinds["DevOps"], kinds["Tester"], kinds["Docs writer"]) == (
-        "plan", "build", "ops", "check", "write")  # (DevOps in Ops since K-takim-duzen)
+    assert (
+        kinds["Planner"],
+        kinds["Coder"],
+        kinds["DevOps"],
+        kinds["Tester"],
+        kinds["Docs writer"],
+    ) == ("plan", "build", "ops", "check", "write")  # (DevOps in Ops since K-takim-duzen)
     coder = role(client, "Coder")
-    assert (coder["tier"], coder["tier_min"], coder["tier_max"], coder["enabled"]) == (None, None, None, True)
+    assert (coder["tier"], coder["tier_min"], coder["tier_max"], coder["enabled"]) == (
+        None,
+        None,
+        None,
+        True,
+    )
     # A kind is a category's key (slice 63b): "Ship it" is none until the user makes it one.
     assert patch_role(client, "Coder", kind="Ship it").status_code == 422
     assert patch_role(client, "Coder", kind="check").status_code == 200
@@ -71,16 +83,22 @@ def test_ready_roles_come_in_their_kind_of_work_with_no_tier(team):  # noqa: F81
 def test_a_role_turned_off_is_opened_only_when_the_user_names_it(team, wait_run, project_dir):  # noqa: F811
     client, _default, _fast = team([step(spawn("Translator")), text("done")], [text("translated")])
     assert patch_role(client, "Translator", enabled=False).status_code == 200
-    cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never",
-                        content="tidy the greeting")
+    cid, run_id = begin(
+        client, project_dir, mode="full_auto", spawn_approval="never", content="tidy the greeting"
+    )
     snap = wait_run(client, cid, run_id)
     ((status, said),) = results(snap)
     assert status == "failed" and "off" in said.lower() and len(snap["agents"]) == 1
 
     client2, _d, _f = team([step(spawn("Translator")), text("done")], [text("translated")])
     assert patch_role(client2, "Translator", enabled=False).status_code == 200
-    cid, run_id = begin(client2, project_dir, mode="full_auto", spawn_approval="never",
-                        content="ask the translator to put the greeting in Turkish")
+    cid, run_id = begin(
+        client2,
+        project_dir,
+        mode="full_auto",
+        spawn_approval="never",
+        content="ask the translator to put the greeting in Turkish",
+    )
     snap = wait_run(client2, cid, run_id)
     assert len(snap["agents"]) == 2  # named by the user: opened though off
 
@@ -89,7 +107,9 @@ def test_a_role_turned_off_is_opened_only_when_the_user_names_it(team, wait_run,
 
 
 def test_the_lead_picks_a_tier_in_range_and_says_why(team, wait_run, project_dir):  # noqa: F811
-    client, _default, _fast = team([step(spawn("Coder", "balanced", WHY)), text("done")], [text("fixed")])
+    client, _default, _fast = team(
+        [step(spawn("Coder", "balanced", WHY)), text("done")], [text("fixed")]
+    )
     tiered(team, client)  # strongest: Local big-model; balanced: Fast deep; fast: Fast quick
     cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never")
     coder = wait_run(client, cid, run_id)["agents"][1]
@@ -157,7 +177,10 @@ def test_ready_teams_and_the_users_own(team):  # noqa: F811
     assert client.post("/api/teams", json={"name": "Game"}).status_code == 403  # own page only
     made = client.post("/api/teams", json={"name": "Game"}, headers={"Origin": ORIGIN})
     assert made.status_code == 201, made.text
-    assert client.post("/api/teams", json={"name": "Game"}, headers={"Origin": ORIGIN}).status_code == 409
+    assert (
+        client.post("/api/teams", json={"name": "Game"}, headers={"Origin": ORIGIN}).status_code
+        == 409
+    )
     game = made.json()["id"]
     assert patch_role(client, "Tester", teams=[game, teams["Quality"]["id"]]).status_code == 200
     assert set(role(client, "Tester")["teams"]) == {game, teams["Quality"]["id"]}
@@ -168,8 +191,14 @@ def test_ready_teams_and_the_users_own(team):  # noqa: F811
 def test_a_conversations_team_opens_only_its_roles(team, wait_run, project_dir):  # noqa: F811
     client, _default, _fast = team([step(spawn("Translator")), text("done")])
     docs = next(t for t in client.get("/api/teams").json() if t["name"] == "Web app")
-    cid, run_id = begin(client, project_dir, mode="full_auto", spawn_approval="never",
-                        teams_mode="manual", teams=[{"team_id": docs["id"]}])
+    cid, run_id = begin(
+        client,
+        project_dir,
+        mode="full_auto",
+        spawn_approval="never",
+        teams_mode="manual",
+        teams=[{"team_id": docs["id"]}],
+    )
     snap = wait_run(client, cid, run_id)
     ((status, said),) = results(snap)
     assert status == "failed" and "Web app" in said and len(snap["agents"]) == 1

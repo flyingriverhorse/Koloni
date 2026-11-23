@@ -7,6 +7,7 @@ team the user made or renamed is left as it is.
 Revision ID: 0093
 Revises: 0092
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -25,14 +26,22 @@ STOCK = "name = :team AND created_at = (SELECT MIN(created_at) FROM teams)"
 
 def upgrade() -> None:
     for team, recipe in DEFAULTS.items():
-        op.get_bind().execute(sa.text(
-            f"UPDATE teams SET default_recipe_id = {READY} "
-            f"WHERE {STOCK} AND default_recipe_id IS NULL"), {"team": team, "recipe": recipe})
+        op.get_bind().execute(
+            sa.text(
+                f"UPDATE teams SET default_recipe_id = {READY} "
+                f"WHERE {STOCK} AND default_recipe_id IS NULL"
+            ),
+            {"team": team, "recipe": recipe},
+        )
 
 
 def downgrade() -> None:
     # (A user who chose that very recipe for the team since loses it too: not told apart.)
     for team, recipe in DEFAULTS.items():
-        op.get_bind().execute(sa.text(
-            f"UPDATE teams SET default_recipe_id = NULL "
-            f"WHERE {STOCK} AND default_recipe_id = {READY}"), {"team": team, "recipe": recipe})
+        op.get_bind().execute(
+            sa.text(
+                f"UPDATE teams SET default_recipe_id = NULL "
+                f"WHERE {STOCK} AND default_recipe_id = {READY}"
+            ),
+            {"team": team, "recipe": recipe},
+        )

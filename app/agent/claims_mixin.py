@@ -43,12 +43,15 @@ class ClaimsMixin:
         conversations wanted one file, and the one that waited is told which the other
         was. (From the record: one whose work is over may still have held the file.)"""
         with self._factory() as session:
-            known = {agent_id: (name, cid, title) for agent_id, name, cid, title in session.execute(
-                select(Agent.id, Agent.name, Conversation.id, Conversation.title)
-                .join(Run, Run.id == Agent.run_id)
-                .join(Conversation, Conversation.id == Run.conversation_id)
-                .where(Agent.id.in_(agents))
-            )}
+            known = {
+                agent_id: (name, cid, title)
+                for agent_id, name, cid, title in session.execute(
+                    select(Agent.id, Agent.name, Conversation.id, Conversation.title)
+                    .join(Run, Run.id == Agent.run_id)
+                    .join(Conversation, Conversation.id == Run.conversation_id)
+                    .where(Agent.id.in_(agents))
+                )
+            }
         said: dict[str, list[str]] = {}  # "" for this conversation, else the other's words
         for agent_id in agents:
             name, cid, title = known.get(agent_id, ("an agent", ctx.cid, ""))
@@ -99,12 +102,14 @@ class ClaimsMixin:
         with self._factory() as session:
             # The other conversations of this one's project, and of no other.
             project = select(Conversation.project_id).where(Conversation.id == cid)
-            others = list(session.scalars(
-                select(Conversation.id).where(
-                    Conversation.project_id == project.scalar_subquery(),
-                    Conversation.id != cid,
+            others = list(
+                session.scalars(
+                    select(Conversation.id).where(
+                        Conversation.project_id == project.scalar_subquery(),
+                        Conversation.id != cid,
+                    )
                 )
-            ))
+            )
         if not same_held:
             self.bus.emit(cid, None, "claims.changed", {"claims": held})
         for other in others:

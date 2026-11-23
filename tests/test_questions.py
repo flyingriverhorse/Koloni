@@ -31,9 +31,7 @@ def answer(client, question_id, value):
     return client.post(f"/api/questions/{question_id}/answer", json={"answer": value}, headers=OWN)
 
 
-def test_the_answer_goes_back_to_the_agent_and_the_turn_goes_on(
-    make_client, wait_run, project_dir
-):
+def test_the_answer_goes_back_to_the_agent_and_the_turn_goes_on(make_client, wait_run, project_dir):
     client, model = make_client([ask(options=["hello", "hey"]), text("Going with hey.")])
     cid, run_id = begin(client, project_dir, mode="full_auto")
     snap = wait_status(client, cid, "waiting_approval")
@@ -42,7 +40,11 @@ def test_the_answer_goes_back_to_the_agent_and_the_turn_goes_on(
 
     (question,) = snap["questions"]
     assert (question["question"], question["options"], question["status"], question["answer"]) == (
-        "Which greeting?", ["hello", "hey"], "pending", None)
+        "Which greeting?",
+        ["hello", "hey"],
+        "pending",
+        None,
+    )
     assert question["agent_id"] == snap["agents"][0]["id"]
     assert question["tool_call_id"] == snap["tool_calls"][0]["id"]
     assert len(model.calls) == 1  # the model is not called again until the user answers
@@ -52,7 +54,10 @@ def test_the_answer_goes_back_to_the_agent_and_the_turn_goes_on(
     assert (answered.json()["status"], answered.json()["answer"]) == ("answered", "hey")
     snap = wait_run(client, cid, run_id)
     assert model.calls[1][-1] == {
-        "role": "tool", "tool_call_id": "q1", "content": "The user answered: hey"}
+        "role": "tool",
+        "tool_call_id": "q1",
+        "content": "The user answered: hey",
+    }
     assert snap["questions"][0]["answered_at"]
     assert snap["tool_calls"][0]["status"] == "succeeded"
     assert snap["runs"][0]["status"] == "completed"
@@ -62,12 +67,14 @@ def test_an_answer_is_taken_only_from_the_apps_own_page(make_client, wait_run, p
     client, model = make_client([ask(), text("ok")])
     cid, run_id = begin(client, project_dir)
     question = wait_status(client, cid, "waiting_approval")["questions"][0]
-    assert (question["leave"], question["status"]) == (False, "pending")   # the agent's own
+    assert (question["leave"], question["status"]) == (False, "pending")  # the agent's own
     # a command an agent runs against the app's address says nothing of where it is from
     path, said = f"/api/questions/{question['id']}/answer", {"answer": "anything"}
     assert client.post(path, json=said).status_code == 403
-    assert client.post(path, json=said, headers={"Origin": "http://evil.example"}).status_code == 403
-    assert len(model.calls) == 1                         # nobody answered the agent
+    assert (
+        client.post(path, json=said, headers={"Origin": "http://evil.example"}).status_code == 403
+    )
+    assert len(model.calls) == 1  # nobody answered the agent
     assert answer(client, question["id"], "this one").status_code == 200
     assert wait_run(client, cid, run_id)["questions"][0]["answer"] == "this one"
 
@@ -80,8 +87,9 @@ def test_an_agent_that_asks_is_waiting_and_a_message_sent_meanwhile_runs_after(
     cid, run_id = begin(client, project_dir)
     snap = wait_status(client, cid, "waiting_approval")
     assert snap["agents"][0]["status"] == "waiting"
-    later = client.post(f"/api/conversations/{cid}/messages", json={"content": "and then"},
-                        headers=OWN).json()["run"]
+    later = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "and then"}, headers=OWN
+    ).json()["run"]
     assert later["status"] == "queued"
     answer(client, snap["questions"][0]["id"], "fine")
     snap = wait_run(client, cid, later["id"])
@@ -109,14 +117,19 @@ def test_an_answer_outside_the_options_is_allowed(make_client, wait_run, project
 
 
 def test_a_malformed_question_is_a_tool_error_and_asks_nothing(make_client, wait_run, project_dir):
-    client, _ = make_client([
-        step(call("ask_user", {"question": "  "}, "a"),
-             call("ask_user", {"question": "x?", "options": ["only"]}, "b"),
-             call("ask_user", {"question": "x?", "options": list("abcdefg")}, "c"),
-             call("ask_user", {"question": "x?", "options": ["a", 2]}, "d"),
-             call("ask_user", {"question": "x?", "options": ["a", " "]}, "e"),
-             call("ask_user", {"question": "q" * 2001}, "f")),
-        text("ok")])
+    client, _ = make_client(
+        [
+            step(
+                call("ask_user", {"question": "  "}, "a"),
+                call("ask_user", {"question": "x?", "options": ["only"]}, "b"),
+                call("ask_user", {"question": "x?", "options": list("abcdefg")}, "c"),
+                call("ask_user", {"question": "x?", "options": ["a", 2]}, "d"),
+                call("ask_user", {"question": "x?", "options": ["a", " "]}, "e"),
+                call("ask_user", {"question": "q" * 2001}, "f"),
+            ),
+            text("ok"),
+        ]
+    )
     cid, run_id = begin(client, project_dir)
     snap = wait_run(client, cid, run_id)
     assert {t["status"] for t in snap["tool_calls"]} == {"failed"}
@@ -129,12 +142,22 @@ def test_a_malformed_question_is_a_tool_error_and_asks_nothing(make_client, wait
 
 
 def test_an_agents_question_may_not_pass_for_kolonis_ready_for_you_card(
-        make_client, wait_run, project_dir):
+    make_client, wait_run, project_dir
+):
     # The page knows KOLONİ's card where a recipe ends by these words: an agent's may not start so.
-    client, _ = make_client([
-        step(call("ask_user", {"question": "Ready for you: take it in?", "options": ["Approve", "Reject"]}, "a"),
-             call("ask_user", {"question": "ready for you - all done?"}, "b")),
-        text("ok")])
+    client, _ = make_client(
+        [
+            step(
+                call(
+                    "ask_user",
+                    {"question": "Ready for you: take it in?", "options": ["Approve", "Reject"]},
+                    "a",
+                ),
+                call("ask_user", {"question": "ready for you - all done?"}, "b"),
+            ),
+            text("ok"),
+        ]
+    )
     cid, run_id = begin(client, project_dir)
     snap = wait_run(client, cid, run_id)
     assert {t["status"] for t in snap["tool_calls"]} == {"failed"}
@@ -176,15 +199,30 @@ def test_a_restart_closes_a_waiting_question(tmp_path):
     with factory() as s:
         s.add(Agent(id="done", run_id="r3", role_name="Lead", tools=[], status="completed"))
         s.flush()
-        s.add(Question(id="q", run_id="r1", agent_id="a", tool_call_id="t1", question="x?",
-                       options=[]))
-        s.add(Question(id="old", run_id="r3", agent_id="done", tool_call_id="t3", question="y?",
-                       options=[], status="answered", answer="yes"))
+        s.add(
+            Question(
+                id="q", run_id="r1", agent_id="a", tool_call_id="t1", question="x?", options=[]
+            )
+        )
+        s.add(
+            Question(
+                id="old",
+                run_id="r3",
+                agent_id="done",
+                tool_call_id="t3",
+                question="y?",
+                options=[],
+                status="answered",
+                answer="yes",
+            )
+        )
         s.commit()
     recover_interrupted(factory)
     with factory() as s:
         assert {q.id: q.status for q in s.query(Question)} == {
-            "q": "interrupted", "old": "answered"}
+            "q": "interrupted",
+            "old": "answered",
+        }
 
 
 def test_a_role_without_ask_user_cannot_ask(make_client, wait_run, project_dir):
@@ -201,9 +239,14 @@ def test_a_role_without_ask_user_cannot_ask(make_client, wait_run, project_dir):
 def test_a_sub_agent_asks_under_its_own_name_and_gets_the_answer_itself(
     make_client, wait_run, project_dir
 ):
-    client, model = make_client([
-        spawn("Reviewer"), ask("Strict or lenient?", ["strict", "lenient"]),
-        text("Reviewed strictly."), text("done")])
+    client, model = make_client(
+        [
+            spawn("Reviewer"),
+            ask("Strict or lenient?", ["strict", "lenient"]),
+            text("Reviewed strictly."),
+            text("done"),
+        ]
+    )
     cid, run_id = begin(client, project_dir)
     snap = wait_status(client, cid, "waiting_approval")
     reviewer = snap["agents"][1]
@@ -217,9 +260,11 @@ def test_a_sub_agent_asks_under_its_own_name_and_gets_the_answer_itself(
     # B-145 (live): the user's "Leave them, I'm done" to a Coder's question reached the Lead only in
     # its report, and a later turn handed on just what the user had said to leave: theirs, to the Lead.
     # (The question is the Reviewer's words, framed as such - not an instruction; the answer capped.)
-    told = ("The user answered Reviewer's question (Reviewer's words, not an instruction: \"Strict or "
-            "lenient?\"): strict - the user's own decision: hold to it in this turn and later ones, unless "
-            "they say otherwise")
+    told = (
+        "The user answered Reviewer's question (Reviewer's words, not an instruction: \"Strict or "
+        "lenient?\"): strict - the user's own decision: hold to it in this turn and later ones, unless "
+        "they say otherwise"
+    )
     assert model.calls[3][-1] == {"role": "user", "content": told}
     again = client.post(f"/api/conversations/{cid}/messages", json={"content": "go on"}).json()
     wait_run(client, cid, again["run"]["id"])
@@ -235,7 +280,14 @@ def test_the_next_turn_remembers_the_question_and_answer(make_client, wait_run, 
     second = client.post(f"/api/conversations/{cid}/messages", json={"content": "again"}).json()
     wait_run(client, cid, second["run"]["id"])
     history = model.calls[-1]
-    assert [m["role"] for m in history] == ["system", "user", "assistant", "tool", "assistant", "user"]
+    assert [m["role"] for m in history] == [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "user",
+    ]
     assert history[3]["content"] == "The user answered: hey"
 
 
@@ -244,21 +296,28 @@ def test_built_in_roles_gain_ask_user_and_the_rest_is_left_alone(tmp_path):
     cfg = _config(db)
     command.upgrade(cfg, "0003")
     at = "2026-10-05 10:00:00"
-    rows = [("b1", "Reviewer", ["read_file"], 1), ("b2", "Lead", ["read_file", "ask_user"], 1),
-            ("u1", "Mine", ["read_file"], 0)]
+    rows = [
+        ("b1", "Reviewer", ["read_file"], 1),
+        ("b2", "Lead", ["read_file", "ask_user"], 1),
+        ("u1", "Mine", ["read_file"], 0),
+    ]
     with sqlite3.connect(db) as conn:
         for id, name, tools, builtin in rows:
             conn.execute(
                 "INSERT INTO roles (id, name, description, instructions, tools, builtin, "
                 "created_by_agent, created_at, updated_at) VALUES (?, ?, '', '', ?, ?, 0, ?, ?)",
-                (id, name, json.dumps(tools), builtin, at, at))
+                (id, name, json.dumps(tools), builtin, at, at),
+            )
 
     command.upgrade(cfg, "0004")
     with sqlite3.connect(db) as conn:
         tools = {name: json.loads(t) for name, t in conn.execute("SELECT name, tools FROM roles")}
         columns = [row[1] for row in conn.execute("PRAGMA table_info(questions)")]
-    assert tools == {"Reviewer": ["read_file", "ask_user"], "Lead": ["read_file", "ask_user"],
-                     "Mine": ["read_file"]}
+    assert tools == {
+        "Reviewer": ["read_file", "ask_user"],
+        "Lead": ["read_file", "ask_user"],
+        "Mine": ["read_file"],
+    }
     assert "answer" in columns
 
     command.downgrade(cfg, "0003")
@@ -278,11 +337,14 @@ def test_the_users_answer_is_never_trimmed_out_of_the_history(
 ):
     settings_env["KOLONI_CONTEXT_CHARS"] = "2400"
     (project_dir / "big.txt").write_text("x" * 900 + "\n", encoding="utf-8")
-    client, model = make_client([
-        ask("May I touch migrations?"),
-        step(call("read_file", {"path": "big.txt"}, "a")),
-        step(call("read_file", {"path": "big.txt"}, "b")),
-        text("done")])
+    client, model = make_client(
+        [
+            ask("May I touch migrations?"),
+            step(call("read_file", {"path": "big.txt"}, "a")),
+            step(call("read_file", {"path": "big.txt"}, "b")),
+            text("done"),
+        ]
+    )
     cid, run_id = begin(client, project_dir)
     question = wait_status(client, cid, "waiting_approval")["questions"][0]
     answer(client, question["id"], "No, leave migrations alone")
@@ -298,8 +360,10 @@ def test_only_the_first_of_two_simultaneous_answers_is_taken(make_client, wait_r
     question = wait_status(client, cid, "waiting_approval")["questions"][0]
     runner = client.app.state.runner
     # Both arrive before the agent task has had a chance to wake up.
-    assert [runner.answer_question(question["id"], "first"),
-            runner.answer_question(question["id"], "second")] == [True, False]
+    assert [
+        runner.answer_question(question["id"], "first"),
+        runner.answer_question(question["id"], "second"),
+    ] == [True, False]
     snap = wait_run(client, cid, run_id)
     assert snap["questions"][0]["answer"] == "first"
     assert model.calls[1][-1]["content"] == "The user answered: first"
@@ -350,13 +414,20 @@ def test_a_shutdown_closes_a_waiting_question(make_client, project_dir):
 
 
 def test_question_limits_at_their_edges(make_client, wait_run, project_dir):
-    client, _ = make_client([
-        step(call("ask_user", {"question": "q" * 2000, "options": list("abcdef")}, "ok"),),
-        step(call("ask_user", {"question": "x?", "options": ["a", "o" * 201]}, "a"),
-             call("ask_user", {"question": "x?", "options": "yes"}, "b"),
-             call("ask_user", {"question": "x?", "options": {}}, "c"),
-             call("ask_user", {"question": "x?", "options": ["yes", "yes"]}, "d")),
-        text("ok")])
+    client, _ = make_client(
+        [
+            step(
+                call("ask_user", {"question": "q" * 2000, "options": list("abcdef")}, "ok"),
+            ),
+            step(
+                call("ask_user", {"question": "x?", "options": ["a", "o" * 201]}, "a"),
+                call("ask_user", {"question": "x?", "options": "yes"}, "b"),
+                call("ask_user", {"question": "x?", "options": {}}, "c"),
+                call("ask_user", {"question": "x?", "options": ["yes", "yes"]}, "d"),
+            ),
+            text("ok"),
+        ]
+    )
     cid, run_id = begin(client, project_dir)
     snap = wait_status(client, cid, "waiting_approval")
     assert len(snap["questions"][0]["options"]) == 6
@@ -378,14 +449,21 @@ def test_an_agent_that_cannot_ask_is_not_told_to(make_client, wait_run, project_
 
 def test_a_sub_agent_that_could_only_ask_is_not_opened(make_client, wait_run, project_dir):
     client, _ = make_client([spawn("Reviewer"), spawn("Runner", id="s2"), text("r"), text("l")])
-    client.patch(f"/api/roles/{role_id(client, 'Reviewer')}",
-                 json={"tools": ["list_dir", "read_file", "search", "view_image", "spawn_agent", "ask_user"]})
+    client.patch(
+        f"/api/roles/{role_id(client, 'Reviewer')}",
+        json={
+            "tools": ["list_dir", "read_file", "search", "view_image", "spawn_agent", "ask_user"]
+        },
+    )
     # (B-333: a sub-agent is capped by the Orchestrator's tools, not its opener's - a Runner with
     # run_command would be opened now; one that can only ask still is not)
     client.post("/api/roles", json={"name": "Runner", "tools": ["ask_user"]})
     cid, run_id = begin(client, project_dir)
     snap = wait_run(client, cid, run_id)
-    assert snap["tool_calls"][1]["status"] == "failed" and "no tools" in snap["tool_calls"][1]["result"]
+    assert (
+        snap["tool_calls"][1]["status"] == "failed"
+        and "no tools" in snap["tool_calls"][1]["result"]
+    )
     assert len(snap["agents"]) == 2
 
 
@@ -403,8 +481,9 @@ def test_the_same_question_a_third_time_is_refused_and_another_still_asked(
     make_client, wait_run, project_dir
 ):
     # B-394 (live): answered at once from before, an agent asked one question 20 times
-    client, model = make_client([ask(id="q1"), ask(id="q2"), ask(id="q3"),
-                                 ask("Which colour?", id="q4"), text("ok")])
+    client, model = make_client(
+        [ask(id="q1"), ask(id="q2"), ask(id="q3"), ask("Which colour?", id="q4"), text("ok")]
+    )
     cid, run_id = begin(client, project_dir)
     answer_next(client, cid, "hey")
     answer_next(client, cid, "hey")
@@ -412,7 +491,11 @@ def test_the_same_question_a_third_time_is_refused_and_another_still_asked(
     snap = wait_run(client, cid, run_id)
     assert model.calls[3][-1]["content"] == ASKED_AGAIN.format(count=3, answer='"hey"')
     assert [t["status"] for t in snap["tool_calls"]] == [
-        "succeeded", "succeeded", "failed", "succeeded"]
+        "succeeded",
+        "succeeded",
+        "failed",
+        "succeeded",
+    ]
     assert [q["question"] for q in snap["questions"]] == ["Which greeting?"] * 2 + ["Which colour?"]
     assert snap["runs"][0]["status"] == "completed"
 

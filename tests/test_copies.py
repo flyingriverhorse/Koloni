@@ -35,7 +35,9 @@ def test_the_scratch_under_koloni_tmp_is_neither_copied_nor_offered(project, run
         (project / rel).parent.mkdir(parents=True, exist_ok=True)
         (project / rel).write_text("{}", encoding="utf-8")
     copy = copies.make(project, runtime, "a1")
-    assert (copy.root / ".koloni/settings.json").exists() and not (copy.root / ".koloni/tmp").exists()
+    assert (copy.root / ".koloni/settings.json").exists() and not (
+        copy.root / ".koloni/tmp"
+    ).exists()
     (copy.root / ".koloni/tmp").mkdir()
     (copy.root / ".koloni/tmp/run.log").write_text("made\n", encoding="utf-8")
     (copy.root / ".koloni/rules.md").write_text("be brief\n", encoding="utf-8")
@@ -46,7 +48,8 @@ def tree(top: Path) -> dict[str, bytes]:
     """Every file under a folder with what it holds, links followed."""
     return {
         path.relative_to(top).as_posix(): path.read_bytes()
-        for path in sorted(top.rglob("*")) if path.is_file()
+        for path in sorted(top.rglob("*"))
+        if path.is_file()
     }
 
 
@@ -67,9 +70,7 @@ def test_removing_a_copy_leaves_what_its_links_lead_to(project, runtime):
     assert tree(project) == before
 
 
-def test_a_removal_that_fails_half_way_has_taken_the_links_out_first(
-    project, runtime, monkeypatch
-):
+def test_a_removal_that_fails_half_way_has_taken_the_links_out_first(project, runtime, monkeypatch):
     before = tree(project)
     copy = copies.make(project, runtime, "a1")
     real = copies._unlink_file
@@ -84,14 +85,12 @@ def test_a_removal_that_fails_half_way_has_taken_the_links_out_first(
     assert copy.root.is_dir() and not (copy.root / "node_modules").exists()
     assert tree(project) == before
     monkeypatch.setattr(copies, "_unlink_file", real)
-    copies.clear(runtime)       # the next start deletes what was left
+    copies.clear(runtime)  # the next start deletes what was left
     assert not copy.root.exists() and tree(project) == before
 
 
 @pytest.mark.skipif(os.name != "nt", reason="only Windows keeps an open file from being deleted")
-def test_a_file_held_open_stops_the_removal_and_nothing_of_the_project_is_lost(
-    project, runtime
-):
+def test_a_file_held_open_stops_the_removal_and_nothing_of_the_project_is_lost(project, runtime):
     before = tree(project)
     copy = copies.make(project, runtime, "a1")
     with (copy.root / "src" / "app.py").open("rb"):
@@ -138,9 +137,25 @@ def test_a_copy_that_is_itself_a_link_is_removed_as_one(project, runtime):
     assert tree(project) == before
 
 
-@pytest.mark.parametrize("name", ["", ".", "..", "../proj", "a/b", pytest.param("a\\b", marks=(
-    pytest.mark.skipif(os.name != "nt", reason="a backslash is a folder's mark on Windows only"))),
-    "C:proj"])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "",
+        ".",
+        "..",
+        "../proj",
+        "a/b",
+        pytest.param(
+            "a\\b",
+            marks=(
+                pytest.mark.skipif(
+                    os.name != "nt", reason="a backslash is a folder's mark on Windows only"
+                )
+            ),
+        ),
+        "C:proj",
+    ],
+)
 def test_nothing_but_a_folder_directly_in_the_copies_folder_is_deleted(project, runtime, name):
     copies.folder(runtime).mkdir(parents=True)
     before = tree(project)
@@ -167,7 +182,7 @@ def test_at_the_start_every_copy_left_over_is_deleted(project, runtime):
     copies.clear(runtime)
     assert not one.root.exists() and not two.root.exists()
     assert tree(project) == before
-    copies.clear(runtime / "never-made")       # nothing there: nothing to do
+    copies.clear(runtime / "never-made")  # nothing there: nothing to do
 
 
 # --- making -------------------------------------------------------------------------------
@@ -269,13 +284,16 @@ def test_what_a_copy_changed_is_new_changed_or_deleted(project, runtime):
     (copy.root / "__pycache__" / "x.pyc").write_bytes(b"\x00")
     (copy.root / "node_modules" / "pkg" / "added.js").write_text("shared", encoding="utf-8")
     assert copy.changes() == [
-        ("hello.py", "changed", "ready"), ("new.txt", "new", "ready"),
+        ("hello.py", "changed", "ready"),
+        ("new.txt", "new", "ready"),
         ("src/app.py", "deleted", "ready"),
     ]
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
-def test_a_new_file_git_ignores_is_not_offered_and_one_the_project_has_is(project, runtime, tmp_path):
+def test_a_new_file_git_ignores_is_not_offered_and_one_the_project_has_is(
+    project, runtime, tmp_path
+):
     # B-189 (live): a generated data/clean.csv in .gitignore was taken in, and two teams' clashed.
     from tests.test_take_in_scenarios import repository
 
@@ -289,9 +307,12 @@ def test_a_new_file_git_ignores_is_not_offered_and_one_the_project_has_is(projec
         (copy.root / name).write_text("made\n", encoding="utf-8")
     # (The coordinator's: only a new one is left out - an ignored file the project has, changed,
     # goes through Take in as before, with its cards.)
-    assert copy.changes() == [(".vscode/settings.json", "changed", "ready"),
-                              ("data/clean.csv", "new", "left_out"), ("run.log", "new", "left_out"),
-                              ("src/new.py", "new", "ready")]
+    assert copy.changes() == [
+        (".vscode/settings.json", "changed", "ready"),
+        ("data/clean.csv", "new", "left_out"),
+        ("run.log", "new", "left_out"),
+        ("src/new.py", "new", "ready"),
+    ]
     assert copy.state("run.log") == ("new", "left_out") and copy.ignored("data/clean.csv")
     assert not copy.ignored(".vscode/settings.json") and not copy.ignored("src/new.py")
     # Asked once a file: a look again runs no git for it.
@@ -325,8 +346,9 @@ def test_a_file_the_project_changed_meanwhile_is_a_conflict(project, runtime):
     (project / "same.txt").write_text("from the copy", encoding="utf-8")
     (project / "src" / "app.py").write_text("x = 2\n", encoding="utf-8")
     assert copy.changes() == [
-        ("hello.py", "changed", "conflict"), ("new.txt", "new", "conflict"),
-        ("same.txt", "new", "ready"),          # both hold the same: nothing is lost
+        ("hello.py", "changed", "conflict"),
+        ("new.txt", "new", "conflict"),
+        ("same.txt", "new", "ready"),  # both hold the same: nothing is lost
         ("src/app.py", "deleted", "conflict"),
     ]
     # and a file the copy did not change is not its business, whatever the project did
@@ -357,16 +379,14 @@ def test_put_makes_the_projects_file_what_the_copys_is(project, runtime):
 # --- refreshing ---------------------------------------------------------------------------
 
 
-def test_a_file_taken_into_the_project_is_refreshed_where_the_copy_left_it_alone(
-    project, runtime
-):
+def test_a_file_taken_into_the_project_is_refreshed_where_the_copy_left_it_alone(project, runtime):
     copy = copies.make(project, runtime, "a1")
     (copy.root / "src" / "app.py").write_text("mine", encoding="utf-8")
     (project / "hello.py").write_text("print('new')\n", encoding="utf-8")
     (project / "src" / "app.py").write_text("theirs", encoding="utf-8")
     (project / "added.txt").write_text("added", encoding="utf-8")
     assert copy.refresh("hello.py") and copy.refresh("added.txt")
-    assert not copy.refresh("src/app.py")                       # its own change stays
+    assert not copy.refresh("src/app.py")  # its own change stays
     assert (copy.root / "hello.py").read_text(encoding="utf-8") == "print('new')\n"
     assert (copy.root / "added.txt").read_text(encoding="utf-8") == "added"
     assert (copy.root / "src" / "app.py").read_text(encoding="utf-8") == "mine"
@@ -444,7 +464,7 @@ def test_a_file_the_copy_deleted_is_not_deleted_through_a_link_of_the_projects(
 ):
     copy = copies.make(project, runtime, "a1")
     (elsewhere / "app.py").write_bytes(b"x = 1\n")
-    swap(project / "src", elsewhere)            # the project's folder became a link meanwhile
+    swap(project / "src", elsewhere)  # the project's folder became a link meanwhile
     (copy.root / "src" / "app.py").unlink()
     assert copy.changes() == [("src/app.py", "deleted", "refused")]
     with pytest.raises(OSError):
@@ -524,7 +544,7 @@ def test_what_a_copy_was_made_from_is_kept_beside_its_tree_and_read_again(projec
     copy = copies.make(project, runtime, "a1")
     base = copy.root.parent / copies.BASE_FILE
     assert base.is_file()
-    assert not (copy.root / copies.BASE_FILE).exists()      # not where the agent works
+    assert not (copy.root / copies.BASE_FILE).exists()  # not where the agent works
     (copy.root / "hello.py").write_text("print('yo')\n", encoding="utf-8")
     (copy.root / "new.txt").write_text("n", encoding="utf-8")
     copies.unlink(runtime, "a1")
@@ -575,29 +595,33 @@ def test_without_what_it_was_made_from_a_kept_copy_is_compared_with_the_project_
     project, runtime
 ):
     copy = kept_without_a_base(project, runtime)
-    (copy.root / "hello.py").write_text("print('yo')\n", encoding="utf-8")   # differs
-    (copy.root / "new.txt").write_text("n", encoding="utf-8")                # the project lacks it
-    (copy.root / "src" / "app.py").unlink()            # deleted there - or never copied
+    (copy.root / "hello.py").write_text("print('yo')\n", encoding="utf-8")  # differs
+    (copy.root / "new.txt").write_text("n", encoding="utf-8")  # the project lacks it
+    (copy.root / "src" / "app.py").unlink()  # deleted there - or never copied
     (copy.root / "dist").mkdir()
-    (copy.root / "dist" / "out.js").write_text("built", encoding="utf-8")    # left out of a copy
+    (copy.root / "dist" / "out.js").write_text("built", encoding="utf-8")  # left out of a copy
     (copy.root / "node_modules" / "pkg").mkdir(parents=True)
     (copy.root / "node_modules" / "pkg" / "evil.js").write_text("x", encoding="utf-8")
     # a file that differs is the agent's change only where one is on record: without one
     # it may as well be the user's later work, and is not offered
     assert copies.kept(project, runtime, "a1", copy.root).changes() == [
-        ("hello.py", "changed", "left_out"), ("new.txt", "new", "conflict")]
-    kept = copies.kept(project, runtime, "a1", copy.root, ["Hello.py" if os.name == "nt"
-                                                           else "hello.py"])
+        ("hello.py", "changed", "left_out"),
+        ("new.txt", "new", "conflict"),
+    ]
+    kept = copies.kept(
+        project, runtime, "a1", copy.root, ["Hello.py" if os.name == "nt" else "hello.py"]
+    )
     assert kept.two_way and kept.root == copy.root
     # nothing vouches for a file: never ready; the same file is not listed; nothing is deleted
     assert kept.changes() == [("hello.py", "changed", "conflict"), ("new.txt", "new", "conflict")]
     assert kept.state("src/app.py") is None
     kept.put("new.txt")
     kept.taken("new.txt")
-    kept.save()                                         # no base is made up for it afterwards
+    kept.save()  # no base is made up for it afterwards
     assert not (copy.root.parent / copies.BASE_FILE).exists()
     assert copies.kept(project, runtime, "a1", copy.root, ["hello.py"]).changes() == [
-        ("hello.py", "changed", "conflict")]
+        ("hello.py", "changed", "conflict")
+    ]
     assert (project / "src" / "app.py").is_file()
 
 
@@ -633,15 +657,13 @@ def test_a_kept_copy_whose_tree_is_a_link_is_not_compared_at_all(project, runtim
         copies.kept(project, runtime, "a1", copy.root)
 
 
-def test_a_folder_that_lost_its_tree_is_not_taken_for_a_copy_of_the_older_layout(
-    project, runtime
-):
+def test_a_folder_that_lost_its_tree_is_not_taken_for_a_copy_of_the_older_layout(project, runtime):
     """What is left in it is KOLONİ's own note of what the copy was made from - not a
     file of the copy's, to be offered to the project."""
     copy = copies.make(project, runtime, "a1")
     copies.unlink(runtime, "a1")
     shutil.rmtree(copy.root)
-    for on_record in (copy.root, copy.root.parent):     # whichever the records say it is
+    for on_record in (copy.root, copy.root.parent):  # whichever the records say it is
         with pytest.raises((OSError, ValueError)):
             copies.kept(project, runtime, "a1", on_record)
 

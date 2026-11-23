@@ -25,7 +25,8 @@ async def _until_closed(sub, closing: asyncio.Event, cursor: int):
         while True:
             item = asyncio.ensure_future(anext(sub))
             done, _ = await asyncio.wait(
-                {item, shut}, timeout=PING_SECONDS, return_when=asyncio.FIRST_COMPLETED)
+                {item, shut}, timeout=PING_SECONDS, return_when=asyncio.FIRST_COMPLETED
+            )
             if item not in done:
                 item.cancel()  # (its queue keeps what came: none is lost)
                 if shut in done:
@@ -79,7 +80,8 @@ async def stream_events(
             if once:
                 return
             async with contextlib.aclosing(
-                    _until_closed(sub, request.app.state.closing, cursor)) as rest:
+                _until_closed(sub, request.app.state.closing, cursor)
+            ) as rest:
                 async for chunk in rest:
                     yield chunk
 

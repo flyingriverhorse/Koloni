@@ -145,7 +145,8 @@ class Project(Base):
     # meaning (`app.meaning`), and the model name it is asked for; None: word search alone.
     embedding_provider_id: Mapped[str | None] = mapped_column(String(32), default=None)
     embedding_model: Mapped[str] = mapped_column(
-        String(200), default="text-embedding-3-small", server_default="text-embedding-3-small")
+        String(200), default="text-embedding-3-small", server_default="text-embedding-3-small"
+    )
     # Folders outside the project a new chat in it starts with, as they really are (slice
     # 41; its chats' own lists since slice 86b).
     also_in: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
@@ -192,7 +193,8 @@ class Project(Base):
     # every chat of it, old ones too (`settings_of`): named as a chat's own, kept unused.
     # Who changes the files.
     lead_work: Mapped[str] = mapped_column(
-        String(9), default="delegates", server_default="delegates")
+        String(9), default="delegates", server_default="delegates"
+    )
     # K-cli-vekil: who answers while the user is away, and after how many minutes.
     when_away: Mapped[str] = mapped_column(String(5), default="lead", server_default="lead")
     away_minutes: Mapped[int] = mapped_column(Integer, default=5, server_default="5")
@@ -208,7 +210,8 @@ class Project(Base):
     # B-414: the least tokens an agent's room is given, whatever it asks (`room_tokens` wins
     # where it is lower); None: none.
     room_min_tokens: Mapped[int | None] = mapped_column(
-        Integer, default=ROOM_MIN_TOKENS, server_default=str(ROOM_MIN_TOKENS))
+        Integer, default=ROOM_MIN_TOKENS, server_default=str(ROOM_MIN_TOKENS)
+    )
     # 89m, "Finish only when the tests pass", as the user last set it (None: never said). Kept
     # (0162), read only for `after_change_from_off`: `after_change` holds the setting now.
     finish_tests: Mapped[bool | None] = mapped_column(Boolean, default=None)
@@ -247,8 +250,7 @@ class Project(Base):
     # Coordination §4: whether agents delete what KOLONİ checked is disposable (a build or cache
     # folder, a clean worktree, a merged branch) without a card, at Auto-edit and Full auto in a
     # watched turn. The user's own setting, off until they allow it.
-    disposable_deletes: Mapped[bool] = mapped_column(Boolean, default=False,
-                                                     server_default=false())
+    disposable_deletes: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
     @property
     def has_notify_url(self) -> bool:
@@ -303,7 +305,8 @@ class Conversation(Base):
     # that write files and hands every change to a sub-agent; "decides" - it makes a small
     # change itself and hands bigger work on; "itself". A new chat starts with its folder's.
     lead_work: Mapped[str] = mapped_column(
-        String(9), default="delegates", server_default="delegates")
+        String(9), default="delegates", server_default="delegates"
+    )
     # While the user is away (K-vekil-karar): "waits" - every question waits for them - or
     # "lead": the Lead answers what it safely can, once a question has waited `away_minutes`
     # (at once while the folder's night runs). A plain chat's stays "waits": it cannot change it.
@@ -319,7 +322,8 @@ class Conversation(Base):
     room_tokens: Mapped[int | None] = mapped_column(Integer, default=None)
     room_minutes: Mapped[int | None] = mapped_column(Integer, default=30, server_default="30")
     room_min_tokens: Mapped[int | None] = mapped_column(
-        Integer, default=ROOM_MIN_TOKENS, server_default=str(ROOM_MIN_TOKENS))
+        Integer, default=ROOM_MIN_TOKENS, server_default=str(ROOM_MIN_TOKENS)
+    )
     # Folders outside the project this conversation also works in: its folder's at its
     # start, named in the user's own messages, allowed from a card ("Allow this folder") or
     # added in "This chat's folders" (slice 86b). Its agents use these lists only.
@@ -332,7 +336,8 @@ class Conversation(Base):
     # user) or "none" (any role); the rows picked are `teams`.
     teams_mode: Mapped[str] = mapped_column(String(8), default="none", server_default="none")
     teams: Mapped[list["ConversationTeam"]] = relationship(
-        lazy="selectin", order_by="ConversationTeam.position", cascade="all, delete-orphan")
+        lazy="selectin", order_by="ConversationTeam.position", cascade="all, delete-orphan"
+    )
     created_at: Mapped[datetime] = mapped_column(default=now)
     updated_at: Mapped[datetime] = mapped_column(default=now)
     # When the user put it away (its list's "Archived" part); None: it is not. Nothing of
@@ -352,8 +357,16 @@ def project_of(session, conversation: Conversation) -> Project | None:
 
 # What of a chat is read from its folder (`settings_of`); and `lead_work` (`lead_work_of`).
 SPAWN = ("spawn_approval", "spawn_max_depth", "spawn_max_agents", "spawn_max_parallel")
-FOLLOWED = (*SPAWN, "discussion_budget", "when_away", "away_minutes", "room_posts", "room_tokens",
-            "room_minutes", "room_min_tokens")
+FOLLOWED = (
+    *SPAWN,
+    "discussion_budget",
+    "when_away",
+    "away_minutes",
+    "room_posts",
+    "room_tokens",
+    "room_minutes",
+    "room_min_tokens",
+)
 
 
 def settings_of(session, conversation: Conversation) -> Project | Conversation:
@@ -371,8 +384,9 @@ def lead_work_of(session, conversation: Conversation) -> str:
     project = project_of(session, conversation)
     if project is None:
         return conversation.lead_work
-    todo = project.backlog_lead_work and session.scalar(select(BacklogTask.id).where(
-        BacklogTask.conversation_id == conversation.id).limit(1))
+    todo = project.backlog_lead_work and session.scalar(
+        select(BacklogTask.id).where(BacklogTask.conversation_id == conversation.id).limit(1)
+    )
     return project.backlog_lead_work if todo else project.lead_work
 
 
@@ -380,17 +394,26 @@ def new_chat(session, project: Project | None) -> Conversation:
     """A new chat, added: it starts with its folder's other folders (slice 86b) and teams
     (84b) - less a team gone since; a recipe gone since is the team's default. From here they
     are its own."""
-    conversation = Conversation(project_id=project.id if project else None,
-                                also_in=list(project.also_in) if project else [],
-                                read_in=list(project.read_in) if project else [])
+    conversation = Conversation(
+        project_id=project.id if project else None,
+        also_in=list(project.also_in) if project else [],
+        read_in=list(project.read_in) if project else [],
+    )
     if project is not None and project.teams_mode != "none":
         conversation.teams_mode = project.teams_mode
         rows = [row for row in project.teams if session.get(Team, row["team_id"]) is not None]
-        conversation.teams = [ConversationTeam(
-            team_id=row["team_id"], picked_by="user", position=at,
-            recipe_id=row.get("recipe_id") if session.get(Recipe, row.get("recipe_id") or "")
-            else None, no_recipe=bool(row.get("no_recipe")),
-        ) for at, row in enumerate(rows)]
+        conversation.teams = [
+            ConversationTeam(
+                team_id=row["team_id"],
+                picked_by="user",
+                position=at,
+                recipe_id=row.get("recipe_id")
+                if session.get(Recipe, row.get("recipe_id") or "")
+                else None,
+                no_recipe=bool(row.get("no_recipe")),
+            )
+            for at, row in enumerate(rows)
+        ]
     session.add(conversation)
     return conversation
 
@@ -474,8 +497,7 @@ class Message(Base):
     conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id"), index=True)
     run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), index=True)
     # The agent that wrote it; None for the user's own messages.
-    agent_id: Mapped[str | None] = mapped_column(
-        ForeignKey("agents.id"), default=None, index=True)
+    agent_id: Mapped[str | None] = mapped_column(ForeignKey("agents.id"), default=None, index=True)
     # "user", "assistant", "agent": a message another agent sent to `agent_id`,
     # "memory": KOLONİ telling `agent_id` that a fact it was given no longer stands, or
     # "trigger": what started an unattended turn - the trigger's message, not the user's
@@ -522,7 +544,8 @@ class Attachment(Base):
     conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id"), index=True)
     # None until the message it was added to is sent.
     message_id: Mapped[str | None] = mapped_column(
-        ForeignKey("messages.id"), default=None, index=True)
+        ForeignKey("messages.id"), default=None, index=True
+    )
     # A frame the page took of a video (`app.attachments.MAX_FRAMES` of each), and which.
     frame_of: Mapped[str | None] = mapped_column(ForeignKey("attachments.id"), default=None)
     name: Mapped[str] = mapped_column(String(200))
@@ -642,7 +665,8 @@ class AllowedCommand(Base):
     __tablename__ = "allowed_commands"
     __table_args__ = (
         UniqueConstraint(
-            "conversation_id", "project_id", "prefix", name="uq_allowed_commands_prefix"),
+            "conversation_id", "project_id", "prefix", name="uq_allowed_commands_prefix"
+        ),
     )
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id"), index=True)
@@ -689,9 +713,11 @@ class AllowedWeb(Base):
     )
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     conversation_id: Mapped[str | None] = mapped_column(
-        ForeignKey("conversations.id"), index=True, default=None)
+        ForeignKey("conversations.id"), index=True, default=None
+    )
     project_id: Mapped[str | None] = mapped_column(
-        ForeignKey("projects.id"), index=True, default=None)
+        ForeignKey("projects.id"), index=True, default=None
+    )
     kind: Mapped[str] = mapped_column(String(8))
     host: Mapped[str] = mapped_column(String(253), default="")
     ask_first: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
@@ -799,8 +825,7 @@ class Agent(Base):
     # It was stopped by a limit, a rule or a count of KOLONİ's own (a step or token limit,
     # a turn's budget, a trigger's permissions, the same failure 5 times unwatched): not
     # a failure, in the track record (`app.record`). False for every agent before this.
-    stopped_by_koloni: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default=false())
+    stopped_by_koloni: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # What the Observer's model said of its report (at most three sentences): an opinion,
     # signed by `observed_by` ({"provider_name", "model_id"}, as on `asked_how_hard`).
     # None with `observation_note` saying why there is none; both None: nobody was asked.
@@ -853,17 +878,26 @@ class Agent(Base):
         history: KOLONİ compacts that (`AgentRunner._idle_after`, Compact now).
         shortcut: one run step by step too, as before - though each step is a CLI started anew,
         its history only trimmed; compact it as an API model's once step mode is worth it."""
-        return self.provider_mode == "step" or self.cli_session is not None or bool(
-            self.provider_mode and self.depth)
+        return (
+            self.provider_mode == "step"
+            or self.cli_session is not None
+            or bool(self.provider_mode and self.depth)
+        )
 
     @property
     def summary_correctable(self) -> bool:
         """Whether a model is still to read what the user writes for its working state: it
         has a summary with its anchor, and is a lead (a later turn's lead goes on from it)
         or still at work. Whether a later agent goes on from it already is not said here."""
-        return bool(self.summary) and self.summary_anchor is not None and (
-            self.depth == 0
-            or self.status not in ("completed", "failed", "cancelled", "rejected", "interrupted"))
+        return (
+            bool(self.summary)
+            and self.summary_anchor is not None
+            and (
+                self.depth == 0
+                or self.status
+                not in ("completed", "failed", "cancelled", "rejected", "interrupted")
+            )
+        )
 
 
 class OwnRequest(Base):
@@ -1146,7 +1180,11 @@ class Memory(Base):
     __table_args__ = (
         # One record in effect on a subject, in each tier.
         Index(
-            "uq_memories_active_subject", "project_id", "tier", "about_key", unique=True,
+            "uq_memories_active_subject",
+            "project_id",
+            "tier",
+            "about_key",
+            unique=True,
             sqlite_where=text("status = 'active'"),
         ),
     )
@@ -1325,7 +1363,8 @@ class Role(Base):
     # Off: no agent opens it unless the user names it in the turn's message (slice 62).
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
     teams: Mapped[list["Team"]] = relationship(
-        secondary="role_teams", lazy="selectin", order_by="[Team.created_at, Team.id]")
+        secondary="role_teams", lazy="selectin", order_by="[Team.created_at, Team.id]"
+    )
     # The providers (their ids) an agent may pick for a sub-agent of this role, out of
     # the team guide. None: every one in the guide; empty: none - the role runs on its
     # own model.
@@ -1360,11 +1399,23 @@ class Role(Base):
         session = object_session(self)
         if session is None:
             return []
-        rows = {row.id: row for row in session.scalars(select(ProjectKnowledge).where(
-            ProjectKnowledge.id.in_([one["knowledge_id"] for one in self.knows or []])))}
-        return [{**one, "topic": rows[one["knowledge_id"]].topic,
-                 "project_id": rows[one["knowledge_id"]].project_id}
-                for one in self.knows or [] if one["knowledge_id"] in rows]
+        rows = {
+            row.id: row
+            for row in session.scalars(
+                select(ProjectKnowledge).where(
+                    ProjectKnowledge.id.in_([one["knowledge_id"] for one in self.knows or []])
+                )
+            )
+        }
+        return [
+            {
+                **one,
+                "topic": rows[one["knowledge_id"]].topic,
+                "project_id": rows[one["knowledge_id"]].project_id,
+            }
+            for one in self.knows or []
+            if one["knowledge_id"] in rows
+        ]
 
 
 class ProjectKnowledge(Base):
@@ -1376,7 +1427,8 @@ class ProjectKnowledge(Base):
     __tablename__ = "knowledge"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     project_id: Mapped[str | None] = mapped_column(
-        ForeignKey("projects.id"), index=True, default=None)
+        ForeignKey("projects.id"), index=True, default=None
+    )
     # Its folder's name; never changed (a new topic is a new folder: a new knowledge).
     topic: Mapped[str] = mapped_column(String(40))
     sources: Mapped[list] = mapped_column(JSON)
@@ -1400,8 +1452,12 @@ class NotesOffer(Base):
     __tablename__ = "notes_offers"
     __table_args__ = (
         # One waits in a project at a time.
-        Index("uq_notes_offers_waiting", "project_id", unique=True,
-              sqlite_where=text("status = 'waiting'")),
+        Index(
+            "uq_notes_offers_waiting",
+            "project_id",
+            unique=True,
+            sqlite_where=text("status = 'waiting'"),
+        ),
     )
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
@@ -1435,9 +1491,11 @@ class Team(Base):
     # Slice 84a: the recipe it runs by where a chat picks none (84b); one of KOLONİ's, not a
     # folder's.
     default_recipe_id: Mapped[str | None] = mapped_column(
-        ForeignKey("recipes.id", ondelete="SET NULL"), default=None)
+        ForeignKey("recipes.id", ondelete="SET NULL"), default=None
+    )
     stages: Mapped[list["TeamStage"]] = relationship(
-        lazy="selectin", order_by="TeamStage.position", cascade="all, delete-orphan")
+        lazy="selectin", order_by="TeamStage.position", cascade="all, delete-orphan"
+    )
 
 
 class Recipe(Base):
@@ -1461,13 +1519,15 @@ class ConversationTeam(Base):
     __tablename__ = "conversation_teams"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     conversation_id: Mapped[str] = mapped_column(
-        ForeignKey("conversations.id", ondelete="CASCADE"), index=True)
+        ForeignKey("conversations.id", ondelete="CASCADE"), index=True
+    )
     team_id: Mapped[str] = mapped_column(ForeignKey("teams.id", ondelete="CASCADE"))
     # None: the team's default recipe.
     # shortcut: one of KOLONİ's only - a folder's own (.koloni/recipes) are files, not rows; let
     # a row name one when 84b-2 runs recipes and a folder's are wanted in a chat.
     recipe_id: Mapped[str | None] = mapped_column(
-        ForeignKey("recipes.id", ondelete="SET NULL"), default=None)
+        ForeignKey("recipes.id", ondelete="SET NULL"), default=None
+    )
     # K-tarifsiz: the user's "No recipe" in this chat - not even the team's default; its lead
     # splits the work itself. Never with a `recipe_id`.
     # shortcut: the user's in Manual only - the Lead's pick_teams cannot say it; add it there
@@ -1497,12 +1557,15 @@ class TeamStage(Base):
 class RoleTeam(Base):
     __tablename__ = "role_teams"
     role_id: Mapped[str] = mapped_column(
-        ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True)
+        ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True
+    )
     team_id: Mapped[str] = mapped_column(
-        ForeignKey("teams.id", ondelete="CASCADE"), primary_key=True)
+        ForeignKey("teams.id", ondelete="CASCADE"), primary_key=True
+    )
     # Its stage in that team; None only until `app.roles.place_in_stages` gives it one.
     stage_id: Mapped[str | None] = mapped_column(
-        ForeignKey("team_stages.id", ondelete="SET NULL"), default=None)
+        ForeignKey("team_stages.id", ondelete="SET NULL"), default=None
+    )
 
 
 class Skill(Base):
@@ -1578,7 +1641,8 @@ class OwnCommand(Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
     # None: offered in every project.
     project_id: Mapped[str | None] = mapped_column(
-        ForeignKey("projects.id"), index=True, default=None)
+        ForeignKey("projects.id"), index=True, default=None
+    )
     name: Mapped[str] = mapped_column(String(40))
     description: Mapped[str] = mapped_column(Text, default="")
     template: Mapped[str] = mapped_column(Text)

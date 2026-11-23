@@ -4,6 +4,7 @@ and its tier
 Revision ID: 0120
 Revises: 0119
 """
+
 import sqlalchemy as sa
 from alembic import op
 

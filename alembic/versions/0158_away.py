@@ -11,6 +11,7 @@ Going back drops both columns and the old default returns.
 Revision ID: 0158
 Revises: 0156
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -24,10 +25,18 @@ depends_on = None
 def _defaults(when: str, minutes: str) -> None:
     # (A project's only: a plain chat has no way to change its own, so everything waits there.)
     with op.batch_alter_table("projects") as batch:
-        batch.alter_column("when_away", existing_type=sa.String(length=5),
-                           server_default=when, existing_nullable=False)
-        batch.alter_column("away_minutes", existing_type=sa.Integer(),
-                           server_default=minutes, existing_nullable=False)
+        batch.alter_column(
+            "when_away",
+            existing_type=sa.String(length=5),
+            server_default=when,
+            existing_nullable=False,
+        )
+        batch.alter_column(
+            "away_minutes",
+            existing_type=sa.Integer(),
+            server_default=minutes,
+            existing_nullable=False,
+        )
 
 
 def upgrade() -> None:

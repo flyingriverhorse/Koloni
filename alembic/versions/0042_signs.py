@@ -5,6 +5,7 @@ anything for it
 Revision ID: 0042
 Revises: 0041
 """
+
 import sqlalchemy as sa
 from alembic import op
 
@@ -20,8 +21,9 @@ def upgrade() -> None:
         batch.add_column(sa.Column("sign", sa.JSON(), nullable=True))
         batch.add_column(sa.Column("last_event_at", sa.DateTime(), nullable=True))
         # Which failed agents KOLONİ itself stopped: not known of any before this.
-        batch.add_column(sa.Column(
-            "stopped_by_koloni", sa.Boolean(), nullable=False, server_default=sa.false()))
+        batch.add_column(
+            sa.Column("stopped_by_koloni", sa.Boolean(), nullable=False, server_default=sa.false())
+        )
 
 
 def downgrade() -> None:

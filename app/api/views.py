@@ -22,25 +22,39 @@ def _root(session: Session, conversation_id: str) -> str:
 
 
 @router.get(
-    "/{conversation_id}/views", response_model=list[ViewOut],
+    "/{conversation_id}/views",
+    response_model=list[ViewOut],
     dependencies=[Depends(require_origin)],
 )
 def list_views(conversation_id: str, request: Request, session: Session = Depends(get_session)):
-    return views.list_views(session, conversation_id, _root(session, conversation_id),
-                            request.app.state.runner.copy_workspace)
+    return views.list_views(
+        session,
+        conversation_id,
+        _root(session, conversation_id),
+        request.app.state.runner.copy_workspace,
+    )
 
 
 # No origin is asked for: the frame's own requests come from an origin of their own ("null").
 @router.get("/{conversation_id}/views/{view_id}/{name:path}", include_in_schema=False)
 def view_file(
-    conversation_id: str, view_id: str, name: str, request: Request,
+    conversation_id: str,
+    view_id: str,
+    name: str,
+    request: Request,
     session: Session = Depends(get_session),
 ):
     try:
         data, kind = views.serve(
-            session, conversation_id, _root(session, conversation_id),
-            request.app.state.settings.runtime_root, request.app.state.runner.copy_workspace,
-            view_id, name, request.query_params.get("v"))
+            session,
+            conversation_id,
+            _root(session, conversation_id),
+            request.app.state.settings.runtime_root,
+            request.app.state.runner.copy_workspace,
+            view_id,
+            name,
+            request.query_params.get("v"),
+        )
     except views.Refused as refused:
         raise HTTPException(refused.status, str(refused)) from None
     keyed_if_read_by_the_app(request, kind)

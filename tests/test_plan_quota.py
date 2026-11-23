@@ -35,26 +35,57 @@ def iso(when: datetime) -> str:
 
 # As agy 1.4.7 answered `agy -p "/quota" --output-format json` (trimmed).
 AGY_QUOTA = {
-    "conversation_id": "", "status": "SUCCESS", "response": "Weekly limits ...", "num_turns": 0,
+    "conversation_id": "",
+    "status": "SUCCESS",
+    "response": "Weekly limits ...",
+    "num_turns": 0,
     "usage": {"input_tokens": 0, "output_tokens": 0},
-    "command": {"name": "usage", "data": {"groups": [
-        {"name": "Gemini Models", "buckets": [
-            {"id": "gemini-weekly", "name": "Weekly Limit Remaining", "window": "weekly",
-             "remaining_fraction": 0.9216, "reset_time": iso(RESETS)}]},
-        {"name": "Claude and GPT models", "buckets": [
-            {"id": "3p-weekly", "window": "weekly", "remaining_fraction": 1,
-             "reset_time": iso(RESETS + timedelta(hours=6))}]}]}},
+    "command": {
+        "name": "usage",
+        "data": {
+            "groups": [
+                {
+                    "name": "Gemini Models",
+                    "buckets": [
+                        {
+                            "id": "gemini-weekly",
+                            "name": "Weekly Limit Remaining",
+                            "window": "weekly",
+                            "remaining_fraction": 0.9216,
+                            "reset_time": iso(RESETS),
+                        }
+                    ],
+                },
+                {
+                    "name": "Claude and GPT models",
+                    "buckets": [
+                        {
+                            "id": "3p-weekly",
+                            "window": "weekly",
+                            "remaining_fraction": 1,
+                            "reset_time": iso(RESETS + timedelta(hours=6)),
+                        }
+                    ],
+                },
+            ]
+        },
+    },
 }
 # As Copilot 1.0.91 answered `account.getQuota` (trimmed), with whose account it is beside
 # it - which the real answer was not seen to carry, and which is never kept if it does.
 COPILOT_QUOTA = {
-    "login": "someone-on-github", "email": "someone@example.com",
+    "login": "someone-on-github",
+    "email": "someone@example.com",
     "quotaSnapshots": {
         "chat": {"isUnlimitedEntitlement": True, "remainingPercentage": 100},
         "completions": {"isUnlimitedEntitlement": True, "remainingPercentage": 100},
         "premium_interactions": {
-            "remainingPercentage": 9.8, "isUnlimitedEntitlement": False, "usedRequests": 271,
-            "entitlementRequests": 300, "resetDate": iso(RESETS + timedelta(days=1))},
+            "remainingPercentage": 9.8,
+            "isUnlimitedEntitlement": False,
+            "usedRequests": 271,
+            "entitlementRequests": 300,
+            "resetDate": iso(RESETS + timedelta(days=1)),
+        },
     },
 }
 NOW = datetime(2026, 10, 24, 12, tzinfo=UTC)
@@ -75,10 +106,20 @@ def test_agys_groups_are_its_windows_each_a_week():
     shown = app.limits.of_agy(AGY_QUOTA, NOW)
     assert shown["read_at"] == NOW and shown["credits"] is None and shown["plan"] is None
     assert shown["windows"] == [
-        {"name": "Gemini Models", "minutes": 10080, "used_percent": 7.84,
-         "resets_at": RESETS, "stale": False},
-        {"name": "Claude and GPT models", "minutes": 10080, "used_percent": 0,
-         "resets_at": RESETS + timedelta(hours=6), "stale": False},
+        {
+            "name": "Gemini Models",
+            "minutes": 10080,
+            "used_percent": 7.84,
+            "resets_at": RESETS,
+            "stale": False,
+        },
+        {
+            "name": "Claude and GPT models",
+            "minutes": 10080,
+            "used_percent": 0,
+            "resets_at": RESETS + timedelta(hours=6),
+            "stale": False,
+        },
     ]
     assert "unknown" in app.limits.of_agy({"status": "SUCCESS"}, NOW)
 
@@ -86,11 +127,20 @@ def test_agys_groups_are_its_windows_each_a_week():
 def test_copilots_premium_requests_are_its_one_window_and_the_unlimited_are_passed_over():
     shown = app.limits.of_copilot(COPILOT_QUOTA, NOW)
     assert shown["windows"] == [
-        {"name": "premium requests", "minutes": None, "used_percent": 90.2,
-         "resets_at": RESETS + timedelta(days=1), "stale": False}]
+        {
+            "name": "premium requests",
+            "minutes": None,
+            "used_percent": 90.2,
+            "resets_at": RESETS + timedelta(days=1),
+            "stale": False,
+        }
+    ]
     assert "someone" not in json.dumps(shown, default=str)
-    unlimited = {"quotaSnapshots": {"premium_interactions": {
-        "isUnlimitedEntitlement": True, "remainingPercentage": 100}}}
+    unlimited = {
+        "quotaSnapshots": {
+            "premium_interactions": {"isUnlimitedEntitlement": True, "remainingPercentage": 100}
+        }
+    }
     assert "unknown" in app.limits.of_copilot(unlimited, NOW)
 
 
@@ -98,8 +148,9 @@ def test_copilots_premium_requests_are_its_one_window_and_the_unlimited_are_pass
 def test_a_copilot_reset_at_the_time_of_reading_or_before_is_not_known(given):
     # As 1.0.103 answered (24 Oct 2026): its resetDate was the moment of the call itself.
     told = json.loads(json.dumps(COPILOT_QUOTA))
-    told["quotaSnapshots"]["premium_interactions"]["resetDate"] = (
-        given.isoformat(timespec="milliseconds").replace("+00:00", "Z"))
+    told["quotaSnapshots"]["premium_interactions"]["resetDate"] = given.isoformat(
+        timespec="milliseconds"
+    ).replace("+00:00", "Z")
     (window,) = app.limits.of_copilot(told, NOW)["windows"]
     assert window["resets_at"] is None and window["used_percent"] == 90.2
     assert not window["stale"]
@@ -109,7 +160,8 @@ def test_a_copilot_reset_at_the_time_of_reading_or_before_is_not_known(given):
 
 
 async def test_agy_is_asked_its_quota_in_a_home_of_koloni_s_without_the_users_set_up(
-        tmp_path, monkeypatch):
+    tmp_path, monkeypatch
+):
     record = plan(tmp_path, monkeypatch, "FAKE_AGY_PLAN", quota=AGY_QUOTA)
     monkeypatch.setenv("GEMINI_API_KEY", "not for agy")
     monkeypatch.setenv("ANTIGRAVITY_HOME", "not for agy")
@@ -136,7 +188,8 @@ async def test_an_agy_that_fails_says_so(tmp_path, monkeypatch):
 
 
 async def test_copilot_is_asked_its_quota_after_a_ping_and_no_session_is_made(
-        tmp_path, monkeypatch):
+    tmp_path, monkeypatch
+):
     record = plan(tmp_path, monkeypatch, "FAKE_CLI_PLAN", quota=COPILOT_QUOTA)
     monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "the user's own")
     told = await copilot_quota(None, "gho_provider", 20, launcher=FAKE_COPILOT)
@@ -161,7 +214,8 @@ async def test_a_copilot_that_says_no_says_so_without_its_token(tmp_path, monkey
 
 
 async def test_a_copilot_without_a_token_reads_its_quota_by_the_users_own_sign_in(
-        tmp_path, monkeypatch):
+    tmp_path, monkeypatch
+):
     record = plan(tmp_path, monkeypatch, "FAKE_CLI_PLAN", quota=COPILOT_QUOTA)
     monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "the user's own")
     monkeypatch.setenv("GH_TOKEN", "ghp_the_users_own")
@@ -244,7 +298,8 @@ async def test_looking_reads_in_the_background_at_most_once_in_ten_minutes(monke
 
 
 async def test_a_reading_restored_from_before_a_restart_is_not_read_again_within_ten_minutes(
-        monkeypatch):
+    monkeypatch,
+):
     asked = stand_ins(monkeypatch, [AGY_QUOTA])
     limits = Limits()
     fresh = app.limits.of_agy(AGY_QUOTA, datetime.now(UTC) - timedelta(minutes=3))
@@ -256,15 +311,19 @@ async def test_a_reading_restored_from_before_a_restart_is_not_read_again_within
 async def test_only_agy_and_a_signed_in_copilot_are_read_in_the_background(monkeypatch):
     asked = stand_ins(monkeypatch, [])
     limits = Limits()
-    for one in (Provider(id="c", name="Codex", kind="codex_cli"),
-                Provider(id="k", name="Claude Code", kind="claude_cli"),
-                Provider(id="s", name="Copilot local", kind="copilot_cli",
-                         base_url="http://127.0.0.1:8080/v1")):
+    for one in (
+        Provider(id="c", name="Codex", kind="codex_cli"),
+        Provider(id="k", name="Claude Code", kind="claude_cli"),
+        Provider(
+            id="s", name="Copilot local", kind="copilot_cli", base_url="http://127.0.0.1:8080/v1"
+        ),
+    ):
         limits.refresh(one)
     await asyncio.sleep(0)
     assert asked == []
-    on_server = Provider(id="s", name="Copilot local", kind="copilot_cli",
-                         base_url="http://127.0.0.1:8080/v1")
+    on_server = Provider(
+        id="s", name="Copilot local", kind="copilot_cli", base_url="http://127.0.0.1:8080/v1"
+    )
     assert limits.last(on_server) == {"unknown": app.limits.NO_PLAN}
     assert await limits.read(on_server) == {"unknown": app.limits.NO_PLAN}
 
@@ -277,8 +336,9 @@ def test_the_plan_meters_look_starts_a_read_and_answers_at_once(make_client, mon
     client, _model = make_client([text("x")])
     client.headers["Origin"] = ORIGIN
     agy = client.post("/api/providers", json={"name": "agy", "kind": "agy_cli"}).json()["id"]
-    copilot = client.post("/api/providers", json={
-        "name": "Copilot", "kind": "copilot_cli", "api_key": "gho_provider"}).json()["id"]
+    copilot = client.post(
+        "/api/providers", json={"name": "Copilot", "kind": "copilot_cli", "api_key": "gho_provider"}
+    ).json()["id"]
     first = client.get(f"/api/providers/{agy}/limits").json()
     assert first["unknown"] == app.limits.NOT_READ
     deadline = time.monotonic() + 5
@@ -308,7 +368,8 @@ def wired(make, **more):
     client, provider = make([{"say": "ok"}], **more)
     limits = client.app.state.providers.limits
     client.app.state.providers.named["Copilot"].on_limits = partial(
-        limits.copilot_said, account(ON_GITHUB))
+        limits.copilot_said, account(ON_GITHUB)
+    )
     return client, provider, limits
 
 
@@ -316,7 +377,8 @@ ON_GITHUB = Provider(id="g", name="Copilot", kind="copilot_cli")
 
 
 def test_a_native_copilot_says_its_quota_and_no_other_copilot_is_started(
-        copilot_native, wait_run, project_dir, tmp_path):  # noqa: F811
+    copilot_native, wait_run, project_dir, tmp_path
+):  # noqa: F811
     from app.db.models import LimitReading
 
     starts = tmp_path / "starts.txt"
@@ -339,7 +401,8 @@ def test_a_native_copilot_says_its_quota_and_no_other_copilot_is_started(
 
 @pytest.mark.parametrize("refusal", [{"quota_error": "not on a plan"}, {"quota_hang": True}])
 def test_a_native_copilot_that_will_not_say_its_quota_runs_all_the_same(
-        copilot_native, wait_run, project_dir, monkeypatch, refusal):  # noqa: F811
+    copilot_native, wait_run, project_dir, monkeypatch, refusal
+):  # noqa: F811
     monkeypatch.setattr(app.model_native, "QUOTA_SECONDS", 0.5)  # (one that never answers)
     client, provider, limits = wired(copilot_native, **refusal)
     cid, run_id = start(client, project_dir, provider)
@@ -355,14 +418,14 @@ def test_only_a_native_copilot_on_githubs_plan_keeps_what_its_client_says(settin
     providers = Providers(settings)
     native = providers._build(Provider(id="p1", name="x", kind="copilot_cli", mode="native"), None)
     assert native.on_limits is not None
-    for more in ({"mode": "session"},
-                 {"mode": "native", "base_url": "http://localhost:8080/v1"}):
+    for more in ({"mode": "session"}, {"mode": "native", "base_url": "http://localhost:8080/v1"}):
         built = providers._build(Provider(id="p1", name="x", kind="copilot_cli", **more), None)
         assert built.on_limits is None
 
 
 async def test_a_reading_a_native_run_kept_while_copilot_was_asked_is_not_marked_failed(
-        monkeypatch):
+    monkeypatch,
+):
     limits = Limits()
 
     async def meanwhile(*args):

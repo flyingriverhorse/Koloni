@@ -80,8 +80,10 @@ def test_switch_and_a_new_branch_from_here_and_what_is_refused(make_client, repo
     answer = switch(client, pid, "fix/login", new=True)
     assert answer.status_code == 200 and answer.json()["branch"] == "fix/login"
     for name, new, why in (
-        ("-f", True, "not a name git takes"), ("a..b", True, "not a name git takes"),
-        ("--orphan=x", False, "not a name git takes"), ("main", True, "already"),
+        ("-f", True, "not a name git takes"),
+        ("a..b", True, "not a name git takes"),
+        ("--orphan=x", False, "not a name git takes"),
+        ("main", True, "already"),
         ("nothing", False, "not a branch of the project"),
     ):
         answer = switch(client, pid, name, new)
@@ -96,12 +98,12 @@ def test_switch_and_a_new_branch_from_here_and_what_is_refused(make_client, repo
     assert git.where(repo)["branch"] == "fix/login"
 
 
-def test_switch_waits_for_work_a_take_in_a_kept_copy_and_a_clean_tree(make_client, wait_run,
-                                                                      repo):
+def test_switch_waits_for_work_a_take_in_a_kept_copy_and_a_clean_tree(make_client, wait_run, repo):
     client, pid = started(make_client, repo, [text("done", 1, 1)])
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "hi"}
-                         ).json()["run"]["id"]
+    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "hi"}).json()[
+        "run"
+    ]["id"]
     wait_run(client, cid, run_id)
     factory = client.app.state.session_factory
 
@@ -113,8 +115,9 @@ def test_switch_waits_for_work_a_take_in_a_kept_copy_and_a_clean_tree(make_clien
 
     with factory() as session:  # (as the record would say it: no model is run)
         session.get_one(Run, run_id).status = "running"
-        coder = Agent(run_id=run_id, role_name="Coder", name="Coder", tools=[], depth=1,
-                      status="running")
+        coder = Agent(
+            run_id=run_id, role_name="Coder", name="Coder", tools=[], depth=1, status="running"
+        )
         session.add(coder)
         session.commit()
         coder_id = coder.id
@@ -166,8 +169,9 @@ def test_a_turn_that_starts_while_the_branch_is_switched_waits_for_it(
     switching.start()
     try:
         assert entered.wait(10)
-        run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "hi"}
-                             ).json()["run"]["id"]
+        run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "hi"}).json()[
+            "run"
+        ]["id"]
         threading.Event().wait(0.5)
         assert "turn looked" not in order  # (it waits: the switch holds the project)
     finally:
@@ -187,36 +191,57 @@ def test_a_copy_says_the_branch_it_was_made_on(make_client, wait_run, repo):
 
     client, _pid, cid, run_id = start(make_client, repo, [step(edit("two", "TWO")), text("done")])
     wait_run(client, cid, run_id)
-    coder = next(a for a in client.get(f"/api/conversations/{cid}").json()["agents"]
-                 if a["name"] == "Coder")
+    coder = next(
+        a for a in client.get(f"/api/conversations/{cid}").json()["agents"] if a["name"] == "Coder"
+    )
     assert coder["copy"] == {"state": "own", "branch": "main"}
 
 
 # --- agents and branches: reading needs no switch; a switch under another's work is asked ----
 
 
-@pytest.mark.parametrize(("command", "switches"), [
-    ("git switch feature", True), ("git switch -c x", True), ("git checkout feature", True),
-    ("git checkout -b x", True), ("cd sub; git switch x", True), ("git checkout -- a.py", False),
-    ("git checkout .", False), ("git checkout", False), ("git switch -h", False),
-    ("git checkout other --", True), ("git switch -- other", True), ("git checkout -- .", False),
-    ("git log feature", False), ("git show feature:a.py", False), ("git diff main...x", False),
-])
+@pytest.mark.parametrize(
+    ("command", "switches"),
+    [
+        ("git switch feature", True),
+        ("git switch -c x", True),
+        ("git checkout feature", True),
+        ("git checkout -b x", True),
+        ("cd sub; git switch x", True),
+        ("git checkout -- a.py", False),
+        ("git checkout .", False),
+        ("git checkout", False),
+        ("git switch -h", False),
+        ("git checkout other --", True),
+        ("git switch -- other", True),
+        ("git checkout -- .", False),
+        ("git log feature", False),
+        ("git show feature:a.py", False),
+        ("git diff main...x", False),
+    ],
+)
 def test_what_switches_the_branch(command, switches):
     from app.commands import switches_branch
 
     assert switches_branch(command) is switches
 
 
-@pytest.mark.parametrize(("command", "outside"), [
-    ("git worktree add ../x", True), ("git worktree add -b f ../x main", True),
-    # (Asked on every system: off Windows `C:/x` is a folder named `C:` in the project.)
-    ("git worktree add C:/x", True), ("git worktree add ~/x", True),
-    ("git worktree add /x", True),
-    ("git worktree add a/../../x", True), ("git worktree add -- ../x", True),
-    ("git worktree add wt", False), ("git worktree add a/../b", False),
-    ("git worktree list", False),
-])
+@pytest.mark.parametrize(
+    ("command", "outside"),
+    [
+        ("git worktree add ../x", True),
+        ("git worktree add -b f ../x main", True),
+        # (Asked on every system: off Windows `C:/x` is a folder named `C:` in the project.)
+        ("git worktree add C:/x", True),
+        ("git worktree add ~/x", True),
+        ("git worktree add /x", True),
+        ("git worktree add a/../../x", True),
+        ("git worktree add -- ../x", True),
+        ("git worktree add wt", False),
+        ("git worktree add a/../b", False),
+        ("git worktree list", False),
+    ],
+)
 def test_a_worktree_opened_outside_the_project_is_harm(command, outside):
     from app.commands import danger, harms
 
@@ -231,8 +256,9 @@ def test_a_path_from_the_root_is_outside_by_python_3_13s_isabs_too(monkeypatch, 
     from app.git import foreign_folder
 
     # 3.13+ on Windows: whole only with a drive and a root - `/Users/x` is not, git reads C:\Users\x
-    monkeypatch.setattr(os.path, "isabs", lambda p: bool(
-        PureWindowsPath(p).drive and PureWindowsPath(p).root))
+    monkeypatch.setattr(
+        os.path, "isabs", lambda p: bool(PureWindowsPath(p).drive and PureWindowsPath(p).root)
+    )
     assert _outside_here("/Users/x") and _outside_here("\\x")
     assert foreign_folder("/Users/x", tmp_path / "p")
     assert not _outside_here("wt") and not foreign_folder("wt", tmp_path / "p")
@@ -248,8 +274,15 @@ def test_an_agents_own_switch_is_asked_at_every_level_only_under_anothers_work(
     from tests.test_full_auto_harm import why_asked
 
     executor = ScriptedExecutor([Script(["Switched\n"])])
-    client, _ = make_client([cmd("git switch feature", "k1"), text("alone"),
-                             cmd("git switch main", "k2"), text("left it")], executor=executor)
+    client, _ = make_client(
+        [
+            cmd("git switch feature", "k1"),
+            text("alone"),
+            cmd("git switch main", "k2"),
+            text("left it"),
+        ],
+        executor=executor,
+    )
     cid, run_id = start_in_mode(client, repo, "full_auto")
     snap = wait_run(client, cid, run_id)
     # Alone: as before - no card; the turn's end says it.
@@ -259,8 +292,9 @@ def test_an_agents_own_switch_is_asked_at_every_level_only_under_anothers_work(
         lead = session.scalars(select(Agent.id).where(Agent.run_id == run_id)).first()
         session.add(Merge(run_id=run_id, agent_id=lead, files=[]))  # (a Take in waits)
         session.commit()
-    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "again"}
-                         ).json()["run"]["id"]
+    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "again"}).json()[
+        "run"
+    ]["id"]
     snap = wait_status(client, cid, "waiting_approval")
     asked = next(c for c in snap["commands"] if c["status"] == "proposed")
     assert why_asked(snap, asked) == "switches the branch under Lead's work"
@@ -279,8 +313,9 @@ def test_a_clis_own_switch_under_anothers_work_is_a_card_too(native_app, wait_ru
     from tests.test_full_auto_harm import why_asked
     from tests.test_native_agent import start as start_native
 
-    client, provider, _ = native_app([{"run": "git switch feature", "output": "ok\n"},
-                                      {"say": "switched"}])
+    client, provider, _ = native_app(
+        [{"run": "git switch feature", "output": "ok\n"}, {"say": "switched"}]
+    )
     pid = client.post("/api/projects", json={"root_path": str(repo)}).json()["id"]
     other = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     with client.app.state.session_factory() as session:  # (a Take in waits in another chat)
@@ -324,8 +359,10 @@ def test_a_switch_writes_no_ignored_file_of_the_users_over(make_client, repo):
     client, pid = started(make_client, repo, [])
     answer = switch(client, pid, "other")
     assert answer.status_code == 422
-    assert answer.json()["detail"] == (".env would be written over by other's own: a file of "
-                                       "yours git leaves out - move it aside first")
+    assert answer.json()["detail"] == (
+        ".env would be written over by other's own: a file of "
+        "yours git leaves out - move it aside first"
+    )
     assert (repo / ".env").read_text() == "MINE=keep\n" and git.where(repo)["branch"] == "main"
 
 
@@ -335,8 +372,9 @@ def test_a_switch_runs_no_hook_of_the_repositorys(make_client, repo):
     ran = repo.parent / "hook-ran"
     hooks = repo / ".githooks"
     hooks.mkdir()
-    (hooks / "post-checkout").write_text(f"#!/bin/sh\necho ran > '{ran.as_posix()}'\n",
-                                         newline="\n")
+    (hooks / "post-checkout").write_text(
+        f"#!/bin/sh\necho ran > '{ran.as_posix()}'\n", newline="\n"
+    )
     os.chmod(hooks / "post-checkout", 0o755)
     run(repo, "add", ".githooks")
     run(repo, "commit", "-q", "-m", "hooks")

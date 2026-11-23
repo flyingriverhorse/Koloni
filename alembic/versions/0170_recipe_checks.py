@@ -12,6 +12,7 @@ Going back takes the step's choice out of those four again.
 Revision ID: 0170
 Revises: 0167
 """
+
 import json
 
 import sqlalchemy as sa
@@ -25,8 +26,15 @@ branch_labels = None
 depends_on = None
 
 # As `app.schemas.RecipeChecks` was when this was written: a migration does not follow later code.
-_OFF = {"tests": False, "review": False, "docs": False, "diagram": False, "data": False,
-        "slides": False, "fix_rounds": None}
+_OFF = {
+    "tests": False,
+    "review": False,
+    "docs": False,
+    "diagram": False,
+    "data": False,
+    "slides": False,
+    "fix_rounds": None,
+}
 READY = {
     "Bugfix": {**_OFF, "tests": True, "review": True},
     "Feature": {**_OFF, "tests": True, "review": True},
@@ -37,8 +45,9 @@ READY = {
 
 def _graphs(name: str):
     bind = op.get_bind()
-    for id_, graph in bind.execute(sa.text(
-            "SELECT id, graph FROM recipes WHERE name = :name AND ready = 1"), {"name": name}):
+    for id_, graph in bind.execute(
+        sa.text("SELECT id, graph FROM recipes WHERE name = :name AND ready = 1"), {"name": name}
+    ):
         yield bind, id_, json.loads(graph) if isinstance(graph, str) else graph
 
 
@@ -46,14 +55,20 @@ def upgrade() -> None:
     for name, checks in READY.items():
         for bind, id_, graph in _graphs(name):
             if "checks" not in graph:
-                bind.execute(sa.text("UPDATE recipes SET graph = :graph WHERE id = :id"),
-                             {"graph": json.dumps({**graph, "checks": checks}), "id": id_})
+                bind.execute(
+                    sa.text("UPDATE recipes SET graph = :graph WHERE id = :id"),
+                    {"graph": json.dumps({**graph, "checks": checks}), "id": id_},
+                )
 
 
 def downgrade() -> None:
     for name, checks in READY.items():
         for bind, id_, graph in _graphs(name):
             if graph.get("checks") == checks:
-                bind.execute(sa.text("UPDATE recipes SET graph = :graph WHERE id = :id"), {
-                    "graph": json.dumps({k: v for k, v in graph.items() if k != "checks"}),
-                    "id": id_})
+                bind.execute(
+                    sa.text("UPDATE recipes SET graph = :graph WHERE id = :id"),
+                    {
+                        "graph": json.dumps({k: v for k, v in graph.items() if k != "checks"}),
+                        "id": id_,
+                    },
+                )

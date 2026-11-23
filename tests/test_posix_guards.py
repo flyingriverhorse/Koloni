@@ -37,8 +37,14 @@ print(mark in before.stdout, after.returncode != 0 and mark not in after.stdout,
 
 @LINUX
 def test_a_child_cannot_read_kolonis_environment_once_it_is_started():
-    done = subprocess.run([sys.executable, "-c", PROBE], cwd=REPO_ROOT, capture_output=True,
-                          text=True, env={**os.environ, "KOLONI_PROBE": "sk-probe"}, timeout=60)
+    done = subprocess.run(
+        [sys.executable, "-c", PROBE],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "KOLONI_PROBE": "sk-probe"},
+        timeout=60,
+    )
     # (read before, refused after - and a child's own environment is still its own)
     assert done.stdout.split() == ["True", "True", "True"], done.stderr
 
@@ -52,8 +58,15 @@ def test_the_pages_key_is_hidden_as_every_secret_kolonis_knows(make_client):
 
 @POSIX
 def test_the_systems_live_folders_are_never_opened_by_a_message():
-    for path in ("/dev/null", "/dev/shm", "/run/user/1000", "/var/run/docker.sock", "/boot",
-                 "/proc/self/environ", "/sys/kernel"):
+    for path in (
+        "/dev/null",
+        "/dev/shm",
+        "/run/user/1000",
+        "/var/run/docker.sock",
+        "/boot",
+        "/proc/self/environ",
+        "/sys/kernel",
+    ):
         assert never(Path(path)), path
     with pytest.raises(WorkspaceError, match="never opened"):
         listed_folder("/var")  # (it holds /var/run)
@@ -90,8 +103,14 @@ def test_under_wsl_windows_drives_and_homes_are_refused_as_on_windows(wsl):
 
 @POSIX
 def test_under_wsl_a_windows_home_is_kept_in_any_case_and_as_a_linux_home_is(wsl):
-    for spelled in ("c/users/me", "c/Users/me/appdata", "c/users/me/.ssh", "c/Users/me/.CLAUDE",
-                    "c/USERS/me/AppData/Local", "c/Users/ME/.Ollama"):
+    for spelled in (
+        "c/users/me",
+        "c/Users/me/appdata",
+        "c/users/me/.ssh",
+        "c/Users/me/.CLAUDE",
+        "c/USERS/me/AppData/Local",
+        "c/Users/ME/.Ollama",
+    ):
         with pytest.raises(WorkspaceError, match="never opened"):
             listed_folder(str(wsl / spelled))
         assert spelled == "c/users/me" or never(wsl / spelled), spelled

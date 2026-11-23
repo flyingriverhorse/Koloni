@@ -39,11 +39,18 @@ def pages(monkeypatch, count=30, changed=None, fill="w"):
     texts = {n: f"page {n} " + fill * (PAGE - 8) for n in range(count)}
     if changed is not None:
         texts[changed] = f"page {changed} " + "v" * (PAGE - 8)
-    return Site(monkeypatch, {
-        f"{SITE}/robots.txt": OPEN,
-        f"{SITE}/pay/llms.txt": (200, "text/plain", "".join(
-            f"- [p](/pay/{n})\n" for n in range(count))),
-        **{f"{SITE}/pay/{n}": (200, MD, said) for n, said in texts.items()}})
+    return Site(
+        monkeypatch,
+        {
+            f"{SITE}/robots.txt": OPEN,
+            f"{SITE}/pay/llms.txt": (
+                200,
+                "text/plain",
+                "".join(f"- [p](/pay/{n})\n" for n in range(count)),
+            ),
+            **{f"{SITE}/pay/{n}": (200, MD, said) for n, said in texts.items()},
+        },
+    )
 
 
 def deep(root, kept, price=None, extend=True, tokens=True):
@@ -53,15 +60,21 @@ def deep(root, kept, price=None, extend=True, tokens=True):
 
     async def ask(messages):
         asked.append(messages)
-        return (f"## What it offers\n- part {len(asked)} · {SITE}/pay/0 · official",
-                SimpleNamespace(input_tokens=len(messages[1]["content"]) // 4,
-                                output_tokens=knowledge.GUIDE_TOKENS) if tokens else None)
+        return (
+            f"## What it offers\n- part {len(asked)} · {SITE}/pay/0 · official",
+            SimpleNamespace(
+                input_tokens=len(messages[1]["content"]) // 4, output_tokens=knowledge.GUIDE_TOKENS
+            )
+            if tokens
+            else None,
+        )
 
     async def run():
         knowledge.begin(str(root), kept)
         try:
-            return await knowledge.learn(str(root), kept, ask, price, "Fake · fake-model",
-                                         extend=extend)
+            return await knowledge.learn(
+                str(root), kept, ask, price, "Fake · fake-model", extend=extend
+            )
         finally:
             knowledge.end(str(root), kept)
 
@@ -92,9 +105,7 @@ def test_every_page_is_read_and_written_in_sections_under_a_map(monkeypatch, pro
     assert f"search (path {FOLDER}/guide)" in told
 
 
-def test_the_money_limit_says_how_far_and_learn_again_goes_on_from_there(
-    monkeypatch, project_dir
-):
+def test_the_money_limit_says_how_far_and_learn_again_goes_on_from_there(monkeypatch, project_dir):
     pages(monkeypatch)
     kept = known(max_usd=0.1)
     record, asked = deep(project_dir, kept, PRICE)
@@ -138,41 +149,57 @@ def test_a_learning_nobody_clicked_writes_few_sections_on_an_unknown_price(
 
 def test_a_sites_llms_full_txt_is_read_whole_and_sliced(monkeypatch, project_dir):
     whole = "".join(f"# Page {n}\n" + "x" * 999 + "\n" for n in range(250))  # 250 000
-    site = Site(monkeypatch, {
-        f"{SITE}/robots.txt": OPEN,
-        f"{SITE}/pay/llms-full.txt": (200, "text/plain", whole),
-        f"{SITE}/pay/llms.txt": (200, "text/plain", "- [a](/pay/a)\n"),
-    })
+    site = Site(
+        monkeypatch,
+        {
+            f"{SITE}/robots.txt": OPEN,
+            f"{SITE}/pay/llms-full.txt": (200, "text/plain", whole),
+            f"{SITE}/pay/llms.txt": (200, "text/plain", "- [a](/pay/a)\n"),
+        },
+    )
     record, asked = deep(project_dir, known())
-    assert read(record) == [f"{SITE}/pay/llms-full.txt"] and f"{SITE}/pay/llms.txt" not in site.asked
-    assert len(record["parts"]) == -(-len(whole) // knowledge.PART) > web.MAX_CHARS // knowledge.PART
+    assert (
+        read(record) == [f"{SITE}/pay/llms-full.txt"] and f"{SITE}/pay/llms.txt" not in site.asked
+    )
+    assert (
+        len(record["parts"]) == -(-len(whole) // knowledge.PART) > web.MAX_CHARS // knowledge.PART
+    )
     assert len(record["sections"]) == 5 and len(asked) == 6
 
 
-def test_an_llms_full_txt_over_the_byte_cap_gives_way_to_the_sites_pages(
-    monkeypatch, project_dir
-):
-    Site(monkeypatch, {
-        f"{SITE}/robots.txt": OPEN,
-        f"{SITE}/pay/llms-full.txt": (200, "text/plain", "x" * (web.MAX_BYTES + 10)),
-        f"{SITE}/pay/llms.txt": (200, "text/plain", "- [a](/pay/a)\n"),
-        f"{SITE}/pay/a": (200, MD, "pay()"),
-    })
+def test_an_llms_full_txt_over_the_byte_cap_gives_way_to_the_sites_pages(monkeypatch, project_dir):
+    Site(
+        monkeypatch,
+        {
+            f"{SITE}/robots.txt": OPEN,
+            f"{SITE}/pay/llms-full.txt": (200, "text/plain", "x" * (web.MAX_BYTES + 10)),
+            f"{SITE}/pay/llms.txt": (200, "text/plain", "- [a](/pay/a)\n"),
+            f"{SITE}/pay/a": (200, MD, "pay()"),
+        },
+    )
     record, _asked = deep(project_dir, known())
     assert read(record) == [f"{SITE}/pay/a"]
-    assert "(over 2 MB, or past the time limit): its pages are read instead" in record["pages"][0]["why"]
+    assert (
+        "(over 2 MB, or past the time limit): its pages are read instead"
+        in record["pages"][0]["why"]
+    )
 
 
-def test_many_sections_leave_the_map_and_a_way_to_each_in_the_brief(
-    monkeypatch, project_dir
-):
+def test_many_sections_leave_the_map_and_a_way_to_each_in_the_brief(monkeypatch, project_dir):
     big = 50_000  # (some seventy slices, all written: a click past its cap)
     monkeypatch.setattr(knowledge, "CLICKED", 1_000)
-    Site(monkeypatch, {
-        f"{SITE}/robots.txt": OPEN,
-        f"{SITE}/pay/llms.txt": (200, "text/plain", "".join(
-            f"- [p](/pay/{n})\n" for n in range(80))),
-        **{f"{SITE}/pay/{n}": (200, MD, f"page {n} " + "w" * big) for n in range(80)}})
+    Site(
+        monkeypatch,
+        {
+            f"{SITE}/robots.txt": OPEN,
+            f"{SITE}/pay/llms.txt": (
+                200,
+                "text/plain",
+                "".join(f"- [p](/pay/{n})\n" for n in range(80)),
+            ),
+            **{f"{SITE}/pay/{n}": (200, MD, f"page {n} " + "w" * big) for n in range(80)},
+        },
+    )
     kept = known()
     record, _asked = deep(project_dir, kept)
     many = len(record["sections"])
@@ -223,7 +250,8 @@ def test_its_sections_go_with_a_copy_of_its_guide(monkeypatch, project_dir, tmp_
     assert knowledge.copy_to(str(project_dir), str(other), kept)
     for one in record["sections"]:
         assert (other / FOLDER / one["file"]).read_text(encoding="utf-8") == (
-            project_dir / FOLDER / one["file"]).read_text(encoding="utf-8")
+            project_dir / FOLDER / one["file"]
+        ).read_text(encoding="utf-8")
 
 
 def test_where_its_documents_do_not_have_it_it_asks_for_a_search_not_its_memory(project_dir):
@@ -234,12 +262,16 @@ def test_where_its_documents_do_not_have_it_it_asks_for_a_search_not_its_memory(
     plain = knowledge.brief(str(project_dir), kept, tools=["read_file"])
     assert "never answer it from memory" in plain and "ask_user" not in plain
     # May search while answering, and holds web_search: it searches, as before.
-    searches = knowledge.brief(str(project_dir), {**kept, "search_answering": True},
-                               tools=["read_file", "ask_user", "web_search"])
+    searches = knowledge.brief(
+        str(project_dir),
+        {**kept, "search_answering": True},
+        tools=["read_file", "ask_user", "web_search"],
+    )
     assert knowledge.ADD in searches and "allow a web search" not in searches
     # Not held (its opener has none): it asks.
-    held = knowledge.brief(str(project_dir), {**kept, "search_answering": True},
-                           tools=["read_file", "ask_user"])
+    held = knowledge.brief(
+        str(project_dir), {**kept, "search_answering": True}, tools=["read_file", "ask_user"]
+    )
     assert "allow a web search" in held
 
 
@@ -252,30 +284,59 @@ def test_an_expert_of_a_topic_to_research_may_search_while_answering_unless_told
 def test_learn_on_the_tab_uses_the_model_it_was_saved_with_and_says_its_cost_first(
     make_client, project_dir
 ):
-    client, _model = make_client({"Lead": [text("## What it offers\n- pay(amount)"),
-                                           text("pay(amount) (pages/0001.md:2).")]})
+    client, _model = make_client(
+        {"Lead": [text("## What it offers\n- pay(amount)"), text("pay(amount) (pages/0001.md:2).")]}
+    )
     (project_dir / "docs").mkdir()
     (project_dir / "docs" / "api.md").write_text("pay(amount)", encoding="utf-8")
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     provider = client.get("/api/providers").json()[0]
-    assert client.patch(f"/api/providers/{provider['id']}", headers=OWN, json={
-        "default_model": "fake-model", "models": [{"name": "fake-model"}, {"name": "cheap-1"}],
-    }).status_code == 200
-    assert client.put("/api/prices", headers=OWN, json={
-        "model_id": "cheap-1", "input": 1.0, "output": 5.0, "currency": "USD"}).status_code == 200
+    assert (
+        client.patch(
+            f"/api/providers/{provider['id']}",
+            headers=OWN,
+            json={
+                "default_model": "fake-model",
+                "models": [{"name": "fake-model"}, {"name": "cheap-1"}],
+            },
+        ).status_code
+        == 200
+    )
+    assert (
+        client.put(
+            "/api/prices",
+            headers=OWN,
+            json={"model_id": "cheap-1", "input": 1.0, "output": 5.0, "currency": "USD"},
+        ).status_code
+        == 200
+    )
     role = expert(client, project_dir, EXPERT)
     state = client.get(f"/api/roles/{role['id']}/knowledge", params={"project_id": pid}).json()
     assert state["estimate"] is None  # (its own model has no price)
     # B-365: the tab saves the model chosen, then learns - with that model.
-    chosen = {**role["knowledge"], "learn_with": {"provider_id": provider["id"],
-                                                  "model_id": "cheap-1"}}
-    assert client.put(f"/api/knowledge/{role['knowledge_id']}", params={"project_id": pid},
-                      json=chosen, headers=OWN).status_code == 200
+    chosen = {
+        **role["knowledge"],
+        "learn_with": {"provider_id": provider["id"], "model_id": "cheap-1"},
+    }
+    assert (
+        client.put(
+            f"/api/knowledge/{role['knowledge_id']}",
+            params={"project_id": pid},
+            json=chosen,
+            headers=OWN,
+        ).status_code
+        == 200
+    )
     state = client.get(f"/api/roles/{role['id']}/knowledge", params={"project_id": pid}).json()
     assert state["estimate"] == 0.5  # (none learned yet: at most its money limit)
-    assert client.post(f"/api/roles/{role['id']}/learn", json={"project_id": pid},
-                       headers=OWN).status_code == 202
+    assert (
+        client.post(
+            f"/api/roles/{role['id']}/learn", json={"project_id": pid}, headers=OWN
+        ).status_code
+        == 202
+    )
     state = wait_learned(client, role["id"], pid)
     assert state["failed"] is None and state["learned"]["model"].endswith("cheap-1")
-    assert json.loads((project_dir / FOLDER / "learned.json").read_text(encoding="utf-8"))[
-        "left"] == 0
+    assert (
+        json.loads((project_dir / FOLDER / "learned.json").read_text(encoding="utf-8"))["left"] == 0
+    )

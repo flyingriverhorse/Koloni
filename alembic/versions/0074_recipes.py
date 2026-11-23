@@ -4,6 +4,7 @@
 Revision ID: 0074
 Revises: 0073
 """
+
 import json
 import uuid
 from datetime import UTC, datetime
@@ -18,8 +19,16 @@ depends_on = None
 
 
 def _step(id, name, role=None, **more):
-    return {"id": id, "name": name, "who": {"role": role} if role else {"lead": True},
-            "done_when": "done", "if_fails": "ask", "ask_me": False, "group": None, **more}
+    return {
+        "id": id,
+        "name": name,
+        "who": {"role": role} if role else {"lead": True},
+        "done_when": "done",
+        "if_fails": "ask",
+        "ask_me": False,
+        "group": None,
+        **more,
+    }
 
 
 def _arrows(*pairs):
@@ -45,8 +54,13 @@ READY = {
         ],
         "groups": [{"id": "reviews", "name": "All at once, wait for all"}],
         "ends": [{"id": "end", "then": "in"}],
-        "arrows": _arrows(("start", "spec"), ("spec", "build"), ("build", "reviews"),
-                          ("reviews", "approve"), ("approve", "end")),
+        "arrows": _arrows(
+            ("start", "spec"),
+            ("spec", "build"),
+            ("build", "reviews"),
+            ("reviews", "approve"),
+            ("approve", "end"),
+        ),
         "loops": [{"from": "reviews", "to": "build", "rounds": 2}],
     },
     "Bugfix": {
@@ -59,8 +73,13 @@ READY = {
         ],
         "groups": [],
         "ends": [{"id": "end", "then": "in"}],
-        "arrows": _arrows(("start", "reproduce"), ("reproduce", "fix"), ("fix", "test"),
-                          ("test", "review"), ("review", "end")),
+        "arrows": _arrows(
+            ("start", "reproduce"),
+            ("reproduce", "fix"),
+            ("fix", "test"),
+            ("test", "review"),
+            ("review", "end"),
+        ),
         "loops": [{"from": "review", "to": "fix", "rounds": 2}],
     },
     "Review only": {
@@ -93,14 +112,21 @@ def upgrade() -> None:
     with op.batch_alter_table("teams") as batch:
         batch.add_column(sa.Column("default_recipe_id", sa.String(length=32), nullable=True))
         batch.create_foreign_key(
-            "fk_teams_default_recipe_id", "recipes", ["default_recipe_id"], ["id"],
-            ondelete="SET NULL")
+            "fk_teams_default_recipe_id",
+            "recipes",
+            ["default_recipe_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
     made = datetime.now(UTC).replace(tzinfo=None).isoformat(" ", "microseconds")
     for name, graph in READY.items():
-        op.get_bind().execute(sa.text(
-            "INSERT INTO recipes (id, name, ready, graph, created_at, updated_at) "
-            "VALUES (:id, :name, 1, :graph, :at, :at)"
-        ), {"id": uuid.uuid4().hex, "name": name, "graph": json.dumps(graph), "at": made})
+        op.get_bind().execute(
+            sa.text(
+                "INSERT INTO recipes (id, name, ready, graph, created_at, updated_at) "
+                "VALUES (:id, :name, 1, :graph, :at, :at)"
+            ),
+            {"id": uuid.uuid4().hex, "name": name, "graph": json.dumps(graph), "at": made},
+        )
 
 
 def downgrade() -> None:

@@ -42,11 +42,14 @@ async def test_streams_text_and_usage():
         body = json.loads(request.content)
         assert body["stream"] is True and body["stream_options"] == {"include_usage": True}
         assert "tools" not in body
-        return httpx2.Response(200, content=sse_body(
-            {"choices": [{"delta": {"content": "Hel"}}]},
-            {"choices": [{"delta": {"content": "lo"}}]},
-            {"choices": [], "usage": {"prompt_tokens": 7, "completion_tokens": 2}},
-        ))
+        return httpx2.Response(
+            200,
+            content=sse_body(
+                {"choices": [{"delta": {"content": "Hel"}}]},
+                {"choices": [{"delta": {"content": "lo"}}]},
+                {"choices": [], "usage": {"prompt_tokens": 7, "completion_tokens": 2}},
+            ),
+        )
 
     result, seen = await collect(client_for(handler))
     assert seen == ["Hel", "lo"] and result.content == "Hello"
@@ -69,7 +72,9 @@ async def test_assembles_fragmented_tool_calls():
     )
     result, _ = await collect(client_for(handler), tools=[{"type": "function"}])
     assert [(c.id, c.name, c.arguments) for c in result.tool_calls] == [
-        ("c1", "read_file", '{"path": "a.py"}'), ("c2", "list_dir", "{}")]
+        ("c1", "read_file", '{"path": "a.py"}'),
+        ("c2", "list_dir", "{}"),
+    ]
 
 
 async def test_reasoning_goes_to_thinking_not_content():
@@ -119,8 +124,20 @@ async def test_info_discovers_model_and_probes_tools():
             return httpx2.Response(200, json={"data": [{"id": "qwen"}]})
         body = json.loads(request.content)
         assert body["tools"][0]["function"]["name"] == "ping" and body["stream"] is False
-        return httpx2.Response(200, json={"choices": [{"message": {"tool_calls": [
-            {"id": "x", "function": {"name": "ping", "arguments": "{}"}}]}}]})
+        return httpx2.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "tool_calls": [
+                                {"id": "x", "function": {"name": "ping", "arguments": "{}"}}
+                            ]
+                        }
+                    }
+                ]
+            },
+        )
 
     info = await client_for(handler).info()
     assert info.model_id == "qwen" and info.tools_supported is True
@@ -130,7 +147,9 @@ async def test_info_reports_no_tool_support_when_probe_answers_in_text():
     def handler(request):
         if request.url.path == "/v1/models":
             return httpx2.Response(200, json={"data": [{"id": "plain"}]})
-        return httpx2.Response(200, json={"choices": [{"message": {"content": "I would call ping"}}]})
+        return httpx2.Response(
+            200, json={"choices": [{"message": {"content": "I would call ping"}}]}
+        )
 
     assert (await client_for(handler).info()).tools_supported is False
 
@@ -158,7 +177,9 @@ async def test_info_that_has_nothing_more_to_ask_does_not_fail_on_a_closed_props
             raise httpx2.ConnectError("refused", request=request)
         return httpx2.Response(200, json={"choices": [{"message": {"content": ""}}]})
 
-    client = OpenAICompatClient("http://model/v1", model_id="m", transport=httpx2.MockTransport(handler))
+    client = OpenAICompatClient(
+        "http://model/v1", model_id="m", transport=httpx2.MockTransport(handler)
+    )
     client._tools_cache["m"] = False
     assert (await client.info()).model_id == "m"
 
@@ -169,7 +190,9 @@ async def test_only_the_health_checks_connection_to_this_machine_is_short():
     connects = []
 
     def handler(request):
-        connects.append((request.url.host, request.url.path, request.extensions["timeout"]["connect"]))
+        connects.append(
+            (request.url.host, request.url.path, request.extensions["timeout"]["connect"])
+        )
         return httpx2.Response(404)
 
     for base in ("https://api.example.com/v1", "http://[::1]:8080/v1", "http://localhost:8080/v1"):
@@ -177,8 +200,13 @@ async def test_only_the_health_checks_connection_to_this_machine_is_short():
         await client.reach()
     client._tools_cache["m"] = True
     await client.info()  # (this machine's server: its own requests keep 5 s too)
-    assert connects == [("api.example.com", "/props", 5.0), ("::1", "/props", REACH_CONNECT),
-                        ("localhost", "/props", REACH_CONNECT), ("localhost", "/props", 5.0)]
+    assert connects == [
+        ("api.example.com", "/props", 5.0),
+        ("::1", "/props", REACH_CONNECT),
+        ("localhost", "/props", REACH_CONNECT),
+        ("localhost", "/props", 5.0),
+    ]
+
 
 async def test_an_error_names_no_password_or_key_of_the_address():
     # httpx names the URL it asked in its error, user name and password and all.
@@ -187,7 +215,9 @@ async def test_an_error_names_no_password_or_key_of_the_address():
             return httpx2.Response(401, request=request)
         raise httpx2.ConnectError(f"refused for {request.url}?key=k2")
 
-    client = OpenAICompatClient("http://user:s3cret@model/v1", transport=httpx2.MockTransport(handler))
+    client = OpenAICompatClient(
+        "http://user:s3cret@model/v1", transport=httpx2.MockTransport(handler)
+    )
     with pytest.raises(ModelUnavailable) as listed:
         await client.models()
     with pytest.raises(ModelUnavailable) as streamed:
@@ -206,18 +236,34 @@ def test_safe_url_keeps_the_place_and_drops_what_can_be_a_secret():
     assert safe_url("http://[::1]:8080/v1") == "http://[::1]:8080/v1"
     assert safe_url("") == ""
     assert safe_url("tok@not a url?key=1") == "not a url"
-    assert redact_urls("for url 'http://a:b@h/v1?key=c' and http://h2/x#y here") == "for url 'http://h/v1' and http://h2/x here"
+    assert (
+        redact_urls("for url 'http://a:b@h/v1?key=c' and http://h2/x#y here")
+        == "for url 'http://h/v1' and http://h2/x here"
+    )
 
 
 async def test_a_call_id_named_as_kolonis_own_gets_one_of_its_own():
     """k-okuyucu-3, N8: KOLONİ trusts its own calls by their names (`koloni_proof_...`: its own
     test run): a model's id is never one."""
+
     def call(index, id):
-        return {"choices": [{"delta": {"tool_calls": [
-            {"index": index, "id": id, "function": {"name": "run_command", "arguments": "{}"}}]}}]}
+        return {
+            "choices": [
+                {
+                    "delta": {
+                        "tool_calls": [
+                            {
+                                "index": index,
+                                "id": id,
+                                "function": {"name": "run_command", "arguments": "{}"},
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
 
     handler = reply(call(0, "koloni_proof_x"), call(1, "Cli_1"), call(2, "c3"))
     result, _ = await collect(client_for(handler), tools=[{"type": "function"}])
     ids = [c.id for c in result.tool_calls]
-    assert ids[2] == "c3" and not any(
-        one.casefold().startswith(("koloni_", "cli_")) for one in ids)
+    assert ids[2] == "c3" and not any(one.casefold().startswith(("koloni_", "cli_")) for one in ids)

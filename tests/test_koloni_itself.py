@@ -17,8 +17,10 @@ from tests.test_usage_scenarios import began, turn, usage
 
 
 def words(client, pid, cid):
-    said = client.post(f"/api/projects/{pid}/day/words",
-                       json={"since": MIDNIGHT.isoformat(), "conversation_id": cid})
+    said = client.post(
+        f"/api/projects/{pid}/day/words",
+        json={"since": MIDNIGHT.isoformat(), "conversation_id": cid},
+    )
     return said
 
 
@@ -27,10 +29,15 @@ def itself(told):
 
 
 def test_the_days_words_are_koloni_itself_in_its_projects_usage_and_budget(
-    make_client, wait_run, project_dir,
+    make_client,
+    wait_run,
+    project_dir,
 ):
-    client, _model, pid, cid = began(make_client, project_dir, [
-        text("done", 1_000_000, 0), text("A quiet day.", 1_000_000, 100_000)])
+    client, _model, pid, cid = began(
+        make_client,
+        project_dir,
+        [text("done", 1_000_000, 0), text("A quiet day.", 1_000_000, 100_000)],
+    )
     run = turn(client, wait_run, cid)
     client.put("/api/prices", json=PRICE)
     assert words(client, pid, cid).status_code == 200
@@ -38,7 +45,11 @@ def test_the_days_words_are_koloni_itself_in_its_projects_usage_and_budget(
     mine = itself(told)
     # tokens as the model reported them, in no message, priced at the model's price
     assert (mine["runs"], mine["agents"], mine["input_tokens"], mine["output_tokens"]) == (
-        0, 1, 1_000_000, 100_000)
+        0,
+        1,
+        1_000_000,
+        100_000,
+    )
     assert mine["cost"] == {"amount": 4.5, "currency": "USD"}
     # under its model with the turn's, and in no conversation
     (model,) = told["by_model"]
@@ -50,8 +61,7 @@ def test_the_days_words_are_koloni_itself_in_its_projects_usage_and_budget(
     assert usage(client, project_id="another")["by_start"] == []
 
 
-def test_one_not_heard_out_is_on_record_as_unknown(make_client, wait_run, project_dir,
-                                                    monkeypatch):
+def test_one_not_heard_out_is_on_record_as_unknown(make_client, wait_run, project_dir, monkeypatch):
     client, _model, pid, cid = began(make_client, project_dir, [text("done")])
     turn(client, wait_run, cid)
 
@@ -70,8 +80,9 @@ def test_one_not_heard_out_is_on_record_as_unknown(make_client, wait_run, projec
 
 def test_a_recipes_draft_is_koloni_itself_in_no_project(make_client):
     client, _model = make_client([text('{"name": "x", "graph": {}}', 7, 2)])
-    client.post("/api/recipes/draft", json={"text": "a coder"},
-                headers={"Origin": "http://127.0.0.1:8790"})
+    client.post(
+        "/api/recipes/draft", json={"text": "a coder"}, headers={"Origin": "http://127.0.0.1:8790"}
+    )
     mine = itself(usage(client))
     assert (mine["input_tokens"], mine["output_tokens"]) == (7, 2)
     assert usage(client)["by_conversation"] == []
@@ -85,10 +96,14 @@ def test_migration_0096_and_back(tmp_path):
     with sqlite3.connect(db) as conn:
         conn.execute(
             "INSERT INTO own_requests (id, run_id, agent_id, provider_name, model_id, "
-            "cut_short, created_at) VALUES ('kept', 'r', 'a', 'Local', 'm', 0, ?)", (at,))
+            "cut_short, created_at) VALUES ('kept', 'r', 'a', 'Local', 'm', 0, ?)",
+            (at,),
+        )
         conn.execute(
             "INSERT INTO own_requests (id, provider_name, model_id, cut_short, created_at) "
-            "VALUES ('itself', 'Local', 'm', 0, ?)", (at,))
+            "VALUES ('itself', 'Local', 'm', 0, ?)",
+            (at,),
+        )
     command.downgrade(cfg, "0098")
     with sqlite3.connect(db) as conn:
         left = [row[0] for row in conn.execute("SELECT id FROM own_requests")]

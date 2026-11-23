@@ -3,6 +3,7 @@
 Revision ID: 0016
 Revises: 0015
 """
+
 import json
 
 import sqlalchemy as sa
@@ -63,8 +64,11 @@ def upgrade() -> None:
     # One record in effect on a subject, in the journal and in the core: two agents
     # writing at once cannot both win.
     op.create_index(
-        "uq_memories_active_subject", "memories", ["project_id", "tier", "about_key"],
-        unique=True, sqlite_where=sa.text("status = 'active'"),
+        "uq_memories_active_subject",
+        "memories",
+        ["project_id", "tier", "about_key"],
+        unique=True,
+        sqlite_where=sa.text("status = 'active'"),
     )
     with op.batch_alter_table("agents") as batch:
         # The core records an agent was given when it started; empty for an agent from

@@ -51,8 +51,9 @@ def commit(folder, name):
 def test_status_says_the_branch_and_how_many_files_are_not_committed(repo):
     seen = git.look(repo)
     assert (seen["branch"], seen["changed"], seen["branches"]) == ("main", 0, [])
-    assert seen["worktrees"] == [{"path": seen["worktrees"][0]["path"], "branch": "main",
-                                  "locked": False, "here": True}]
+    assert seen["worktrees"] == [
+        {"path": seen["worktrees"][0]["path"], "branch": "main", "locked": False, "here": True}
+    ]
     (repo / "a.txt").write_text("changed\n")
     (repo / "new.txt").write_text("new\n")
     assert git.look(repo)["changed"] == 2
@@ -68,8 +69,11 @@ def test_other_branches_are_ahead_behind_and_joined_or_not(repo):
     branches = {one["name"]: one for one in git.look(repo)["branches"]}
     assert (branches["fix-login"]["ahead"], branches["fix-login"]["behind"]) == (2, 1)
     assert branches["fix-login"]["joined"] is False
-    assert (branches["docs"]["ahead"], branches["docs"]["behind"], branches["docs"]["joined"]) \
-        == (0, 1, True)
+    assert (branches["docs"]["ahead"], branches["docs"]["behind"], branches["docs"]["joined"]) == (
+        0,
+        1,
+        True,
+    )
     assert branches["docs"]["last_at"]
 
 
@@ -85,7 +89,11 @@ def test_branches_say_their_last_commit_and_remote_tracking_ones_are_listed_too(
     assert sorted(branches) == ["refs/heads/feature", "refs/remotes/origin/feature"]
     remote = branches["refs/remotes/origin/feature"]
     assert (remote["name"], remote["remote"], remote["ahead"], remote["subject"]) == (
-        "origin/feature", True, 1, "feature work")
+        "origin/feature",
+        True,
+        1,
+        "feature work",
+    )
     assert remote["sha"] == run(repo, "rev-parse", "--short", "feature")
     assert branches["refs/heads/feature"]["remote"] is False
     assert (seen["current"]["name"], seen["current"]["subject"]) == ("main", "as it was")
@@ -95,7 +103,9 @@ def test_a_worktree_is_listed_with_its_branch(repo, tmp_path):
     run(repo, "worktree", "add", "-q", "-b", "side", str(tmp_path / "side"))
     seen = git.look(repo)
     assert [(one["branch"], one["here"]) for one in seen["worktrees"]] == [
-        ("main", True), ("side", False)]
+        ("main", True),
+        ("side", False),
+    ]
     assert os.path.samefile(seen["branches"][0]["worktree"], tmp_path / "side")
 
 
@@ -121,13 +131,17 @@ def test_git_that_does_not_answer_in_time_shows_no_git(repo, tmp_path, monkeypat
     # A stand-in for git that hangs - at once, or once it has said where the repository is.
     where = tmp_path / "slow"
     where.mkdir()
-    top, folder = run(repo, "rev-parse", "--show-toplevel"), run(repo, "rev-parse",
-                                                                  "--absolute-git-dir")
+    top, folder = (
+        run(repo, "rev-parse", "--show-toplevel"),
+        run(repo, "rev-parse", "--absolute-git-dir"),
+    )
     (where / "git.py").write_text(
         "import sys, time\n"
         f"if {finds_it} and 'rev-parse' in sys.argv: print({top!r}); print({folder!r}); "
         "sys.exit(0)\n"
-        "time.sleep(30)\n", encoding="utf-8")
+        "time.sleep(30)\n",
+        encoding="utf-8",
+    )
     if sys.platform == "win32":
         program = where / "git.cmd"
         program.write_text(f'@"{sys.executable}" "{where / "git.py"}" %*\r\n')
@@ -144,26 +158,36 @@ def test_git_that_does_not_answer_in_time_shows_no_git(repo, tmp_path, monkeypat
 
 # --- a turn's start and end ----------------------------------------------------------------
 
-BEFORE = {"branch": "main", "head": "h1", "names": ["main"],
-          "worktrees": [{"path": "/p", "branch": "main"}]}
+BEFORE = {
+    "branch": "main",
+    "head": "h1",
+    "names": ["main"],
+    "worktrees": [{"path": "/p", "branch": "main"}],
+}
 
 
 def test_a_branch_switch_is_said_with_the_cli_and_not_reported(tmp_path):
     after = {**BEFORE, "branch": "fix-login", "names": ["main", "fix-login"]}
     assert git.turn_note(tmp_path, BEFORE, after, "Codex", []) == (
         "Codex switched the project to branch fix-login during this turn (it was on main). "
-        "Not reported.")
+        "Not reported."
+    )
     # Several CLIs, or none: nobody is named.
     said = [("Coder", {"branch": "fix-login", "why": "asked"})]
     assert git.turn_note(tmp_path, BEFORE, after, None, said) == (
-        "The project was switched to branch fix-login during this turn (it was on main).")
+        "The project was switched to branch fix-login during this turn (it was on main)."
+    )
 
 
 def test_a_new_worktree_is_said_and_what_was_said_but_not_seen(tmp_path):
-    after = {**BEFORE, "worktrees": [*BEFORE["worktrees"],
-                                     {"path": str(tmp_path / "wt"), "branch": "side"}]}
-    said = [("Coder", {"branch": "nowhere", "commits": 2, "why": "x"}),
-            ("Coder", {"commits": 1, "why": "y"})]
+    after = {
+        **BEFORE,
+        "worktrees": [*BEFORE["worktrees"], {"path": str(tmp_path / "wt"), "branch": "side"}],
+    }
+    said = [
+        ("Coder", {"branch": "nowhere", "commits": 2, "why": "x"}),
+        ("Coder", {"commits": 1, "why": "y"}),
+    ]
     # (Commits said of another branch are not looked for: its HEAD is not the project's.)
     assert git.turn_note(tmp_path, BEFORE, after, "Codex", said).splitlines() == [
         f"Codex opened a worktree at {tmp_path / 'wt'} on branch side during this turn. "
@@ -176,7 +200,7 @@ def test_a_new_worktree_is_said_and_what_was_said_but_not_seen(tmp_path):
 
 def test_the_git_section_of_a_clis_instructions():
     said = git_prompt("main", in_copy=True, reports=True)
-    assert "on branch “main”" in said or "on branch \"main\"" in said
+    assert "on branch “main”" in said or 'on branch "main"' in said
     assert "Don't switch branches, open worktrees, commit or merge - KOLONİ does that" in said
     assert "ask the user first, and say why and which branch it should be merged into" in said
     assert "a copy of it, which is not a git repository" in said
@@ -189,18 +213,21 @@ def test_a_turn_that_switches_the_branch_is_said_in_the_chat_with_what_the_cli_s
     make_client, wait_run, repo
 ):
     held = Gate()
-    client, model = make_client([
-        step(call("report_git", {"branch": "gone", "merge_into": "main", "why": "a fix"}, "r")),
-        held.step(text("done")),
-        text("again"),
-    ])
+    client, model = make_client(
+        [
+            step(call("report_git", {"branch": "gone", "merge_into": "main", "why": "a fix"}, "r")),
+            held.step(text("done")),
+            text("again"),
+        ]
+    )
     model.command = "claude"  # (taken for a CLI: what it is told, and offered)
     client.headers["Origin"] = ORIGIN
     pid = client.post("/api/projects", json={"root_path": str(repo)}).json()["id"]
     assert client.get(f"/api/projects/{pid}/git").json()["branch"] == "main"
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    run_id = client.post(f"/api/conversations/{cid}/messages",
-                         json={"content": "go"}).json()["run"]["id"]
+    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()[
+        "run"
+    ]["id"]
     held.wait_partial()
     run(repo, "switch", "-q", "-c", "fix-login")  # (as a CLI's own command would)
     held.release()
@@ -219,16 +246,20 @@ def test_a_turn_that_switches_the_branch_is_said_in_the_chat_with_what_the_cli_s
     assert any(one["function"]["name"] == "report_git" for one in model.tool_args[0])
     said = [m["content"] for m in snap["messages"] if m["role"] == "git"]
     # The one CLI of the turn is named by its provider (as "Codex switched ...").
-    assert said == ["Local switched the project to branch fix-login during this turn (it was "
-                    "on main). Not reported.\nLead said branch gone: said, not seen in git."]
+    assert said == [
+        "Local switched the project to branch fix-login during this turn (it was "
+        "on main). Not reported.\nLead said branch gone: said, not seen in git."
+    ]
     # The map shows what was said, and that git does not.
     seen = client.get(f"/api/projects/{pid}/git").json()
     assert seen["branch"] == "fix-login"
     assert [(r["agent"], r["branch"], r["merge_into"], r["seen"]) for r in seen["reports"]] == [
-        ("Lead", "gone", "main", False)]
+        ("Lead", "gone", "main", False)
+    ]
     # No agent is given KOLONİ's line: the next turn's Lead does not see it.
-    run_id = client.post(f"/api/conversations/{cid}/messages",
-                         json={"content": "and?"}).json()["run"]["id"]
+    run_id = client.post(f"/api/conversations/{cid}/messages", json={"content": "and?"}).json()[
+        "run"
+    ]["id"]
     wait_run(client, cid, run_id)
     assert "switched the project" not in str(model.calls[-1])
 
@@ -243,16 +274,24 @@ def test_a_working_copy_says_what_it_changed_so_far_once_per_file(
     from tests.test_take_in_scenarios import edit, start
 
     held = Gate()
-    client, pid, cid, run_id = start(make_client, project_dir, [
-        step(edit("two", "TWO", "e1")), step(edit("TWO", "TWO again", "e2")),
-        held.step(text("done"))])
+    client, pid, cid, run_id = start(
+        make_client,
+        project_dir,
+        [
+            step(edit("two", "TWO", "e1")),
+            step(edit("TWO", "TWO again", "e2")),
+            held.step(text("done")),
+        ],
+    )
     held.wait_partial()
-    coder = next(a for a in client.get(f"/api/conversations/{cid}").json()["agents"]
-                 if a["name"] == "Coder")
+    coder = next(
+        a for a in client.get(f"/api/conversations/{cid}").json()["agents"] if a["name"] == "Coder"
+    )
     copy = client.get(f"/api/agents/{coder['id']}/copy").json()
     # Two edits of one file: one file, from what it held to what it holds now.
     assert [(f["path"], f["kind"], f["additions"], f["deletions"]) for f in copy["files"]] == [
-        ("lines.txt", "modify", 1, 1)]
+        ("lines.txt", "modify", 1, 1)
+    ]
     assert "+TWO again" in copy["files"][0]["diff"]
     assert copy["agent_id"] == coder["id"] and os.path.isdir(copy["folder"])
     board = client.get(f"/api/projects/{pid}/board").json()
@@ -261,12 +300,17 @@ def test_a_working_copy_says_what_it_changed_so_far_once_per_file(
     # Open folder: the copy's own folder, never one a request names; only from the app's page.
     opened = []
     monkeypatch.setattr(agents_api, "open_folder", opened.append)
-    assert client.post(f"/api/agents/{coder['id']}/copy/open",
-                       headers={"Origin": "http://evil.example"}).status_code == 403
+    assert (
+        client.post(
+            f"/api/agents/{coder['id']}/copy/open", headers={"Origin": "http://evil.example"}
+        ).status_code
+        == 403
+    )
     assert client.post(f"/api/agents/{coder['id']}/copy/open").status_code == 204
     assert [str(one) for one in opened] == [copy["folder"]]
-    lead = next(a for a in client.get(f"/api/conversations/{cid}").json()["agents"]
-                if a["name"] == "Lead")
+    lead = next(
+        a for a in client.get(f"/api/conversations/{cid}").json()["agents"] if a["name"] == "Lead"
+    )
     assert client.get(f"/api/agents/{lead['id']}/copy").status_code == 404
     held.release()
     wait_run(client, cid, run_id)
@@ -280,9 +324,11 @@ def marker(tmp_path: Path, name: str, passes: bool = True) -> tuple[Path, str]:
     else it ends at once): the mark, and the program as a command line (forward slashes:
     git's shell and Windows both)."""
     mark, script = tmp_path / f"ran-{name}", tmp_path / f"mark-{name}.py"
-    script.write_text("import pathlib, sys\npathlib.Path(sys.argv[1]).write_text('x')\n"
-                      + ("sys.stdout.write(sys.stdin.read())\n" if passes else ""),
-                      encoding="utf-8")
+    script.write_text(
+        "import pathlib, sys\npathlib.Path(sys.argv[1]).write_text('x')\n"
+        + ("sys.stdout.write(sys.stdin.read())\n" if passes else ""),
+        encoding="utf-8",
+    )
     line = f'"{Path(sys.executable).as_posix()}" "{script.as_posix()}" "{mark.as_posix()}"'
     return mark, line
 
@@ -320,8 +366,12 @@ def test_a_signed_commit_is_not_checked_by_the_look(repo, tmp_path):
     checker.chmod(0o755)
     body = run(repo, "cat-file", "commit", "HEAD").split("\n")
     at = next(i for i, one in enumerate(body) if one.startswith("committer ")) + 1
-    body[at:at] = ["gpgsig -----BEGIN PGP SIGNATURE-----", " ", " iQ==",
-                   " -----END PGP SIGNATURE-----"]
+    body[at:at] = [
+        "gpgsig -----BEGIN PGP SIGNATURE-----",
+        " ",
+        " iQ==",
+        " -----END PGP SIGNATURE-----",
+    ]
     crafted = tmp_path / "commit.txt"
     crafted.write_text("\n".join(body) + "\n", encoding="utf-8", newline="\n")
     signed = run(repo, "hash-object", "-t", "commit", "-w", str(crafted))
@@ -357,7 +407,9 @@ def test_a_network_or_outside_worktree_is_refused_and_no_agent_path_is_opened(
         with pytest.raises(ValueError, match="network path or another place"):
             git.reported({"worktree": far, "why": "x"}, repo)
     assert git.reported({"worktree": "../wt", "commits": True, "why": " x "}, repo) == {
-        "worktree": "../wt", "why": "x"}  # (a bool is no number of commits)
+        "worktree": "../wt",
+        "why": "x",
+    }  # (a bool is no number of commits)
     assert git.reported({"worktree": str(repo / "inner"), "why": "x"}, repo)["worktree"]
     real = os.path.realpath
 
@@ -377,12 +429,15 @@ def test_one_time_limit_for_the_whole_look(repo, monkeypatch, limit):
     # second of that clock: nothing here depends on how busy the machine is.
     now, given = [0.0], []
     answers = {
-        "--show-toplevel": f"{repo}\n{repo / '.git'}\n", "--show-current": "main\n",
+        "--show-toplevel": f"{repo}\n{repo / '.git'}\n",
+        "--show-current": "main\n",
         "worktree": f"worktree {repo}\nbranch refs/heads/main\n",
         git.REFS[2]: "refs/heads/main\t\taaa\t2026-10-27T10:00:00+00:00\tone\n"
-                     "refs/heads/side\t\tbbb\t2026-10-26T10:00:00+00:00\ttwo\n",
+        "refs/heads/side\t\tbbb\t2026-10-26T10:00:00+00:00\ttwo\n",
         "--sort=-committerdate": "main\t2026-10-27T10:00:00+00:00\nside\t2026-10-26T10:00:00+00:00\n",
-        "--verify": "a" * 40 + "\n", "status": "", "--merged=HEAD": "refs/heads/main\n",
+        "--verify": "a" * 40 + "\n",
+        "status": "",
+        "--merged=HEAD": "refs/heads/main\n",
         "rev-list": "0\t1\n",
     }
 
@@ -411,8 +466,12 @@ def start_two(make_client, repo, steps):
     client.headers["Origin"] = ORIGIN
     pid = client.post("/api/projects", json={"root_path": str(repo)}).json()["id"]
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    runs = [client.post(f"/api/conversations/{cid}/messages",
-                        json={"content": word}).json()["run"]["id"] for word in ("one", "two")]
+    runs = [
+        client.post(f"/api/conversations/{cid}/messages", json={"content": word}).json()["run"][
+            "id"
+        ]
+        for word in ("one", "two")
+    ]
     return client, cid, runs
 
 
@@ -492,10 +551,13 @@ def test_the_summary_writes_no_index_and_so_fires_no_hook(repo, tmp_path):
 @pytest.mark.parametrize("missing", ["ref", "tree"])
 def test_a_partial_clone_fetches_nothing_for_a_look(repo, tmp_path, missing):
     mark, line = marker(tmp_path, "fetch", passes=False)
-    for key, value in (("core.repositoryformatversion", "1"),
-                       ("extensions.partialClone", "origin"), ("remote.origin.promisor", "true"),
-                       ("remote.origin.url", (tmp_path / "origin").as_uri()),
-                       ("remote.origin.uploadpack", line)):
+    for key, value in (
+        ("core.repositoryformatversion", "1"),
+        ("extensions.partialClone", "origin"),
+        ("remote.origin.promisor", "true"),
+        ("remote.origin.url", (tmp_path / "origin").as_uri()),
+        ("remote.origin.uploadpack", line),
+    ):
         run(repo, "config", key, value)
     if missing == "ref":  # a branch whose commit is not here
         (repo / ".git" / "refs" / "heads" / "ghost").write_text("1234567890" * 4 + "\n")

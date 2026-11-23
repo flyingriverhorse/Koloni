@@ -19,7 +19,8 @@ def test_names_are_compared_folded_and_a_move_is_checked(client, project_dir):
     assert there["role"] == "Translator"  # the role's own name
     # made global, it would be seen beside the first project's
     moved = client.patch(
-        f"/api/own-commands/{there['id']}", json={"project_id": None}, headers=ORIGIN)
+        f"/api/own-commands/{there['id']}", json={"project_id": None}, headers=ORIGIN
+    )
     assert moved.status_code == 409
     cleared = client.patch(f"/api/own-commands/{there['id']}", json={"role": None}, headers=ORIGIN)
     assert cleared.json()["role"] is None and cleared.json()["project_id"] == elsewhere
@@ -51,8 +52,12 @@ def test_a_blank_text_is_refused_and_a_null_leaves_a_field_as_it_is(client):
     made = _make(client, name="b2", description="d", template="keep {args}").json()
     url = f"/api/own-commands/{made['id']}"
     assert client.patch(url, json={"template": " "}, headers=ORIGIN).status_code == 422
-    kept = client.patch(url, json={"name": None, "template": None, "description": None},
-                        headers=ORIGIN)
+    kept = client.patch(
+        url, json={"name": None, "template": None, "description": None}, headers=ORIGIN
+    )
     assert kept.status_code == 200
     assert (kept.json()["name"], kept.json()["template"], kept.json()["description"]) == (
-        "b2", "keep {args}", "d")
+        "b2",
+        "keep {args}",
+        "d",
+    )

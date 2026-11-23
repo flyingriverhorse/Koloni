@@ -39,8 +39,11 @@ def test_a_copy_without_its_base_does_not_offer_to_put_back_what_the_user_change
     """Its base was deleted (a command of the agent's can do that) and the user worked on:
     one Apply put the old `hello.py` back beside the agent's `a.txt`."""
     (project_dir / "other.py").write_text("one\n", encoding="utf-8")
-    cid = at_work(settings_env, project_dir, [
-        step(write("a.txt", "A")), step(edit("other.py", "one", "the agent's", "e"))])
+    cid = at_work(
+        settings_env,
+        project_dir,
+        [step(write("a.txt", "A")), step(edit("other.py", "one", "the agent's", "e"))],
+    )
     (folder,) = kept_folders(settings_env)
     (folder / copies.BASE_FILE).unlink()
     (folder / "tree" / "made.txt").write_text("by a command", encoding="utf-8")
@@ -49,16 +52,26 @@ def test_a_copy_without_its_base_does_not_offer_to_put_back_what_the_user_change
     with again(settings_env) as client:
         card = card_of(client, cid)
         # what the agent is on record with, and what the project does not have at all
-        assert files(card) == {"a.txt": "conflict", "hello.py": "left_out",
-                               "made.txt": "conflict", "other.py": "conflict"}
+        assert files(card) == {
+            "a.txt": "conflict",
+            "hello.py": "left_out",
+            "made.txt": "conflict",
+            "other.py": "conflict",
+        }
         left = card["files"][1]
         assert left["diff"] is None and "what this copy started from is not known" in left["note"]
         said = client.post(f"/api/merges/{card['id']}/approve")
         assert said.status_code == 200
-        assert files(said.json()) == {"a.txt": "applied", "hello.py": "left_out",
-                                      "made.txt": "applied", "other.py": "applied"}
-        assert (project_dir / "hello.py").read_text(encoding="utf-8") == "print('the user, later')\n"
-        assert (project_dir / "more.py").is_file()          # not in the copy: not deleted
+        assert files(said.json()) == {
+            "a.txt": "applied",
+            "hello.py": "left_out",
+            "made.txt": "applied",
+            "other.py": "applied",
+        }
+        assert (project_dir / "hello.py").read_text(
+            encoding="utf-8"
+        ) == "print('the user, later')\n"
+        assert (project_dir / "more.py").is_file()  # not in the copy: not deleted
         assert (project_dir / "a.txt").read_text(encoding="utf-8") == "A"
         assert (project_dir / "other.py").read_text(encoding="utf-8") == "the agent's\n"
         assert (project_dir / "made.txt").read_text(encoding="utf-8") == "by a command"
@@ -67,7 +80,7 @@ def test_a_copy_without_its_base_does_not_offer_to_put_back_what_the_user_change
         assert said.json()["status"] == "kept"
         assert (folder / "tree" / "hello.py").read_text(encoding="utf-8") == "print('hi')\n"
         assert client.post(f"/api/merges/{card['id']}/approve").status_code == 409
-    with again(settings_env) as client:                     # and after another start
+    with again(settings_env) as client:  # and after another start
         card = card_of(client, cid)
         assert files(card)["hello.py"] == "left_out" and files(card)["a.txt"] == "applied"
         said = client.post(f"/api/merges/{card['id']}/reject")
@@ -107,7 +120,7 @@ def kept_before(tmp_path, settings, kept_in, tree=None):
     (project / "tree" / "src" / "x.py").write_text("old\n", encoding="utf-8")
     folder = settings.runtime_root / "copies" / "x"
     shutil.copytree(project, folder)
-    (folder / "tree" / "src" / "x.py").write_text("A", encoding="utf-8")   # as its record has it
+    (folder / "tree" / "src" / "x.py").write_text("A", encoding="utf-8")  # as its record has it
     with factory() as s:
         on_record(s, project)
         an_agent(s, "x")
@@ -115,8 +128,16 @@ def kept_before(tmp_path, settings, kept_in, tree=None):
             s.get_one(Agent, "x").copy = {"state": "own", "tree": tree(folder)}
         a_change(s, "f1", "x", "tree/src/x.py", kind="modify")
         if kept_in:
-            s.add(Merge(id="m1", run_id="r", agent_id="x", status="interrupted", files=[],
-                        kept_in=kept_in(folder)))
+            s.add(
+                Merge(
+                    id="m1",
+                    run_id="r",
+                    agent_id="x",
+                    status="interrupted",
+                    files=[],
+                    kept_in=kept_in(folder),
+                )
+            )
         s.commit()
     return factory, project, folder
 
@@ -130,8 +151,7 @@ def test_a_copy_of_the_layout_before_trees_whose_only_entry_is_a_folder_named_tr
         client.headers["Origin"] = ORIGIN
         with factory() as s:
             (merge,) = s.scalars(select(Merge)).all()
-            assert [(f["path"], f["state"]) for f in merge.files] == [
-                ("tree/src/x.py", "conflict")]
+            assert [(f["path"], f["state"]) for f in merge.files] == [("tree/src/x.py", "conflict")]
             assert merge.kept_in == str(folder)
         assert client.post("/api/merges/m1/approve").status_code == 200
     assert (project / "tree" / "src" / "x.py").read_text(encoding="utf-8") == "A"
@@ -162,8 +182,9 @@ def test_a_copy_made_now_is_on_record_with_its_tree_before_anything_is_kept(
     (folder,) = kept_folders(settings_env)
     with make_session_factory(make_engine(load_settings(settings_env).db_path))() as s:
         assert [a.copy for a in s.scalars(select(Agent)) if a.copy] == [
-            {"state": "own", "tree": str(folder / "tree")}]
-        for merge in s.scalars(select(Merge)):          # as a kill would have left it
+            {"state": "own", "tree": str(folder / "tree")}
+        ]
+        for merge in s.scalars(select(Merge)):  # as a kill would have left it
             s.delete(merge)
         s.commit()
     (folder / copies.BASE_FILE).unlink()
@@ -180,7 +201,7 @@ def test_a_base_less_copy_no_record_says_the_layout_of_is_only_to_discard_and_st
     tmp_path, settings, layout
 ):
     factory, project, folder = kept_before(tmp_path, settings, None)
-    if layout == "tree":            # as slice 19c lays a copy out, its base gone
+    if layout == "tree":  # as slice 19c lays a copy out, its base gone
         (folder / "tree" / "tree").mkdir()
         shutil.move(str(folder / "tree" / "src"), str(folder / "tree" / "tree" / "src"))
     for _restart in range(2):
@@ -190,7 +211,8 @@ def test_a_base_less_copy_no_record_says_the_layout_of_is_only_to_discard_and_st
                 (merge,) = s.scalars(select(Merge)).all()
                 assert merge.status == "interrupted"
                 assert [(f["path"], f["state"]) for f in merge.files] == [
-                    ("tree/src/x.py", "refused")]
+                    ("tree/src/x.py", "refused")
+                ]
                 merge_id = merge.id
             assert client.post(f"/api/merges/{merge_id}/approve").status_code == 409
             assert (project / "tree" / "src" / "x.py").read_text(encoding="utf-8") == "old\n"
@@ -225,8 +247,11 @@ def test_a_file_named_like_a_folder_a_copy_leaves_out_is_copied_and_taken_back(
     (made.root / "pkg" / "dist").write_text("a new file of that name", encoding="utf-8")
     (made.root / "dist").mkdir()
     (made.root / "dist" / "new.js").write_text("built in the copy", encoding="utf-8")
-    wanted = [("build", "changed", "ready"), ("pkg/BUILD", "deleted", "ready"),
-              ("pkg/dist", "new", "ready")]
+    wanted = [
+        ("build", "changed", "ready"),
+        ("pkg/BUILD", "deleted", "ready"),
+        ("pkg/dist", "new", "ready"),
+    ]
     assert made.changes() == wanted
     copies.unlink(tmp_path / "runtime", "a1")
     assert copies.load(project_dir, tmp_path / "runtime", "a1").changes() == wanted
@@ -249,9 +274,16 @@ def test_an_agent_changes_a_file_named_build_in_its_copy_and_the_project_gets_it
     make_client, wait_run, project_dir
 ):
     (project_dir / "build").write_text("old\n", encoding="utf-8")
-    client, model, cid, run_id = one(make_client, project_dir, [
-        step(write("build", "new\n")), step(write("dist./out.js", "x", "w2")),
-        step(write("sub/Build/out.js", "x", "w3")), text("A done")])
+    client, model, cid, run_id = one(
+        make_client,
+        project_dir,
+        [
+            step(write("build", "new\n")),
+            step(write("dist./out.js", "x", "w2")),
+            step(write("sub/Build/out.js", "x", "w3")),
+            text("A done"),
+        ],
+    )
     snap = wait_run(client, cid, run_id)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     wrote, dotted, under = calls(snap, "Coder", "write_file")

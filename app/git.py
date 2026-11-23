@@ -32,14 +32,20 @@ COMMIT_SECONDS = 180.0
 # How much of what git (or a hook) said is passed on with a refusal.
 TAIL = 2000
 NOT_FOUND = "git was not found on this machine"
-SUBFOLDER = ("the project folder is a subfolder of a git repository: a commit is offered only "
-             "where the project is the repository's top folder")
+SUBFOLDER = (
+    "the project folder is a subfolder of a git repository: a commit is offered only "
+    "where the project is the repository's top folder"
+)
 # What would send git to another repository than the one it is started in.
 _ELSEWHERE = frozenset({"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR"})
 # What is under way in a repository while one of these is in its git folder.
 _UNDER_WAY = {
-    "MERGE_HEAD": "a merge", "CHERRY_PICK_HEAD": "a cherry-pick", "REVERT_HEAD": "a revert",
-    "rebase-merge": "a rebase", "rebase-apply": "a rebase", "BISECT_LOG": "a bisect",
+    "MERGE_HEAD": "a merge",
+    "CHERRY_PICK_HEAD": "a cherry-pick",
+    "REVERT_HEAD": "a revert",
+    "rebase-merge": "a rebase",
+    "rebase-apply": "a rebase",
+    "BISECT_LOG": "a bisect",
 }
 
 
@@ -60,44 +66,70 @@ def find() -> str | None:
     return None if found.rstrip(". ").lower().endswith((".cmd", ".bat")) else found
 
 
-def run(argv: list[str], cwd: Path, seconds: float, stdin: bytes | None = None, /, *,
-        program: str = "git", **more: str) -> tuple[int, bytes, bytes]:
+def run(
+    argv: list[str],
+    cwd: Path,
+    seconds: float,
+    stdin: bytes | None = None,
+    /,
+    *,
+    program: str = "git",
+    **more: str,
+) -> tuple[int, bytes, bytes]:
     """Run git (or `program`: gh) to its end: its exit code, what it wrote, and what it said
     beside that. `stdin`: what it reads - a list of paths, which no command line on Windows
     holds a few hundred of. `more`: further variables for its environment. Refused when it cannot be
     started, or does not end in time - then it, and whatever it started (a hook), is killed."""
-    process, job = _started(argv, cwd, subprocess.DEVNULL if stdin is None else subprocess.PIPE,
-                            subprocess.PIPE, program, more)
+    process, job = _started(
+        argv,
+        cwd,
+        subprocess.DEVNULL if stdin is None else subprocess.PIPE,
+        subprocess.PIPE,
+        program,
+        more,
+    )
     try:
         out, err = process.communicate(stdin, timeout=seconds)
     except subprocess.TimeoutExpired:
         _kill(process, job)
         process.communicate()
-        raise Refused(f"{program} did not end within {seconds:.0f} seconds and was stopped"
-                      ) from None
+        raise Refused(
+            f"{program} did not end within {seconds:.0f} seconds and was stopped"
+        ) from None
     finally:
         if job is not None:
             job.terminate()  # nothing it started is left running; the job is released
     return process.returncode, out, err
 
 
-def _started(argv: list[str], cwd: Path, stdin: int, stderr: int, program: str,
-             more: dict[str, str]) -> tuple[subprocess.Popen, Job | None]:
+def _started(
+    argv: list[str], cwd: Path, stdin: int, stderr: int, program: str, more: dict[str, str]
+) -> tuple[subprocess.Popen, Job | None]:
     """git started as `run` starts it, its output piped: the process, and its job (Windows)."""
     env = {
-        key: value for key, value in os.environ.items()
+        key: value
+        for key, value in os.environ.items()
         if not key.upper().startswith("KOLONI_") and key.upper() not in _ELSEWHERE
     }
     # (Windows looks for a program in the folder it is started in first: not here. And
     # a look at the user's repository takes no lock it could do without: it neither
     # rewrites their index nor stands in the way of a git command of their own.)
-    env.update({
-        "NoDefaultCurrentDirectoryInExePath": "1", "GIT_TERMINAL_PROMPT": "0",
-        "GIT_OPTIONAL_LOCKS": "0", **more,
-    })
+    env.update(
+        {
+            "NoDefaultCurrentDirectoryInExePath": "1",
+            "GIT_TERMINAL_PROMPT": "0",
+            "GIT_OPTIONAL_LOCKS": "0",
+            **more,
+        }
+    )
     try:
         process = subprocess.Popen(
-            argv, cwd=cwd, env=env, stdin=stdin, stdout=subprocess.PIPE, stderr=stderr,
+            argv,
+            cwd=cwd,
+            env=env,
+            stdin=stdin,
+            stdout=subprocess.PIPE,
+            stderr=stderr,
             start_new_session=sys.platform != "win32",
         )
     except (OSError, ValueError) as exc:
@@ -110,8 +142,9 @@ def _started(argv: list[str], cwd: Path, stdin: int, stderr: int, program: str,
     return process, job
 
 
-def fed_to(argv: list[str], cwd: Path, seconds: float, take: Callable[[bytes], bool], /,
-           **more: str) -> int | None:
+def fed_to(
+    argv: list[str], cwd: Path, seconds: float, take: Callable[[bytes], bool], /, **more: str
+) -> int | None:
     """git started as `run` starts it, what it writes handed to `take` a piece at a time as it
     comes - an output too big to hold (a listing of a tree of a million files): where `take`
     answers False, git and what it started are ended. Its exit code; None: `take` stopped it.
@@ -177,9 +210,18 @@ def merge_file(
             for name, data in (("project", project), ("base", base), ("agent", agent)):
                 (Path(held) / name).write_bytes(data)
             code, out, _said = run(
-                [git, "merge-file", "-p", *([f"--{favour}"] if favour else []),
-                 "project", "base", "agent"],
-                Path(held), SHORT_SECONDS, GIT_CEILING_DIRECTORIES=str(folder),
+                [
+                    git,
+                    "merge-file",
+                    "-p",
+                    *([f"--{favour}"] if favour else []),
+                    "project",
+                    "base",
+                    "agent",
+                ],
+                Path(held),
+                SHORT_SECONDS,
+                GIT_CEILING_DIRECTORIES=str(folder),
             )
     except OSError as exc:
         raise Refused(f"the files to merge could not be written: {exc.strerror or exc}") from None
@@ -194,13 +236,30 @@ def _in(project: Path, git: str, *args: str, seconds: float = SHORT_SECONDS, **m
     return _fed(project, git, None, *args, seconds=seconds, **more)
 
 
-def _fed(project: Path, git: str, stdin: bytes | None, /, *args: str,
-         seconds: float = SHORT_SECONDS, **more: str):
+def _fed(
+    project: Path,
+    git: str,
+    stdin: bytes | None,
+    /,
+    *args: str,
+    seconds: float = SHORT_SECONDS,
+    **more: str,
+):
     """`_in`, with `stdin` for git to read."""
     return run(
-        [git, "-c", "core.fsmonitor=false", "-c", "safe.bareRepository=explicit",
-         "--literal-pathspecs", *args],
-        project, seconds, stdin, **more,
+        [
+            git,
+            "-c",
+            "core.fsmonitor=false",
+            "-c",
+            "safe.bareRepository=explicit",
+            "--literal-pathspecs",
+            *args,
+        ],
+        project,
+        seconds,
+        stdin,
+        **more,
     )
 
 
@@ -229,10 +288,13 @@ def repository(project: Path, seconds: float = SHORT_SECONDS) -> tuple[str, Path
     if not os.path.lexists(project / ".git"):
         # (Looked for, not asked of git: the project's own files are no git folder to it.)
         raise Refused(
-            SUBFOLDER if any(os.path.lexists(above / ".git") for above in project.parents)
-            else "the project folder is not the top folder of a git repository")
-    code, out, _said = _in(project, git, "rev-parse", "--show-toplevel", "--absolute-git-dir",
-                           seconds=seconds)
+            SUBFOLDER
+            if any(os.path.lexists(above / ".git") for above in project.parents)
+            else "the project folder is not the top folder of a git repository"
+        )
+    code, out, _said = _in(
+        project, git, "rev-parse", "--show-toplevel", "--absolute-git-dir", seconds=seconds
+    )
     lines = out.decode("utf-8", "replace").splitlines()
     if code != 0 or len(lines) != 2:
         raise Refused("the project folder is not in a git repository")
@@ -252,19 +314,36 @@ def summary(project: Path, sha: str) -> str | None:
     # (Taken by itself after a commit: it runs nothing of the repository's either - no
     # filter, no hook of an index it would write again, no fetch.)
     code, out, _said = _in(
-        project, git, *UNASKED, "-c", "log.showRoot=true", "-c", "core.quotePath=false",
-        "show", "--format=", "--stat=100", "--no-color", "--no-show-signature", "--no-ext-diff",
-        "--no-textconv", "--ignore-submodules=all",
-        sha, "--",
-        seconds=SHORT_SECONDS, **UNASKED_ENV, **_no_filters(project, git, SHORT_SECONDS),
+        project,
+        git,
+        *UNASKED,
+        "-c",
+        "log.showRoot=true",
+        "-c",
+        "core.quotePath=false",
+        "show",
+        "--format=",
+        "--stat=100",
+        "--no-color",
+        "--no-show-signature",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--ignore-submodules=all",
+        sha,
+        "--",
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+        **_no_filters(project, git, SHORT_SECONDS),
     )
     return _text(out)[-TAIL:] or None if code == 0 else None
 
 
 # What a commit card says of a file that did not go in as the agent's change alone (`commit`).
 IGNORED = "git ignores it"
-STAGED = ("you have changes staged in it that the file in the project does not hold: commit "
-          "or unstage them first")
+STAGED = (
+    "you have changes staged in it that the file in the project does not hold: commit "
+    "or unstage them first"
+)
 NOT_THERE = "the agent's change is no longer in it as the project has it"
 # A commit's own index older than this is left over from one that never ended (`commit`).
 STALE_SECONDS = 3600.0
@@ -296,31 +375,44 @@ def _into_index(fed, alone: dict[str, str], put: list, whole: list) -> None:
     # (Every list of paths on stdin: Windows' command line holds a few hundred at most.)
     gone = [path for path, _mode, blob in put if blob is None]
     if known := [(path, mode, blob) for path, mode, blob in put if blob]:
-        fed("update-index", b"".join(f"{mode} {blob}\t".encode("ascii") + _nul([path])
-                                     for path, mode, blob in known),
-            "update-index", "--add", "-z", "--index-info", **alone)
+        fed(
+            "update-index",
+            b"".join(
+                f"{mode} {blob}\t".encode("ascii") + _nul([path]) for path, mode, blob in known
+            ),
+            "update-index",
+            "--add",
+            "-z",
+            "--index-info",
+            **alone,
+        )
     if gone:
-        fed("update-index", _nul(gone), "update-index", "--force-remove", "-z", "--stdin",
-            **alone)
+        fed("update-index", _nul(gone), "update-index", "--force-remove", "-z", "--stdin", **alone)
     if whole:
-        fed("add", _nul(whole), "update-index", "--add", "--remove", "-z", "--stdin",
-            **alone)
+        fed("add", _nul(whole), "update-index", "--add", "--remove", "-z", "--stdin", **alone)
 
 
 def _hook_changed(project: Path, git: str, tree: str, sha: str, notes: list[str]) -> list[str]:
     """For `commit`: the paths a commit hook changed, with a sentence of it added to `notes`."""
     # What a commit hook put in, or took out, besides.
-    code, out, _said = _in(project, git, "diff-tree", "-r", "-z", "--name-only",
-                           "--no-renames", tree, sha)
+    code, out, _said = _in(
+        project, git, "diff-tree", "-r", "-z", "--name-only", "--no-renames", tree, sha
+    )
     changed = [one.decode("utf-8", "surrogateescape") for one in out.split(b"\0") if one]
     if code != 0 or changed:
-        notes.append(f"a commit hook changed what went in: {', '.join(changed)}"
-                     if code == 0 else "what a commit hook changed could not be read")
+        notes.append(
+            f"a commit hook changed what went in: {', '.join(changed)}"
+            if code == 0
+            else "what a commit hook changed could not be read"
+        )
     return changed
 
 
 def commit(
-    project: Path, paths: list[str], message: str, no_hooks: Path | None = None,
+    project: Path,
+    paths: list[str],
+    message: str,
+    no_hooks: Path | None = None,
     sides: dict[str, tuple[Path | None, Path | None]] | None = None,
 ) -> tuple[str, list[str]]:
     """Commit the agent's part of these files of the project, and nothing else, as the
@@ -358,8 +450,9 @@ def commit(
             hooks = ("-c", f"core.hooksPath={empty}") if no_hooks is not None else ()
 
             def fed(what: str, stdin: bytes | None, /, *args: str, **more: str) -> bytes:
-                code, out, said = _fed(project, git, stdin, *hooks, *args,
-                                       seconds=COMMIT_SECONDS, **more)
+                code, out, said = _fed(
+                    project, git, stdin, *hooks, *args, seconds=COMMIT_SECONDS, **more
+                )
                 if code != 0:
                     raise Refused(f"git {what} failed: {_text(out, said)[-TAIL:]}")
                 return out
@@ -369,9 +462,15 @@ def commit(
 
             born = _in(project, git, "rev-parse", "-q", "--verify", "HEAD")[0] == 0
             put, whole, left = _agents_parts(project, git, paths, sides or {}, fed, born)
-            notes = ([f"{', '.join(whole)} went in whole, as the project has "
-                      f"{'it' if len(whole) == 1 else 'them'}: any edits of your own there went "
-                      "into this commit too"] if whole else [])
+            notes = (
+                [
+                    f"{', '.join(whole)} went in whole, as the project has "
+                    f"{'it' if len(whole) == 1 else 'them'}: any edits of your own there went "
+                    "into this commit too"
+                ]
+                if whole
+                else []
+            )
             notes += [f"{path} was left out of the commit: {why}" for path, why in left.items()]
             if born and (folder / "index").exists():
                 # The user's index for what it knows of each file (none is read again for
@@ -381,11 +480,28 @@ def commit(
                 shutil.copy2(folder / "index", index)
             must("read-tree", "read-tree", *(["--reset", "HEAD"] if born else ["--empty"]), **alone)
             _into_index(fed, alone, put, whole)
-            if _in(project, git, "diff", "--cached", "--quiet", "--no-ext-diff",
-                   seconds=SHORT_SECONDS, **alone)[0] == 0:
-                raise Refused("; ".join([
-                    "there is nothing to commit: these files are as the last commit has them",
-                    *notes]))
+            if (
+                _in(
+                    project,
+                    git,
+                    "diff",
+                    "--cached",
+                    "--quiet",
+                    "--no-ext-diff",
+                    seconds=SHORT_SECONDS,
+                    **alone,
+                )[0]
+                == 0
+            ):
+                raise Refused(
+                    "; ".join(
+                        [
+                            "there is nothing to commit: these files are as the last commit "
+                            "has them",
+                            *notes,
+                        ]
+                    )
+                )
             tree = must("write-tree", "write-tree", **alone).decode("ascii").strip()
             must("commit", "commit", "-m", message, **alone)
             code, out, _said = _in(project, git, "rev-parse", "HEAD")
@@ -397,8 +513,20 @@ def commit(
             back += [path for path in changed if path not in back]
             # The real index has these paths as the commit does; the commit stands whatever
             # this says (the user's own git may hold the index right now).
-            if _fed(project, git, _nul(back), *hooks, "reset", "-q", "--pathspec-from-file=-",
-                    "--pathspec-file-nul", seconds=COMMIT_SECONDS)[0] != 0:
+            if (
+                _fed(
+                    project,
+                    git,
+                    _nul(back),
+                    *hooks,
+                    "reset",
+                    "-q",
+                    "--pathspec-from-file=-",
+                    "--pathspec-file-nul",
+                    seconds=COMMIT_SECONDS,
+                )[0]
+                != 0
+            ):
                 named = " ".join(f'"{path}"' if " " in path else path for path in back)
                 notes.append(f"KOLONİ couldn't update git's index: run `git reset -- {named}`")
     finally:
@@ -428,8 +556,20 @@ def _ignored_new(project: Path, git: str, paths: list[str], heads: dict) -> dict
         # not added. (One at a time: the answer is the exit code. Not `_in`: check-ignore
         # refuses --literal-pathspecs; "./" keeps a leading ":" from being pathspec magic.)
         code, out, said = run(
-            [git, "-c", "core.fsmonitor=false", "-c", "safe.bareRepository=explicit",
-             "check-ignore", "-q", "--", f"./{path}"], project, COMMIT_SECONDS)
+            [
+                git,
+                "-c",
+                "core.fsmonitor=false",
+                "-c",
+                "safe.bareRepository=explicit",
+                "check-ignore",
+                "-q",
+                "--",
+                f"./{path}",
+            ],
+            project,
+            COMMIT_SECONDS,
+        )
         if code not in (0, 1):
             raise Refused(f"git check-ignore failed: {_text(out, said)[-TAIL:]}")
         if code == 0:
@@ -449,8 +589,9 @@ def _agents_parts(
     def merged(ours: str | None, base: str | None, theirs: str | None) -> str | None:
         if ours is None or base is None or theirs is None:
             return None
-        code, out, _said = _in(project, git, "merge-file", "--object-id", ours, base, theirs,
-                               seconds=COMMIT_SECONDS)
+        code, out, _said = _in(
+            project, git, "merge-file", "--object-id", ours, base, theirs, seconds=COMMIT_SECONDS
+        )
         # (Lines both changed, not text, or a git before 2.43: None.)
         return out.decode("ascii", "replace").strip() if code == 0 else None
 
@@ -464,10 +605,25 @@ def _agents_parts(
     left = _ignored_new(project, git, paths, heads)
     there = [path for path in paths if path not in left and (project / path).is_file()]
     # (A line each, quoted as C has it: a newline in a name, or a quote first, is the name's.)
-    quoted = "".join('"{}"\n'.format(path.replace("\\", "\\\\").replace('"', '\\"').replace(
-        "\n", "\\n").replace("\r", "\\r")) for path in there)
-    found = iter(fed("hash-object", quoted.encode("utf-8", "surrogateescape"), "hash-object",
-                     "-w", "--stdin-paths").decode("ascii").split() if there else [])
+    quoted = "".join(
+        '"{}"\n'.format(
+            path.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\r", "\\r")
+        )
+        for path in there
+    )
+    found = iter(
+        fed(
+            "hash-object",
+            quoted.encode("utf-8", "surrogateescape"),
+            "hash-object",
+            "-w",
+            "--stdin-paths",
+        )
+        .decode("ascii")
+        .split()
+        if there
+        else []
+    )
     now = {path: next(found, None) for path in there}
     put, whole = [], []
     for path in paths:
@@ -479,8 +635,20 @@ def _agents_parts(
             left[path] = STAGED
             continue
         files = [str(side) for side in sides.get(path, ()) if side is not None]
-        code, out, _said = _in(project, git, "hash-object", "-w", f"--path={path}", "--", *files,
-                               seconds=COMMIT_SECONDS) if files else (0, b"", b"")
+        code, out, _said = (
+            _in(
+                project,
+                git,
+                "hash-object",
+                "-w",
+                f"--path={path}",
+                "--",
+                *files,
+                seconds=COMMIT_SECONDS,
+            )
+            if files
+            else (0, b"", b"")
+        )
         ids = iter(out.decode("ascii", "replace").split())
         if path not in sides or code != 0:
             whole.append(path)
@@ -495,12 +663,18 @@ def _agents_parts(
             left[path] = NOT_THERE
             continue
         if mode is None:  # a new file: as the working tree has it (no such bit on Windows)
-            mode = "100755" if here and os.name != "nt" and os.stat(
-                project / path).st_mode & 0o100 else "100644"
+            mode = (
+                "100755"
+                if here and os.name != "nt" and os.stat(project / path).st_mode & 0o100
+                else "100644"
+            )
         if before == head:  # nothing of the user's in it: the agent's file is the commit's
             put.append((path, mode, after))
-        elif None in (before, after, head) or mode not in ("100644", "100755") or not (
-                together := merged(head, before, after)):
+        elif (
+            None in (before, after, head)
+            or mode not in ("100644", "100755")
+            or not (together := merged(head, before, after))
+        ):
             whole.append(path)
         else:
             put.append((path, mode, together))
@@ -520,9 +694,14 @@ MOST_LISTED = 50
 # K-dallar: each branch, local and remote-tracking (as last fetched - KOLONİ fetches nothing),
 # the latest commit first: its full name, whether it only points at another (origin/HEAD), its
 # last commit's short id and time, and its subject - last, so a tab in it stays in it.
-REFS = ("for-each-ref", "--sort=-committerdate",
-        "--format=%(refname)%09%(symref)%09%(objectname:short)%09%(committerdate:iso-strict)"
-        "%09%(contents:subject)", "refs/heads/", "refs/remotes/")
+REFS = (
+    "for-each-ref",
+    "--sort=-committerdate",
+    "--format=%(refname)%09%(symref)%09%(objectname:short)%09%(committerdate:iso-strict)"
+    "%09%(contents:subject)",
+    "refs/heads/",
+    "refs/remotes/",
+)
 FILTER_KEYS = ("clean", "smudge", "process")
 # What every look KOLONİ takes by itself is given (`summary` too; never the user's own
 # commit): no object is fetched from a promisor remote of a partial clone - which would run
@@ -546,18 +725,34 @@ def _no_filters(project: Path, git: str, seconds: float) -> dict[str, str]:
     nothing. Not for the user's own commit (`commit`): that keeps the repository's filters.
     shortcut: a file a filter keeps (Git LFS) may be counted as changed here; read its
     pointer instead if users are misled by it."""
-    code, out, _said = _in(project, git, *UNASKED, "config", "--name-only", "--get-regexp",
-                           r"^filter\.", seconds=seconds, **UNASKED_ENV)
-    names = sorted({
-        line.strip()[len("filter."):].rpartition(".")[0]
-        for line in out.decode("utf-8", "replace").splitlines() if line.strip()
-    } if code == 0 else set())
+    code, out, _said = _in(
+        project,
+        git,
+        *UNASKED,
+        "config",
+        "--name-only",
+        "--get-regexp",
+        r"^filter\.",
+        seconds=seconds,
+        **UNASKED_ENV,
+    )
+    names = sorted(
+        {
+            line.strip()[len("filter.") :].rpartition(".")[0]
+            for line in out.decode("utf-8", "replace").splitlines()
+            if line.strip()
+        }
+        if code == 0
+        else set()
+    )
     # (Not `-c`: that is cut at the first "=", and a driver's name may hold one.)
     pairs = [(f"filter.{name}.{key}", "") for name in names if name for key in FILTER_KEYS]
     pairs += [(f"filter.{name}.required", "false") for name in names if name]
-    return {"GIT_CONFIG_COUNT": str(len(pairs)),
-            **{f"GIT_CONFIG_KEY_{n}": key for n, (key, _value) in enumerate(pairs)},
-            **{f"GIT_CONFIG_VALUE_{n}": value for n, (_key, value) in enumerate(pairs)}}
+    return {
+        "GIT_CONFIG_COUNT": str(len(pairs)),
+        **{f"GIT_CONFIG_KEY_{n}": key for n, (key, _value) in enumerate(pairs)},
+        **{f"GIT_CONFIG_VALUE_{n}": value for n, (_key, value) in enumerate(pairs)},
+    }
 
 
 def _left(until: float) -> float:
@@ -571,8 +766,9 @@ def _left(until: float) -> float:
 def _said(project: Path, git: str, until: float, *args: str, **more: str) -> str | None:
     """What a read-only git command wrote (`UNASKED`); None where it did not end well.
     Refused once the look's time (`until`, on the monotonic clock) is spent."""
-    code, out, _said = _in(project, git, *UNASKED, *args, seconds=_left(until), **UNASKED_ENV,
-                           **more)
+    code, out, _said = _in(
+        project, git, *UNASKED, *args, seconds=_left(until), **UNASKED_ENV, **more
+    )
     return out.decode("utf-8", "replace") if code == 0 else None
 
 
@@ -584,15 +780,23 @@ def _worktrees(listed: str) -> list[dict]:
         lines = dict(line.partition(" ")[::2] for line in block.splitlines() if line)
         if "worktree" in lines and "bare" not in lines:
             branch = lines.get("branch", "")
-            found.append({"path": lines["worktree"],
-                          "branch": branch.removeprefix("refs/heads/") or None,
-                          "locked": "locked" in lines})
+            found.append(
+                {
+                    "path": lines["worktree"],
+                    "branch": branch.removeprefix("refs/heads/") or None,
+                    "locked": "locked" in lines,
+                }
+            )
     return found
 
 
 # The project's branches, the latest commit first: a name and its last commit's time.
-BRANCHES = ("for-each-ref", "--sort=-committerdate",
-            "--format=%(refname:lstrip=2)%09%(committerdate:iso-strict)", "refs/heads/")
+BRANCHES = (
+    "for-each-ref",
+    "--sort=-committerdate",
+    "--format=%(refname:lstrip=2)%09%(committerdate:iso-strict)",
+    "refs/heads/",
+)
 
 
 def _where(project: Path, git: str, until: float) -> dict | None:
@@ -604,16 +808,20 @@ def _where(project: Path, git: str, until: float) -> dict | None:
     # (Nothing of the commit is read: a signature on it is never checked here.)
     head = _said(project, git, until, "rev-parse", "--verify", "-q", "HEAD")  # None: no commit
     dates = dict(row.partition("\t")[::2] for row in rows.splitlines() if row)
-    return {"branch": branch.strip(), "head": (head or "").strip() or None,
-            "worktrees": _worktrees(listed), "names": list(dates), "dates": dates}
+    return {
+        "branch": branch.strip(),
+        "head": (head or "").strip() or None,
+        "worktrees": _worktrees(listed),
+        "names": list(dates),
+        "dates": dates,
+    }
 
 
 def _looking(project: Path, above: bool = False) -> tuple[str, float]:
     """git, and when the look's time is up - Refused where the project shows no git. `above`:
     a subfolder of a repository shows it too (`_above`)."""
     until = time.monotonic() + LOOK_SECONDS
-    return (_above(project, LOOK_SECONDS) if above
-            else repository(project, LOOK_SECONDS)[0]), until
+    return (_above(project, LOOK_SECONDS) if above else repository(project, LOOK_SECONDS)[0]), until
 
 
 def _above(project: Path, seconds: float) -> str:
@@ -630,11 +838,16 @@ def _above(project: Path, seconds: float) -> str:
     git = find()
     if git is None:
         raise Refused(NOT_FOUND)
-    code, out, _said = _in(project, git, *UNASKED, "rev-parse", "--show-toplevel",
-                           seconds=seconds, **UNASKED_ENV)
+    code, out, _said = _in(
+        project, git, *UNASKED, "rev-parse", "--show-toplevel", seconds=seconds, **UNASKED_ENV
+    )
     top = out.decode("utf-8", "replace").strip()
-    if code != 0 or not top or not os.path.lexists(Path(top) / ".git") or not Path(
-            os.path.realpath(project)).is_relative_to(os.path.realpath(top)):
+    if (
+        code != 0
+        or not top
+        or not os.path.lexists(Path(top) / ".git")
+        or not Path(os.path.realpath(project)).is_relative_to(os.path.realpath(top))
+    ):
         raise Refused("the project folder is not in a git repository")
     return git
 
@@ -661,12 +874,22 @@ def recent(project: Path) -> list[tuple[str, str, str]] | None:
     one: read only, in its time. None where it shows no git, or has no commit yet."""
     try:
         git, until = _looking(project)
-        said = _said(project, git, until, "log", f"-{RECENT}", "--date=format:%d %b %H:%M",
-                     "--format=%h%x09%cd%x09%s")
+        said = _said(
+            project,
+            git,
+            until,
+            "log",
+            f"-{RECENT}",
+            "--date=format:%d %b %H:%M",
+            "--format=%h%x09%cd%x09%s",
+        )
     except Refused:
         return None
-    return [(sha, when, subject) for sha, when, subject in (
-        line.split("\t", 2) for line in (said or "").splitlines() if line.count("\t") >= 2)
+    return [
+        (sha, when, subject)
+        for sha, when, subject in (
+            line.split("\t", 2) for line in (said or "").splitlines() if line.count("\t") >= 2
+        )
     ] or None
 
 
@@ -685,14 +908,31 @@ def look(project: Path) -> dict | None:
         if seen is None:
             return None
         off = _no_filters(project, git, _left(until))
-        status = _said(project, git, until, "status", "--porcelain",
-                       "--ignore-submodules=all", **off)
+        status = _said(
+            project, git, until, "status", "--porcelain", "--ignore-submodules=all", **off
+        )
         rows = _said(project, git, until, *REFS)
         if status is None or rows is None:
             return None
-        joined = set((_said(project, git, until, "for-each-ref", "--merged=HEAD",
-                            "--format=%(refname)", "refs/heads/", "refs/remotes/") or ""
-                      ).split()) if seen["head"] else set()
+        joined = (
+            set(
+                (
+                    _said(
+                        project,
+                        git,
+                        until,
+                        "for-each-ref",
+                        "--merged=HEAD",
+                        "--format=%(refname)",
+                        "refs/heads/",
+                        "refs/remotes/",
+                    )
+                    or ""
+                ).split()
+            )
+            if seen["head"]
+            else set()
+        )
         folders = {one["branch"]: one["path"] for one in seen["worktrees"] if one["branch"]}
         branches, current = [], None
         for row in rows.splitlines():
@@ -701,27 +941,41 @@ def look(project: Path) -> dict | None:
                 continue
             remote = ref.startswith("refs/remotes/")
             name = ref.removeprefix("refs/remotes/" if remote else "refs/heads/")
-            one = {"name": name, "ref": ref, "remote": remote, "sha": sha or None,
-                   "subject": subject.strip() or None, "last_at": at or None,
-                   "joined": ref in joined, "worktree": None if remote else folders.get(name)}
+            one = {
+                "name": name,
+                "ref": ref,
+                "remote": remote,
+                "sha": sha or None,
+                "subject": subject.strip() or None,
+                "last_at": at or None,
+                "joined": ref in joined,
+                "worktree": None if remote else folders.get(name),
+            }
             if not remote and name == seen["branch"]:
                 current = {**one, "ahead": 0, "behind": 0}
                 continue
             if len(branches) == MOST_LISTED:
                 break
-            counts = _said(project, git, until, "rev-list", "--left-right", "--count",
-                           f"HEAD...{ref}") if seen["head"] and len(branches) < MOST_BRANCHES \
+            counts = (
+                _said(project, git, until, "rev-list", "--left-right", "--count", f"HEAD...{ref}")
+                if seen["head"] and len(branches) < MOST_BRANCHES
                 else None
+            )
             # (left: the project's commits the branch lacks; right: the branch's own)
             behind, ahead = (int(n) for n in counts.split()) if counts else (None, None)
             branches.append({**one, "ahead": ahead, "behind": behind})
     except Refused:
         return None
     here = folder_key(str(project), project)
-    return {**seen, "changed": len(status.splitlines()), "branches": branches,
-            "current": current,
-            "worktrees": [{**one, "here": folder_key(one["path"], project) == here}
-                          for one in seen["worktrees"]]}
+    return {
+        **seen,
+        "changed": len(status.splitlines()),
+        "branches": branches,
+        "current": current,
+        "worktrees": [
+            {**one, "here": folder_key(one["path"], project) == here} for one in seen["worktrees"]
+        ],
+    }
 
 
 def state(project: Path) -> str | None:
@@ -737,8 +991,18 @@ def state(project: Path) -> str | None:
         git, until = _looking(project)
         head = _said(project, git, until, "rev-parse", "--verify", "-q", "HEAD")  # None: none
         off = _no_filters(project, git, _left(until))
-        listed = _said(project, git, until, "status", "--porcelain=v1", "-z", "--no-renames",
-                       "--untracked-files=all", "--ignore-submodules=dirty", **off)
+        listed = _said(
+            project,
+            git,
+            until,
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--no-renames",
+            "--untracked-files=all",
+            "--ignore-submodules=dirty",
+            **off,
+        )
     except (Refused, OSError, ValueError):
         return None
     if listed is None:
@@ -781,8 +1045,17 @@ def changes(project: Path) -> list[dict] | None:
     try:
         git, until = _looking(project)
         off = _no_filters(project, git, _left(until))
-        listed = _said(project, git, until, "status", "--porcelain=v1", "-z",
-                       "--untracked-files=all", "--ignore-submodules=all", **off)
+        listed = _said(
+            project,
+            git,
+            until,
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=all",
+            "--ignore-submodules=all",
+            **off,
+        )
     except Refused:
         return None
     if listed is None:
@@ -792,8 +1065,11 @@ def changes(project: Path) -> list[dict] | None:
     for entry in entries:
         if len(entry) < 4:
             continue
-        if not is_secret(entry[3:]) and not in_scratch(entry[3:]) and not stray_in_koloni(
-                entry[3:]):
+        if (
+            not is_secret(entry[3:])
+            and not in_scratch(entry[3:])
+            and not stray_in_koloni(entry[3:])
+        ):
             found.append({"path": entry[3:], "status": _letter(entry[:2])})
         if entry[0] in "RC":
             next(entries, None)  # (the path it was renamed or copied from)
@@ -821,9 +1097,21 @@ def diff(project: Path, rel: str) -> str | None:
     # (A pathspec: a folder - gone from disk too - would bring every file in it, a secret too.)
     if set(named.split("\0")) - {""} != {rel}:
         raise Refused("not one file of the project")
-    return _said(project, git, until, "diff", "HEAD", "--no-color", "--no-ext-diff",
-                 "--no-textconv", "--ignore-submodules=all", "--unified=1000000", "--", rel,
-                 **off)
+    return _said(
+        project,
+        git,
+        until,
+        "diff",
+        "HEAD",
+        "--no-color",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--ignore-submodules=all",
+        "--unified=1000000",
+        "--",
+        rel,
+        **off,
+    )
 
 
 # --- a branch, read without switching to it (K-dallar) ---------------------------------------
@@ -836,8 +1124,9 @@ def _branch(project: Path, ref: str) -> tuple[str, float]:
     `ref`). Refused for any other name: what is handed to git is a name it listed, and one
     that starts with "refs/" is never taken for an option."""
     git, until = _looking(project)
-    listed = _said(project, git, until, "for-each-ref", "--format=%(refname)", "refs/heads/",
-                   "refs/remotes/")
+    listed = _said(
+        project, git, until, "for-each-ref", "--format=%(refname)", "refs/heads/", "refs/remotes/"
+    )
     if listed is None or ref not in listed.splitlines():
         raise Refused("no such branch")
     return git, until
@@ -862,10 +1151,15 @@ def folder_at(project: Path, ref: str, rel: str) -> list[dict] | None:
     said = _said(project, git, until, "ls-tree", "-z", "--long", f"{ref}:{rel}")
     if said is None:
         return None
-    return [{"name": name, "kind": "dir" if kind == "tree" else "file",
-             "size": None if kind == "tree" else int(size)}
-            for mode, kind, _id, size, name in _tree(said)
-            if kind in ("tree", "blob") and mode != "120000"]
+    return [
+        {
+            "name": name,
+            "kind": "dir" if kind == "tree" else "file",
+            "size": None if kind == "tree" else int(size),
+        }
+        for mode, kind, _id, size, name in _tree(said)
+        if kind in ("tree", "blob") and mode != "120000"
+    ]
 
 
 def file_at(project: Path, ref: str, rel: str, most: int) -> bytes | int | None:
@@ -880,8 +1174,9 @@ def file_at(project: Path, ref: str, rel: str, most: int) -> bytes | int | None:
     _mode, _kind, blob, size, _name = found[0]
     if int(size) > most:
         return int(size)
-    code, out, _err = _in(project, git, *UNASKED, "cat-file", "blob", blob,
-                          seconds=_left(until), **UNASKED_ENV)
+    code, out, _err = _in(
+        project, git, *UNASKED, "cat-file", "blob", blob, seconds=_left(until), **UNASKED_ENV
+    )
     return out if code == 0 else None
 
 
@@ -891,8 +1186,19 @@ def changes_at(project: Path, ref: str) -> list[dict] | None:
     submodule on either side. None with no commit of the project's to compare from. Refused
     as `_branch`."""
     git, until = _branch(project, ref)
-    said = _said(project, git, until, "diff", "--raw", "-z", "--no-renames", "--no-ext-diff",
-                 "--no-textconv", "--ignore-submodules=all", f"HEAD...{ref}")
+    said = _said(
+        project,
+        git,
+        until,
+        "diff",
+        "--raw",
+        "-z",
+        "--no-renames",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--ignore-submodules=all",
+        f"HEAD...{ref}",
+    )
     if said is None:
         return None
     parts = said.split("\0")
@@ -900,8 +1206,12 @@ def changes_at(project: Path, ref: str) -> list[dict] | None:
     # (each ":<old mode> <new mode> <old id> <new id> <letter>", then its path)
     for fields, path in zip(parts[::2], parts[1::2], strict=False):
         words = fields.lstrip(":").split()
-        if len(words) == 5 and path and not is_secret(path) and not {
-                "120000", "160000"} & set(words[:2]):
+        if (
+            len(words) == 5
+            and path
+            and not is_secret(path)
+            and not {"120000", "160000"} & set(words[:2])
+        ):
             found.append({"path": path, "status": words[4] if words[4] in "AD" else "M"})
     return sorted(found, key=lambda one: one["path"])
 
@@ -918,8 +1228,20 @@ def diff_at(project: Path, ref: str, rel: str) -> str | None:
     if rel not in {one["path"] for one in listed}:
         raise Refused("not a file this branch changed")
     git, until = _branch(project, ref)
-    return _said(project, git, until, "diff", "--no-color", "--no-ext-diff", "--no-textconv",
-                 "--ignore-submodules=all", "--unified=1000000", f"HEAD...{ref}", "--", rel)
+    return _said(
+        project,
+        git,
+        until,
+        "diff",
+        "--no-color",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--ignore-submodules=all",
+        "--unified=1000000",
+        f"HEAD...{ref}",
+        "--",
+        rel,
+    )
 
 
 def unsaved(project: Path) -> str | None:
@@ -933,8 +1255,17 @@ def unsaved(project: Path) -> str | None:
         git, folder = repository(project, LOOK_SECONDS)
         until = time.monotonic() + LOOK_SECONDS
         off = _no_filters(project, git, _left(until))
-        listed = _said(project, git, until, "status", "--porcelain=v1", "-z",
-                       "--untracked-files=all", "--ignore-submodules=dirty", **off)
+        listed = _said(
+            project,
+            git,
+            until,
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=all",
+            "--ignore-submodules=dirty",
+            **off,
+        )
     except Refused:
         return silent
     if listed is None:
@@ -949,8 +1280,10 @@ def unsaved(project: Path) -> str | None:
             next(entries, None)  # (the path it was renamed or copied from)
     if not changed:
         return None
-    return (f"{changed} {'file' if changed == 1 else 'files'} changed, not saved in git — commit "
-            "or set aside first")
+    return (
+        f"{changed} {'file' if changed == 1 else 'files'} changed, not saved in git — commit "
+        "or set aside first"
+    )
 
 
 def switch(project: Path, name: str, new: bool, no_hooks: Path) -> None:
@@ -968,24 +1301,38 @@ def switch(project: Path, name: str, new: bool, no_hooks: Path) -> None:
     `_no_filters` does for a look, if that changes."""
     git, _folder = repository(project)
     # (Before git sees it: a leading "-" would be an option, and `check-ref-format` takes no "--".)
-    if not name or name.startswith("-") or _in(
-            project, git, "check-ref-format", "--branch", name)[0] != 0:
+    if (
+        not name
+        or name.startswith("-")
+        or _in(project, git, "check-ref-format", "--branch", name)[0] != 0
+    ):
         raise Refused(f"{name!r} is not a name git takes for a branch")
     there = _in(project, git, "show-ref", "--verify", "-q", f"refs/heads/{name}")[0] == 0
     if there == new:
-        raise Refused(f"there is a branch {name} already" if new
-                      else f"{name} is not a branch of the project")
+        raise Refused(
+            f"there is a branch {name} already" if new else f"{name} is not a branch of the project"
+        )
     no_hooks.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="no-hooks-", dir=no_hooks) as empty:
-        code, out, said = _in(project, git, "-c", f"core.hooksPath={empty}", "switch",
-                              "--no-guess", "--no-overwrite-ignore",
-                              *(["-c", name] if new else ["--", name]), seconds=COMMIT_SECONDS)
+        code, out, said = _in(
+            project,
+            git,
+            "-c",
+            f"core.hooksPath={empty}",
+            "switch",
+            "--no-guess",
+            "--no-overwrite-ignore",
+            *(["-c", name] if new else ["--", name]),
+            seconds=COMMIT_SECONDS,
+        )
     if code != 0:
         told = "\n".join(part.decode("utf-8", "replace") for part in (out, said))
         held = [line.strip() for line in told.splitlines() if line.startswith("\t")]
         if "would be overwritten" in told and held:
-            raise Refused(f"{', '.join(held[:5])} would be written over by {name}'s own: a file "
-                          "of yours git leaves out - move it aside first")
+            raise Refused(
+                f"{', '.join(held[:5])} would be written over by {name}'s own: a file "
+                "of yours git leaves out - move it aside first"
+            )
         raise Refused(f"git switch failed: {_text(out, said)[-TAIL:]}")
 
 
@@ -1011,10 +1358,23 @@ def ignored(project: Path, paths: list[str], above: bool = False) -> set[str]:
             # shortcut: a line each (`-z` needs the names on stdin: `run`'s `stdin`); a name git
             # quotes - a tab, a newline, a quote in it - is not matched, so not left out.
             code, out, _err = run(
-                [git, "-c", "core.fsmonitor=false", "-c", "safe.bareRepository=explicit",
-                 *UNASKED, "-c", "core.quotePath=false", "check-ignore", "--",
-                 *names[at:at + IGNORED_AT_ONCE]],
-                project, _left(until), **UNASKED_ENV)
+                [
+                    git,
+                    "-c",
+                    "core.fsmonitor=false",
+                    "-c",
+                    "safe.bareRepository=explicit",
+                    *UNASKED,
+                    "-c",
+                    "core.quotePath=false",
+                    "check-ignore",
+                    "--",
+                    *names[at : at + IGNORED_AT_ONCE],
+                ],
+                project,
+                _left(until),
+                **UNASKED_ENV,
+            )
             said = out.decode("utf-8", "replace").splitlines() if code == 0 else []
             found |= {asked[name] for name in said if name in asked}
     except Refused:
@@ -1031,8 +1391,18 @@ def listed(project: Path) -> list[str] | None:
     fetch of the repository's."""
     try:
         git = _above(project, SHORT_SECONDS)
-        code, out, _said = _in(project, git, *UNASKED, "ls-files", "-z", "--cached", "--others",
-                               "--exclude-standard", seconds=SHORT_SECONDS, **UNASKED_ENV)
+        code, out, _said = _in(
+            project,
+            git,
+            *UNASKED,
+            "ls-files",
+            "-z",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+            seconds=SHORT_SECONDS,
+            **UNASKED_ENV,
+        )
         return [path for path in out.decode("utf-8").split("\0") if path] if code == 0 else None
     except (Refused, UnicodeDecodeError):
         return None
@@ -1067,11 +1437,15 @@ def turn_note(
     lines = []
     told_branches = {one.get("branch") for _who, one in said}
     told_folders = {
-        folder_key(one["worktree"], project) for _who, one in said if one.get("worktree")}
+        folder_key(one["worktree"], project) for _who, one in said if one.get("worktree")
+    }
     if after["branch"] != before["branch"]:
         to, was = after["branch"] or "no branch", before["branch"] or "no branch"
-        line = (f"{cli} switched the project to branch {to}" if cli
-                else f"The project was switched to branch {to}")
+        line = (
+            f"{cli} switched the project to branch {to}"
+            if cli
+            else f"The project was switched to branch {to}"
+        )
         line += f" during this turn (it was on {was})."
         lines.append(line if after["branch"] in told_branches else f"{line} Not reported.")
     had = {folder_key(one["path"], project) for one in before["worktrees"]}
@@ -1079,8 +1453,11 @@ def turn_note(
         if (key := folder_key(one["path"], project)) in had:
             continue
         on = f" on branch {one['branch']}" if one["branch"] else ""
-        line = (f"{cli} opened a worktree at {one['path']}{on}" if cli
-                else f"A worktree was opened at {one['path']}{on}") + " during this turn."
+        line = (
+            f"{cli} opened a worktree at {one['path']}{on}"
+            if cli
+            else f"A worktree was opened at {one['path']}{on}"
+        ) + " during this turn."
         lines.append(line if key in told_folders else f"{line} Not reported.")
     folders = {folder_key(one["path"], project) for one in after["worktrees"]}
     for who, one in said:
@@ -1088,13 +1465,24 @@ def turn_note(
         # or on another branch, its HEAD does not show them.)
         here = not one.get("worktree") and one.get("branch") in (None, after["branch"])
         missing = [
-            *([f"branch {one['branch']}"] if one.get("branch")
-              and one["branch"] not in after["names"] else []),
-            *([f"a worktree at {one['worktree']}"] if one.get("worktree")
-              and folder_key(one["worktree"], project) not in folders else []),
-            *([f"{one['commits']} commits"] if one.get("commits") and here
-              and after["head"] == before["head"] and after["branch"] == before["branch"]
-              else []),
+            *(
+                [f"branch {one['branch']}"]
+                if one.get("branch") and one["branch"] not in after["names"]
+                else []
+            ),
+            *(
+                [f"a worktree at {one['worktree']}"]
+                if one.get("worktree") and folder_key(one["worktree"], project) not in folders
+                else []
+            ),
+            *(
+                [f"{one['commits']} commits"]
+                if one.get("commits")
+                and here
+                and after["head"] == before["head"]
+                and after["branch"] == before["branch"]
+                else []
+            ),
         ]
         if missing:
             lines.append(f"{who} said {', '.join(missing)}: said, not seen in git.")
@@ -1121,8 +1509,10 @@ def reported(args: dict, project: Path) -> dict:
     if "why" not in said:
         raise ValueError("report_git needs why: in a sentence, why it was done")
     if "worktree" in said and foreign_folder(said["worktree"], project):
-        raise ValueError("worktree: give its folder relative to the project, or a path inside "
-                         "it; a network path or another place is not taken")
+        raise ValueError(
+            "worktree: give its folder relative to the project, or a path inside "
+            "it; a network path or another place is not taken"
+        )
     return said
 
 
@@ -1136,8 +1526,12 @@ def reported(args: dict, project: Path) -> dict:
 # are ever seen to.
 BRANCH_PREFIX = "koloni/"
 BRANCH_CHARS = 40
-KOLONI_ID = {"GIT_AUTHOR_NAME": "KOLONİ", "GIT_AUTHOR_EMAIL": "koloni@localhost",
-             "GIT_COMMITTER_NAME": "KOLONİ", "GIT_COMMITTER_EMAIL": "koloni@localhost"}
+KOLONI_ID = {
+    "GIT_AUTHOR_NAME": "KOLONİ",
+    "GIT_AUTHOR_EMAIL": "koloni@localhost",
+    "GIT_COMMITTER_NAME": "KOLONİ",
+    "GIT_COMMITTER_EMAIL": "koloni@localhost",
+}
 # What locks KOLONİ's worktrees while their agents work (`_worktree_add`): `git worktree prune`,
 # `remove` or `move` of the user's (or another agent's) leaves them alone - `git worktree list
 # -v` says why. KOLONİ unlocks one before it removes it (`_unlocked`).
@@ -1147,8 +1541,9 @@ LOCK_REASON = "KOLONİ: an agent works here; KOLONİ removes it"
 def branch_name(said: str) -> str:
     """The short name an Orchestrator gave (`login form`) as a branch's (`login-form`): small
     letters, digits and dashes. ValueError for one with none of those."""
-    name = "-".join("".join(c if c.isascii() and c.isalnum() else " " for c in said.lower()
-                            ).split())[:BRANCH_CHARS].strip("-")
+    name = "-".join(
+        "".join(c if c.isascii() and c.isalnum() else " " for c in said.lower()).split()
+    )[:BRANCH_CHARS].strip("-")
     if not name:
         raise ValueError("on_branch: give a short name of letters and digits, as login-form")
     return name
@@ -1158,7 +1553,7 @@ def task_branch(title: str, task_id: str) -> str:
     """A backlog task's branch name: its title's and 4 of its id's - two tasks of one title get
     two names (R165). Short enough that `branch_name` leaves it as it is."""
     try:
-        name = branch_name(title)[:BRANCH_CHARS - 5].strip("-")
+        name = branch_name(title)[: BRANCH_CHARS - 5].strip("-")
     except ValueError:
         name = "task"  # (a title of no letter or digit)
     return f"{name}-{task_id[:4]}"
@@ -1242,8 +1637,11 @@ def _ours(path: str) -> bool:
     snapshot; its rules, recipes and notes are read in the project."""
     from app import copies  # (here: copies imports git where it uses it)
 
-    return not (path.endswith("/") or copies._apart(f"{path}/-")
-                or path.replace("\\", "/").casefold().startswith(".koloni/"))
+    return not (
+        path.endswith("/")
+        or copies._apart(f"{path}/-")
+        or path.replace("\\", "/").casefold().startswith(".koloni/")
+    )
 
 
 def _secret_named(path: str) -> bool:
@@ -1296,8 +1694,7 @@ def _pattern(path: str) -> str:
     return "/" + re.sub(r"([\\*?\[\]!# ])", r"\\\1", path.rstrip("/"))
 
 
-def _untracked(project: Path, call: Callable[..., bytes], takes: Callable[..., bool]
-               ) -> list[str]:
+def _untracked(project: Path, call: Callable[..., bytes], takes: Callable[..., bool]) -> list[str]:
     """The user's new files git does not ignore, as a snapshot takes them: none through a link or
     a junction - one among what git lists first (`--directory`) is never walked into (one back into
     the folder would loop), one deeper in a new folder is walked but not taken -, nor what else
@@ -1305,15 +1702,35 @@ def _untracked(project: Path, call: Callable[..., bytes], takes: Callable[..., b
     long, a folder it may not open): what it skips would be missing unsaid.
     shortcut: a junction deep in a new folder is walked by git until the snapshot's deadline;
     step round each (a walk of new folders of our own) if a big one is ever met."""
-    top = _listed(call("ls-files", None, "ls-files", "-z", "--others", "--exclude-standard",
-                       "--directory", whole=True))
+    top = _listed(
+        call(
+            "ls-files",
+            None,
+            "ls-files",
+            "-z",
+            "--others",
+            "--exclude-standard",
+            "--directory",
+            whole=True,
+        )
+    )
     links = [one for one in top if one.endswith("/") and not takes(one.rstrip("/"))]
     if len(links) > MOST_LINKS:
         raise Refused(f"it has more than {MOST_LINKS} links or junctions")
     found = top
     if any(one.endswith("/") and one not in links for one in top):
-        found = _listed(call("ls-files", None, "ls-files", "-z", "--others", "--exclude-standard",
-                             *(f"--exclude={_pattern(one)}" for one in links), whole=True))
+        found = _listed(
+            call(
+                "ls-files",
+                None,
+                "ls-files",
+                "-z",
+                "--others",
+                "--exclude-standard",
+                *(f"--exclude={_pattern(one)}" for one in links),
+                whole=True,
+            )
+        )
     return [one for one in found if takes(one)]
 
 
@@ -1321,18 +1738,29 @@ def _left_staged(call: Callable[..., bytes], head: str, takes: Callable[..., boo
     """What the user staged that a snapshot does not take (`takes`: a secret, a link or a path
     through one, what is no work of theirs) and a submodule are as HEAD has them in the
     snapshot's index (out of it, where HEAD has none)."""
-    parts = call("diff-index", None, "diff-index", "--cached", "-z", "--no-renames",
-                 head).split(b"\0")
+    parts = call("diff-index", None, "diff-index", "--cached", "-z", "--no-renames", head).split(
+        b"\0"
+    )
     back = []
     # (each ":<old mode> <new mode> <old id> <new id> <letter>", then its path)
     for fields, raw in zip(parts[::2], parts[1::2], strict=False):
         words, path = fields.decode("ascii", "replace").lstrip(":").split(), _listed(raw)
-        if len(words) == 5 and path and (words[1] == "160000" or not takes(
-                path[0], words[1] == "120000")):
+        if (
+            len(words) == 5
+            and path
+            and (words[1] == "160000" or not takes(path[0], words[1] == "120000"))
+        ):
             back.append(path[0])
     if back:
-        call("reset", _nul(back), "reset", "-q", head, "--pathspec-from-file=-",
-             "--pathspec-file-nul")
+        call(
+            "reset",
+            _nul(back),
+            "reset",
+            "-q",
+            head,
+            "--pathspec-from-file=-",
+            "--pathspec-file-nul",
+        )
 
 
 def _snapshot_git(
@@ -1342,14 +1770,14 @@ def _snapshot_git(
     its one deadline (`until`, on the monotonic clock). What it wrote; Refused where it failed -
     and, `whole`, where it said anything besides (a folder it could not read)."""
 
-    def call(what: str, stdin: bytes | None, *args: str, whole: bool = False,
-             **extra: str) -> bytes:
+    def call(
+        what: str, stdin: bytes | None, *args: str, whole: bool = False, **extra: str
+    ) -> bytes:
         left = until - time.monotonic()
         try:
             if left <= 0:
                 raise Refused(TOO_LONG.format(seconds=SNAPSHOT_SECONDS))
-            code, out, said = _fed(project, git, stdin, *own, *args, seconds=left, **more,
-                                   **extra)
+            code, out, said = _fed(project, git, stdin, *own, *args, seconds=left, **more, **extra)
         except Refused:
             if time.monotonic() >= until:
                 raise Refused(TOO_LONG.format(seconds=SNAPSHOT_SECONDS)) from None
@@ -1364,7 +1792,12 @@ def _snapshot_git(
 
 
 def _snapshot(
-    project: Path, git: str, folder: Path, head: str, no_hooks: Path, most: tuple[int, int],
+    project: Path,
+    git: str,
+    folder: Path,
+    head: str,
+    no_hooks: Path,
+    most: tuple[int, int],
     branch: str,
 ) -> tuple[str | None, str | None, list[str]]:
     """The user's folder as it is, as a commit on `head` (the project's commit now): what HEAD
@@ -1388,10 +1821,17 @@ def _snapshot(
     no_hooks.mkdir(parents=True, exist_ok=True)
     try:
         with tempfile.TemporaryDirectory(prefix="no-hooks-", dir=no_hooks) as empty:
-            call = _snapshot_git(project, git, until, (
-                *UNASKED, "-c", f"core.hooksPath={empty}", *_OWN_INDEX), {
-                "GIT_INDEX_FILE": str(index), **UNASKED_ENV,
-                **_no_filters(project, git, SHORT_SECONDS)})
+            call = _snapshot_git(
+                project,
+                git,
+                until,
+                (*UNASKED, "-c", f"core.hooksPath={empty}", *_OWN_INDEX),
+                {
+                    "GIT_INDEX_FILE": str(index),
+                    **UNASKED_ENV,
+                    **_no_filters(project, git, SHORT_SECONDS),
+                },
+            )
             if (folder / "index").exists():  # (as `commit` copies it: its time with it)
                 shutil.copy2(folder / "index", index)
             return _snapshot_of(project, git, call, head, most, branch)
@@ -1402,29 +1842,68 @@ def _snapshot(
 
 
 def _snapshot_of(
-    project: Path, git: str, call: Callable[..., bytes], head: str, most: tuple[int, int],
+    project: Path,
+    git: str,
+    call: Callable[..., bytes],
+    head: str,
+    most: tuple[int, int],
     branch: str,
 ) -> tuple[str | None, str | None, list[str]]:
     """`_snapshot`, its index and its git (`call`) ready."""
     takes, left = _taker(project)
     new = _untracked(project, call, takes)
-    changed = [path for path in _listed(call(
-        "diff-files", None, "diff-files", "--name-only", "-z", "--no-renames",
-        "--ignore-submodules=all")) if takes(path)]
+    changed = [
+        path
+        for path in _listed(
+            call(
+                "diff-files",
+                None,
+                "diff-files",
+                "--name-only",
+                "-z",
+                "--no-renames",
+                "--ignore-submodules=all",
+            )
+        )
+        if takes(path)
+    ]
     if too_many := _over(project, [*new, *changed], most):
         return None, TOO_MANY.format(count=too_many), []
     if new or changed:
-        call("update-index", _nul([*new, *changed]), "update-index", "--add", "--remove", "-z",
-             "--stdin")
+        call(
+            "update-index",
+            _nul([*new, *changed]),
+            "update-index",
+            "--add",
+            "--remove",
+            "-z",
+            "--stdin",
+        )
     _left_staged(call, head, takes)
     tree = call("write-tree", None, "write-tree").decode("ascii").strip()
     if tree == call("rev-parse", None, "rev-parse", f"{head}^{{tree}}").decode("ascii").strip():
         return None, None, sorted(left)  # (what was left out is all there was: said)
     if not merge_base_known(git):
         return None, OLD_GIT.format(version=_version(git)[0]), []
-    return call("commit-tree", None, "-c", "commit.gpgsign=false", "commit-tree", tree, "-p",
-                head, "-m", SNAPSHOT_MESSAGE.format(branch=branch), **KOLONI_ID
-                ).decode("ascii").strip(), None, sorted(left)
+    return (
+        call(
+            "commit-tree",
+            None,
+            "-c",
+            "commit.gpgsign=false",
+            "commit-tree",
+            tree,
+            "-p",
+            head,
+            "-m",
+            SNAPSHOT_MESSAGE.format(branch=branch),
+            **KOLONI_ID,
+        )
+        .decode("ascii")
+        .strip(),
+        None,
+        sorted(left),
+    )
 
 
 def _listed(out: bytes) -> list[str]:
@@ -1463,8 +1942,9 @@ def add_worktree(
     out (a secret by its name, a link). Refused, with why, as `_on_a_branch`, and where git will
     not."""
     git, folder, into = _on_a_branch(project)
-    code, out, _said = _in(project, git, "for-each-ref", "--format=%(refname:lstrip=2)",
-                           f"refs/heads/{BRANCH_PREFIX}")
+    code, out, _said = _in(
+        project, git, "for-each-ref", "--format=%(refname:lstrip=2)", f"refs/heads/{BRANCH_PREFIX}"
+    )
     taken = set(out.decode("utf-8", "replace").split()) if code == 0 else set()
     try:
         name = branch_name(name)
@@ -1480,16 +1960,23 @@ def add_worktree(
         snapshot, why, left = _snapshot(project, git, folder, sha, no_hooks, most, branch)
     except (Refused, OSError) as exc:  # (no branch lost for it: from HEAD, and said)
         snapshot, why, left = None, NOT_TAKEN.format(why=_cut(str(exc))), []
-    code, out, said = _worktree_add(project, git, no_hooks, "-b", branch, str(tree),
-                                    snapshot or sha)
+    code, out, said = _worktree_add(
+        project, git, no_hooks, "-b", branch, str(tree), snapshot or sha
+    )
     if code != 0:
         raise Refused(f"git worktree add failed: {_text(out, said)[-TAIL:]}")
     return branch, into, sha, snapshot, why, left
 
 
 def reopen_worktree(
-    project: Path, tree: Path, branch: str, no_hooks: Path, start: Sequence[str] | None,
-    tip: str | None = None, *, under: Iterable[Path],
+    project: Path,
+    tree: Path,
+    branch: str,
+    no_hooks: Path,
+    start: Sequence[str] | None,
+    tip: str | None = None,
+    *,
+    under: Iterable[Path],
 ) -> tuple[str, str, str]:
     """Open a worktree at `tree` on KOLONİ's branch `branch` as it is - an agent that stopped on it
     goes on there (`add_worktree` without -b): its commits stay, new work goes on top. Returns as
@@ -1512,12 +1999,21 @@ def reopen_worktree(
     # stands in - a later branch of that name made from the same commit passes; record the tip at
     # each of KOLONİ's commits on it if that is ever met.
     if _in(project, git, "merge-base", "--is-ancestor", tip or start[1], ref)[0] != 0:
-        raise Refused(f"its branch {branch} is not the one it stopped on: another of that name "
-                      "since")
+        raise Refused(
+            f"its branch {branch} is not the one it stopped on: another of that name since"
+        )
     # A worktree whose folder was deleted by hand stays on git's record, and git refuses the
     # branch while it does: that record alone goes, by its own path, no hook run (`drop_branch`).
-    listed = _in(project, git, *UNASKED, "worktree", "list", "--porcelain",
-                 seconds=SHORT_SECONDS, **UNASKED_ENV)[1]
+    listed = _in(
+        project,
+        git,
+        *UNASKED,
+        "worktree",
+        "list",
+        "--porcelain",
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+    )[1]
     for one in _gone_under(listed, under):
         if one["branch"] == branch:
             no_hooks.mkdir(parents=True, exist_ok=True)
@@ -1542,9 +2038,12 @@ def _gone_under(listed: bytes, under: Iterable[Path]) -> list[dict]:
     one of `under` - KOLONİ's copies folders: its own."""
     # (git keeps a worktree's real path: /private/var on macOS, where the folder said /var)
     tops = tuple(os.path.join(os.path.normcase(os.path.realpath(one)), "") for one in under)
-    return [one for one in _worktrees(listed.decode("utf-8", "replace"))
-            if not os.path.lexists(one["path"])
-            and os.path.normcase(os.path.realpath(one["path"])).startswith(tops)]
+    return [
+        one
+        for one in _worktrees(listed.decode("utf-8", "replace"))
+        if not os.path.lexists(one["path"])
+        and os.path.normcase(os.path.realpath(one["path"])).startswith(tops)
+    ]
 
 
 def forget_worktrees(project: Path, under: Iterable[Path], no_hooks: Path) -> list[str]:
@@ -1553,8 +2052,16 @@ def forget_worktrees(project: Path, under: Iterable[Path], no_hooks: Path) -> li
     first, no hook run. Nothing else: no other record (never `git worktree prune`), no branch, no
     folder. Returns the paths forgotten; Refused where git does not answer."""
     git, _folder = repository(project)
-    code, out, said = _in(project, git, *UNASKED, "worktree", "list", "--porcelain",
-                          seconds=SHORT_SECONDS, **UNASKED_ENV)
+    code, out, said = _in(
+        project,
+        git,
+        *UNASKED,
+        "worktree",
+        "list",
+        "--porcelain",
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+    )
     if code != 0:
         raise Refused(f"git worktree list failed: {_text(out, said)[-TAIL:]}")
     gone = [one["path"] for one in _gone_under(out, under)]
@@ -1572,15 +2079,25 @@ def _worktree_add(project: Path, git: str, no_hooks: Path, *args: str):
     """`git worktree add`, locked (`LOCK_REASON`), with no hook or filter of the repository's."""
     no_hooks.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="no-hooks-", dir=no_hooks) as empty:
-        return _in(project, git, *UNASKED, "-c", f"core.hooksPath={empty}", "worktree", "add",
-                   "--lock", "--reason", LOCK_REASON,
-                   *args, seconds=COMMIT_SECONDS, **UNASKED_ENV,
-                   **_no_filters(project, git, SHORT_SECONDS))
+        return _in(
+            project,
+            git,
+            *UNASKED,
+            "-c",
+            f"core.hooksPath={empty}",
+            "worktree",
+            "add",
+            "--lock",
+            "--reason",
+            LOCK_REASON,
+            *args,
+            seconds=COMMIT_SECONDS,
+            **UNASKED_ENV,
+            **_no_filters(project, git, SHORT_SECONDS),
+        )
 
 
-def commit_branch(
-    tree: Path, branch: str, paths: list[str], message: str, no_hooks: Path
-) -> bool:
+def commit_branch(tree: Path, branch: str, paths: list[str], message: str, no_hooks: Path) -> bool:
     """Commit these files of `branch`'s worktree as they are there - made, changed or gone -
     and nothing else, as KOLONİ, unsigned, with no hook or filter of the repository's. False
     where that changes nothing (none, or an agent committed them itself). Refused, with why,
@@ -1600,14 +2117,34 @@ def commit_branch(
         listed = Path(empty) / "paths"  # (a list, not a command line: any number of them)
         listed.write_bytes(b"\0".join(path.encode("utf-8") for path in paths))
         hooks = ("-c", f"core.hooksPath={empty}", "-c", "commit.gpgsign=false", *KEEP_REFLOG)
-        code, out, said = _in(tree, git, *hooks, "add", "-A", f"--pathspec-from-file={listed}",
-                              "--pathspec-file-nul", seconds=COMMIT_SECONDS, **off)
+        code, out, said = _in(
+            tree,
+            git,
+            *hooks,
+            "add",
+            "-A",
+            f"--pathspec-from-file={listed}",
+            "--pathspec-file-nul",
+            seconds=COMMIT_SECONDS,
+            **off,
+        )
         if code != 0:
             raise Refused(f"git add failed: {_text(out, said)[-TAIL:]}")
         if _in(tree, git, "diff", "--cached", "--quiet", "--no-ext-diff")[0] == 0:
             return False
-        code, out, said = _in(tree, git, *hooks, "commit", "-q", "--no-verify", "-m", message,
-                              seconds=COMMIT_SECONDS, **KOLONI_ID, **off)
+        code, out, said = _in(
+            tree,
+            git,
+            *hooks,
+            "commit",
+            "-q",
+            "--no-verify",
+            "-m",
+            message,
+            seconds=COMMIT_SECONDS,
+            **KOLONI_ID,
+            **off,
+        )
     if code != 0:
         raise Refused(f"git commit failed: {_text(out, said)[-TAIL:]}")
     return True
@@ -1619,10 +2156,14 @@ def commit_branch(
 GIT_OWN = frozenset({".gitattributes", ".gitmodules", ".gitignore", ".lfsconfig"})
 NOT_FILES = frozenset({"120000", "160000"})
 # A squash that stopped half way (`merge_branch`): what is in the user's tree, and its undo.
-HALF_SAID = (" - what it wrote is in your working tree and index; `git reset --merge` undoes it, "
-             "keeping your own uncommitted edits")
-HALF_SQUASH = ("a half-done squash is in your tree (files staged or unmerged): `git reset "
-               "--merge` undoes it - nothing is merged until then")
+HALF_SAID = (
+    " - what it wrote is in your working tree and index; `git reset --merge` undoes it, "
+    "keeping your own uncommitted edits"
+)
+HALF_SQUASH = (
+    "a half-done squash is in your tree (files staged or unmerged): `git reset "
+    "--merge` undoes it - nothing is merged until then"
+)
 
 
 def _touched(
@@ -1631,9 +2172,20 @@ def _touched(
     """What `ref` changed since it left the project's branch - or, `since` "<snapshot>..", since
     the snapshot it began from (W-1): by path, git's letter and the new entry's mode (`diff
     --raw`; "000000" for one deleted). Read only, as `look`."""
-    code, out, said = _in(project, git, *UNASKED, "diff", "--raw", "-z", "--no-renames",
-                          "--no-ext-diff", "--no-textconv", f"{since}{ref}",
-                          seconds=SHORT_SECONDS, **UNASKED_ENV)
+    code, out, said = _in(
+        project,
+        git,
+        *UNASKED,
+        "diff",
+        "--raw",
+        "-z",
+        "--no-renames",
+        "--no-ext-diff",
+        "--no-textconv",
+        f"{since}{ref}",
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+    )
     if code != 0:
         raise Refused(f"git diff failed: {_text(out, said)[-TAIL:]}")
     parts = out.decode("utf-8", "replace").split("\0")
@@ -1651,22 +2203,29 @@ def _in_the_way(project: Path, git: str, touched: Iterable[str]) -> set[str]:
     file on disk and git does not track it (untracked, or one git ignores - `.env`, a local
     config: git takes those for its own to write over), or a folder above it is no plain folder
     there (a file git ignores where the branch needs a folder - `build` - a link, a junction)."""
-    code, out, said = _in(project, git, *UNASKED, "ls-files", "-z", seconds=SHORT_SECONDS,
-                          **UNASKED_ENV)
+    code, out, said = _in(
+        project, git, *UNASKED, "ls-files", "-z", seconds=SHORT_SECONDS, **UNASKED_ENV
+    )
     if code != 0:
         raise Refused(f"git ls-files failed: {_text(out, said)[-TAIL:]}")
     tracked = {one.decode("utf-8", "replace") for one in out.split(b"\0") if one}
 
     def odd(rel: str) -> bool:  # (a folder above: anything but a plain folder git does not track)
         place = project / rel
-        return rel not in tracked and os.path.lexists(place) and (
-            place.is_symlink() or place.is_junction() or not place.is_dir())
+        return (
+            rel not in tracked
+            and os.path.lexists(place)
+            and (place.is_symlink() or place.is_junction() or not place.is_dir())
+        )
 
     found = set()
     for path in touched:
         parts = path.split("/")
-        if path not in tracked and os.path.lexists(project / path) or any(
-                odd("/".join(parts[:at])) for at in range(1, len(parts))):
+        if (
+            path not in tracked
+            and os.path.lexists(project / path)
+            or any(odd("/".join(parts[:at])) for at in range(1, len(parts)))
+        ):
             found.add(path)
     return found
 
@@ -1677,8 +2236,20 @@ def committed_since(tree: Path, start: str) -> list[str]:
     git = find()
     if git is None:
         return []
-    code, out, _said = _in(tree, git, *UNASKED, "diff", "--name-only", "-z", "--no-renames",
-                           "--no-ext-diff", start, "HEAD", seconds=SHORT_SECONDS, **UNASKED_ENV)
+    code, out, _said = _in(
+        tree,
+        git,
+        *UNASKED,
+        "diff",
+        "--name-only",
+        "-z",
+        "--no-renames",
+        "--no-ext-diff",
+        start,
+        "HEAD",
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+    )
     listed = out.split(b"\0")
     return [one.decode("utf-8", "replace") for one in listed if one] if code == 0 else []
 
@@ -1712,16 +2283,31 @@ def _kolonis_links(project: Path, git: str, base: str, tip: str, onto: str) -> s
     fails."""
     from app import copies  # (here: copies imports git where it uses it)
 
-    code, out, said = _in(project, git, *UNASKED, "diff-tree", "-r", "-z", "--no-renames", base,
-                          tip, seconds=SHORT_SECONDS, **UNASKED_ENV)
+    code, out, said = _in(
+        project,
+        git,
+        *UNASKED,
+        "diff-tree",
+        "-r",
+        "-z",
+        "--no-renames",
+        base,
+        tip,
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+    )
     if code != 0:
         raise Refused(f"git diff-tree failed: {_text(out, said)[-TAIL:]}")
     parts, found = out.split(b"\0"), []
     # (each ":<old mode> <new mode> <old id> <new id> <letter>", then its path)
     for fields, raw in zip(parts[::2], parts[1::2], strict=False):
         words, path = fields.decode("ascii", "replace").lstrip(":").split(), _listed(raw)
-        if len(words) == 5 and path and words[1] == "120000" and path[0].rsplit(
-                "/", 1)[-1].rstrip(" .").casefold() in copies.LINKED:
+        if (
+            len(words) == 5
+            and path
+            and words[1] == "120000"
+            and path[0].rsplit("/", 1)[-1].rstrip(" .").casefold() in copies.LINKED
+        ):
             found.append(path[0])
     if not found:
         return set()
@@ -1733,8 +2319,19 @@ def _entries_at(
     project: Path, git: str, commit: str, paths: list[str]
 ) -> dict[str, tuple[str, str]]:
     """These paths' entries in `commit`, by path: (mode, object); none for a path it lacks."""
-    code, out, said = _fed(project, git, None, *UNASKED, "ls-tree", "-z", commit, "--", *paths,
-                           seconds=SHORT_SECONDS, **UNASKED_ENV)
+    code, out, said = _fed(
+        project,
+        git,
+        None,
+        *UNASKED,
+        "ls-tree",
+        "-z",
+        commit,
+        "--",
+        *paths,
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+    )
     if code != 0:
         raise Refused(f"git ls-tree failed: {_text(out, said)[-TAIL:]}")
     found = {}
@@ -1750,12 +2347,30 @@ def _without(project: Path, git: str, folder: Path, tip: str, base: str, paths: 
     """`tip` with these paths as `base` has them (gone where it has none): one commit by KOLONİ on
     `tip`, on no ref - what the agents' share is made of (`_share`)."""
     held = _entries_at(project, git, base, sorted(paths))
-    tree = _rewritten(project, git, folder, f"{tip}^{{tree}}",
-                      [(*held[path], path) for path in sorted(paths) if path in held],
-                      [path for path in sorted(paths) if path not in held])
-    code, out, said = _in(project, git, *UNASKED, "-c", "commit.gpgsign=false", "commit-tree",
-                          tree, "-p", tip, "-m", "KOLONİ: without its own links",
-                          seconds=SHORT_SECONDS, **UNASKED_ENV, **KOLONI_ID)
+    tree = _rewritten(
+        project,
+        git,
+        folder,
+        f"{tip}^{{tree}}",
+        [(*held[path], path) for path in sorted(paths) if path in held],
+        [path for path in sorted(paths) if path not in held],
+    )
+    code, out, said = _in(
+        project,
+        git,
+        *UNASKED,
+        "-c",
+        "commit.gpgsign=false",
+        "commit-tree",
+        tree,
+        "-p",
+        tip,
+        "-m",
+        "KOLONİ: without its own links",
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+        **KOLONI_ID,
+    )
     if code != 0:
         raise Refused(f"git commit-tree failed: {_text(out, said)[-TAIL:]}")
     return out.decode("ascii", "replace").strip()
@@ -1764,8 +2379,9 @@ def _without(project: Path, git: str, folder: Path, tip: str, base: str, paths: 
 def merge_base(project: Path, one: str, other: str) -> str:
     """Where two commits parted (`merge-base`). Refused where they never met, or git fails."""
     git, _folder = repository(project)
-    code, out, said = _in(project, git, *UNASKED, "merge-base", one, other,
-                          seconds=SHORT_SECONDS, **UNASKED_ENV)
+    code, out, said = _in(
+        project, git, *UNASKED, "merge-base", one, other, seconds=SHORT_SECONDS, **UNASKED_ENV
+    )
     if code != 0:
         raise Refused(f"git merge-base failed: {_text(out, said)[-TAIL:]}")
     return out.decode("ascii", "replace").strip()
@@ -1786,14 +2402,17 @@ def _share(
     the card's files and diffs are measured from too, `branch_look`'s "since") - and KOLONİ's own
     links the branch holds (`_kolonis_links`), left out of the share."""
     onto, start = _commit_of(project, git, onto), _commit_of(project, git, f"{snapshot}^")
-    code, out, said = _in(project, git, *UNASKED, "merge-base", onto, tip,
-                          seconds=SHORT_SECONDS, **UNASKED_ENV)
+    code, out, said = _in(
+        project, git, *UNASKED, "merge-base", onto, tip, seconds=SHORT_SECONDS, **UNASKED_ENV
+    )
     if code != 0:
         raise Refused(f"git merge-base failed: {_text(out, said)[-TAIL:]}")
     met = out.decode("ascii", "replace").strip()
-    base = snapshot if met == start or _in(
-        project, git, "merge-base", "--is-ancestor", start, met)[0] != 0 else _carried(
-        project, git, folder, start, met, snapshot, branch)
+    base = (
+        snapshot
+        if met == start or _in(project, git, "merge-base", "--is-ancestor", start, met)[0] != 0
+        else _carried(project, git, folder, start, met, snapshot, branch)
+    )
     links = _kolonis_links(project, git, base, tip, onto)
     theirs = _without(project, git, folder, tip, base, links) if links else tip
     return (*_merged(project, git, base, onto, theirs, branch), base, links)
@@ -1806,19 +2425,42 @@ def _carried(
     user had not committed when it began, on what they committed since; where the two clash, what
     they committed stands (their later word): line by line in a text file, whole otherwise. One
     commit by KOLONİ on `met`, on no ref. Refused where git fails."""
-    code, out, said = _in(project, git, *UNASKED, "merge-tree", "--write-tree", "--no-messages",
-                          "-z", f"--merge-base={start}", met, snapshot, seconds=SHORT_SECONDS,
-                          **UNASKED_ENV)
+    code, out, said = _in(
+        project,
+        git,
+        *UNASKED,
+        "merge-tree",
+        "--write-tree",
+        "--no-messages",
+        "-z",
+        f"--merge-base={start}",
+        met,
+        snapshot,
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+    )
     if code not in (0, 1):
         raise Refused(f"git merge-tree failed: {_text(out, said)[-TAIL:]}")
     parts = out.split(b"\0")
     tree = parts[0].decode("ascii", "replace").strip()
     if code == 1:
         tree = _theirs_stand(project, git, folder, tree, parts[1:])
-    code, out, said = _in(project, git, *UNASKED, "-c", "commit.gpgsign=false", "commit-tree",
-                          tree, "-p", met, "-m",
-                          SHARE_MESSAGE.format(branch=branch or "its branch"),
-                          seconds=SHORT_SECONDS, **UNASKED_ENV, **KOLONI_ID)
+    code, out, said = _in(
+        project,
+        git,
+        *UNASKED,
+        "-c",
+        "commit.gpgsign=false",
+        "commit-tree",
+        tree,
+        "-p",
+        met,
+        "-m",
+        SHARE_MESSAGE.format(branch=branch or "its branch"),
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+        **KOLONI_ID,
+    )
     if code != 0:
         raise Refused(f"git commit-tree failed: {_text(out, said)[-TAIL:]}")
     return out.decode("ascii", "replace").strip()
@@ -1853,24 +2495,38 @@ def _theirs_stand(project: Path, git: str, folder: Path, tree: str, entries: lis
     return _rewritten(project, git, folder, tree, put, gone)
 
 
-def _rewritten(project: Path, git: str, folder: Path, tree: str,
-               put: list[tuple[str, str, str]], gone: list[str]) -> str:
+def _rewritten(
+    project: Path,
+    git: str,
+    folder: Path,
+    tree: str,
+    put: list[tuple[str, str, str]],
+    gone: list[str],
+) -> str:
     """`tree` with these entries put in ((mode, object, path)) and these paths taken out: written
     with an index of its own in the git folder, no hook (a hooks folder that is not there). The
     new tree's id; Refused where git fails."""
     index = folder / f"koloni-index-{os.urandom(8).hex()}"
-    own = (*UNASKED, "-c", f"core.hooksPath={folder / ('koloni-no-hooks-' + index.name[13:])}",
-           *_OWN_INDEX)
+    own = (
+        *UNASKED,
+        "-c",
+        f"core.hooksPath={folder / ('koloni-no-hooks-' + index.name[13:])}",
+        *_OWN_INDEX,
+    )
     alone = {"GIT_INDEX_FILE": str(index), **UNASKED_ENV}
     try:
-        for args, stdin in ((("read-tree", tree), None),
-                            (("update-index", "-z", "--index-info"), b"".join(
-                                f"{mode} {oid}\t".encode("ascii") + _nul([path])
-                                for mode, oid, path in put)),
-                            (("update-index", "--force-remove", "-z", "--stdin"), _nul(gone)),
-                            (("write-tree",), None)):
-            code, out, said = _fed(project, git, stdin, *own, *args, seconds=SHORT_SECONDS,
-                                   **alone)
+        for args, stdin in (
+            (("read-tree", tree), None),
+            (
+                ("update-index", "-z", "--index-info"),
+                b"".join(
+                    f"{mode} {oid}\t".encode("ascii") + _nul([path]) for mode, oid, path in put
+                ),
+            ),
+            (("update-index", "--force-remove", "-z", "--stdin"), _nul(gone)),
+            (("write-tree",), None),
+        ):
+            code, out, said = _fed(project, git, stdin, *own, *args, seconds=SHORT_SECONDS, **alone)
             if code != 0:
                 raise Refused(f"git {args[0]} failed: {_text(out, said)[-TAIL:]}")
         return out.decode("ascii", "replace").strip()
@@ -1880,22 +2536,34 @@ def _rewritten(project: Path, git: str, folder: Path, tree: str,
                 stale.unlink()
 
 
-def _favoured(project: Path, git: str, folder: Path, ours: str, base: str, theirs: str
-              ) -> str | None:
+def _favoured(
+    project: Path, git: str, folder: Path, ours: str, base: str, theirs: str
+) -> str | None:
     """Three blobs merged line by line, `ours`'s lines where they clash, written as a blob: its
     id. None where one is too large or not text, or git fails."""
     held = []
     for oid in (ours, base, theirs):
-        code, out, _said = _in(project, git, *UNASKED, "cat-file", "blob", oid,
-                               seconds=SHORT_SECONDS, **UNASKED_ENV)
+        code, out, _said = _in(
+            project, git, *UNASKED, "cat-file", "blob", oid, seconds=SHORT_SECONDS, **UNASKED_ENV
+        )
         if code != 0 or len(out) > MOST_CARRIED:
             return None
         held.append(out)
     clashes, merged = merge_file(folder, held[0], held[1], held[2], "ours")
     if clashes != 0:
         return None
-    code, out, _said = _fed(project, git, merged, *UNASKED, "hash-object", "-w", "--stdin",
-                            "--no-filters", seconds=SHORT_SECONDS, **UNASKED_ENV)
+    code, out, _said = _fed(
+        project,
+        git,
+        merged,
+        *UNASKED,
+        "hash-object",
+        "-w",
+        "--stdin",
+        "--no-filters",
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+    )
     return out.decode("ascii", "replace").strip() if code == 0 else None
 
 
@@ -1905,18 +2573,42 @@ def _merged(
     """`ours` and `theirs` merged from `base` (`merge-tree --merge-base`), as one commit by
     KOLONİ on `ours` (no ref, no hook, unsigned); (None, the paths that clash) where they do.
     Refused where git fails - any exit but 0 (merged) and 1 (a clash)."""
-    code, out, said = _in(project, git, *UNASKED, "merge-tree", "--write-tree", "--name-only",
-                          "--no-messages", "-z", f"--merge-base={base}", ours, theirs,
-                          seconds=SHORT_SECONDS, **UNASKED_ENV)
+    code, out, said = _in(
+        project,
+        git,
+        *UNASKED,
+        "merge-tree",
+        "--write-tree",
+        "--name-only",
+        "--no-messages",
+        "-z",
+        f"--merge-base={base}",
+        ours,
+        theirs,
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+    )
     if code not in (0, 1):
         raise Refused(f"git merge-tree failed: {_text(out, said)[-TAIL:]}")
     parts = out.split(b"\0")
     if code == 1:
         return None, sorted({one.decode("utf-8", "replace") for one in parts[1:] if one})
-    code, out, said = _in(project, git, *UNASKED, "-c", "commit.gpgsign=false", "commit-tree",
-                          parts[0].decode("ascii", "replace").strip(), "-p", ours, "-m",
-                          SHARE_MESSAGE.format(branch=branch or "its branch"),
-                          seconds=SHORT_SECONDS, **UNASKED_ENV, **KOLONI_ID)
+    code, out, said = _in(
+        project,
+        git,
+        *UNASKED,
+        "-c",
+        "commit.gpgsign=false",
+        "commit-tree",
+        parts[0].decode("ascii", "replace").strip(),
+        "-p",
+        ours,
+        "-m",
+        SHARE_MESSAGE.format(branch=branch or "its branch"),
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+        **KOLONI_ID,
+    )
     if code != 0:
         raise Refused(f"git commit-tree failed: {_text(out, said)[-TAIL:]}")
     return out.decode("ascii", "replace").strip(), []
@@ -1925,8 +2617,20 @@ def _merged(
 def _from_head(project: Path, git: str, ref: str) -> tuple[list[str], dict, dict]:
     """For `branch_look` of a branch that began at a commit: what clashes with the project's
     branch (`merge-tree`), what the branch changed since they parted, and nothing more."""
-    code, out, said = _in(project, git, *UNASKED, "merge-tree", "--write-tree", "--name-only",
-                          "--no-messages", "-z", "HEAD", ref, seconds=SHORT_SECONDS, **UNASKED_ENV)
+    code, out, said = _in(
+        project,
+        git,
+        *UNASKED,
+        "merge-tree",
+        "--write-tree",
+        "--name-only",
+        "--no-messages",
+        "-z",
+        "HEAD",
+        ref,
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+    )
     if code not in (0, 1):
         raise Refused(f"git merge-tree failed: {_text(out, said)[-TAIL:]}")
     # (Its first entry is the merged tree's id; on a conflict the files follow.)
@@ -1936,16 +2640,32 @@ def _from_head(project: Path, git: str, ref: str) -> tuple[list[str], dict, dict
 
 def _names_between(project: Path, git: str, *trees: str) -> set[str]:
     """The paths `diff-tree` names: of one commit, what it changed; of two, what differs."""
-    code, out, said = _in(project, git, *UNASKED, "diff-tree", "-r", "-z", "--name-only",
-                          "--no-renames", "--no-commit-id", *trees, seconds=SHORT_SECONDS,
-                          **UNASKED_ENV)
+    code, out, said = _in(
+        project,
+        git,
+        *UNASKED,
+        "diff-tree",
+        "-r",
+        "-z",
+        "--name-only",
+        "--no-renames",
+        "--no-commit-id",
+        *trees,
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+    )
     if code != 0:
         raise Refused(f"git diff-tree failed: {_text(out, said)[-TAIL:]}")
     return set(_listed(out))
 
 
 def _from_snapshot(
-    project: Path, git: str, folder: Path, ref: str, snapshot: str, branch: str,
+    project: Path,
+    git: str,
+    folder: Path,
+    ref: str,
+    snapshot: str,
+    branch: str,
     uncommitted: set[str],
 ) -> tuple[list[str], dict, dict]:
     """For `branch_look` of a branch that began from a snapshot (W-1): what clashes, what it
@@ -1958,26 +2678,47 @@ def _from_snapshot(
     theirs = _names_between(project, git, snapshot)
     yours = [path for path in clash if path in theirs and path in uncommitted]
     over = sorted(theirs & _names_between(project, git, "HEAD", share)) if share else []
-    touched = {path: one for path, one in _touched(project, git, ref, f"{since}..").items()
-               if path not in links}  # (KOLONİ's own links: not on the card, nor in the way)
-    return ([path for path in clash if path not in yours], touched,
-            {"share": share, "yours": yours, "since": since, "over": over})
+    touched = {
+        path: one
+        for path, one in _touched(project, git, ref, f"{since}..").items()
+        if path not in links
+    }  # (KOLONİ's own links: not on the card, nor in the way)
+    return (
+        [path for path in clash if path not in yours],
+        touched,
+        {"share": share, "yours": yours, "since": since, "over": over},
+    )
 
 
 def _status(project: Path, git: str) -> list[tuple[str, str]]:
     """`git status` of the project as `branch_look` reads it: each entry's two letters and path."""
-    code, out, said = _in(project, git, *UNASKED, "status", "--porcelain=v1", "-z",
-                          "--no-renames", "--untracked-files=all", "--ignore-submodules=dirty",
-                          seconds=SHORT_SECONDS, **UNASKED_ENV,
-                          **_no_filters(project, git, SHORT_SECONDS))
+    code, out, said = _in(
+        project,
+        git,
+        *UNASKED,
+        "status",
+        "--porcelain=v1",
+        "-z",
+        "--no-renames",
+        "--untracked-files=all",
+        "--ignore-submodules=dirty",
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+        **_no_filters(project, git, SHORT_SECONDS),
+    )
     if code != 0:
         raise Refused(f"git status failed: {_text(out, said)[-TAIL:]}")
-    return [(entry[:2], entry[3:]) for entry in out.decode("utf-8", "replace").split("\0")
-            if len(entry) > 3]
+    return [
+        (entry[:2], entry[3:])
+        for entry in out.decode("utf-8", "replace").split("\0")
+        if len(entry) > 3
+    ]
 
 
 def branch_look(
-    project: Path, branch: str, start: tuple[str, str] | None = None,
+    project: Path,
+    branch: str,
+    start: tuple[str, str] | None = None,
     snapshot: str | None = None,
 ) -> dict:
     """How `branch` would merge into the project's: {"into": the project's branch, "files":
@@ -2006,16 +2747,25 @@ def branch_look(
         raise Refused(f"there is no branch {branch} any more")
     ref = out.decode("ascii", "replace").strip()  # (pinned: what is looked at is what is merged)
     status = _status(project, git)
-    conflicts, touched, more = _from_snapshot(
-        project, git, folder, ref, snapshot, branch, {path for _xy, path in status}) if (
-        snapshot) else _from_head(project, git, ref)
-    dirty = {path for xy, path in status
-             if not in_scratch(path) and (xy[0] not in " ?!" or path in touched)}
+    conflicts, touched, more = (
+        _from_snapshot(project, git, folder, ref, snapshot, branch, {path for _xy, path in status})
+        if (snapshot)
+        else _from_head(project, git, ref)
+    )
+    dirty = {
+        path
+        for xy, path in status
+        if not in_scratch(path) and (xy[0] not in " ?!" or path in touched)
+    }
     dirty |= _in_the_way(project, git, touched) | set(more.get("yours", ()))
-    special = sorted(path for path, (_letter, mode) in touched.items() if mode in NOT_FILES
-                     or path.rsplit("/", 1)[-1].rstrip(" .").casefold() in GIT_OWN)
-    unmerged = _in(project, git, *UNASKED, "ls-files", "-u", "-z", seconds=SHORT_SECONDS,
-                   **UNASKED_ENV)[1]
+    special = sorted(
+        path
+        for path, (_letter, mode) in touched.items()
+        if mode in NOT_FILES or path.rsplit("/", 1)[-1].rstrip(" .").casefold() in GIT_OWN
+    )
+    unmerged = _in(
+        project, git, *UNASKED, "ls-files", "-u", "-z", seconds=SHORT_SECONDS, **UNASKED_ENV
+    )[1]
     half = HALF_SQUASH if (folder / "SQUASH_MSG").exists() or unmerged else None
     drift = None
     if start is not None:
@@ -2024,14 +2774,20 @@ def branch_look(
             drift = f"made from {made_from}, the project is on {into} now"
         elif _in(project, git, "merge-base", "--is-ancestor", sha, "HEAD")[0] != 0:
             drift = f"{into} no longer holds the commit {sha[:10]} the branch was made from"
-    return {"into": into, "files": {path: letter for path, (letter, _) in sorted(touched.items())},
-            "conflicts": conflicts, "dirty": sorted(dirty), "special": special,
-            "drift": drift, "half": half, "tip": ref, **more}
+    return {
+        "into": into,
+        "files": {path: letter for path, (letter, _) in sorted(touched.items())},
+        "conflicts": conflicts,
+        "dirty": sorted(dirty),
+        "special": special,
+        "drift": drift,
+        "half": half,
+        "tip": ref,
+        **more,
+    }
 
 
-def holding(
-    project: Path, tip: str, paths: Iterable[str], needles: Sequence[bytes]
-) -> list[str]:
+def holding(project: Path, tip: str, paths: Iterable[str], needles: Sequence[bytes]) -> list[str]:
     """Of these files at the commit `tip` (`branch_look`'s), those whose content there - what a
     merge of it brings in - holds any of `needles` (bytes): read from git's objects, as stored,
     no filter. Fails closed: a file that cannot be read counts as holding one - but a submodule,
@@ -2040,11 +2796,27 @@ def holding(
     git, _folder = repository(project)
     found = []
     for path in paths if needles else ():
-        code, out, _said = _in(project, git, *UNASKED, "cat-file", "blob", f"{tip}:{path}",
-                               seconds=SHORT_SECONDS, **UNASKED_ENV)
+        code, out, _said = _in(
+            project,
+            git,
+            *UNASKED,
+            "cat-file",
+            "blob",
+            f"{tip}:{path}",
+            seconds=SHORT_SECONDS,
+            **UNASKED_ENV,
+        )
         if code != 0:
-            kind = _in(project, git, *UNASKED, "cat-file", "-t", f"{tip}:{path}",
-                       seconds=SHORT_SECONDS, **UNASKED_ENV)[1].strip()
+            kind = _in(
+                project,
+                git,
+                *UNASKED,
+                "cat-file",
+                "-t",
+                f"{tip}:{path}",
+                seconds=SHORT_SECONDS,
+                **UNASKED_ENV,
+            )[1].strip()
             if kind != b"commit":
                 found.append(path)
         elif any(needle in out for needle in needles):
@@ -2064,25 +2836,67 @@ def held_since(
     git, _folder = repository(project)
     logged: list[str] = []
     if branch is not None:
-        code, out, _said = _in(project, git, *UNASKED, "rev-list", "-g", f"refs/heads/{branch}",
-                               seconds=SHORT_SECONDS, **UNASKED_ENV)
+        code, out, _said = _in(
+            project,
+            git,
+            *UNASKED,
+            "rev-list",
+            "-g",
+            f"refs/heads/{branch}",
+            seconds=SHORT_SECONDS,
+            **UNASKED_ENV,
+        )
         if code != 0:
             return True
         logged = out.decode("ascii", "replace").split()
-    code, out, _said = _in(project, git, *UNASKED, "rev-list", f"^{start}", tip, *logged,
-                           seconds=SHORT_SECONDS, **UNASKED_ENV)
+    code, out, _said = _in(
+        project,
+        git,
+        *UNASKED,
+        "rev-list",
+        f"^{start}",
+        tip,
+        *logged,
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+    )
     if code != 0:
         return True
     for commit in out.decode("ascii", "replace").split():
-        code, raw, _said = _in(project, git, *UNASKED, "cat-file", "commit", commit,
-                               seconds=SHORT_SECONDS, **UNASKED_ENV)
+        code, raw, _said = _in(
+            project,
+            git,
+            *UNASKED,
+            "cat-file",
+            "commit",
+            commit,
+            seconds=SHORT_SECONDS,
+            **UNASKED_ENV,
+        )
         if code != 0 or any(needle in raw for needle in needles):
             return True
-        code, files, _said = _in(project, git, *UNASKED, "diff-tree", "--no-commit-id", "-m",
-                                 "-r", "-z", "--name-only", "--diff-filter=d", "--no-renames",
-                                 commit, seconds=SHORT_SECONDS, **UNASKED_ENV)
-        if code != 0 or holding(project, commit, {
-                one.decode("utf-8", "replace") for one in files.split(b"\0") if one}, needles):
+        code, files, _said = _in(
+            project,
+            git,
+            *UNASKED,
+            "diff-tree",
+            "--no-commit-id",
+            "-m",
+            "-r",
+            "-z",
+            "--name-only",
+            "--diff-filter=d",
+            "--no-renames",
+            commit,
+            seconds=SHORT_SECONDS,
+            **UNASKED_ENV,
+        )
+        if code != 0 or holding(
+            project,
+            commit,
+            {one.decode("utf-8", "replace") for one in files.split(b"\0") if one},
+            needles,
+        ):
             return True
     return False
 
@@ -2101,11 +2915,22 @@ def branch_diffs(
     for path in paths:
         if is_secret(path):
             continue
-        code, out, _said = _in(project, git, *UNASKED, "diff", "--no-color", "--no-ext-diff",
-                               "--no-textconv", "--ignore-submodules=all",
-                               f"{at}..refs/heads/{branch}" if at
-                               else f"HEAD...refs/heads/{branch}", "--", path,
-                               seconds=SHORT_SECONDS, **UNASKED_ENV, **off)
+        code, out, _said = _in(
+            project,
+            git,
+            *UNASKED,
+            "diff",
+            "--no-color",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--ignore-submodules=all",
+            f"{at}..refs/heads/{branch}" if at else f"HEAD...refs/heads/{branch}",
+            "--",
+            path,
+            seconds=SHORT_SECONDS,
+            **UNASKED_ENV,
+            **off,
+        )
         if code == 0:
             found[path] = out.decode("utf-8", "replace")
     return found
@@ -2121,10 +2946,21 @@ def restore_at(project: Path, commit: str, rel: str) -> str | None:
         git, _folder = repository(project)
     except Refused as exc:
         return str(exc)
-    code, _out, said = _in(project, git, "restore", f"--source={commit}", "--worktree", "--", rel,
-                           seconds=SHORT_SECONDS)
-    return None if code == 0 else (said.decode("utf-8", "replace").strip()
-                                   or "git could not put it back")
+    code, _out, said = _in(
+        project,
+        git,
+        "restore",
+        f"--source={commit}",
+        "--worktree",
+        "--",
+        rel,
+        seconds=SHORT_SECONDS,
+    )
+    return (
+        None
+        if code == 0
+        else (said.decode("utf-8", "replace").strip() or "git could not put it back")
+    )
 
 
 def blob_at(project: Path, commit: str, path: str, most: int) -> bytes | None:
@@ -2134,18 +2970,38 @@ def blob_at(project: Path, commit: str, path: str, most: int) -> bytes | None:
     by line (`copies.Copy.started_from`). None where it is not there, is over `most` bytes
     (asked before it is read), or git does not say. Refused as `repository`."""
     git, _folder = repository(project)
-    code, out, _said = _in(project, git, *UNASKED, "cat-file", "-s", f"{commit}:{path}",
-                           seconds=SHORT_SECONDS, **UNASKED_ENV)
+    code, out, _said = _in(
+        project,
+        git,
+        *UNASKED,
+        "cat-file",
+        "-s",
+        f"{commit}:{path}",
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+    )
     if code != 0 or not out.strip().isdigit() or int(out) > most:
         return None
-    code, out, _said = _in(project, git, *UNASKED, "cat-file", "--filters", f"{commit}:{path}",
-                           seconds=SHORT_SECONDS, **UNASKED_ENV,
-                           **_no_filters(project, git, SHORT_SECONDS))
+    code, out, _said = _in(
+        project,
+        git,
+        *UNASKED,
+        "cat-file",
+        "--filters",
+        f"{commit}:{path}",
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+        **_no_filters(project, git, SHORT_SECONDS),
+    )
     return out if code == 0 and len(out) <= most else None
 
 
 def merge_branch(
-    project: Path, tip: str, message: str, no_hooks: Path, into: str,
+    project: Path,
+    tip: str,
+    message: str,
+    no_hooks: Path,
+    into: str,
     start: str | None = None,
 ) -> str:
     """Bring a branch's commit `tip` - the one `branch_look` looked at and its scans read - into
@@ -2177,21 +3033,56 @@ def merge_branch(
     off = _no_filters(project, git, SHORT_SECONDS)
     no_hooks.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="no-hooks-", dir=no_hooks) as empty:
-        own = ("-c", f"core.hooksPath={empty}", "-c", "commit.gpgsign=false", "-c",
-               "core.symlinks=false", "-c", "submodule.recurse=false", "-c",
-               "merge.autoStash=false", "-c", "rebase.autoStash=false")
-        code, out, said = _in(project, git, *UNASKED, *own, "merge", "--squash", ref,
-                              seconds=COMMIT_SECONDS, **UNASKED_ENV, **off)
+        own = (
+            "-c",
+            f"core.hooksPath={empty}",
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "core.symlinks=false",
+            "-c",
+            "submodule.recurse=false",
+            "-c",
+            "merge.autoStash=false",
+            "-c",
+            "rebase.autoStash=false",
+        )
+        code, out, said = _in(
+            project,
+            git,
+            *UNASKED,
+            *own,
+            "merge",
+            "--squash",
+            ref,
+            seconds=COMMIT_SECONDS,
+            **UNASKED_ENV,
+            **off,
+        )
         if code != 0:
             # (Said as it is: git may have refused before writing anything.)
             wrote = (folder / "SQUASH_MSG").exists() or _in(
-                project, git, "diff", "--cached", "--quiet", "--no-ext-diff")[0] != 0
-            raise Refused(f"git merge --squash failed{HALF_SAID if wrote else ''}: "
-                          f"{_text(out, said)[-TAIL:]}")
+                project, git, "diff", "--cached", "--quiet", "--no-ext-diff"
+            )[0] != 0
+            raise Refused(
+                f"git merge --squash failed{HALF_SAID if wrote else ''}: {_text(out, said)[-TAIL:]}"
+            )
         if _in(project, git, "diff", "--cached", "--quiet", "--no-ext-diff")[0] != 0:
-            code, out, said = _in(project, git, *UNASKED, *own, "commit", "-q", "--no-verify",
-                                  "-m", message, seconds=COMMIT_SECONDS, **UNASKED_ENV,
-                                  **KOLONI_ID, **off)
+            code, out, said = _in(
+                project,
+                git,
+                *UNASKED,
+                *own,
+                "commit",
+                "-q",
+                "--no-verify",
+                "-m",
+                message,
+                seconds=COMMIT_SECONDS,
+                **UNASKED_ENV,
+                **KOLONI_ID,
+                **off,
+            )
             if code != 0:
                 raise Refused(f"git commit failed{HALF_SAID}: {_text(out, said)[-TAIL:]}")
     _code, out, _said = _in(project, git, "rev-parse", "HEAD")
@@ -2199,7 +3090,11 @@ def merge_branch(
 
 
 def drop_branch(
-    project: Path, tree: Path, branch: str, no_hooks: Path, force: bool = False,
+    project: Path,
+    tree: Path,
+    branch: str,
+    no_hooks: Path,
+    force: bool = False,
     keep: bool = False,
 ) -> None:
     """A branch's worktree folder is gone: git's record of it goes, and the branch - only where
@@ -2223,7 +3118,6 @@ def drop_branch(
         code, out, said = _in(project, git, *hooks, "branch", "-D" if force else "-d", branch)
     if code != 0:
         raise Refused(f"git branch failed: {_text(out, said)[-TAIL:]}")
-
 
 
 # --- D2: an agent puts a conflict together in the branch's worktree -------------------------
@@ -2254,10 +3148,14 @@ def _head(tree: Path, git: str, ref: str = "HEAD") -> str | None:
 
 
 def _unmerged(tree: Path, git: str) -> list[str]:
-    out = _in(tree, git, *UNASKED, "ls-files", "-u", "-z", seconds=SHORT_SECONDS,
-              **UNASKED_ENV)[1]
-    return sorted({entry.split(b"\t", 1)[1].decode("utf-8", "replace")
-                   for entry in out.split(b"\0") if b"\t" in entry})
+    out = _in(tree, git, *UNASKED, "ls-files", "-u", "-z", seconds=SHORT_SECONDS, **UNASKED_ENV)[1]
+    return sorted(
+        {
+            entry.split(b"\t", 1)[1].decode("utf-8", "replace")
+            for entry in out.split(b"\0")
+            if b"\t" in entry
+        }
+    )
 
 
 def merge_in(tree: Path, branch: str, into: str, no_hooks: Path) -> tuple[str, str, list[str]]:
@@ -2273,19 +3171,53 @@ def merge_in(tree: Path, branch: str, into: str, no_hooks: Path) -> tuple[str, s
         raise Refused(f"there is no branch {into} any more")
     off = _no_filters(tree, git, SHORT_SECONDS)
     # (An undo is `reset --hard`: not over a change the line left uncommitted - a file held back.)
-    code, out, said = _in(tree, git, *UNASKED, "status", "--porcelain", "--untracked-files=no",
-                          seconds=SHORT_SECONDS, **UNASKED_ENV, **off)
+    code, out, said = _in(
+        tree,
+        git,
+        *UNASKED,
+        "status",
+        "--porcelain",
+        "--untracked-files=no",
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+        **off,
+    )
     if code != 0 or out.strip():
-        raise Refused("the branch holds changes not committed (a file held back): resolve it "
-                      "yourself")
+        raise Refused(
+            "the branch holds changes not committed (a file held back): resolve it yourself"
+        )
     no_hooks.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="no-hooks-", dir=no_hooks) as empty:
-        own = ("-c", f"core.hooksPath={empty}", "-c", "commit.gpgsign=false", "-c",
-               "core.symlinks=false", "-c", "submodule.recurse=false", "-c",
-               "merge.autoStash=false", *KEEP_REFLOG)
-        code, out, said = _in(tree, git, *UNASKED, *own, "merge", "--no-ff", "--no-edit",
-                              "--no-verify", "-m", f"Merge {into} into {branch}", sha,
-                              seconds=COMMIT_SECONDS, **UNASKED_ENV, **KOLONI_ID, **off)
+        own = (
+            "-c",
+            f"core.hooksPath={empty}",
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "core.symlinks=false",
+            "-c",
+            "submodule.recurse=false",
+            "-c",
+            "merge.autoStash=false",
+            *KEEP_REFLOG,
+        )
+        code, out, said = _in(
+            tree,
+            git,
+            *UNASKED,
+            *own,
+            "merge",
+            "--no-ff",
+            "--no-edit",
+            "--no-verify",
+            "-m",
+            f"Merge {into} into {branch}",
+            sha,
+            seconds=COMMIT_SECONDS,
+            **UNASKED_ENV,
+            **KOLONI_ID,
+            **off,
+        )
     if code == 0:
         return before, sha, []
     left = _unmerged(tree, git)
@@ -2297,8 +3229,10 @@ def merge_in(tree: Path, branch: str, into: str, no_hooks: Path) -> tuple[str, s
     # an agent's.
     if unmarked := [path for path in left if not _marked(tree / path)]:
         undo_merge_in(tree, branch, before, no_hooks)
-        raise Refused(f"{', '.join(unmarked[:5])} clashes in no text lines (deleted on one side, "
-                      "or not text): resolve it yourself")
+        raise Refused(
+            f"{', '.join(unmarked[:5])} clashes in no text lines (deleted on one side, "
+            "or not text): resolve it yourself"
+        )
     return before, sha, left
 
 
@@ -2323,10 +3257,21 @@ def resolved(tree: Path, branch: str, before: str, sha: str, paths: Iterable[str
         return "the branch does not hold your branch's commit"
     marked = []
     for path in paths:
-        code, out, _said = _in(tree, git, *UNASKED, "cat-file", "blob", f"HEAD:{path}",
-                               seconds=SHORT_SECONDS, **UNASKED_ENV)
-        if code == 0 and any(line.startswith(MARKS) for line in out.splitlines()) or (
-                code != 0 and _in(tree, git, "cat-file", "-e", f"HEAD:{path}")[0] == 0):
+        code, out, _said = _in(
+            tree,
+            git,
+            *UNASKED,
+            "cat-file",
+            "blob",
+            f"HEAD:{path}",
+            seconds=SHORT_SECONDS,
+            **UNASKED_ENV,
+        )
+        if (
+            code == 0
+            and any(line.startswith(MARKS) for line in out.splitlines())
+            or (code != 0 and _in(tree, git, "cat-file", "-e", f"HEAD:{path}")[0] == 0)
+        ):
             marked.append(path)
     return f"{', '.join(marked[:5])} still holds git's conflict marks" if marked else None
 
@@ -2339,9 +3284,24 @@ def undo_merge_in(tree: Path, branch: str, before: str, no_hooks: Path) -> None:
     off = _no_filters(tree, git, SHORT_SECONDS)
     no_hooks.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="no-hooks-", dir=no_hooks) as empty:
-        code, out, said = _in(tree, git, *UNASKED, "-c", f"core.hooksPath={empty}", "-c",
-                              "core.symlinks=false", "-c", "submodule.recurse=false", "reset",
-                              "-q", "--hard", before, seconds=COMMIT_SECONDS, **UNASKED_ENV, **off)
+        code, out, said = _in(
+            tree,
+            git,
+            *UNASKED,
+            "-c",
+            f"core.hooksPath={empty}",
+            "-c",
+            "core.symlinks=false",
+            "-c",
+            "submodule.recurse=false",
+            "reset",
+            "-q",
+            "--hard",
+            before,
+            seconds=COMMIT_SECONDS,
+            **UNASKED_ENV,
+            **off,
+        )
     if code != 0:
         raise Refused(f"git reset failed: {_text(out, said)[-TAIL:]}")
 
@@ -2357,15 +3317,32 @@ def undo_merge_in(tree: Path, branch: str, before: str, no_hooks: Path) -> None:
 # shortcut: the repository's own `core.sshCommand`, credential helper, `insteadOf` and proxy run in
 # the push - that is how the user reaches GitHub, and blanking them would break it; a config
 # changed during the turn is asked about first (`_merge_branch`, as Take in's commit asks).
-GH_ENV = {"GH_PROMPT_DISABLED": "1", "GH_NO_UPDATE_NOTIFIER": "1", "NO_COLOR": "1",
-          "GIT_TERMINAL_PROMPT": "0"}
+GH_ENV = {
+    "GH_PROMPT_DISABLED": "1",
+    "GH_NO_UPDATE_NOTIFIER": "1",
+    "NO_COLOR": "1",
+    "GIT_TERMINAL_PROMPT": "0",
+}
 PUSH_SECONDS = 120.0
 # How a push may reach the remote: no protocol that runs a program (`ext::`), nor plain http;
 # a local one (file) for a remote on this machine.
 # No tag goes along (`followTags`), nothing is signed, no submodule pushed.
-PUSH_OWN = ("-c", "protocol.allow=never", "-c", "protocol.https.allow=always", "-c",
-            "protocol.ssh.allow=always", "-c", "protocol.file.allow=always", "-c",
-            "push.recurseSubmodules=no", "-c", "push.followTags=false", "-c", "push.gpgSign=false")
+PUSH_OWN = (
+    "-c",
+    "protocol.allow=never",
+    "-c",
+    "protocol.https.allow=always",
+    "-c",
+    "protocol.ssh.allow=always",
+    "-c",
+    "protocol.file.allow=always",
+    "-c",
+    "push.recurseSubmodules=no",
+    "-c",
+    "push.followTags=false",
+    "-c",
+    "push.gpgSign=false",
+)
 NO_GH = "gh (GitHub's CLI) is not installed"
 NOT_IN = "gh is not logged in: run gh auth login"
 NO_ANSWER = "gh did not answer, or the project is no git repository's top folder"
@@ -2387,8 +3364,16 @@ def _origin(project: Path) -> str:
         git, _folder = repository(project)
     except Refused:
         return ""
-    code, out, _said = _in(project, git, *UNASKED, "config", "--get", "remote.origin.url",
-                           seconds=SHORT_SECONDS, **UNASKED_ENV)
+    code, out, _said = _in(
+        project,
+        git,
+        *UNASKED,
+        "config",
+        "--get",
+        "remote.origin.url",
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+    )
     return out.decode("utf-8", "replace").strip() if code == 0 else ""
 
 
@@ -2401,8 +3386,10 @@ def _names(url: str, repo: str) -> bool:
     """Whether a remote's address is GitHub's `repo` ("owner/name"): https or ssh, `.git` or not -
     github.com itself as the host (not `evilgithub.com`, nor a path that holds it)."""
     host = r"(?:^(?:https?|ssh|git)://(?:[^/@]+@)?|^[^/@:]+@)github\.com(?::\d+)?"
-    return re.fullmatch(fr"{host}[:/]{re.escape(repo)}(?:\.git)?/?", url.strip(),
-                        re.IGNORECASE) is not None
+    return (
+        re.fullmatch(rf"{host}[:/]{re.escape(repo)}(?:\.git)?/?", url.strip(), re.IGNORECASE)
+        is not None
+    )
 
 
 def _gh_env(project: Path, empty: str) -> dict[str, str]:
@@ -2411,8 +3398,9 @@ def _gh_env(project: Path, empty: str) -> dict[str, str]:
     git, _folder = repository(project)
     off = _no_filters(project, git, SHORT_SECONDS)
     count = int(off["GIT_CONFIG_COUNT"])
-    for at, (key, value) in enumerate((("core.fsmonitor", "false"), ("core.hooksPath", empty)),
-                                      count):
+    for at, (key, value) in enumerate(
+        (("core.fsmonitor", "false"), ("core.hooksPath", empty)), count
+    ):
         off[f"GIT_CONFIG_KEY_{at}"], off[f"GIT_CONFIG_VALUE_{at}"] = key, value
     return {**GH_ENV, **off, "GIT_CONFIG_COUNT": str(count + 2)}
 
@@ -2428,8 +3416,12 @@ def gh_repo(project: Path) -> tuple[str | None, str | None]:
             env = _gh_env(project, empty)
             if run([*command, "auth", "status"], project, SHORT_SECONDS, **env)[0] != 0:
                 return None, NOT_IN
-            code, out, _said = run([*command, "repo", "view", "--json", "nameWithOwner", "-q",
-                                    ".nameWithOwner"], project, SHORT_SECONDS, **env)
+            code, out, _said = run(
+                [*command, "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
+                project,
+                SHORT_SECONDS,
+                **env,
+            )
     except Refused:
         return None, NO_ANSWER
     name = out.decode("utf-8", "replace").strip()
@@ -2470,10 +3462,12 @@ def issue_ref(raw: str) -> str:
         return str(int(number[1]))
     # (Nor a name of dots alone - a way up - or one that starts as an option.)
     if (found := ISSUE_URL.fullmatch(raw)) and not any(
-            name.strip(".") == "" or name.startswith("-") for name in (found[1], found[2])):
+        name.strip(".") == "" or name.startswith("-") for name in (found[1], found[2])
+    ):
         return f"https://github.com/{found[1]}/{found[2]}/issues/{int(found[3])}"
-    raise Refused("an issue is its number (#12) or its address (https://github.com/owner/repo/"
-                  "issues/12)")
+    raise Refused(
+        "an issue is its number (#12) or its address (https://github.com/owner/repo/issues/12)"
+    )
 
 
 def _gh_json(project: Path, *args: str) -> object:
@@ -2489,8 +3483,9 @@ def _gh_json(project: Path, *args: str) -> object:
         env = _gh_env(project, empty)
         if run([*command, "auth", "status"], project, SHORT_SECONDS, program="gh", **env)[0]:
             raise Refused(NOT_IN)
-        code, out, said = run([*command, "issue", *args], project, ISSUE_SECONDS, program="gh",
-                              **env)
+        code, out, said = run(
+            [*command, "issue", *args], project, ISSUE_SECONDS, program="gh", **env
+        )
     if code != 0:
         raise Refused(f"gh issue {args[0]} failed: {_text(out, said)[-TAIL:]}")
     try:
@@ -2508,14 +3503,26 @@ def issues(project: Path) -> tuple[list[dict], str | None]:
     # shortcut: the first 30 open issues, no search or paging; add them when a repository's list
     # is seen to be longer than that and the one wanted is not pasted.
     try:
-        found = _gh_json(project, "list", f"--repo={name}", "--state=open", "--limit=30",
-                         "--json=number,title,url,updatedAt")
+        found = _gh_json(
+            project,
+            "list",
+            f"--repo={name}",
+            "--state=open",
+            "--limit=30",
+            "--json=number,title,url,updatedAt",
+        )
     except Refused as refused:
         return [], str(refused)
-    return [{"number": one["number"], "title": str(one.get("title") or ""),
-             "url": str(one.get("url") or ""), "updated_at": one.get("updatedAt")}
-            for one in found if isinstance(one, dict) and isinstance(one.get("number"), int)
-            ] if isinstance(found, list) else [], None
+    return [
+        {
+            "number": one["number"],
+            "title": str(one.get("title") or ""),
+            "url": str(one.get("url") or ""),
+            "updated_at": one.get("updatedAt"),
+        }
+        for one in found
+        if isinstance(one, dict) and isinstance(one.get("number"), int)
+    ] if isinstance(found, list) else [], None
 
 
 def issue(project: Path, ref: str) -> dict:
@@ -2539,9 +3546,12 @@ def issue(project: Path, ref: str) -> dict:
         return str(author.get("login") or "?") if isinstance(author, dict) else "?"
 
     url, state = str(found.get("url") or ""), str(found.get("state") or "").lower()
-    parts = [f"Issue #{found['number']}: {found.get('title') or ''}",
-             f"{url} ({state}, opened by {who(found)})", "",
-             str(found.get("body") or "").strip() or "(no text)"]
+    parts = [
+        f"Issue #{found['number']}: {found.get('title') or ''}",
+        f"{url} ({state}, opened by {who(found)})",
+        "",
+        str(found.get("body") or "").strip() or "(no text)",
+    ]
     for one in found.get("comments") or []:
         if isinstance(one, dict):
             parts += ["", f"--- {who(one)} commented:", str(one.get("body") or "").strip()]
@@ -2550,18 +3560,22 @@ def issue(project: Path, ref: str) -> dict:
     # shortcut: cut from the end - the newest comments go first; keep the body and the latest
     # comments, cutting the middle, if a long thread's end is seen to matter.
     if len(text) > MOST_ISSUE or len(lines) > MOST_LINES:
-        text = "\n".join(text[:MOST_ISSUE - len(CUT)].split("\n")[:MOST_LINES - 1]) + CUT
+        text = "\n".join(text[: MOST_ISSUE - len(CUT)].split("\n")[: MOST_LINES - 1]) + CUT
     return {"number": found["number"], "url": url, "text": text}
 
 
 # Why a pull request is not pushed: the branch took in commits not on origin (`_taken_in_unpushed`)
 # - the user's, where their own refs hold them; else whose is not known (a pick of theirs is a new
 # commit; the branch's reflog expired).
-TAKEN_IN_UNPUSHED = ("the branch took in commits of yours not on origin ({commits}): push them "
-                     "first - a pull request never sends them")
-TAKEN_IN_UNKNOWN = ("the branch holds commits not on origin that KOLONİ cannot attribute "
-                    "({commits}): its history does not say they were made on it - a pull request "
-                    "never sends them")
+TAKEN_IN_UNPUSHED = (
+    "the branch took in commits of yours not on origin ({commits}): push them "
+    "first - a pull request never sends them"
+)
+TAKEN_IN_UNKNOWN = (
+    "the branch holds commits not on origin that KOLONİ cannot attribute "
+    "({commits}): its history does not say they were made on it - a pull request "
+    "never sends them"
+)
 NAMED_COMMITS = 3
 
 
@@ -2577,13 +3591,26 @@ KEEP_REFLOG = ("-c", "core.logAllRefUpdates=true")
 def _made_on(project: Path, git: str, branch: str) -> set[str]:
     """The commits the branch's own reflog says were made on it (`_MADE_HERE`). None where it has
     no reflog (an old one expired): nothing is taken for made there (fails closed)."""
-    code, out, _said = _in(project, git, *UNASKED, "log", "-g", "--format=%H%x09%gs",
-                           f"refs/heads/{branch}", seconds=SHORT_SECONDS, **UNASKED_ENV)
+    code, out, _said = _in(
+        project,
+        git,
+        *UNASKED,
+        "log",
+        "-g",
+        "--format=%H%x09%gs",
+        f"refs/heads/{branch}",
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+    )
     if code != 0:
         return set()
-    return {sha for sha, _tab, says in (
-        line.partition("\t") for line in out.decode("utf-8", "replace").splitlines())
-        if _MADE_HERE.match(says)}
+    return {
+        sha
+        for sha, _tab, says in (
+            line.partition("\t") for line in out.decode("utf-8", "replace").splitlines()
+        )
+        if _MADE_HERE.match(says)
+    }
 
 
 def _taken_in_unpushed(
@@ -2599,8 +3626,18 @@ def _taken_in_unpushed(
     some of those run unasked at Full auto: `_users_content` reads the pushed files themselves,
     and a pull request is asked about while the user has commits not on origin
     (`unpushed_count`)."""
-    code, out, said = _in(project, git, *UNASKED, "rev-list", source, f"^{start}", "--not",
-                          "--remotes=origin", seconds=SHORT_SECONDS, **UNASKED_ENV)
+    code, out, said = _in(
+        project,
+        git,
+        *UNASKED,
+        "rev-list",
+        source,
+        f"^{start}",
+        "--not",
+        "--remotes=origin",
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+    )
     if code != 0:
         raise Refused(f"git rev-list failed: {_text(out, said)[-TAIL:]}")
     made = _made_on(project, git, branch) | ({snapshot} if snapshot else set())
@@ -2608,10 +3645,15 @@ def _taken_in_unpushed(
 
 
 # Why a pull request is not pushed: a file of it is a file of the user's work not pushed yet.
-USERS_CONTENT = ("{files} in it is your work not pushed yet (as a commit of yours holds it): push "
-                 "it first, or take it off the branch - a pull request never sends it")
-def unpushed_count(project: Path, under: Iterable[Path], branch: str | None = None
-                   ) -> tuple[int, int]:
+USERS_CONTENT = (
+    "{files} in it is your work not pushed yet (as a commit of yours holds it): push "
+    "it first, or take it off the branch - a pull request never sends it"
+)
+
+
+def unpushed_count(
+    project: Path, under: Iterable[Path], branch: str | None = None
+) -> tuple[int, int]:
     """How many commits of the user's no branch of origin's holds, as git last fetched it
     (`_users_unpushed`, `under` KOLONİ's copies folders, `branch` the pull request's) - all of
     theirs where origin has none -, and how many stashes: a stash's own commits (its work, its
@@ -2619,30 +3661,48 @@ def unpushed_count(project: Path, under: Iterable[Path], branch: str | None = No
     does not say."""
     git, _folder = repository(project)
     found = set(_users_unpushed(project, git, under, branch).decode("ascii", "replace").split())
-    stashes = [line.split() for line in _said_or_refused(
-        project, git, None, "log", "-g", "--format=%H %P", "refs/stash").decode(
-        "ascii", "replace").splitlines()] if _verified(project, git, "refs/stash@{0}") else []
+    stashes = (
+        [
+            line.split()
+            for line in _said_or_refused(
+                project, git, None, "log", "-g", "--format=%H %P", "refs/stash"
+            )
+            .decode("ascii", "replace")
+            .splitlines()
+        ]
+        if _verified(project, git, "refs/stash@{0}")
+        else []
+    )
     own = {sha for made, *parents in stashes for sha in (made, *parents[1:])}
     return len(found - own), len(found & {made for made, *_parents in stashes})
 
 
-def unpushed_places(project: Path, under: Iterable[Path], branch: str | None = None
-                    ) -> list[tuple[Path, bool]]:
+def unpushed_places(
+    project: Path, under: Iterable[Path], branch: str | None = None
+) -> list[tuple[Path, bool]]:
     """The user's other worktrees whose HEAD, or its reflog, holds a commit of theirs no branch of
     origin's holds (`unpushed_count`) that neither a branch of theirs nor the project's HEAD does:
     each its folder, and whether that is still there (git keeps a worktree whose folder was deleted
     until `git worktree prune`). Refused as `unpushed_count`."""
     git, _folder = repository(project)
     found = set(_users_unpushed(project, git, under, branch).split())
-    nots = [b"^HEAD", *(b"^" + head.encode() for head in _users_heads(project, git)),
-            *_origin_nots(project, git)]
+    nots = [
+        b"^HEAD",
+        *(b"^" + head.encode() for head in _users_heads(project, git)),
+        *_origin_nots(project, git),
+    ]
     places = []
     for tip, tree, log, drop in _users_worktrees(project, git, under) if found else []:
-        lines = [*([tip.encode()] if tip and _verified(project, git, tip) else []),
-                 *(sha.encode() for sha, _says in _reflog(log) if sha not in drop), *nots]
-        if tree is not None and found & set(_said_or_refused(
-                project, git, b"\n".join(lines) + b"\n", "rev-list", "--ignore-missing",
-                "--stdin").split()):
+        lines = [
+            *([tip.encode()] if tip and _verified(project, git, tip) else []),
+            *(sha.encode() for sha, _says in _reflog(log) if sha not in drop),
+            *nots,
+        ]
+        if tree is not None and found & set(
+            _said_or_refused(
+                project, git, b"\n".join(lines) + b"\n", "rev-list", "--ignore-missing", "--stdin"
+            ).split()
+        ):
             places.append((tree, tree.is_dir()))
     return places
 
@@ -2653,19 +3713,27 @@ def _verified(project: Path, git: str, ref: str) -> bool:
 
 def _users_heads(project: Path, git: str) -> list[str]:
     """The user's branches: all but KOLONİ's (`BRANCH_PREFIX`)."""
-    return [one for one in _said_or_refused(
-        project, git, None, "for-each-ref", "--format=%(refname)", "refs/heads/").decode(
-        "utf-8", "surrogateescape").split() if not one.startswith(f"refs/heads/{BRANCH_PREFIX}")]
+    return [
+        one
+        for one in _said_or_refused(
+            project, git, None, "for-each-ref", "--format=%(refname)", "refs/heads/"
+        )
+        .decode("utf-8", "surrogateescape")
+        .split()
+        if not one.startswith(f"refs/heads/{BRANCH_PREFIX}")
+    ]
 
 
 def _origin_nots(project: Path, git: str) -> list[bytes]:
     """What origin's branches hold, as rev-list's --stdin takes it away (`^<commit>`)."""
-    return _said_or_refused(project, git, None, "for-each-ref", "--format=^%(objectname)",
-                            "refs/remotes/origin/").split()
+    return _said_or_refused(
+        project, git, None, "for-each-ref", "--format=^%(objectname)", "refs/remotes/origin/"
+    ).split()
 
 
-def _users_worktrees(project: Path, git: str, under: Iterable[Path]
-                     ) -> list[tuple[str | None, Path | None, Path, set[str]]]:
+def _users_worktrees(
+    project: Path, git: str, under: Iterable[Path]
+) -> list[tuple[str | None, Path | None, Path, set[str]]]:
     """The repository's other worktrees - the main one (`main-worktree/HEAD`, where the project is a
     linked one), each linked one (`worktrees/<id>/HEAD`) - but KOLONİ's own, in one of `under` (its
     copies folders): each its HEAD, its folder (None where it is not read), its HEAD's reflog file
@@ -2675,22 +3743,40 @@ def _users_worktrees(project: Path, git: str, under: Iterable[Path]
     HEAD - `_users_unpushed` leaves those branches out - and of its reflog, what that branch's own
     reflog says was made on it (`_made_on`) is the agents': the rest, a commit the user made
     there before, stays theirs."""
-    common = Path(project, _said_or_refused(project, git, None, "rev-parse", "--git-common-dir")
-                  .decode("utf-8", "surrogateescape").strip())
+    common = Path(
+        project,
+        _said_or_refused(project, git, None, "rev-parse", "--git-common-dir")
+        .decode("utf-8", "surrogateescape")
+        .strip(),
+    )
 
     def real(path: str | Path) -> str:  # (git keeps a worktree's real path: /private/var on macOS)
         return os.path.normcase(os.path.realpath(path))
 
     here, tops = real(project), tuple(os.path.join(real(one), "") for one in under)
-    found: list[tuple[str | None, Path | None, Path, set[str]]] = [] if real(common) == real(
-        project / ".git") else [("main-worktree/HEAD", common.parent if common.name == ".git"
-                                 else None, common / "logs" / "HEAD", set())]
+    found: list[tuple[str | None, Path | None, Path, set[str]]] = (
+        []
+        if real(common) == real(project / ".git")
+        else [
+            (
+                "main-worktree/HEAD",
+                common.parent if common.name == ".git" else None,
+                common / "logs" / "HEAD",
+                set(),
+            )
+        ]
+    )
     admins = sorted((common / "worktrees").iterdir()) if (common / "worktrees").is_dir() else []
     for admin in admins:
         tree: Path | None = None
         try:  # (its worktree's .git file: absolute, or from here - worktree.useRelativePaths)
-            tree = Path(os.path.normpath(os.path.dirname(os.path.join(admin, (
-                admin / "gitdir").read_text("utf-8").strip()))))
+            tree = Path(
+                os.path.normpath(
+                    os.path.dirname(
+                        os.path.join(admin, (admin / "gitdir").read_text("utf-8").strip())
+                    )
+                )
+            )
             skip = real(tree) == here or os.path.join(real(tree), "").startswith(tops)
         except (OSError, ValueError):
             skip = False  # (not read: taken for the user's)
@@ -2731,12 +3817,18 @@ def _logged(project: Path, git: str, ref: str) -> list[tuple[str, str]]:
     if not _verified(project, git, f"{ref}@{{0}}"):
         return []
     out = _said_or_refused(project, git, None, "log", "-g", "--format=%H%x09%gs", ref)
-    return [(sha, says) for sha, _tab, says in (
-        line.partition("\t") for line in out.decode("utf-8", "replace").splitlines()) if sha]
+    return [
+        (sha, says)
+        for sha, _tab, says in (
+            line.partition("\t") for line in out.decode("utf-8", "replace").splitlines()
+        )
+        if sha
+    ]
 
 
-def _users_unpushed(project: Path, git: str, under: Iterable[Path],
-                    branch: str | None = None) -> bytes:
+def _users_unpushed(
+    project: Path, git: str, under: Iterable[Path], branch: str | None = None
+) -> bytes:
     """The commits of the user's that no branch of origin's holds: what every ref of theirs reaches
     (`--all`: branches, tags, other remotes, the stash, this worktree's HEAD - KOLONİ's branches
     aside - and the HEADs of their other worktrees: `_users_worktrees`, KOLONİ's aside)
@@ -2749,34 +3841,63 @@ def _users_unpushed(project: Path, git: str, under: Iterable[Path],
     does not say; an object gone from a reflog is no commit (`--ignore-missing`)."""
     heads = _users_heads(project, git)
     others = _users_worktrees(project, git, under)
-    entries = [entry for ref in (*heads, "refs/stash", "HEAD") for entry in _logged(
-        project, git, ref)] + [(sha, says) for _tip, _tree, log, drop in others
-                               for sha, says in _reflog(log) if sha not in drop]
-    tops = [tip.encode() for tip, _tree, _log, _drop in others
-            if tip and _verified(project, git, tip)]
+    entries = [
+        entry for ref in (*heads, "refs/stash", "HEAD") for entry in _logged(project, git, ref)
+    ] + [
+        (sha, says)
+        for _tip, _tree, log, drop in others
+        for sha, says in _reflog(log)
+        if sha not in drop
+    ]
+    tops = [
+        tip.encode() for tip, _tree, _log, _drop in others if tip and _verified(project, git, tip)
+    ]
     # (No empty line: rev-list's --stdin stops reading at one, and the ^origin ones would be lost.)
     lines = [*(sha.encode() for sha, _says in entries), *tops, *_origin_nots(project, git)]
-    out = _said_or_refused(project, git, b"\n".join(lines) + b"\n", "rev-list",
-                           "--ignore-missing", "--single-worktree",
-                           f"--exclude=refs/heads/{BRANCH_PREFIX}*", "--all", "--stdin")
+    out = _said_or_refused(
+        project,
+        git,
+        b"\n".join(lines) + b"\n",
+        "rev-list",
+        "--ignore-missing",
+        "--single-worktree",
+        f"--exclude=refs/heads/{BRANCH_PREFIX}*",
+        "--all",
+        "--stdin",
+    )
     if branch is None:
         return out
-    agents = _made_on(project, git, branch) - {sha for sha, says in entries
-                                               if _MADE_HERE.match(says)}
+    agents = _made_on(project, git, branch) - {
+        sha for sha, says in entries if _MADE_HERE.match(says)
+    }
     if agents:  # (never one a branch, tag or other remote of the user's holds too)
-        agents -= set(_said_or_refused(
-            project, git, b"\n".join(_origin_nots(project, git)) + b"\n", "rev-list",
-            # (--branches' and --remotes' patterns are their refs' short names)
-            "--ignore-missing", f"--exclude={BRANCH_PREFIX}*", "--branches", "--tags",
-            "--exclude=origin/*", "--remotes", "--stdin").decode(
-            "ascii", "replace").split())
-    return b"".join(sha + b"\n" for sha in out.split() if sha.decode("ascii", "replace")
-                    not in agents)
+        agents -= set(
+            _said_or_refused(
+                project,
+                git,
+                b"\n".join(_origin_nots(project, git)) + b"\n",
+                "rev-list",
+                # (--branches' and --remotes' patterns are their refs' short names)
+                "--ignore-missing",
+                f"--exclude={BRANCH_PREFIX}*",
+                "--branches",
+                "--tags",
+                "--exclude=origin/*",
+                "--remotes",
+                "--stdin",
+            )
+            .decode("ascii", "replace")
+            .split()
+        )
+    return b"".join(
+        sha + b"\n" for sha in out.split() if sha.decode("ascii", "replace") not in agents
+    )
 
 
 def _said_or_refused(project: Path, git: str, stdin: bytes | None, *args: str) -> bytes:
-    code, out, said = _fed(project, git, stdin, *UNASKED, *args, seconds=SHORT_SECONDS,
-                           **UNASKED_ENV)
+    code, out, said = _fed(
+        project, git, stdin, *UNASKED, *args, seconds=SHORT_SECONDS, **UNASKED_ENV
+    )
     if code != 0:
         raise Refused(f"git {args[0]} failed: {_text(out, said)[-TAIL:]}")
     return out
@@ -2793,8 +3914,13 @@ def _new_blobs(raw: bytes) -> dict[str, str]:
 
 
 def _users_content(
-    project: Path, git: str, base: str, tip: str, under: Iterable[Path],
-    snapshot: str | None = None, branch: str | None = None,
+    project: Path,
+    git: str,
+    base: str,
+    tip: str,
+    under: Iterable[Path],
+    snapshot: str | None = None,
+    branch: str | None = None,
 ) -> list[str]:
     """The files a push would add or change (`tip` against `base`) that hold exactly what a commit
     of the user's not on origin introduced (`_users_unpushed`: their branches, stashes, a detached
@@ -2805,22 +3931,61 @@ def _users_content(
     commits = _users_unpushed(project, git, under, branch)
     held: set[str] = set()
     if commits.strip():
-        held |= set(_new_blobs(_said_or_refused(
-            project, git, commits, "-c", "log.showRoot=true", "log", "--no-walk", "--stdin",
-            "--format=", "--raw", "-z", "--no-abbrev", "--no-renames",
-            "--diff-merges=first-parent")).values())
+        held |= set(
+            _new_blobs(
+                _said_or_refused(
+                    project,
+                    git,
+                    commits,
+                    "-c",
+                    "log.showRoot=true",
+                    "log",
+                    "--no-walk",
+                    "--stdin",
+                    "--format=",
+                    "--raw",
+                    "-z",
+                    "--no-abbrev",
+                    "--no-renames",
+                    "--diff-merges=first-parent",
+                )
+            ).values()
+        )
     if snapshot:
-        held |= set(_new_blobs(_said_or_refused(project, git, None, "diff-tree", "-r", "-z",
-                                                "--no-renames", f"{snapshot}^", snapshot)).values())
+        held |= set(
+            _new_blobs(
+                _said_or_refused(
+                    project,
+                    git,
+                    None,
+                    "diff-tree",
+                    "-r",
+                    "-z",
+                    "--no-renames",
+                    f"{snapshot}^",
+                    snapshot,
+                )
+            ).values()
+        )
     held.discard(_said_or_refused(project, git, b"", "hash-object", "--stdin").decode().strip())
-    pushed = _new_blobs(_said_or_refused(project, git, None, "diff-tree", "-r", "-z",
-                                         "--no-renames", base, tip))
+    pushed = _new_blobs(
+        _said_or_refused(project, git, None, "diff-tree", "-r", "-z", "--no-renames", base, tip)
+    )
     return sorted(path for path, blob in pushed.items() if blob in held)
 
 
 def push_one(
-    project: Path, tip: str, branch: str, into: str, start: str, message: str, no_hooks: Path,
-    source: str | None = None, snapshot: str | None = None, *, under: Iterable[Path],
+    project: Path,
+    tip: str,
+    branch: str,
+    into: str,
+    start: str,
+    message: str,
+    no_hooks: Path,
+    source: str | None = None,
+    snapshot: str | None = None,
+    *,
+    under: Iterable[Path],
 ) -> str:
     """Push the branch's commit `tip` to the remote "origin", as `branch` there, as ONE commit
     by KOLONİ - its tree, on where it left the project's branch `into`: what `merge_branch`
@@ -2838,15 +4003,27 @@ def push_one(
     if not branch.startswith(BRANCH_PREFIX):
         raise Refused(f"{branch} is not a branch KOLONİ made")
     git, _folder = repository(project)
-    code, out, said = _in(project, git, *UNASKED, "merge-base", f"refs/heads/{into}", tip,
-                          seconds=SHORT_SECONDS, **UNASKED_ENV)
+    code, out, said = _in(
+        project,
+        git,
+        *UNASKED,
+        "merge-base",
+        f"refs/heads/{into}",
+        tip,
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+    )
     if code != 0:
         raise Refused(f"git merge-base failed: {_text(out, said)[-TAIL:]}")
     base = out.decode("ascii", "replace").strip()
-    if any(_in(project, git, "merge-base", "--is-ancestor", one, f"refs/remotes/origin/{into}")[0]
-           for one in (base, start)):
-        raise Refused(f"push {into} first: commits of yours not on origin yet would go up with "
-                      "the pull request")
+    if any(
+        _in(project, git, "merge-base", "--is-ancestor", one, f"refs/remotes/origin/{into}")[0]
+        for one in (base, start)
+    ):
+        raise Refused(
+            f"push {into} first: commits of yours not on origin yet would go up with "
+            "the pull request"
+        )
     if taken := _taken_in_unpushed(project, git, source or tip, start, branch, snapshot):
         # (Named as the user's only those their own refs hold - what they can push; a reflog of
         # the branch's expired or cut by gc leaves the agents' own commits not made on it to git.)
@@ -2854,14 +4031,39 @@ def push_one(
         mine = [sha for sha in taken if sha in yours]
         said, named = (TAKEN_IN_UNPUSHED, mine) if mine else (TAKEN_IN_UNKNOWN, taken)
         more = len(named) - NAMED_COMMITS
-        raise Refused(said.format(commits=", ".join(sha[:10] for sha in named[:NAMED_COMMITS]) + (
-            f" and {more} more" if more > 0 else "")))
+        raise Refused(
+            said.format(
+                commits=", ".join(sha[:10] for sha in named[:NAMED_COMMITS])
+                + (f" and {more} more" if more > 0 else "")
+            )
+        )
     if copied := _users_content(project, git, base, tip, under, snapshot, branch):
-        raise Refused(USERS_CONTENT.format(files=", ".join(copied[:NAMED_COMMITS]) + (
-            f" and {len(copied) - NAMED_COMMITS} more" if len(copied) > NAMED_COMMITS else "")))
-    code, out, said = _in(project, git, *UNASKED, "-c", "commit.gpgsign=false", "commit-tree",
-                          f"{tip}^{{tree}}", "-p", base, "-m", message,
-                          seconds=SHORT_SECONDS, **UNASKED_ENV, **KOLONI_ID)
+        raise Refused(
+            USERS_CONTENT.format(
+                files=", ".join(copied[:NAMED_COMMITS])
+                + (
+                    f" and {len(copied) - NAMED_COMMITS} more"
+                    if len(copied) > NAMED_COMMITS
+                    else ""
+                )
+            )
+        )
+    code, out, said = _in(
+        project,
+        git,
+        *UNASKED,
+        "-c",
+        "commit.gpgsign=false",
+        "commit-tree",
+        f"{tip}^{{tree}}",
+        "-p",
+        base,
+        "-m",
+        message,
+        seconds=SHORT_SECONDS,
+        **UNASKED_ENV,
+        **KOLONI_ID,
+    )
     if code != 0:
         raise Refused(f"git commit-tree failed: {_text(out, said)[-TAIL:]}")
     sha = out.decode("ascii", "replace").strip()
@@ -2869,10 +4071,21 @@ def push_one(
     with tempfile.TemporaryDirectory(prefix="no-hooks-", dir=no_hooks) as empty:
         # (`--receive-pack`, not `-c remote.origin.receivepack`: the repository's config wins
         # over that.)
-        code, out, said = _in(project, git, *PUSH_OWN, "-c", f"core.hooksPath={empty}", "push",
-                              "--no-verify", "--quiet", "--receive-pack=git-receive-pack",
-                              "origin", f"{sha}:refs/heads/{branch}",
-                              seconds=PUSH_SECONDS, **UNASKED_ENV)
+        code, out, said = _in(
+            project,
+            git,
+            *PUSH_OWN,
+            "-c",
+            f"core.hooksPath={empty}",
+            "push",
+            "--no-verify",
+            "--quiet",
+            "--receive-pack=git-receive-pack",
+            "origin",
+            f"{sha}:refs/heads/{branch}",
+            seconds=PUSH_SECONDS,
+            **UNASKED_ENV,
+        )
     if code != 0:
         raise Refused(f"git push failed: {_text(out, said)[-TAIL:]}")
     return sha
@@ -2892,14 +4105,32 @@ def open_pr(
         written.write_text(body, encoding="utf-8")
         empty.mkdir()
         # (Each value with "=": one that starts with a dash is no option.)
-        code, out, said = run([*command, "pr", "create", f"--repo={repo}", f"--head={branch}",
-                               f"--base={into}", f"--title={title}", f"--body-file={written}"],
-                              project, PUSH_SECONDS, program="gh",
-                              **_gh_env(project, str(empty)))
+        code, out, said = run(
+            [
+                *command,
+                "pr",
+                "create",
+                f"--repo={repo}",
+                f"--head={branch}",
+                f"--base={into}",
+                f"--title={title}",
+                f"--body-file={written}",
+            ],
+            project,
+            PUSH_SECONDS,
+            program="gh",
+            **_gh_env(project, str(empty)),
+        )
     if code != 0:
         raise Refused(f"gh pr create failed: {_text(out, said)[-TAIL:]}")
-    url = next((word for word in reversed(out.decode("utf-8", "replace").split())
-                if word.startswith("https://")), None)
+    url = next(
+        (
+            word
+            for word in reversed(out.decode("utf-8", "replace").split())
+            if word.startswith("https://")
+        ),
+        None,
+    )
     if url is None:
         raise Refused(f"gh pr create said no address: {_text(out, said)[-TAIL:]}")
     return url
@@ -2909,21 +4140,31 @@ def open_pr(
 # (`app.disposable`) - looks as `where` takes them: read only, no program of the repository's
 # run, None where git does not answer.
 
+
 def default_branch(project: Path) -> str | None:
     """The project's default branch: the remote's (origin/HEAD), else the one git starts a
     repository on (init.defaultBranch), else main or master where there is one; None where
     git says none of these."""
     try:
         git, until = _looking(project)
-        remote = (_said(project, git, until, "symbolic-ref", "-q", "--short",
-                        "refs/remotes/origin/HEAD") or "").strip()
+        remote = (
+            _said(project, git, until, "symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD")
+            or ""
+        ).strip()
         if remote.startswith("origin/") and remote != "origin/":
             return remote.removeprefix("origin/")
-        started = (_said(project, git, until, "config", "--get", "init.defaultBranch")
-                   or "").strip()
-        return started or next((name for name in ("main", "master") if _said(
-            project, git, until, "rev-parse", "--verify", "-q", f"refs/heads/{name}")
-            is not None), None)
+        started = (
+            _said(project, git, until, "config", "--get", "init.defaultBranch") or ""
+        ).strip()
+        return started or next(
+            (
+                name
+                for name in ("main", "master")
+                if _said(project, git, until, "rev-parse", "--verify", "-q", f"refs/heads/{name}")
+                is not None
+            ),
+            None,
+        )
     except Refused:
         return None
 
@@ -2932,8 +4173,14 @@ def ahead(project: Path, base: str, branch: str) -> int | None:
     """How many commits the local `branch` has that the local `base` has not; None where git
     does not say (either is no local branch)."""
     try:
-        said = _said(project, *_looking(project), "rev-list", "--count",
-                     f"refs/heads/{base}..refs/heads/{branch}", "--")
+        said = _said(
+            project,
+            *_looking(project),
+            "rev-list",
+            "--count",
+            f"refs/heads/{base}..refs/heads/{branch}",
+            "--",
+        )
     except Refused:
         return None
     return int(said) if said and said.strip().isdigit() else None
@@ -2947,9 +4194,25 @@ def kept_under(project: Path, rel: str) -> bool | None:
     try:
         git, until = _looking(project)
         code, out, _said = run(
-            [git, "-c", "core.fsmonitor=false", "-c", "safe.bareRepository=explicit", *UNASKED,
-             "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--",
-             f":(literal,icase){rel}"], project, _left(until), **UNASKED_ENV)
+            [
+                git,
+                "-c",
+                "core.fsmonitor=false",
+                "-c",
+                "safe.bareRepository=explicit",
+                *UNASKED,
+                "ls-files",
+                "-z",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+                "--",
+                f":(literal,icase){rel}",
+            ],
+            project,
+            _left(until),
+            **UNASKED_ENV,
+        )
     except Refused:
         return None
     return bool(out) if code == 0 else None
@@ -2963,26 +4226,47 @@ def not_committed(tree: Path) -> list[str] | None:
     (a detached one's: its reflog goes with the worktree); None where git does not say."""
     try:
         git, until = _looking(tree)
-        changed = _said(tree, git, until, "ls-files", "-z", "--modified", "--others",
-                        "--exclude-standard")
+        changed = _said(
+            tree, git, until, "ls-files", "-z", "--modified", "--others", "--exclude-standard"
+        )
         tagged = _said(tree, git, until, "ls-files", "-z", "-v")
-        alone = _said(tree, git, until, "rev-list", "-n1", "HEAD", "--not", "--branches",
-                      "--tags", "--remotes")
+        alone = _said(
+            tree,
+            git,
+            until,
+            "rev-list",
+            "-n1",
+            "HEAD",
+            "--not",
+            "--branches",
+            "--tags",
+            "--remotes",
+        )
     except Refused:
         return None
     if changed is None or tagged is None or alone is None:
         return None
-    return [one for one in changed.split("\0") if one] + [
-        one[2:] for one in tagged.split("\0") if one and not one.startswith("H ")] + (
-        ["HEAD"] if alone.strip() else [])
+    return (
+        [one for one in changed.split("\0") if one]
+        + [one[2:] for one in tagged.split("\0") if one and not one.startswith("H ")]
+        + (["HEAD"] if alone.strip() else [])
+    )
 
 
 def left_out(tree: Path) -> list[str] | None:
     """What git leaves out by its ignore rules in a worktree's folder - a file, or a folder as one
     (`build/`) -, which `worktree remove` deletes with it; None where git does not say."""
     try:
-        said = _said(tree, *_looking(tree), "ls-files", "-z", "--others", "--ignored",
-                     "--exclude-standard", "--directory")
+        said = _said(
+            tree,
+            *_looking(tree),
+            "ls-files",
+            "-z",
+            "--others",
+            "--ignored",
+            "--exclude-standard",
+            "--directory",
+        )
     except Refused:
         return None
     return None if said is None else [one for one in said.split("\0") if one]
@@ -2997,12 +4281,23 @@ def same_repository(project: Path, folder: Path) -> bool:
         git, until = _looking(project)
 
         def found(where: Path) -> tuple[str, ...] | None:
-            code, out, _said = _in(where, git, *UNASKED, "rev-parse", "--path-format=absolute",
-                                   "--show-toplevel", "--git-common-dir",
-                                   seconds=_left(until), **UNASKED_ENV)
+            code, out, _said = _in(
+                where,
+                git,
+                *UNASKED,
+                "rev-parse",
+                "--path-format=absolute",
+                "--show-toplevel",
+                "--git-common-dir",
+                seconds=_left(until),
+                **UNASKED_ENV,
+            )
             lines = out.decode("utf-8", "replace").splitlines()
-            return tuple(os.path.normcase(os.path.realpath(line)) for line in lines) if (
-                code == 0 and len(lines) == 2) else None
+            return (
+                tuple(os.path.normcase(os.path.realpath(line)) for line in lines)
+                if (code == 0 and len(lines) == 2)
+                else None
+            )
 
         own = found(project)
         return own is not None and found(folder) == own

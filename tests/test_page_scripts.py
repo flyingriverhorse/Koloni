@@ -14,7 +14,7 @@ def test_always_run_is_kept_on_the_chat_given_from_the_apps_own_page_and_taken_b
     assert client.patch(url, json={"page_scripts": True}).status_code == 403
     on = client.patch(url, json={"page_scripts": True}, headers=ORIGIN)
     assert on.status_code == 200 and on.json()["page_scripts"] is True
-    assert client.get(url).json()["conversation"]["page_scripts"] is True   # the next page runs
+    assert client.get(url).json()["conversation"]["page_scripts"] is True  # the next page runs
     # another chat asks still
     other = client.post("/api/conversations").json()["id"]
     assert client.get(f"/api/conversations/{other}").json()["conversation"]["page_scripts"] is False
@@ -28,8 +28,10 @@ def test_a_chat_moved_to_another_folder_asks_again(make_client, tmp_path):
     one, two = tmp_path / "one", tmp_path / "two"
     one.mkdir()
     two.mkdir()
-    pids = [client.post("/api/projects", json={"root_path": str(p)}, headers=ORIGIN).json()["id"]
-            for p in (one, two)]
+    pids = [
+        client.post("/api/projects", json={"root_path": str(p)}, headers=ORIGIN).json()["id"]
+        for p in (one, two)
+    ]
     cid = client.post(f"/api/projects/{pids[0]}/conversations", headers=ORIGIN).json()["id"]
     url = f"/api/conversations/{cid}"
     assert client.patch(url, json={"page_scripts": True}, headers=ORIGIN).json()["page_scripts"]

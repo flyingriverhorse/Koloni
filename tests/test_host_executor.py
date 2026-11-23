@@ -21,7 +21,9 @@ _counter = iter(range(1000))
 _real_pwsh = host._pwsh
 
 
-@pytest.fixture(autouse=True, params=["powershell.exe", "pwsh"] if sys.platform == "win32" else ["sh"])
+@pytest.fixture(
+    autouse=True, params=["powershell.exe", "pwsh"] if sys.platform == "win32" else ["sh"]
+)
 def shell(request, monkeypatch):
     """Every test under each shell KOLONİ may pick (K-pwsh): 5.1 always, 7 where it is
     installed (not the Store's)."""
@@ -36,10 +38,10 @@ STORE = r"C:\Users\u\AppData\Local\Microsoft\WindowsApps\pwsh.exe"
 MSI = r"C:\Program Files\PowerShell\7\pwsh.exe"
 
 
-@pytest.mark.parametrize(("found", "used"), [
-    ((), None), ((STORE,), None), ((MSI,), MSI), ((STORE, MSI), MSI)])
-def test_only_an_installed_pwsh_is_used_and_the_stores_alone_is_explained(monkeypatch, found,
-                                                                           used):
+@pytest.mark.parametrize(
+    ("found", "used"), [((), None), ((STORE,), None), ((MSI,), MSI), ((STORE, MSI), MSI)]
+)
+def test_only_an_installed_pwsh_is_used_and_the_stores_alone_is_explained(monkeypatch, found, used):
     monkeypatch.setattr(host, "_pwsh_found", lambda: found)
     monkeypatch.setattr(host, "_pwsh", _real_pwsh)
     assert host._pwsh() == used
@@ -59,7 +61,8 @@ def test_an_install_is_found_before_the_store_alias_on_path(monkeypatch, tmp_pat
     monkeypatch.setattr(host, "_pwsh_found", host._pwsh_found.__wrapped__)
     assert [p.lower() for p in host._pwsh_found()] == [
         str(tmp_path / "PowerShell" / "7" / "pwsh.exe").lower(),
-        str(tmp_path / "WindowsApps" / "pwsh.exe").lower()]  # (`which` names it pwsh.EXE)
+        str(tmp_path / "WindowsApps" / "pwsh.exe").lower(),
+    ]  # (`which` names it pwsh.EXE)
 
 
 def test_the_shell_found_is_named_and_handed_the_same_script(shell):
@@ -69,8 +72,12 @@ def test_the_shell_found_is_named_and_handed_the_same_script(shell):
         assert host.shell_writes() == ""
         return
     assert argv[0] == (_real_pwsh() if shell == "pwsh" else "powershell.exe")
-    assert argv[1:] == ["-NoProfile", "-NonInteractive", "-Command",
-                        f"{host._PS_PROLOGUE}echo hi{host._PS_EPILOGUE}"]
+    assert argv[1:] == [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        f"{host._PS_PROLOGUE}echo hi{host._PS_EPILOGUE}",
+    ]
     assert host.shell_name() == ("PowerShell 7" if shell == "pwsh" else "Windows PowerShell")
     # the agent is warned of the BOM only where one is written
     assert ("BOM" in host.shell_writes()) == (shell == "powershell.exe")
@@ -113,7 +120,8 @@ def alive(pid: int) -> bool:
 
 async def test_output_and_exit_code(tmp_path):
     output, code = await run(
-        py("import sys; print('out'); sys.stderr.write('err'); sys.exit(3)", tmp_path), tmp_path)
+        py("import sys; print('out'); sys.stderr.write('err'); sys.exit(3)", tmp_path), tmp_path
+    )
     assert "out" in output and "err" in output
     assert code == 3
 
@@ -128,34 +136,43 @@ async def test_runs_in_the_given_folder(tmp_path):
 async def test_kolonis_own_settings_are_not_a_commands_to_see(tmp_path, monkeypatch):
     monkeypatch.setenv("KOLONI_MODEL_API_KEY", "sk-koloni-secret")
     monkeypatch.setenv("NOT_KOLONIS", "the-users-own")
-    output, _ = await run(py(
-        "import os; print(sorted(k for k in os.environ if k.upper().startswith('KOLONI_')), "
-        "os.environ['NOT_KOLONIS'], os.environ['PYTHONUTF8'], os.environ['PYTHONDONTWRITEBYTECODE'])",
-        tmp_path), tmp_path)
+    output, _ = await run(
+        py(
+            "import os; print(sorted(k for k in os.environ if k.upper().startswith('KOLONI_')), "
+            "os.environ['NOT_KOLONIS'], os.environ['PYTHONUTF8'], os.environ['PYTHONDONTWRITEBYTECODE'])",
+            tmp_path,
+        ),
+        tmp_path,
+    )
     # (Live: agents' Python left __pycache__/ in the project after Take in.)
     assert output.strip() == "[] the-users-own 1 1"
 
 
-@pytest.mark.parametrize(("users", "seen"), [
-    ("cp1254", "utf-8"), ("utf-8:surrogateescape", "utf-8:surrogateescape")])
-async def test_python_prints_utf8_keeping_only_a_users_utf8_setting(tmp_path, monkeypatch,
-                                                                     users, seen):
+@pytest.mark.parametrize(
+    ("users", "seen"), [("cp1254", "utf-8"), ("utf-8:surrogateescape", "utf-8:surrogateescape")]
+)
+async def test_python_prints_utf8_keeping_only_a_users_utf8_setting(
+    tmp_path, monkeypatch, users, seen
+):
     monkeypatch.setenv("PYTHONIOENCODING", users)
-    output, _ = await run(py("import os; print(os.environ['PYTHONIOENCODING'])", tmp_path),
-                          tmp_path)
+    output, _ = await run(
+        py("import os; print(os.environ['PYTHONIOENCODING'])", tmp_path), tmp_path
+    )
     assert output.strip() == seen
 
 
 @pytest.mark.parametrize(("users", "seen"), [(None, "1"), ("0", "0")])
-async def test_python_prints_unbuffered_unless_the_user_said_otherwise(tmp_path, monkeypatch,
-                                                                       users, seen):
+async def test_python_prints_unbuffered_unless_the_user_said_otherwise(
+    tmp_path, monkeypatch, users, seen
+):
     # B-351: a server's address, printed without flush, must reach the pipe at once.
     if users is None:
         monkeypatch.delenv("PYTHONUNBUFFERED", raising=False)
     else:
         monkeypatch.setenv("PYTHONUNBUFFERED", users)
-    output, _ = await run(py("import os; print(os.environ['PYTHONUNBUFFERED'])", tmp_path),
-                          tmp_path)
+    output, _ = await run(
+        py("import os; print(os.environ['PYTHONUNBUFFERED'])", tmp_path), tmp_path
+    )
     assert output.strip() == seen
 
 
@@ -186,21 +203,22 @@ async def test_kill_takes_the_whole_process_tree(tmp_path):
 
 
 async def test_a_flood_of_output_is_drained_not_blocked(tmp_path):
-    output, code = await run(py("import sys; sys.stdout.write('x' * 5_000_000)", tmp_path), tmp_path, 30)
+    output, code = await run(
+        py("import sys; sys.stdout.write('x' * 5_000_000)", tmp_path), tmp_path, 30
+    )
     assert code == 0 and len(output) >= 5_000_000
 
 
 async def test_undecodable_bytes_do_not_break_the_stream(tmp_path):
     output, code = await run(
-        py("import sys; sys.stdout.buffer.write(bytes([255, 254]) + b'ok')", tmp_path), tmp_path)
+        py("import sys; sys.stdout.buffer.write(bytes([255, 254]) + b'ok')", tmp_path), tmp_path
+    )
     assert "ok" in output and code == 0
 
 
 async def test_a_multibyte_character_split_across_reads_is_kept(tmp_path):
     # 4095 ASCII bytes put the two-byte "ş" across the 4096-byte read boundary.
-    code_text = (
-        "import sys; sys.stdout.buffer.write(b\"a\" * 4095 + \"\\u015f\".encode() + b\"z\")"
-    )
+    code_text = 'import sys; sys.stdout.buffer.write(b"a" * 4095 + "\\u015f".encode() + b"z")'
     output, _ = await run(py(code_text, tmp_path), tmp_path)
     assert output == "a" * 4095 + "ş" + "z"
 

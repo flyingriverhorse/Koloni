@@ -34,13 +34,17 @@ STAY_STOPPED = "{n} stopped {turns} stopped - send a message to go on."
 
 
 def _stay(stopped: int) -> str | None:
-    return STAY_STOPPED.format(n=stopped, turns="turn stays" if stopped == 1 else "turns stay"
-                               ) if stopped else None
+    return (
+        STAY_STOPPED.format(n=stopped, turns="turn stays" if stopped == 1 else "turns stay")
+        if stopped
+        else None
+    )
 
 
 def _told(request: Request, project_id: str) -> None:
-    announce(request.app.state.session_factory, request.app.state.bus, project_id,
-             "backlog.changed")
+    announce(
+        request.app.state.session_factory, request.app.state.bus, project_id, "backlog.changed"
+    )
 
 
 def _state(session: Session) -> dict:
@@ -50,31 +54,51 @@ def _state(session: Session) -> dict:
     if since is not None:
         # What it stopped: the turns there were as it began that ended stopped since.
         stopped = [
-            {"run_id": run_id, "conversation_id": cid, "title": title, "project": project,
-             "created_at": created_at}
+            {
+                "run_id": run_id,
+                "conversation_id": cid,
+                "title": title,
+                "project": project,
+                "created_at": created_at,
+            }
             for run_id, cid, title, project, created_at in session.execute(
-                select(Run.id, Run.conversation_id, Conversation.title, Project.name,
-                       Run.created_at)
+                select(
+                    Run.id, Run.conversation_id, Conversation.title, Project.name, Run.created_at
+                )
                 .join(Conversation, Conversation.id == Run.conversation_id)
                 .outerjoin(Project, Project.id == Conversation.project_id)
-                .where(Run.created_at <= since, Run.ended_at >= since,
-                       Run.status.in_(("cancelled", "interrupted")))
-                .order_by(Run.ended_at.desc()).limit(SHOWN))
+                .where(
+                    Run.created_at <= since,
+                    Run.ended_at >= since,
+                    Run.status.in_(("cancelled", "interrupted")),
+                )
+                .order_by(Run.ended_at.desc())
+                .limit(SHOWN)
+            )
         ]
         # ...and those it stopped that have not ended yet (a CLI's that takes its time).
-        stopping = session.scalar(select(func.count()).select_from(Run).where(
-            Run.created_at <= since, Run.status.not_in(TERMINAL)))
+        stopping = session.scalar(
+            select(func.count())
+            .select_from(Run)
+            .where(Run.created_at <= since, Run.status.not_in(TERMINAL))
+        )
     return {
         "held": since is not None,
         "since": since,
         "running": session.scalar(
-            select(func.count()).select_from(Run).where(Run.status.not_in(TERMINAL))),
+            select(func.count()).select_from(Run).where(Run.status.not_in(TERMINAL))
+        ),
         "triggers": session.scalar(
-            select(func.count()).select_from(Trigger).where(Trigger.enabled)),
+            select(func.count()).select_from(Trigger).where(Trigger.enabled)
+        ),
         "backlogs": list(session.scalars(select(Project.name).where(Project.backlog_auto))),
-        "nights": list(session.scalars(
-            select(Project.name).join(AwayRun, AwayRun.project_id == Project.id)
-            .where(AwayRun.status == "running"))),
+        "nights": list(
+            session.scalars(
+                select(Project.name)
+                .join(AwayRun, AwayRun.project_id == Project.id)
+                .where(AwayRun.status == "running")
+            )
+        ),
         "stopped": stopped,
         "stopping": stopping,
         "stays_stopped": _stay(len(stopped)),
@@ -107,8 +131,9 @@ async def stop_everything(request: Request, session: Session = Depends(get_sessi
     # Shielded: given up at the time, the wait must not cancel the turns a second time - in
     # the middle of their own cleanup (a copy's folder, a CLI's processes).
     with contextlib.suppress(TimeoutError):
-        await asyncio.wait_for(asyncio.shield(asyncio.gather(
-            *(runner.wait(run_id) for run_id in ids))), WAIT_SECONDS)
+        await asyncio.wait_for(
+            asyncio.shield(asyncio.gather(*(runner.wait(run_id) for run_id in ids))), WAIT_SECONDS
+        )
     return _state(session)
 
 
@@ -125,13 +150,23 @@ async def resume(request: Request, session: Session = Depends(get_session)):
         state = request.app.state
         state.triggers.resumed(now())
         # (A run of the backlog: by itself, or what Run the backlog queued, or a fix round due.)
-        for project_id in session.scalars(select(Project.id).where(or_(
-                Project.backlog_auto, Project.id.in_(select(BacklogTask.project_id).where(
-                    BacklogTask.status.in_(("todo", "doing"))))))).all():
+        for project_id in session.scalars(
+            select(Project.id).where(
+                or_(
+                    Project.backlog_auto,
+                    Project.id.in_(
+                        select(BacklogTask.project_id).where(
+                            BacklogTask.status.in_(("todo", "doing"))
+                        )
+                    ),
+                )
+            )
+        ).all():
             if backlog.chain(session, project_id, state.bus, state.runner.start):
                 _told(request, project_id)
         for project_id in session.scalars(
-                select(AwayRun.project_id).where(AwayRun.status == "running")).all():
+            select(AwayRun.project_id).where(AwayRun.status == "running")
+        ).all():
             if away.go_on(session, project_id, state.runner):
                 _told(request, project_id)
     return {**_state(session), "stays_stopped": stays}

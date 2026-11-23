@@ -43,7 +43,7 @@ def _last(args: list[str], flag: str) -> str | None:
         if arg == flag and at + 1 < len(args):
             found = args[at + 1]
         elif arg.startswith(f"{flag}="):
-            found = arg[len(flag) + 1:]
+            found = arg[len(flag) + 1 :]
     return found
 
 
@@ -79,14 +79,18 @@ def gpu_of(cards: str | None, apps: str | None, pid: int | None) -> dict | None:
     lines = (cards or "").strip().splitlines()
     if not lines:
         return None
-    used, total, load = ([*lines[0].split(","), "", "", ""][:3])
+    used, total, load = [*lines[0].split(","), "", "", ""][:3]
     share = None
     for line in (apps or "").splitlines():
         fields = line.split(",")
         if len(fields) == 2 and fields[0].strip() == str(pid):
             share = _number(fields[1])
-    return {"memory_used": _number(used), "memory_total": _number(total), "load": _number(load),
-            "share": share}
+    return {
+        "memory_used": _number(used),
+        "memory_total": _number(total),
+        "load": _number(load),
+        "share": share,
+    }
 
 
 class LocalServer:
@@ -132,23 +136,33 @@ class LocalServer:
         told = self.config()
         exe, args = Path(told["executable"]), told["args"]
         if not (exe.is_absolute() and exe.is_file()):
-            raise NotStarted(f"{exe} is not a program on this machine; set Program to the full "
-                             "path of llama-server (in a llama.cpp build's bin folder)")
+            raise NotStarted(
+                f"{exe} is not a program on this machine; set Program to the full "
+                "path of llama-server (in a llama.cpp build's bin folder)"
+            )
         if exe.suffix.lower() in (".cmd", ".bat") and any(CMD_SPECIAL & set(a) for a in args):
-            raise NotStarted(f"{exe.name} runs in cmd.exe, which would read one of "
-                             f"{''.join(sorted(CMD_SPECIAL))} in an argument as its own; "
-                             "take it out or start a .exe")
+            raise NotStarted(
+                f"{exe.name} runs in cmd.exe, which would read one of "
+                f"{''.join(sorted(CMD_SPECIAL))} in an argument as its own; "
+                "take it out or start a .exe"
+            )
         # As a command's (slice 103). shortcut: a secret variable such as HF_TOKEN is withheld,
         # so a gated `-hf` download fails; pass one through if that is asked for.
         try:
             process = await asyncio.create_subprocess_exec(
-                str(exe), *args, cwd=exe.parent, env=command_env(),
-                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                str(exe),
+                *args,
+                cwd=exe.parent,
+                env=command_env(),
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 start_new_session=sys.platform != "win32",
             )
         except (OSError, ValueError) as exc:  # ValueError: a NUL in an argument
-            raise NotStarted(f"{exe} could not be started: "
-                             f"{getattr(exc, 'strerror', None) or exc}") from None
+            raise NotStarted(
+                f"{exe} could not be started: {getattr(exc, 'strerror', None) or exc}"
+            ) from None
         self._command = command = ProcessCommand(process, _job_for(process))
         self._pid, self.output, self.exit_code = process.pid, "", None
         self._reader = asyncio.create_task(self._read(command, key_of(args)), name="local-server")
@@ -191,18 +205,29 @@ class LocalServer:
         told = self.config()
         exe = Path(told["executable"])
         folder = exe.parent / "models"
-        models = sorted(str(Path("models") / p.name) for p in folder.glob("*.gguf")) \
-            if exe.is_absolute() and folder.is_dir() else []
+        models = (
+            sorted(str(Path("models") / p.name) for p in folder.glob("*.gguf"))
+            if exe.is_absolute() and folder.is_dir()
+            else []
+        )
         model = n_ctx = gpu = None
         # Only its own: a server started by hand is not this one, and no Stop here ends it.
         if self.running:
             args = told["args"]
             (model, n_ctx), gpu = await asyncio.gather(
-                self._served(port_of(args), key_of(args)), self._gpu())
-        state = "running" if self.running else "exited" if self.exit_code is not None \
-            else "stopped"
-        return {**told, "models": models, "state": state, "exit_code": self.exit_code,
-                "model": model, "n_ctx": n_ctx, "gpu": gpu, "output": self.output}
+                self._served(port_of(args), key_of(args)), self._gpu()
+            )
+        state = "running" if self.running else "exited" if self.exit_code is not None else "stopped"
+        return {
+            **told,
+            "models": models,
+            "state": state,
+            "exit_code": self.exit_code,
+            "model": model,
+            "n_ctx": n_ctx,
+            "gpu": gpu,
+            "output": self.output,
+        }
 
     async def _served(self, port: int, key: str | None) -> tuple[str | None, int | None]:
         """The model it serves and its window, as it says them; None while it loads."""
@@ -230,8 +255,13 @@ class LocalServer:
             return None
         try:
             smi = await asyncio.create_subprocess_exec(
-                program, query, "--format=csv,noheader,nounits",
-                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+                program,
+                query,
+                "--format=csv,noheader,nounits",
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+            )
         except OSError:
             return None
         try:

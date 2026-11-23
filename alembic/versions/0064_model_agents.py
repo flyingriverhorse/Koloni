@@ -4,6 +4,7 @@ provider said of all of them (slice 81a-2)
 Revision ID: 0064
 Revises: 0063
 """
+
 import json
 
 import sqlalchemy as sa
@@ -25,10 +26,11 @@ def upgrade() -> None:
         rows = json.loads(models) if isinstance(models, str) else models
         if not isinstance(rows, list) or all("agents" in row for row in rows):
             continue
-        said = [{**row, "agents": bool(for_agents)} if "agents" not in row else row
-                for row in rows]
-        conn.execute(sa.text("UPDATE providers SET models = :models WHERE id = :id"),
-                     {"models": json.dumps(said), "id": provider_id})
+        said = [{**row, "agents": bool(for_agents)} if "agents" not in row else row for row in rows]
+        conn.execute(
+            sa.text("UPDATE providers SET models = :models WHERE id = :id"),
+            {"models": json.dumps(said), "id": provider_id},
+        )
 
 
 def downgrade() -> None:

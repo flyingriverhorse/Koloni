@@ -51,12 +51,36 @@ ORIGIN = "http://127.0.0.1:8790"
 OWN = {"Origin": ORIGIN}
 # What a plain chat's Lead may have: nothing of it needs a folder (as literals: the code's
 # own list is what is tested). A file named by its full path is read on a card (86b).
-PLAIN = {"web_search", "http_request", "spawn_agent", "create_role", "ask_user",
-         "message_agent", "discuss", "post_note", "read_notes", "read_file", "list_dir"}
+PLAIN = {
+    "web_search",
+    "http_request",
+    "spawn_agent",
+    "create_role",
+    "ask_user",
+    "message_agent",
+    "discuss",
+    "post_note",
+    "read_notes",
+    "read_file",
+    "list_dir",
+}
 NEEDS_A_FOLDER = {
-    "search", "write_file", "edit_file", "show", "run_command",
-    "run_skill_script", "ask_folder", "remember", "recall", "read_backlog", "add_task",
-    "change_task", "assess_task", "open_room", "notify", "add_skill",
+    "search",
+    "write_file",
+    "edit_file",
+    "show",
+    "run_command",
+    "run_skill_script",
+    "ask_folder",
+    "remember",
+    "recall",
+    "read_backlog",
+    "add_task",
+    "change_task",
+    "assess_task",
+    "open_room",
+    "notify",
+    "add_skill",
 }
 
 
@@ -72,8 +96,9 @@ def plain(client, **settings):
 
 
 def say(client, cid, content="hello"):
-    posted = client.post(f"/api/conversations/{cid}/messages", json={"content": content},
-                         headers=OWN)
+    posted = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": content}, headers=OWN
+    )
     assert posted.status_code == 201, posted.text
     return posted.json()["run"]["id"]
 
@@ -85,8 +110,9 @@ def folder(client, path):
 
 
 def move(client, cid, project_id, headers=OWN):
-    return client.patch(f"/api/conversations/{cid}", json={"project_id": project_id},
-                        headers=headers)
+    return client.patch(
+        f"/api/conversations/{cid}", json={"project_id": project_id}, headers=headers
+    )
 
 
 def done(snap):
@@ -108,23 +134,34 @@ def test_migration_0069_keeps_every_chats_folder_takes_none_and_goes_back_only_w
     cfg = _config(db)
     command.upgrade(cfg, "0068")
     with sqlite3.connect(db) as conn:
-        conn.execute("INSERT INTO projects (id, name, root_path, created_at) "
-                     f"VALUES ('p', 'p', 'C:/p', '{AT}')")
-        conn.execute("INSERT INTO conversations (id, project_id, title, created_at, updated_at) "
-                     f"VALUES ('c', 'p', 't', '{AT}', '{AT}')")
-        conn.execute("INSERT INTO runs (id, conversation_id, status, created_at) "
-                     f"VALUES ('r', 'c', 'completed', '{AT}')")
-        conn.execute("INSERT INTO allowed_commands (id, conversation_id, prefix, created_at) "
-                     f"VALUES ('a', 'c', 'pytest', '{AT}')")
+        conn.execute(
+            "INSERT INTO projects (id, name, root_path, created_at) "
+            f"VALUES ('p', 'p', 'C:/p', '{AT}')"
+        )
+        conn.execute(
+            "INSERT INTO conversations (id, project_id, title, created_at, updated_at) "
+            f"VALUES ('c', 'p', 't', '{AT}', '{AT}')"
+        )
+        conn.execute(
+            "INSERT INTO runs (id, conversation_id, status, created_at) "
+            f"VALUES ('r', 'c', 'completed', '{AT}')"
+        )
+        conn.execute(
+            "INSERT INTO allowed_commands (id, conversation_id, prefix, created_at) "
+            f"VALUES ('a', 'c', 'pytest', '{AT}')"
+        )
     command.upgrade(cfg, "0069")
     with sqlite3.connect(db) as conn:
         assert conn.execute("SELECT id, project_id FROM conversations").fetchall() == [("c", "p")]
         # the rule is the chat's in the folder it was made in
         assert conn.execute("SELECT id, project_id FROM allowed_commands").fetchall() == [
-            ("a", "p")]
+            ("a", "p")
+        ]
         assert conn.execute("SELECT id FROM runs").fetchall() == [("r",)]
-        conn.execute("INSERT INTO conversations (id, project_id, title, created_at, updated_at) "
-                     f"VALUES ('plain', NULL, 't', '{AT}', '{AT}')")
+        conn.execute(
+            "INSERT INTO conversations (id, project_id, title, created_at, updated_at) "
+            f"VALUES ('plain', NULL, 't', '{AT}', '{AT}')"
+        )
         assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
     with pytest.raises(Exception, match="no folder"):
         command.downgrade(cfg, "0068")
@@ -134,7 +171,8 @@ def test_migration_0069_keeps_every_chats_folder_takes_none_and_goes_back_only_w
     with sqlite3.connect(db) as conn:
         assert conn.execute("SELECT id, project_id FROM conversations").fetchall() == [("c", "p")]
         assert conn.execute("SELECT id, prefix FROM allowed_commands").fetchall() == [
-            ("a", "pytest")]
+            ("a", "pytest")
+        ]
 
 
 def test_a_chat_is_made_with_no_folder_or_in_one_that_is_known(make_client, project_dir):
@@ -144,8 +182,10 @@ def test_a_chat_is_made_with_no_folder_or_in_one_that_is_known(make_client, proj
     pid = folder(client, project_dir)
     there = client.post("/api/conversations", json={"project_id": pid}, headers=OWN)
     assert there.status_code == 201 and there.json()["project_id"] == pid
-    assert client.post("/api/conversations", json={"project_id": "nope"},
-                       headers=OWN).status_code == 404
+    assert (
+        client.post("/api/conversations", json={"project_id": "nope"}, headers=OWN).status_code
+        == 404
+    )
 
 
 def test_every_folders_chats_are_listed_together_the_plain_ones_with_no_folder(
@@ -191,12 +231,18 @@ def test_in_a_plain_chat_a_file_show_command_or_mcp_call_is_refused_and_nothing_
     secret = tmp_path / "notes.txt"
     secret.write_text("TOP SECRET", encoding="utf-8")
     executor = ScriptedExecutor([Script(["ran"])])
-    client, model = make_client([
-        step(call("write_file", {"path": str(secret), "content": "x"}, "w"),
-             call("show", {"path": str(secret)}, "s"),
-             call("run_command", {"command": f"type {secret}"}, "c"),
-             call("files__read", {"path": str(secret)}, "m")),
-        text("done")], executor=executor)
+    client, model = make_client(
+        [
+            step(
+                call("write_file", {"path": str(secret), "content": "x"}, "w"),
+                call("show", {"path": str(secret)}, "s"),
+                call("run_command", {"command": f"type {secret}"}, "c"),
+                call("files__read", {"path": str(secret)}, "m"),
+            ),
+            text("done"),
+        ],
+        executor=executor,
+    )
     cid = plain(client, permission_mode="full_auto")
     snap = done(wait_run(client, cid, say(client, cid)))
     calls = {one["name"]: one for one in snap["tool_calls"]}
@@ -209,8 +255,12 @@ def test_in_a_plain_chat_a_file_show_command_or_mcp_call_is_refused_and_nothing_
 
 
 def test_a_sub_agent_in_a_plain_chat_has_no_file_or_command_tool(make_client, wait_run):
-    client, model = make_client({"Lead": [spawn("Coder", "write the code"), text("done")],
-                                 "Coder": [text("I have no files here.")]})
+    client, model = make_client(
+        {
+            "Lead": [spawn("Coder", "write the code"), text("done")],
+            "Coder": [text("I have no files here.")],
+        }
+    )
     cid = plain(client, spawn_approval="never")
     snap = done(wait_run(client, cid, say(client, cid)))
     coder = next(agent for agent in snap["agents"] if agent["role_name"] == "Coder")
@@ -231,18 +281,19 @@ def test_claude_code_in_a_plain_chat_runs_with_its_own_tools_off_in_a_folder_of_
 
     # Its talker is a session: the stand-in for one, which the native client hands on.
     record, plan = tmp_path / "record.json", tmp_path / "plan.json"
-    plan.write_text(json.dumps({"record": str(record), "script": [{"say": "Hello there."}]}),
-                    encoding="utf-8")
+    plan.write_text(
+        json.dumps({"record": str(record), "script": [{"say": "Hello there."}]}), encoding="utf-8"
+    )
     fake = [sys.executable, str(Path(__file__).with_name("fake_session_cli.py"))]
     cli = ClaudeNativeClient(launcher=fake, timeout=30, env={"FAKE_CLI_PLAN": str(plan)})
     app = create_app(load_settings(settings_env), model=ScriptedModel([]), clients={"Claude": cli})
     with TestClient(app, base_url=ORIGIN) as client:
-        provider = client.post("/api/providers", json={
-            "name": "Claude", "kind": "claude_cli", "mode": "native"}).json()
+        provider = client.post(
+            "/api/providers", json={"name": "Claude", "kind": "claude_cli", "mode": "native"}
+        ).json()
         cid = plain(client, provider_id=provider["id"])
         snap = done(wait_run(client, cid, say(client, cid)))
-    assert [m["content"] for m in snap["messages"] if m["role"] == "assistant"] == [
-        "Hello there."]
+    assert [m["content"] for m in snap["messages"] if m["role"] == "assistant"] == ["Hello there."]
     seen = json.loads(record.read_text(encoding="utf-8"))
     argv = seen["argv"]
     assert argv[argv.index("--tools") + 1] == ""  # none of its own
@@ -251,20 +302,23 @@ def test_claude_code_in_a_plain_chat_runs_with_its_own_tools_off_in_a_folder_of_
 
 
 def test_copilot_in_a_plain_chat_runs_with_kolonis_folderless_tools_only(
-    copilot_native, wait_run  # noqa: F811
+    copilot_native,
+    wait_run,  # noqa: F811
 ):
     client, provider = copilot_native([{"say": "Hi."}])
     cid = plain(client, provider_id=provider["id"])
     done(wait_run(client, cid, say(client, cid)))
     seen = copilot_native.record()
     argv = seen["argv"]
-    given = argv[argv.index("--available-tools") + 1:]
+    given = argv[argv.index("--available-tools") + 1 :]
     assert given and not any(name.endswith(("write_file", "run_command", "show")) for name in given)
     assert Path(seen["cwd"]).name.startswith("koloni-cli-")
 
 
 def test_codex_in_a_plain_chat_runs_as_its_talker_and_never_natively(
-    team, wait_run, tmp_path  # noqa: F811
+    team,
+    wait_run,
+    tmp_path,  # noqa: F811
 ):
     from app.model_cli import CodexCliClient
     from app.model_native import CodexNativeClient
@@ -298,7 +352,8 @@ def test_agy_in_a_plain_chat_is_refused_and_says_why(agy_app, wait_run):  # noqa
 
 
 def test_a_sub_agent_picked_on_codex_in_a_plain_chat_runs_as_its_talker(
-    team, wait_run  # noqa: F811
+    team,
+    wait_run,  # noqa: F811
 ):
     from tests.fakes import ScriptedModel
     from tests.test_team import WHY, pick
@@ -348,10 +403,15 @@ def test_a_plain_chats_prompt_names_no_folder_and_speaks_of_no_shell_or_hand_off
 
 
 def test_a_plain_chat_writes_nothing_into_any_memory(make_client, wait_run):
-    client, _ = make_client([
-        step(call("remember", {"text": "the tests run with pytest", "about": "tests"}, "m"),
-             call("recall", {"query": "tests"}, "r")),
-        text("done")])
+    client, _ = make_client(
+        [
+            step(
+                call("remember", {"text": "the tests run with pytest", "about": "tests"}, "m"),
+                call("recall", {"query": "tests"}, "r"),
+            ),
+            text("done"),
+        ]
+    )
     cid = plain(client, permission_mode="full_auto")
     snap = done(wait_run(client, cid, say(client, cid)))
     assert [t["status"] for t in snap["tool_calls"]] == ["failed", "failed"]
@@ -367,30 +427,40 @@ def test_a_plain_chat_is_held_by_no_projects_budget_but_by_a_providers_limit(
     make_client, wait_run, project_dir
 ):
     client, _model, pid, cid = began(
-        make_client, project_dir, [text("a", 1_000_000, 500_000), text("b")])
+        make_client, project_dir, [text("a", 1_000_000, 500_000), text("b")]
+    )
     turn(client, wait_run, cid)  # 10.50 USD spent in the folder
     client.put("/api/prices", json=PRICE)
     assert client.patch(f"/api/projects/{pid}", json={"monthly_budget": 5}).status_code == 200
-    assert client.post(f"/api/conversations/{cid}/messages",
-                       json={"content": "more"}).status_code == 409
+    assert (
+        client.post(f"/api/conversations/{cid}/messages", json={"content": "more"}).status_code
+        == 409
+    )
     loose = plain(client)
     done(wait_run(client, loose, say(client, loose)))  # no folder's budget holds it
     local = client.get("/api/providers").json()[0]
     assert client.patch(f"/api/providers/{local['id']}", json={"day_limit": 5}).status_code == 200
-    held = client.post(f"/api/conversations/{loose}/messages", json={"content": "more"},
-                       headers=OWN)
+    held = client.post(
+        f"/api/conversations/{loose}/messages", json={"content": "more"}, headers=OWN
+    )
     assert held.status_code == 409 and f"over {local['name']}'s limit" in held.json()["detail"]
 
 
 def test_a_room_a_comparison_or_a_view_in_a_plain_chat_is_refused(make_client):
     client, _ = make_client([])
     cid = plain(client)
-    room = client.post(f"/api/conversations/{cid}/rooms", headers=OWN, json={
-        "goal": "build it", "with": [{"role": "Coder"}, {"role": "Reviewer"}]})
+    room = client.post(
+        f"/api/conversations/{cid}/rooms",
+        headers=OWN,
+        json={"goal": "build it", "with": [{"role": "Coder"}, {"role": "Reviewer"}]},
+    )
     assert room.status_code == 409 and "folder" in room.json()["detail"], room.text
     local = client.get("/api/providers").json()[0]["id"]
-    compare = client.post(f"/api/conversations/{cid}/compare", headers=OWN, json={
-        "content": "x", "sides": [{"provider_id": local}, {"provider_id": local}]})
+    compare = client.post(
+        f"/api/conversations/{cid}/compare",
+        headers=OWN,
+        json={"content": "x", "sides": [{"provider_id": local}, {"provider_id": local}]},
+    )
     assert compare.status_code == 409 and "folder" in compare.json()["detail"], compare.text
     assert client.get(f"/api/conversations/{cid}/views", headers=OWN).status_code == 404
 
@@ -481,15 +551,19 @@ def test_a_chat_at_work_or_waiting_is_not_moved(make_client, wait_run, project_d
 
 
 def test_a_chat_that_changed_files_is_not_moved(make_client, wait_run, project_dir, tmp_path):
-    client, _ = make_client([
-        step(call("write_file", {"path": "made.txt", "content": "x"}, "w")), text("done")])
+    client, _ = make_client(
+        [step(call("write_file", {"path": "made.txt", "content": "x"}, "w")), text("done")]
+    )
     here = folder(client, project_dir)
     other = tmp_path / "other"
     other.mkdir()
     there = folder(client, other)
     cid = client.post("/api/conversations", json={"project_id": here}, headers=OWN).json()["id"]
-    client.patch(f"/api/conversations/{cid}", headers=OWN, json={
-        "permission_mode": "full_auto", "lead_hands_code": False})
+    client.patch(
+        f"/api/conversations/{cid}",
+        headers=OWN,
+        json={"permission_mode": "full_auto", "lead_hands_code": False},
+    )
     done(wait_run(client, cid, say(client, cid)))
     assert (project_dir / "made.txt").exists()
     refused = move(client, cid, there)
@@ -502,8 +576,9 @@ def test_a_chat_that_changed_files_is_not_moved(make_client, wait_run, project_d
 def test_a_chat_whose_every_change_was_turned_down_moves(
     make_client, wait_run, project_dir, tmp_path
 ):
-    client, _ = make_client([
-        step(call("write_file", {"path": "made.txt", "content": "x"}, "w")), text("done")])
+    client, _ = make_client(
+        [step(call("write_file", {"path": "made.txt", "content": "x"}, "w")), text("done")]
+    )
     here = folder(client, project_dir)
     other = tmp_path / "other"
     other.mkdir()
@@ -536,13 +611,27 @@ def test_a_chat_with_a_kept_copy_a_comparison_a_trigger_or_a_backlog_task_is_not
     else:
         with client.app.state.session_factory() as session:
             if kind == "copy":
-                session.add(Merge(run_id=snap["runs"][0]["id"], agent_id=snap["agents"][0]["id"],
-                                  status="interrupted", files=[], kept_in="kept-1"))
+                session.add(
+                    Merge(
+                        run_id=snap["runs"][0]["id"],
+                        agent_id=snap["agents"][0]["id"],
+                        status="interrupted",
+                        files=[],
+                        kept_in="kept-1",
+                    )
+                )
             elif kind == "comparison":  # (waiting for the user's choice of a side)
                 session.add(Compare(conversation_id=cid, sides=[]))
             else:
-                session.add(BacklogTask(project_id=here, conversation_id=cid, title="a task",
-                                        position=0, created_by="user"))
+                session.add(
+                    BacklogTask(
+                        project_id=here,
+                        conversation_id=cid,
+                        title="a task",
+                        position=0,
+                        created_by="user",
+                    )
+                )
             session.commit()
     refused = move(client, cid, there)
     assert refused.status_code == 409, refused.text
@@ -564,19 +653,31 @@ def test_an_always_run_rule_holds_in_the_folder_it_was_made_in_only(
     make_client, wait_run, project_dir, tmp_path
 ):
     gone = ScriptedExecutor([Script(["ran in proj\n"]), Script(["ran in proj again\n"])])
-    client, _ = make_client([
-        step(call("run_command", {"command": "python hello.py"}, "c1")), text("one"),
-        step(call("run_command", {"command": "python hello.py"}, "c2")), text("two"),
-        step(call("run_command", {"command": "python hello.py"}, "c3")), text("three"),
-    ], executor=gone)
+    client, _ = make_client(
+        [
+            step(call("run_command", {"command": "python hello.py"}, "c1")),
+            text("one"),
+            step(call("run_command", {"command": "python hello.py"}, "c2")),
+            text("two"),
+            step(call("run_command", {"command": "python hello.py"}, "c3")),
+            text("three"),
+        ],
+        executor=gone,
+    )
     here = folder(client, project_dir)
     other = tmp_path / "other"
     other.mkdir()
     (other / "hello.py").write_text("print('there')\n", encoding="utf-8")
     there = folder(client, other)
     cid = client.post("/api/conversations", json={"project_id": here}, headers=OWN).json()["id"]
-    assert client.post(f"/api/conversations/{cid}/allowed-commands", headers=OWN,
-                       json={"prefix": "python hello.py"}).status_code == 201
+    assert (
+        client.post(
+            f"/api/conversations/{cid}/allowed-commands",
+            headers=OWN,
+            json={"prefix": "python hello.py"},
+        ).status_code
+        == 201
+    )
     done(wait_run(client, cid, say(client, cid)))  # ran unasked
     assert len(gone.started) == 1
     assert move(client, cid, there).status_code == 200

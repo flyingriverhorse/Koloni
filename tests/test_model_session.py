@@ -43,8 +43,9 @@ def cli(tmp_path):
     def make(kind, script, model=None, timeout=20.0, said_model=None, **more):
         # (said_model: the model its init line says it runs on)
         said = {"model": said_model} if said_model else {}
-        plan.write_text(json.dumps({"record": str(record), "script": script, **said, **more}),
-                        encoding="utf-8")
+        plan.write_text(
+            json.dumps({"record": str(record), "script": script, **said, **more}), encoding="utf-8"
+        )
         return kind(model=model, timeout=timeout, launcher=FAKE, env={"FAKE_CLI_PLAN": str(plan)})
 
     return make, lambda: json.loads(record.read_text(encoding="utf-8"))
@@ -71,17 +72,23 @@ def test_the_session_prompt_carries_rules_instructions_and_the_conversation():
     rules, _, document = prompt.partition("\n\n{")
     assert "mcp__koloni__" in rules and "do what the last user message" in rules
     data = json.loads("{" + document)
-    assert data == {"instructions": "You are KOLONİ's agent.",
-                    "conversation": [{"role": "user", "content": "What does hello.py print?"}]}
+    assert data == {
+        "instructions": "You are KOLONİ's agent.",
+        "conversation": [{"role": "user", "content": "What does hello.py print?"}],
+    }
 
 
 async def test_text_and_tool_calls_flow_through_koloni_in_order(cli):
     make, record = cli
-    client = make(ClaudeSessionClient, [
-        {"say": "Let me look."},
-        {"call": "read_file", "args": {"path": "hello.py"}},
-        {"say": "It prints hi."},
-    ], model="sonnet")
+    client = make(
+        ClaudeSessionClient,
+        [
+            {"say": "Let me look."},
+            {"call": "read_file", "args": {"path": "hello.py"}},
+            {"say": "It prints hi."},
+        ],
+        model="sonnet",
+    )
     result, said, calls = await run(client)
 
     assert said == ["Let me look.", "It prints hi."]
@@ -92,7 +99,8 @@ async def test_text_and_tool_calls_flow_through_koloni_in_order(cli):
     seen = record()
     assert seen["tools"] == ["list_dir", "read_file"]
     assert seen["results"] == [
-        {"content": [{"type": "text", "text": "result of read_file"}], "isError": False}]
+        {"content": [{"type": "text", "text": "result of read_file"}], "isError": False}
+    ]
     argv = seen["argv"]
     assert argv[argv.index("--tools") + 1] == ""  # none of its own
     assert "--strict-mcp-config" in argv and "--no-session-persistence" in argv
@@ -103,14 +111,19 @@ async def test_text_and_tool_calls_flow_through_koloni_in_order(cli):
     assert seen["files"] == ["bridge.json", "mcp.json"]  # nothing of the project in its folder
     assert not Path(seen["cwd"]).exists()
     assert int(seen["env_tool_wait"]) >= 3_600_000  # an approval may take a while
-    assert json.loads(seen["stdin"][seen["stdin"].index("\n\n{") + 2:])["conversation"]
+    assert json.loads(seen["stdin"][seen["stdin"].index("\n\n{") + 2 :])["conversation"]
 
 
 async def test_qoder_gets_the_same_isolation_with_its_own_flags(cli):
     make, record = cli
-    result, said, calls = await run(make(
-        QoderSessionClient, [{"call": "list_dir"}, {"say": "One file."}],
-        model="Qwen3.8-Flash", usage={"input_tokens": 0, "output_tokens": 0}))
+    result, said, calls = await run(
+        make(
+            QoderSessionClient,
+            [{"call": "list_dir"}, {"say": "One file."}],
+            model="Qwen3.8-Flash",
+            usage={"input_tokens": 0, "output_tokens": 0},
+        )
+    )
     assert said == ["One file."] and [c[0] for c in calls] == ["list_dir"]
     # a CLI that reports zeros has not counted: the numbers stay unknown
     assert (result.input_tokens, result.output_tokens) == (None, None)
@@ -122,8 +135,14 @@ async def test_qoder_gets_the_same_isolation_with_its_own_flags(cli):
     assert argv[argv.index("-m") + 1] == "Qwen3.8-Flash"
 
 
-QUEUED = [json.loads(line) for line in Path(__file__).with_name("qoder_streams").joinpath(
-    "queue-status.jsonl").read_text(encoding="utf-8").splitlines()]  # (measured, qodercli 1.1.51)
+QUEUED = [
+    json.loads(line)
+    for line in Path(__file__)
+    .with_name("qoder_streams")
+    .joinpath("queue-status.jsonl")
+    .read_text(encoding="utf-8")
+    .splitlines()
+]  # (measured, qodercli 1.1.51)
 
 
 async def test_qoder_says_how_long_its_free_model_has_been_queued_and_no_more_once_it_answers(cli):
@@ -133,14 +152,21 @@ async def test_qoder_says_how_long_its_free_model_has_been_queued_and_no_more_on
     make, _record = cli
     shown: list[dict] = []
     # (The measured lines still under QUEUE_WAIT_SECONDS: six of the queue's, 65 s in at most.)
-    under = [line for line in QUEUED
-             if line.get("queue_wait_elapsed_ms", 0) < QUEUE_WAIT_SECONDS * 1000]
+    under = [
+        line for line in QUEUED if line.get("queue_wait_elapsed_ms", 0) < QUEUE_WAIT_SECONDS * 1000
+    ]
     # shortcut: the status word that ends a queue was not measured; one that is not
     # "queued" stands for it here.
-    client = make(QoderSessionClient, [
-        *({"emit": line} for line in under),
-        {"emit": {**under[-1], "status": "done"}}, {"emit": under[-1]},
-        {"call": "list_dir"}, {"say": "ok"}])
+    client = make(
+        QoderSessionClient,
+        [
+            *({"emit": line} for line in under),
+            {"emit": {**under[-1], "status": "done"}},
+            {"emit": under[-1]},
+            {"call": "list_dir"},
+            {"say": "ok"},
+        ],
+    )
 
     async def on_text(_text):
         pass
@@ -180,9 +206,12 @@ async def test_a_failed_or_declined_tool_is_returned_as_an_error_result(cli):
         return False, "rejected: the user declined this change"
 
     await run(make(ClaudeSessionClient, [{"call": "read_file"}]), call_tool=refuse)
-    assert record()["results"] == [{
-        "content": [{"type": "text", "text": "rejected: the user declined this change"}],
-        "isError": True}]
+    assert record()["results"] == [
+        {
+            "content": [{"type": "text", "text": "rejected: the user declined this change"}],
+            "isError": True,
+        }
+    ]
 
 
 async def test_a_cli_that_starts_with_tools_of_its_own_is_stopped(cli):
@@ -204,11 +233,22 @@ async def test_only_this_sessions_cli_can_reach_the_tools():
     server = ToolServer(TOOLS, call_tool)
     await server.start()
     try:
+
         def ask(key: bytes) -> bytes:
             with socket.create_connection(("127.0.0.1", server.port), timeout=5) as s:
-                s.sendall(key + b"\n" + json.dumps({
-                    "jsonrpc": "2.0", "id": 1, "method": "tools/call",
-                    "params": {"name": "read_file", "arguments": {}}}).encode() + b"\n")
+                s.sendall(
+                    key
+                    + b"\n"
+                    + json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "id": 1,
+                            "method": "tools/call",
+                            "params": {"name": "read_file", "arguments": {}},
+                        }
+                    ).encode()
+                    + b"\n"
+                )
                 s.settimeout(2)
                 try:
                     return s.recv(4096)
@@ -240,8 +280,17 @@ async def test_the_key_serves_one_bridge_and_a_second_ends_the_session(tmp_path,
         return True, "ok"
 
     def call(s) -> bytes:
-        s.sendall(json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {
-            "name": "read_file", "arguments": {}}}).encode() + b"\n")
+        s.sendall(
+            json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": {"name": "read_file", "arguments": {}},
+                }
+            ).encode()
+            + b"\n"
+        )
         s.settimeout(2)
         try:
             return s.recv(4096)
@@ -345,8 +394,9 @@ async def test_stop_ends_the_cli_and_a_waiting_tool_call(cli):
             raise
         return True, "ok"
 
-    task = asyncio.create_task(run(make(ClaudeSessionClient, [{"call": "read_file"}]),
-                                   call_tool=never))
+    task = asyncio.create_task(
+        run(make(ClaudeSessionClient, [{"call": "read_file"}]), call_tool=never)
+    )
     await asyncio.wait_for(waiting.wait(), 10)
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
@@ -401,8 +451,10 @@ async def test_a_large_tool_argument_arrives_whole(cli):
         got.append(len(json.loads(arguments)["content"]))
         return True, "applied"
 
-    await run(make(ClaudeSessionClient, [
-        {"call": "read_file", "args": {"path": "a", "content": big}}]), call_tool=take)
+    await run(
+        make(ClaudeSessionClient, [{"call": "read_file", "args": {"path": "a", "content": big}}]),
+        call_tool=take,
+    )
     assert got == [300_000] and record()["results"][0]["isError"] is False
 
 
@@ -414,8 +466,9 @@ async def test_a_bug_inside_a_tool_ends_the_session_with_that_bug(cli):
 
     started = time.monotonic()
     with pytest.raises(KeyError, match="some_internal_key"):
-        await run(make(ClaudeSessionClient, [{"call": "read_file"}, {"hang": True}]),
-                  call_tool=broken)
+        await run(
+            make(ClaudeSessionClient, [{"call": "read_file"}, {"hang": True}]), call_tool=broken
+        )
     assert time.monotonic() - started < 15  # not after waiting out a time limit
     assert await soon(lambda: not alive(record()["pid"]))
 
@@ -429,8 +482,15 @@ async def test_a_cli_that_does_not_say_which_tools_it_has_is_not_served(cli):
         return True, "ok"
 
     with pytest.raises(ModelUnavailable, match="did not say which tools it started with"):
-        await run(make(ClaudeSessionClient, [{"call": "read_file"}, {"say": "hi"}],
-                       no_init=True, timeout=20), call_tool=note)
+        await run(
+            make(
+                ClaudeSessionClient,
+                [{"call": "read_file"}, {"say": "hi"}],
+                no_init=True,
+                timeout=20,
+            ),
+            call_tool=note,
+        )
     assert called == []
 
 
@@ -447,10 +507,17 @@ async def test_several_calls_at_once_are_answered_one_at_a_time(cli):
         running -= 1
         return True, json.loads(arguments)["path"]
 
-    await run(make(ClaudeSessionClient, [
-        {"say": "Three at once."},
-        {"parallel": [{"call": "read_file", "args": {"path": p}} for p in "abc"]},
-        {"say": "Done."}]), call_tool=one_at_a_time)
+    await run(
+        make(
+            ClaudeSessionClient,
+            [
+                {"say": "Three at once."},
+                {"parallel": [{"call": "read_file", "args": {"path": p}} for p in "abc"]},
+                {"say": "Done."},
+            ],
+        ),
+        call_tool=one_at_a_time,
+    )
     assert most == 1
     assert sorted(r["content"][0]["text"] for r in record()["results"]) == ["a", "b", "c"]
 
@@ -462,6 +529,7 @@ async def test_odd_first_lines_never_get_past_the_door():
     server = ToolServer(TOOLS, call_tool)
     await server.start()
     try:
+
         def knock(first: bytes) -> bytes:
             with socket.create_connection(("127.0.0.1", server.port), timeout=5) as s:
                 s.sendall(first + b"\n" + b'{"jsonrpc":"2.0","id":1,"method":"tools/list"}\n')
@@ -471,7 +539,12 @@ async def test_odd_first_lines_never_get_past_the_door():
                 except (TimeoutError, ConnectionError):
                     return b""
 
-        for first in (b"", "anahtar-\u00e7\u011f".encode(), b"k" * 200_000, server.key.encode() + b"x"):
+        for first in (
+            b"",
+            "anahtar-\u00e7\u011f".encode(),
+            b"k" * 200_000,
+            server.key.encode() + b"x",
+        ):
             assert await asyncio.to_thread(knock, first) == b""
     finally:
         await server.close()
@@ -479,7 +552,9 @@ async def test_odd_first_lines_never_get_past_the_door():
 
 async def test_text_blocks_of_one_message_are_kept_apart(cli):
     make, _ = cli
-    _, said, _ = await run(make(ClaudeSessionClient, [{"say": "Let me look."}, {"say": "It prints hi."}]))
+    _, said, _ = await run(
+        make(ClaudeSessionClient, [{"say": "Let me look."}, {"say": "It prints hi."}])
+    )
     assert "".join(said) == "Let me look.\n\nIt prints hi."
 
 
@@ -492,8 +567,10 @@ async def test_a_tool_that_was_not_offered_is_not_run_under_any_name(cli):
         return True, "ok"
 
     # only list_dir and read_file are offered to this session
-    await run(make(ClaudeSessionClient, [{"call": "run_command", "args": {"command": "x"}}]),
-              call_tool=note)
+    await run(
+        make(ClaudeSessionClient, [{"call": "run_command", "args": {"command": "x"}}]),
+        call_tool=note,
+    )
     assert called == []
     result = record()["results"][0]
     assert result["isError"] is True and "not one of the tools" in result["content"][0]["text"]
@@ -520,12 +597,22 @@ def test_only_copilots_own_tool_search_goes_on_another_servers_tool_so_named_sto
     # B-410: tool_search_tool of no MCP server is its search; one of another server's is not.
     copilot = CopilotSessionClient()
     search = {"name": "tool_search_tool", "arguments": {"query": "read"}}
-    assert copilot._translate({"type": "assistant.message", "data": {"toolRequests": [search]}}) == []
-    assert copilot._translate({"type": "tool.execution_start",
-                               "data": {"toolName": "tool_search_tool"}}) == []
+    assert (
+        copilot._translate({"type": "assistant.message", "data": {"toolRequests": [search]}}) == []
+    )
+    assert (
+        copilot._translate(
+            {"type": "tool.execution_start", "data": {"toolName": "tool_search_tool"}}
+        )
+        == []
+    )
     other = {**search, "mcpServerName": "elsewhere"}
     with pytest.raises(OwnStop, match="asked for a tool of its own"):
         copilot._translate({"type": "assistant.message", "data": {"toolRequests": [other]}})
     with pytest.raises(OwnStop, match="used a tool of its own"):
-        copilot._translate({"type": "tool.execution_start", "data": {
-            "toolName": "tool_search_tool", "mcpServerName": "elsewhere"}})
+        copilot._translate(
+            {
+                "type": "tool.execution_start",
+                "data": {"toolName": "tool_search_tool", "mcpServerName": "elsewhere"},
+            }
+        )

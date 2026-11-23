@@ -22,9 +22,23 @@ from app.proof import NO_TESTS, TestRun, kind_of
 SAFE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*(?:/[A-Za-z0-9_][A-Za-z0-9_.-]*)*")
 # Where a runner's word may stand: first, or after one of these - not a word another tool reads
 # (`tox -e pytest`, `make pytest`, `nox -s pytest`).
-LAUNCHERS = {(), ("python", "-m"), ("python3", "-m"), ("py", "-m"), ("uv", "run"),
-             ("poetry", "run"), ("pipenv", "run"), ("pdm", "run"), ("hatch", "run"), ("npx",),
-             ("npx", "--no"), ("pnpm",), ("pnpm", "exec"), ("yarn",), ("bunx",)}
+LAUNCHERS = {
+    (),
+    ("python", "-m"),
+    ("python3", "-m"),
+    ("py", "-m"),
+    ("uv", "run"),
+    ("poetry", "run"),
+    ("pipenv", "run"),
+    ("pdm", "run"),
+    ("hatch", "run"),
+    ("npx",),
+    ("npx", "--no"),
+    ("pnpm",),
+    ("pnpm", "exec"),
+    ("yarn",),
+    ("bunx",),
+}
 # What leaves tests out. A file named on pytest's command line bypasses it - so where the user
 # left tests out, there is no related step (fail closed: review B3).
 EXCLUDING = ("--ignore", "--deselect")
@@ -36,8 +50,15 @@ CHOOSING_SHORT = ("-c", "-o", "-p")
 # named here.
 NORECURSE = ("*.egg", ".*", "_darcs", "build", "CVS", "dist", "node_modules", "venv", "{arch}")
 # Where pytest reads its options, in its order (9.x), from the folder it starts in upwards.
-PYTEST_FILES = ("pytest.toml", ".pytest.toml", "pytest.ini", ".pytest.ini", "pyproject.toml",
-                "tox.ini", "setup.cfg")
+PYTEST_FILES = (
+    "pytest.toml",
+    ".pytest.toml",
+    "pytest.ini",
+    ".pytest.ini",
+    "pyproject.toml",
+    "tox.ini",
+    "setup.cfg",
+)
 VITEST_BINS = ("vitest", "vitest.cmd", "vitest.ps1")
 MOST = 40  # files on one command line at most
 # More than one command, a redirection, an expansion: what is added would land elsewhere.
@@ -45,11 +66,37 @@ COMPOUND = re.compile(r"[;&|<>`$(){}\"']")
 UNWALKED = {"node_modules", "venv", "__pycache__", "target", "dist", "build", "bin", "obj"}
 JS = {".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts", ".vue", ".svelte"}
 # The runners' options that take the next word as their value (else a bare word names tests).
-PYTEST_VALUES = {"-k", "-m", "-n", "-p", "-c", "-o", "-W", "-r", "--tb", "--maxfail",
-                 "--rootdir", "--import-mode", "--durations", "--timeout", "--dist",
-                 "--basetemp", "--confcutdir", "--log-level"}
-VITEST_VALUES = {"--config", "-c", "--project", "--root", "-r", "--dir", "--environment",
-                 "--pool", "--reporter"}
+PYTEST_VALUES = {
+    "-k",
+    "-m",
+    "-n",
+    "-p",
+    "-c",
+    "-o",
+    "-W",
+    "-r",
+    "--tb",
+    "--maxfail",
+    "--rootdir",
+    "--import-mode",
+    "--durations",
+    "--timeout",
+    "--dist",
+    "--basetemp",
+    "--confcutdir",
+    "--log-level",
+}
+VITEST_VALUES = {
+    "--config",
+    "-c",
+    "--project",
+    "--root",
+    "-r",
+    "--dir",
+    "--environment",
+    "--pool",
+    "--reporter",
+}
 JEST_VALUES = {"--config", "-c", "--selectProjects", "--maxWorkers", "-w"}
 WATCHING = {"--watch", "--watchAll"}
 
@@ -60,8 +107,9 @@ def related(run: TestRun, paths: list[str], root: Path) -> TestRun | None:
     if COMPOUND.search(run.command):
         return None
     top = "" if run.cwd == "." else f"{run.cwd.rstrip('/')}/"
-    mine = [path[len(top):] for path in paths
-            if path.startswith(top) and kind_of(path) not in NO_TESTS]
+    mine = [
+        path[len(top) :] for path in paths if path.startswith(top) and kind_of(path) not in NO_TESTS
+    ]
     if not mine or len(mine) > MOST:
         return None
     words, cwd = run.command.split(), root / run.cwd
@@ -115,7 +163,7 @@ def _pytest(words: list[str], paths: list[str], cwd: Path) -> list[str] | None:
     `x_test.py`) where pytest collects in the part. Not for `conftest.py`, nor any change but
     Python's, nor where the user left tests out (`_collected`)."""
     at = _runner(words, "pytest", "py.test")
-    if at is None or not _plain_pytest(words[at + 1:]):
+    if at is None or not _plain_pytest(words[at + 1 :]):
         return None
     names = [PurePosixPath(path).name for path in paths]
     if any(not name.endswith(".py") or name == "conftest.py" for name in names):
@@ -126,19 +174,30 @@ def _pytest(words: list[str], paths: list[str], cwd: Path) -> list[str] | None:
     tests = {name for name in names if name.startswith("test_") or name.endswith("_test.py")}
     stems = {name[:-3] for name in names if name not in tests and name != "__init__.py"}
     wanted = {one for stem in stems for one in (f"test_{stem}.py", f"{stem}_test.py")}
-    found = _files([path for path in [
-        *(path for path in paths if PurePosixPath(path).name in tests),
-        *(_walk(cwd, wanted.__contains__) if wanted else [])]
-        if _under(path, within) and _recursed(path)], cwd)
+    found = _files(
+        [
+            path
+            for path in [
+                *(path for path in paths if PurePosixPath(path).name in tests),
+                *(_walk(cwd, wanted.__contains__) if wanted else []),
+            ]
+            if _under(path, within) and _recursed(path)
+        ],
+        cwd,
+    )
     return [*words, *found] if found else None
 
 
 def _plain_pytest(tail: list[str]) -> bool:
     """Options only - none that leaves tests out, or picks or overrides the config - and no
     PYTEST_ADDOPTS in KOLONİ's environment (its runs get it; what it holds is not read here)."""
-    return _options_only(tail, PYTEST_VALUES) and not any(
-        word.startswith(EXCLUDING + CHOOSING) or word[:2] in CHOOSING_SHORT for word in tail
-    ) and not os.environ.get("PYTEST_ADDOPTS", "").strip()
+    return (
+        _options_only(tail, PYTEST_VALUES)
+        and not any(
+            word.startswith(EXCLUDING + CHOOSING) or word[:2] in CHOOSING_SHORT for word in tail
+        )
+        and not os.environ.get("PYTEST_ADDOPTS", "").strip()
+    )
 
 
 def _under(path: str, within: list[str]) -> bool:
@@ -147,8 +206,11 @@ def _under(path: str, within: list[str]) -> bool:
 
 def _recursed(path: str) -> bool:
     """Whether pytest collects into `path`'s folders by itself (its default `norecursedirs`)."""
-    return not any(fnmatch.fnmatchcase(part, pattern) for part in PurePosixPath(path).parts[:-1]
-                   for pattern in NORECURSE)
+    return not any(
+        fnmatch.fnmatchcase(part, pattern)
+        for part in PurePosixPath(path).parts[:-1]
+        for pattern in NORECURSE
+    )
 
 
 def _collected(cwd: Path) -> list[str] | None:
@@ -160,8 +222,11 @@ def _collected(cwd: Path) -> list[str] | None:
         at, options = _pytest_config(cwd) or (cwd, {})
     except ValueError:
         return None
-    if "norecursedirs" in options or any(flag in options.get("addopts", "")
-                                         for flag in EXCLUDING) or _conftest_ignores(cwd, at):
+    if (
+        "norecursedirs" in options
+        or any(flag in options.get("addopts", "") for flag in EXCLUDING)
+        or _conftest_ignores(cwd, at)
+    ):
         return None
     roots = options.get("testpaths", "").split()
     if any(char in root for root in roots for char in "*?["):
@@ -211,16 +276,21 @@ def _toml_options(found: dict, pyproject: bool) -> dict[str, str] | None:
     if not isinstance(table, dict):
         return None if pyproject else {}
     table = table.get("ini_options", table)
-    return {key: " ".join(map(str, value)) if isinstance(value, list) else str(value)
-            for key, value in table.items() if key != "ini_options"}
+    return {
+        key: " ".join(map(str, value)) if isinstance(value, list) else str(value)
+        for key, value in table.items()
+        if key != "ini_options"
+    }
 
 
 def _conftest_ignores(cwd: Path, at: Path) -> bool:
     """Whether a conftest.py pytest loads for `cwd` (in it, or above it up to the config's
     folder `at`) leaves tests out of the collection."""
     above = [one / "conftest.py" for one in cwd.parents if one.is_relative_to(at)]
-    return any(_holds(one, ("collect_ignore", "pytest_ignore_collect")) for one in [
-        *(cwd / rel for rel in _walk(cwd, "conftest.py".__eq__)), *above])
+    return any(
+        _holds(one, ("collect_ignore", "pytest_ignore_collect"))
+        for one in [*(cwd / rel for rel in _walk(cwd, "conftest.py".__eq__)), *above]
+    )
 
 
 def _holds(path: Path, words: tuple[str, ...]) -> bool:
@@ -247,8 +317,11 @@ def _js(words: list[str], paths: list[str], cwd: Path) -> list[str] | None:
     at = _runner(words, "vitest", "jest")
     if at is None:
         return None
-    return _vitest(words[:at + 1], words[at + 1:], files) if _named(words[at]) == "vitest" else (
-        _jest(words, files, cwd))
+    return (
+        _vitest(words[: at + 1], words[at + 1 :], files)
+        if _named(words[at]) == "vitest"
+        else (_jest(words, files, cwd))
+    )
 
 
 def _vitest(launcher: list[str], tail: list[str], files: list[str]) -> list[str] | None:
@@ -260,9 +333,14 @@ def _vitest(launcher: list[str], tail: list[str], files: list[str]) -> list[str]
 
 def _jest(words: list[str], files: list[str], cwd: Path) -> list[str] | None:
     at = _runner(words, "jest") or 0
-    if WATCHING & set(words) or not _options_only(words[at + 1:], JEST_VALUES) or any(
+    if (
+        WATCHING & set(words)
+        or not _options_only(words[at + 1 :], JEST_VALUES)
+        or any(
             _holds(one, ("testPathIgnorePatterns",))
-            for one in [cwd / "package.json", *cwd.glob("jest.config.*")]):
+            for one in [cwd / "package.json", *cwd.glob("jest.config.*")]
+        )
+    ):
         return None
     return [*words, "--passWithNoTests", "--findRelatedTests", *files]
 
@@ -280,10 +358,16 @@ def _npm_test(words: list[str], files: list[str], cwd: Path) -> list[str] | None
     said = script.split() if isinstance(script, str) and not COMPOUND.search(script) else []
     if said and said[0] == "vitest":
         # (as npx finds it: in a node_modules/.bin here or above - a workspace's root)
-        own = any((at / "node_modules" / ".bin" / name).is_file()
-                  for at in (cwd, *cwd.parents) for name in VITEST_BINS)
-        return _vitest(["npx", "--no", "vitest"], said[1:], files) if (
-            own and "pretest" not in scripts) else None
+        own = any(
+            (at / "node_modules" / ".bin" / name).is_file()
+            for at in (cwd, *cwd.parents)
+            for name in VITEST_BINS
+        )
+        return (
+            _vitest(["npx", "--no", "vitest"], said[1:], files)
+            if (own and "pretest" not in scripts)
+            else None
+        )
     if said and said[0] == "jest" and _jest(said, files, cwd) is not None:
         return [*words, "--", "--passWithNoTests", "--findRelatedTests", *files]
     return None
@@ -294,16 +378,21 @@ def _go(words: list[str], paths: list[str], cwd: Path) -> list[str] | None:
     have some. shortcut: not measured here (no go on this machine); a flag with its value apart
     (`-run X`) gives none."""
     tail = words[2:]
-    if words[:2] != ["go", "test"] or "./..." not in tail or any(
-            not path.endswith(".go") for path in paths):
+    if (
+        words[:2] != ["go", "test"]
+        or "./..." not in tail
+        or any(not path.endswith(".go") for path in paths)
+    ):
         return None
     flags = [word for word in tail if word != "./..."]
     if not all(word.startswith("-") for word in flags):
         return None
     folders = sorted({PurePosixPath(path).parent.as_posix() for path in paths})
-    packages = ["." if one == "." else f"./{one}" for one in folders
-                if next((cwd / one).glob("*.go"), None) is not None
-                and (one == "." or SAFE.fullmatch(one))]
+    packages = [
+        "." if one == "." else f"./{one}"
+        for one in folders
+        if next((cwd / one).glob("*.go"), None) is not None and (one == "." or SAFE.fullmatch(one))
+    ]
     return ["go", "test", *flags, *packages] if packages else None
 
 
@@ -311,8 +400,11 @@ def _cargo(words: list[str], paths: list[str], cwd: Path) -> list[str] | None:
     """`cargo test` in a workspace: `-p` each changed crate. A crate of one gives none: the
     whole of it is the suite. shortcut: not measured here (no cargo on this machine)."""
     tail = words[2:]
-    if words[:2] != ["cargo", "test"] or not all(word.startswith("-") for word in tail) or {
-            "-p", "--package", "--workspace", "--all", "--manifest-path"} & set(tail):
+    if (
+        words[:2] != ["cargo", "test"]
+        or not all(word.startswith("-") for word in tail)
+        or {"-p", "--package", "--workspace", "--all", "--manifest-path"} & set(tail)
+    ):
         return None
     names = set()
     for path in paths:
@@ -341,19 +433,35 @@ def _dotnet(words: list[str], paths: list[str], cwd: Path) -> list[str] | None:
     own, or the one that references theirs. shortcut: not measured here (no test project on this
     machine); a change two test projects share gives none."""
     tail = words[2:]
-    if words[:2] != ["dotnet", "test"] or not all(word.startswith("-") for word in tail) or any(
-            not path.endswith(".cs") for path in paths):
+    if (
+        words[:2] != ["dotnet", "test"]
+        or not all(word.startswith("-") for word in tail)
+        or any(not path.endswith(".cs") for path in paths)
+    ):
         return None
     projects = {_project_of(cwd, PurePosixPath(path).parent) for path in paths}
     if None in projects:
         return None
-    tests = [found for found in _walk(cwd, lambda name: name.endswith(".csproj"))
-             if _is_test(cwd / found)]
-    wanted = {found for found in tests if found in projects or any(
-        PurePosixPath(one).name in (cwd / found).read_text(encoding="utf-8", errors="replace")
-        for one in projects if one is not None)}
-    return ["dotnet", "test", *wanted, *tail] if len(wanted) == 1 and all(
-        SAFE.fullmatch(one) for one in wanted) else None
+    tests = [
+        found
+        for found in _walk(cwd, lambda name: name.endswith(".csproj"))
+        if _is_test(cwd / found)
+    ]
+    wanted = {
+        found
+        for found in tests
+        if found in projects
+        or any(
+            PurePosixPath(one).name in (cwd / found).read_text(encoding="utf-8", errors="replace")
+            for one in projects
+            if one is not None
+        )
+    }
+    return (
+        ["dotnet", "test", *wanted, *tail]
+        if len(wanted) == 1 and all(SAFE.fullmatch(one) for one in wanted)
+        else None
+    )
 
 
 def _project_of(cwd: Path, folder: PurePosixPath) -> str | None:

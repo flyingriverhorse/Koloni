@@ -42,7 +42,7 @@ def views(client, cid):
 
 
 def content(client, view):
-    assert view["url"].startswith("/api/"), view["url"]   # served by the app itself
+    assert view["url"].startswith("/api/"), view["url"]  # served by the app itself
     return client.get(view["url"])
 
 
@@ -78,7 +78,7 @@ def link(outside, inside):
 
 def test_a_page_an_agent_writes_is_listed_while_its_change_still_waits(make_client, project_dir):
     client, _model = make_client([write("page.html", PAGE), text("Here it is.")])
-    cid, _run_id = start(client, project_dir)                    # Ask: the change waits
+    cid, _run_id = start(client, project_dir)  # Ask: the change waits
     change = wait_status(client, cid, "waiting_approval")["file_changes"][0]
     (view,) = views(client, cid)
     assert view["path"] == "page.html" and view["kind"] == "html"
@@ -117,12 +117,16 @@ def test_a_rejected_change_is_no_longer_listed(make_client, wait_run, project_di
 def test_the_page_applied_reads_as_applied_and_its_newest_text_is_shown(
     make_client, wait_run, project_dir
 ):
-    client, _model = make_client([
-        write("page.html", "<p>one</p>", id="w1"), write("page.html", "<p>two</p>", id="w2"),
-        text("ok")])
-    cid, run_id = start_in_mode(client, project_dir, "auto_edit")   # changes are applied
+    client, _model = make_client(
+        [
+            write("page.html", "<p>one</p>", id="w1"),
+            write("page.html", "<p>two</p>", id="w2"),
+            text("ok"),
+        ]
+    )
+    cid, run_id = start_in_mode(client, project_dir, "auto_edit")  # changes are applied
     wait_run(client, cid, run_id)
-    (view,) = views(client, cid)                                 # one line for one file
+    (view,) = views(client, cid)  # one line for one file
     assert view["status"] == "applied"
     assert content(client, view).text == "<p>two</p>"
 
@@ -148,9 +152,9 @@ def test_an_agent_shows_a_picture_of_the_project(make_client, wait_run, project_
 def test_show_puts_nothing_outside_the_project_missing_or_of_another_kind_before_the_user(
     make_client, wait_run, project_dir, tmp_path, where
 ):
-    outside = tmp_path / "outside.png"           # a real picture, of a kind that is shown
+    outside = tmp_path / "outside.png"  # a real picture, of a kind that is shown
     outside.write_bytes(PNG)
-    if where == "linked":                        # inside by name, outside in fact
+    if where == "linked":  # inside by name, outside in fact
         link(outside, project_dir / "linked.png")
     path = {
         "above": "../outside.png",
@@ -171,7 +175,7 @@ def test_show_puts_nothing_outside_the_project_missing_or_of_another_kind_before
 def test_show_asks_nobody(make_client, wait_run, project_dir):
     (project_dir / "chart.png").write_bytes(PNG)
     client, _model = make_client([show("chart.png"), text("ok")])
-    cid, run_id = start(client, project_dir)                     # Ask: yet nothing waits
+    cid, run_id = start(client, project_dir)  # Ask: yet nothing waits
     assert wait_run(client, cid, run_id)["runs"][0]["status"] == "completed"
 
 
@@ -192,13 +196,15 @@ def test_a_shown_file_changed_on_disk_is_served_as_it_now_is(make_client, wait_r
     (view,) = views(client, cid)
     (project_dir / "out.html").write_text("<p>two</p>")
     assert content(client, view).text == "<p>two</p>"
-    assert views(client, cid)[0]["sha"] != view["sha"]           # the panel can tell it changed
+    assert views(client, cid)[0]["sha"] != view["sha"]  # the panel can tell it changed
 
 
 # --- the sandbox -------------------------------------------------------------------------------
 
 
-def test_a_page_runs_its_script_but_reaches_neither_the_app_nor_the_outside(make_client, project_dir):
+def test_a_page_runs_its_script_but_reaches_neither_the_app_nor_the_outside(
+    make_client, project_dir
+):
     client, _model = make_client([write("page.html", PAGE), text("ok")])
     cid, _run_id = start(client, project_dir)
     wait_status(client, cid, "waiting_approval")
@@ -242,18 +248,26 @@ def test_what_a_page_names_beside_itself_is_served_from_where_it_lies(
     cid, run_id = start(client, project_dir)
     wait_run(client, cid, run_id)
     (view,) = views(client, cid)
-    beside = client.get(urljoin(view["url"], "style.css"))      # as the browser asks for it
+    beside = client.get(urljoin(view["url"], "style.css"))  # as the browser asks for it
     assert beside.status_code == 200 and beside.text == "p{color:red}"
     assert beside.headers["content-type"].startswith("text/css")
 
 
-@pytest.mark.parametrize("asked", ["..%2F..%2Fsecret.css", "%2E%2E%2F%2E%2E%2Fsecret.css",
-                                   "..%5C..%5Csecret.css", "linked.css", "ABSOLUTE"])
+@pytest.mark.parametrize(
+    "asked",
+    [
+        "..%2F..%2Fsecret.css",
+        "%2E%2E%2F%2E%2E%2Fsecret.css",
+        "..%5C..%5Csecret.css",
+        "linked.css",
+        "ABSOLUTE",
+    ],
+)
 def test_nothing_outside_the_project_is_served_beside_a_page_by_any_name(
     make_client, wait_run, project_dir, tmp_path, asked
 ):
     site(project_dir)
-    secret = tmp_path / "secret.css"             # outside the project, of a kind that is served
+    secret = tmp_path / "secret.css"  # outside the project, of a kind that is served
     secret.write_text("secret")
     if asked == "linked.css":
         link(secret, project_dir / "site" / "linked.css")

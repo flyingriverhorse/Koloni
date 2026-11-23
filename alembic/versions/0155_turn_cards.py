@@ -8,6 +8,7 @@ theirs. Going back, the turn's own cards go.
 Revision ID: 0155
 Revises: 0154
 """
+
 import sqlalchemy as sa
 from alembic import op
 
