@@ -728,6 +728,17 @@ def mem(client, project_dir):
     )
 
 
+def test_a_flaky_test_koloni_noted_is_read_in_the_memory_list(mem):
+    # (k-onceki-1, H: KOLONİ's own note names no model - the list answered 500 from then on)
+    cid = mem.client.post(f"/api/projects/{mem.pid}/conversations").json()["id"]
+    mem.client.app.state.runner._note_flaky(SimpleNamespace(cid=cid, run_id="r1"), "test_a.py::test_x")
+    listed = mem.client.get(f"/api/projects/{mem.pid}/memory")
+    assert listed.status_code == 200, listed.text
+    (note,) = [one for one in listed.json()["journal"] if one["origin"] == "auto"]
+    assert note["noted_by"] == {"provider_name": "KOLONİ", "model_id": None}
+    assert kept.summariser(note["noted_by"]) == "KOLONİ"
+
+
 def _row(client, memory_id):
     with client.app.state.session_factory() as session:
         row = session.get(Memory, memory_id)

@@ -62,6 +62,9 @@ TEST_CONFIGS = frozenset({"conftest.py", *PYTEST_FILES, "noxfile.py", "package.j
 TEST_CONFIG = re.compile(r"(?:vitest|vite|jest|playwright)\.config\.|vitest\.workspace\.|"
                          r"karma\.conf\.|\.mocharc\.")
 NO_VERDICT = "Not handed further: the tests gave no verdict after its round (not run or not ended)"
+# k-onceki-1 (K): its round's work failed Take in's own check - kept out (decision 18).
+FIX_KEPT_OUT = ("Not taken in: {model}'s round - the project's check failed on it before Take in; "
+                "it waits in its copy, on its card")
 STARTED_OVER = "Started over in a fresh copy: {why}"
 NOT_STARTED_OVER = "approach-wrong, but {why}: it goes on from the work as it is"
 BRANCH_COPY = "the work is on a branch of its own, which KOLONİ does not start over"
@@ -372,6 +375,8 @@ class StrongerMixin:
                                       or [status])[0][:MOST_SAID])))
                 return
             held.stronger_rounds += 1
+            if self._round_kept_out(ctx, fixer):
+                held.rows.append(proof.row("stronger", "failed", FIX_KEPT_OUT.format(model=model)))
             wanted = list(held.left_failing)
             before = self._failing_tests(held, wanted)  # (its counts as they were)
             await self._recheck(ctx, held)
@@ -463,8 +468,11 @@ class StrongerMixin:
         """After a stronger model's round: the tests again on the work as it now stands."""
         with self._factory() as session:
             held.changes = proof.changes(session, ctx.run_id, ctx.agent_id, self._sharing(ctx))
-        held.left_failing = []
-        await self._proof_tests(ctx, held)
+        held.left_failing, held.judging = [], True
+        try:  # (J: the whole suite's own verdict - never one gone on after the answer)
+            await self._proof_tests(ctx, held)
+        finally:
+            held.judging = False
 
     async def _koloni_agent(self: "AgentRunner", ctx: Ctx, kind: str, args: dict,
                             read_only: bool = False) -> tuple[str, str, str | None]:
@@ -516,12 +524,15 @@ class StrongerMixin:
         test-wrong change S3's look - whatever its size - did not MERGE afresh: held, not read
         (it failed, no verdict, the turn's limit)."""
         command = wanted[0][0].command if wanted else None
-        if not self._handed_passed(held, wanted):
-            return proof.row("stronger", "failed", NO_VERDICT, command)
+        # (J: a test changed without leave is said whatever ran - first, never hidden behind a
+        # missing verdict; the test is no "New tests" of the turn then)
         touched = self._tests_touched(ctx, fixer) if kind != TEST_WRONG else []
         if touched:
+            held.loosened += touched
             return proof.row("stronger", "failed", TESTS_TOUCHED.format(
                 model=model, paths=", ".join(touched[:5])), command)
+        if not self._handed_passed(held, wanted):
+            return proof.row("stronger", "failed", NO_VERDICT, command)
         if kind != TEST_WRONG:
             return None
         held.verdict, held.looked_at, held.review_forced = None, None, True  # (a fresh look)
@@ -537,17 +548,31 @@ class StrongerMixin:
                 model=model, why=said[-1] if said else NO_LOOK), command)
         return None
 
+    def _round_kept_out(self: "AgentRunner", ctx: Ctx, fixer: str | None) -> bool:
+        """K: whether a round's work (its agent's, and those it opened) did not reach the project
+        - its copy waiting on a card or kept (Take in's own check failed on it)."""
+        if fixer is None:
+            return False
+        with self._factory() as session:
+            line = select(Agent.id).where(or_(Agent.id == fixer, Agent.parent_agent_id == fixer))
+            return session.scalar(select(Merge.id).where(
+                Merge.run_id == ctx.run_id, Merge.agent_id.in_(line),
+                Merge.status.in_(("pending", "interrupted"))).limit(1)) is not None
+
     def _tests_touched(self: "AgentRunner", ctx: Ctx, fixer: str | None) -> list[str]:
-        """The test files a round's agent (and those it opened) changed or deleted (`is_test`).
+        """The test files a round's agent (and those it opened) changed or deleted (`is_test`) -
+        not one it added (k-onceki-1, J: a new test loosens none) - and what steers the tests,
+        added too (a conftest that leaves a test out).
         shortcut: one a command rewrote (`sed -i`) has no FileChange; read the copy's moved files
         if that is seen."""
         if fixer is None:
             return []
         with self._factory() as session:
             line = select(Agent.id).where(or_(Agent.id == fixer, Agent.parent_agent_id == fixer))
-            paths = session.scalars(select(FileChange.path).where(
+            made = session.execute(select(FileChange.path, FileChange.kind).where(
                 FileChange.run_id == ctx.run_id, FileChange.agent_id.in_(line))).all()
-        return sorted({path for path in paths if proof.is_test(path) or steers_tests(path)})
+        return sorted({path for path, kind in made if steers_tests(path) or (
+            proof.is_test(path) and kind != "create")})
 
     @staticmethod
     def _handed_passed(held: "Proof", wanted: list) -> bool:

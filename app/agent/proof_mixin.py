@@ -170,6 +170,11 @@ class Proof:
     # and S3's look asked for whatever the change's size (a stronger model's test change).
     no_more: bool = False
     review_forced: bool = False
+    # k-onceki-1 (J): a stronger model's round is being judged - its tests run to their own end
+    # now (no answer's wait cuts them, none goes on after it): the hand-off needs their verdict.
+    # And the tests it changed without leave: no "New tests" of the turn.
+    judging: bool = False
+    loosened: list[str] = field(default_factory=list)
     # k-sira-016: what Ready for you's pass (first, on the recipe's copy) checked - the Lead's
     # calls then, the change records then, and whose work it was (the Lead's and its recipe's
     # agents'): the end gate looks again after a call since or a change of anyone else's.
@@ -355,7 +360,8 @@ class ProofMixin:
             project = self._project(session, ctx.cid)
             root = project.root_path if project is not None else None
             held.seen = proof.last_change(session, ctx.run_id)
-        held.until = time.monotonic() + END_WAIT_SECONDS if self._answer_waits(ctx) else None
+        held.until = time.monotonic() + END_WAIT_SECONDS if self._answer_waits(ctx) and (
+            not held.judging) else None
         found = await self._map_made(ctx, root) if root else None
         runs = await self._runs_found(ctx, held, found)  # (S1b: the user's, saved, found, looked)
         if not runs:

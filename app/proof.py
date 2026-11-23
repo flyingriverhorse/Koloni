@@ -134,16 +134,20 @@ def changes(session: Session, run_id: str, lead_id: str,
             sharing: Collection[str] = ()) -> list[Change]:
     """The turn's kept changes, one a path. Not in the project: a copy's (`in_copy`) of an agent
     other than the Lead, waiting in Ready for you - but where that agent works in the Lead's own
-    copy (`sharing`: an Away job's, a branch turn's), where the tests run."""
+    copy (`sharing`: an Away job's, a branch turn's), where the tests run. A path the project
+    holds a change of the turn's to is in the project as that change stands, whatever a copy
+    waiting since holds of it (k-onceki-1, K: a fixer's work its Take in's check kept out hid
+    the whole turn's)."""
     here = {lead_id, *sharing}
     found = []
     for path, made in _kept(session, run_id).items():
-        last = made[-1]
+        there = [at for at, one in enumerate(made)
+                 if one.status in ("applied", MERGED) or one.agent_id in here]
+        last = made[there[-1]] if there else made[-1]
         _diff, added, removed = unified_diff(made[0].before_content, last.after_content or "",
                                              path, context=0)
         found.append(Change(path, kind_of(path), added, removed, last.kind == "delete",
-                            last.agent_id, last.status in ("applied", MERGED)
-                            or last.agent_id in here, made[0].kind != "create"))
+                            last.agent_id, bool(there), made[0].kind != "create"))
     return found
 
 
