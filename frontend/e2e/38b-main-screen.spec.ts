@@ -144,10 +144,13 @@ test('while the canvas works, its nodes at work stay in view as the chat grows a
   await expect.poll(() => workInView(page, page.locator('.react-flow__node').filter({ has: page.locator('.node-selected') }))).toBe(true)
   // (Or out by a hair: with the rail's labels (slice 66) the stage is 8px narrower, and the reviewers at work
   // sometimes need that much more room beside the chat - keepWork goes out only as far as that needs.)
+  await settled(page)
   const kept = await zoom()
   expect(kept).toBeLessThanOrEqual(drawnAt + 0.0005)
-  // (0.02: on a CI runner, where fonts measure a little wider, keepWork went out by 0.0144.)
-  expect(kept).toBeGreaterThan(drawnAt - 0.02)
+  // (0.05: how far keepWork goes out depends on how the view stood as the inspector came - to 0.97375 from 0.984
+  // here, from 0.994 on a CI runner (0.0203), another time by 0.0144. A fit to the canvas the inspector narrows,
+  // 1060 of 1376 px, would go out by about 0.2.)
+  expect(kept).toBeGreaterThan(drawnAt - 0.05)
 
   // Esc closes it, and the canvas is as wide as it was.
   await inspector.getByRole('button', { name: 'Close inspector' }).focus()

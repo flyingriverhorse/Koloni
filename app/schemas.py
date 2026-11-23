@@ -899,6 +899,9 @@ class CheckedRow(BaseModel):
     # sends the user's answer to.
     merge_id: str | None = None
     question: str | None = None
+    # S11: why a stronger model's rounds were no pass, on a "stronger" or "rounds" row Fix it
+    # reads (`app.proof.Reason`); None on any other, and on one kept before it was said.
+    reason: Literal["touched", "held", "unread", "no_verdict", "still"] | None = None
 
 
 class MessageOut(Out):

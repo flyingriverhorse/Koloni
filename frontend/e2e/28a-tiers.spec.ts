@@ -1,9 +1,12 @@
 import { expect, test } from './fixtures'
-import { contrasts, editRole, openAgentFold, openFreshConversation, rail, roleRow, shot, windowFromPanel } from './helpers'
+import { contrasts, editRole, openAgentFold, openFreshConversation, OWN, rail, roleRow, shot, windowFromPanel } from './helpers'
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
 test('models are given a tier, a role asks for one, and a lead’s model follows how hard the message is', async ({ page }) => {
+  // The Reviewer as it came, whatever a spec before this one left (05's Reset to default once had not landed).
+  const roles: { id: string; name: string }[] = await (await page.request.get('/api/roles')).json()
+  expect((await page.request.post(`/api/roles/${roles.find(role => role.name === 'Reviewer')!.id}/reset`, { headers: OWN })).ok()).toBe(true)
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   const agents = page.getByRole('button', { name: 'Agents', exact: true })

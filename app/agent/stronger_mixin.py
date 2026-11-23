@@ -213,12 +213,11 @@ class StrongerMixin:
         ):
             return None
         held.escalated = True
-        await self._hand_up(ctx, held)
-        # (not always true, as a static read has it: `_hand_up`'s rounds empty `left_failing`)
-        if held.left_failing and self._works_in(ctx) is not None:
+        still = await self._hand_up(ctx, held)  # (its rounds may empty `left_failing`)
+        if still and self._works_in(ctx) is not None:
             # (decision 18: failing work in a copy of the turn's own is never taken in - kept)
             self._held_back.setdefault(ctx.run_id, TESTS_FAILING)
-        elif not held.left_failing and held.handed:
+        elif not still and held.handed:
             held.passed_by_stronger = True  # (its recipe's row still says findings were left)
             if self._held_back.pop(ctx.run_id, None):  # (held before, at the Lead's end: never
                 # inside Ready for you, which asks nothing while held - it asks now, these
@@ -227,12 +226,13 @@ class StrongerMixin:
                 await self._ready_at_end(ctx)
         return None
 
-    async def _hand_up(self: "AgentRunner", ctx: Ctx, held: "Proof") -> None:
-        """Each stronger tier in turn, where Then a stronger model is on."""
+    async def _hand_up(self: "AgentRunner", ctx: Ctx, held: "Proof") -> bool:
+        """Each stronger tier in turn, where Then a stronger model is on. Whether the tests
+        still fail after them (`held.left_failing`)."""
         with self._factory() as session:
             project = self._project(session, ctx.cid)
             if project is None or not project.stronger_model:
-                return None
+                return bool(held.left_failing)
             first = self._first_model(session, ctx)
         role, by_provider, by_model, _tier = first
         held.first_by = by_model or by_provider
@@ -242,7 +242,7 @@ class StrongerMixin:
             if held.stopped or held.no_more or not held.left_failing:
                 break
             await self._one_tier(ctx, held, role, tier, provider, model)
-        return None
+        return bool(held.left_failing)
 
     async def _stronger_at_end(self: "AgentRunner", ctx: Ctx, status: str) -> None:
         """The Orchestrator's answer to the last round changed nothing: its turn ends, the gate
@@ -678,9 +678,10 @@ class StrongerMixin:
                 "failed",
                 TESTS_TOUCHED.format(model=model, paths=", ".join(touched[:5])),
                 command,
+                reason="touched",
             )
         if not self._handed_passed(held, wanted):
-            return proof.row("stronger", "failed", NO_VERDICT, command)
+            return proof.row("stronger", "failed", NO_VERDICT, command, reason="no_verdict")
         if kind != TEST_WRONG:
             return None
         held.verdict, held.looked_at, held.review_forced = None, None, True  # (a fresh look)
@@ -689,7 +690,9 @@ class StrongerMixin:
         finally:
             held.review_forced = False
         if held.verdict == "HOLD":
-            return proof.row("stronger", "failed", TEST_HELD.format(model=model), command)
+            return proof.row(
+                "stronger", "failed", TEST_HELD.format(model=model), command, reason="held"
+            )
         if held.verdict != "MERGE":
             said = [one["text"] for one in held.rows if one["kind"] == "review"]
             return proof.row(
@@ -697,6 +700,7 @@ class StrongerMixin:
                 "failed",
                 TEST_UNREAD.format(model=model, why=said[-1] if said else NO_LOOK),
                 command,
+                reason="unread",
             )
         return None
 
@@ -865,5 +869,6 @@ class StrongerMixin:
                 "failed",
                 STILL_HANDED.format(by=" and ".join([held.first_by, *held.handed])),
                 held.left_failing[0][0].command,
+                reason="still",
             )
         ]  # (Fix it's command, as a failing tests row's)

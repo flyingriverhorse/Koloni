@@ -1385,6 +1385,8 @@ class AgentRunner(
         # its first step - its task does not change, and its brief stays the same for the cache
         self._about: dict[str, str] = {}
         self._watches: dict[str, list[_Watch]] = {}
+        # ...and those taken out of it, still at their last look (`_native_work_last_look`).
+        self._last_looks: list[_Watch] = []
         # K-yazma-denetimi: project folder -> path -> the open card "keep it?" of a standing file
         # taken back there, with what the agent wrote (`_taken_back`); while one is open no
         # approval there is answered (`_approve`).
@@ -3085,7 +3087,7 @@ class AgentRunner(
     ) -> None:
         """Apply on a kept copy's card (`_decide_kept`): what it showed is taken, all or none."""
         taken = None
-        async with self._way_in(copy.project):
+        async with self._way_in(copy.project), self._looks_held(copy.project):
             # What a merge comes to is kept in memory alone, and this may be another
             # process than the one that showed the card: made again, off the event loop.
             await asyncio.to_thread(_look_again, copy, files, times, choices)
@@ -4469,7 +4471,7 @@ class AgentRunner(
                     return said
                 unasked = unasked and passed
             if merge_id is None and unasked and not fault:
-                async with self._way_in(copy.project):
+                async with self._way_in(copy.project), self._looks_held(copy.project):
                     self._join(copy, files, {})
                     taken = self._apply(ctx, copy, files, False, unattended=not watched)
                 await self._seen_by_watchers(ctx, taken)
@@ -4499,7 +4501,7 @@ class AgentRunner(
                 if check and not unchosen(list(files.values()), choices):
                     await self._check(ctx, copy, files, check, choices, merge_id, leave=True)
                 continue
-            async with self._way_in(copy.project):
+            async with self._way_in(copy.project), self._looks_held(copy.project):
                 if await asyncio.to_thread(_moved, copy, files, choices):
                     # All of the card or none of it: a file is not as it was shown, and the
                     # card is shown again as it is now (the API says why).
