@@ -218,26 +218,59 @@ sequenceDiagram
 `
 
 /**
- * tuval-kontrol-dongusu, the guide's pictures: the Orchestrator opens a Coder that writes four files; KOLONİ's Reviewer holds
- * them every time, with one blocking finding; after each "Not the end yet" the Orchestrator opens a Coder to fix it - two Fix
- * rounds, and the turn ends on hold. KOLONİ's ask for a test is answered with why none fits.
+ * tuval-kontrol-dongusu, the guide's pictures - the approved sketch's turn: the Orchestrator opens three Coders at once; KOLONİ's
+ * Reviewer lets the change stand twice and holds it the third time, its Security reviewer (auth_check.py touches security) holds
+ * it every time; after each "Not the end yet" the Orchestrator opens a Coder to fix the findings - two Fix rounds, and the turn
+ * ends on hold. KOLONİ's ask for a test is answered with why none fits. (Each look counted, a role's own, from the turn's start.)
  */
+const LOOPED = { looks: new Map(), fixes: 0 }
+const LOOPED_WORK = {
+  'the runner': ['runner.py', 'runner_cli.py', 'runner_log.py', 'runner_conf.py', 'runner_util.py'],
+  'the auth check': ['auth_check.py', 'auth_rules.py', 'auth_util.py'],
+  netcheck: ['netcheck.py', 'netcheck_cli.py', 'netcheck_util.py'],
+}
+const LOOPED_FIXES = [['runner.py', 'netcheck.py', 'auth_check.py'], ['runner.py', 'netcheck.py', 'auth_check.py', 'auth_rules.py']]
+const LOOPED_FOUND = {
+  Reviewer: [[], [], ['netcheck.py:9 retries forever on a refused connection']],
+  'Security reviewer': [
+    ['runner.py:17 uses Popen with shell=True', 'auth_check.py:4 compares the token with ==', 'netcheck.py:3 trusts any certificate'],
+    ['runner.py:21 passes the user’s path to the shell', 'auth_check.py:8 logs the token', 'netcheck.py:5 follows any redirect'],
+    ['netcheck.fetch allows any URL (SSRF)', 'auth_rules.py:2 lets an empty role in'],
+  ],
+}
+
+function loopedLook(messages) {
+  const role = /Look it over as the (Security reviewer|Reviewer)/.exec(messages.map(m => String(m.content)).join('\n'))?.[1] ?? 'Reviewer'
+  const n = LOOPED.looks.get(role) ?? 0
+  LOOPED.looks.set(role, n + 1)
+  const found = LOOPED_FOUND[role][Math.min(n, 2)]
+  if (!found.length) return say('Read it.\nVerdict: MERGE\n\nFindings: none')
+  const lines = found.map(what => `- ${what} | kind: ${role === 'Reviewer' ? 'code' : 'security'} | role: Orchestrator | blocking`)
+  return say(`Read it.\nVerdict: HOLD\n\n## Findings\n${lines.join('\n')}`)
+}
+
 function loopedStep(messages, last) {
-  if (messages.some(m => m.role === 'user' && String(m.content).startsWith('KOLONİ opened you at the end of a turn to look over'))) {
-    return say('Read it.\nVerdict: HOLD\n\n## Findings\n- dongu_a.py:1 returns before it checks its input | kind: code | role: Orchestrator | blocking')
-  }
+  if (messages.some(m => m.role === 'user' && String(m.content).startsWith('KOLONİ opened you at the end of a turn to look over'))) return loopedLook(messages)
   if (/You are the [^\n]* sub-agent\./.test(String(messages[0].content))) {
-    const fixing = /Fix the finding, k-dongu/.test(String(messages[1]?.content))
-    if (last.role !== 'user') return say(fixing ? 'Fixed dongu_a.py.' : 'Wrote the looped module.')
-    if (fixing) return toolCall(`cdgf${messages.length}`, 'write_file', { path: 'dongu_a.py', content: `a = ${Date.now()}\n` })
-    return toolCalls(['a', 'b', 'c', 'd'].map(name => [`cdg${name}`, 'write_file', { path: `dongu_${name}.py`, content: `${name} = 1\n` }]))
+    const task = String(messages[1]?.content)
+    const fix = /Fix the findings \((\d)\), k-dongu/.exec(task)
+    const files = fix ? LOOPED_FIXES[Number(fix[1]) - 1] : LOOPED_WORK[/Write (.+), k-dongu/.exec(task)?.[1]] ?? ['dongu.py']
+    if (last.role !== 'user') return say(`Wrote ${files.length} files.`)
+    return toolCalls(files.map((path, n) => [`cdg${messages.length}${n}`, 'write_file', { path, content: `x = ${Date.now()}\n` }]))
   }
   if (last.role === 'user') {
-    if (/looped change, k-dongu/.test(String(last.content))) return toolCall('cdg0', 'spawn_agent', { role: 'Coder', task: 'Write the looped change, k-dongu' })
-    if (/Not the end yet: the Reviewer/.test(String(last.content))) return toolCall(`cdgx${messages.length}`, 'spawn_agent', { role: 'Coder', task: 'Fix the finding, k-dongu' })
-    return say('No test fits it: each file holds one constant.')
+    const said = String(last.content)
+    if (/looped change, k-dongu/.test(said)) {
+      Object.assign(LOOPED, { looks: new Map(), fixes: 0 })
+      return toolCalls(Object.keys(LOOPED_WORK).map((what, n) => [`cdg0${n}`, 'spawn_agent', { role: 'Coder', task: `Write ${what}, k-dongu` }]))
+    }
+    if (/Not the end yet: the .* looked over/.test(said)) {
+      LOOPED.fixes += 1
+      return toolCall(`cdgx${messages.length}`, 'spawn_agent', { role: 'Coder', task: `Fix the findings (${LOOPED.fixes}), k-dongu` })
+    }
+    if (/changed and no test did/.test(said)) return say('No test fits it: each file holds one constant.')
   }
-  return say(messages.filter(m => m.tool_calls?.length).length > 1 ? 'Fixed the finding.' : 'Wrote the looped change.')
+  return say(LOOPED.fixes ? 'Fixed the findings.' : 'Wrote the three modules.')
 }
 
 function nextStep(all, tools = [], model = '') {

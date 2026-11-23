@@ -499,21 +499,41 @@ function poUnder(own: GraphNode[], top: number, positions: Record<string, Point>
 }
 
 /**
- * KOLONİ's Checks node (`checks:`), under all of the turn - before the Assistant PO: under the Orchestrator in its column, its
- * line straight down from it; where the Orchestrator's own agents stand right of it, in their column under them, with no line
- * (tuval-kontrol-dongusu: no long line down past them). Returns the room it takes. (In a recipe's turn it is in the frame:
- * `checksInFrame`.)
+ * KOLONİ's Checks node (`checks:`), before the Assistant PO; returns the room it adds under the turn. Its box of agents
+ * (`checksBeside`) right of the Orchestrator's work. Its node of lines alone under all of the turn: under the Orchestrator
+ * in its column, its line straight down from it; where the Orchestrator's own agents stand right of it, in their column under
+ * them, with no line. (In a recipe's turn it is in the frame: `checksInFrame`.)
  */
-function checksUnder(own: GraphNode[], top: number, positions: Record<string, Point>, sizes: Record<string, Size>): number {
+function checksUnder(own: GraphNode[], bottom: number, positions: Record<string, Point>, sizes: Record<string, Size>): number {
   const checks = own.find(n => n.kind === 'checks')
   if (!checks || positions[checks.id]) return 0
-  const { leadId } = checks.data as ChecksData
-  const beside = own.some(n => n.kind === 'agent' && (n.data as AgentData).parentId === leadId && positions[n.id])
+  const { leadId, loop } = checks.data as ChecksData
   const size = sized(checks, sizes)
-  // (Under the Orchestrator, its middle under the Orchestrator's: its line straight down, however wide its loop.)
-  const x = (positions[`agent:${leadId}`]?.x ?? NODE_W + COL_GAP) + (beside ? NODE_W + COL_GAP : (NODE_W - size.width) / 2)
-  positions[checks.id] = { x, y: top }
+  const kids = own.filter(n => n.kind === 'agent' && (n.data as AgentData).parentId === leadId && positions[n.id])
+  if (loop) return checksBeside(checks, own, kids.length ? kids : own.filter(n => n.id === `agent:${leadId}` && positions[n.id]), bottom, positions, sizes)
+  positions[checks.id] = { x: (positions[`agent:${leadId}`]?.x ?? NODE_W + COL_GAP) + (kids.length ? NODE_W + COL_GAP : 0), y: bottom }
   return size.height + ROW_GAP
+}
+
+/**
+ * tuval-kontrol-dongusu (the sketch's state 1): the box right of the Orchestrator's work - its own agents, else itself -, its
+ * middle level with theirs, its arrow from them (`settleChecks`); past anything else of the turn in its rows. Returns the room
+ * it adds under the turn.
+ */
+function checksBeside(checks: GraphNode, own: GraphNode[], work: GraphNode[], bottom: number, positions: Record<string, Point>, sizes: Record<string, Size>): number {
+  const size = sizes[checks.id]
+  const rect = (n: GraphNode) => ({ ...positions[n.id], ...(sizes[n.id] ?? { width: NODE_W, height: NODE_H }) })
+  if (!work.length) {
+    positions[checks.id] = { x: NODE_W + COL_GAP, y: bottom }
+    return size.height + ROW_GAP
+  }
+  const boxes = work.map(rect)
+  const [high, low] = [Math.min(...boxes.map(b => b.y)), Math.max(...boxes.map(b => b.y + b.height))]
+  const y = Math.max(high, high + (low - high - size.height) / 2)
+  const level = (b: Size & Point) => b.y < y + size.height && b.y + b.height > y
+  const placed = own.filter(n => n.id !== checks.id && !n.parent && positions[n.id]).map(rect).filter(level)
+  positions[checks.id] = { x: Math.max(...[...boxes, ...placed].map(b => b.x + b.width)) + COL_GAP, y }
+  return Math.max(0, y + size.height + ROW_GAP - bottom)
 }
 
 /** The Checks node's size, put down where its loop makes it bigger than a node. */

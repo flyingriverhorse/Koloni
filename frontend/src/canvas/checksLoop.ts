@@ -1,7 +1,7 @@
 import { AGENT_STATUS, WAITS } from '../agents/agentStatus'
 import type { Agent, Message, Run, ToolCall } from '../api/types'
 import type { ConvState } from '../state/applyEvent'
-import { type ChecksData, type Line, linesOf, PROOF_CALL, roundsSaid } from './checksNode'
+import { type ChecksData, type Line, lineOf, linesOf, PROOF_CALL, roundsSaid, toolOf } from './checksNode'
 import type { AgentData, GraphEdge, GraphNode } from './deriveGraph'
 
 type Row = NonNullable<Message['checked']>[number]
@@ -51,6 +51,22 @@ export interface Loop {
 /** The Checked rows that are test runs - a runner's, the coverage, a kind of work's (S5a) -: the footer and the panel's Tests. */
 const TEST_KINDS = new Set(['tests', 'coverage', 'docs', 'slides', 'diagram', 'data'])
 export const testRows = (rows: Row[]) => rows.filter(row => TEST_KINDS.has(row.kind))
+
+/** The kinds of work KOLONİ checks by their files (S5a): one line each, as on the plain node. */
+const KIND_ROWS = new Set(['docs', 'slides', 'diagram', 'data'])
+
+/** The foot's test runs, short (the sketch's "✓ related 19 · ✓ pytest 36"): a runner by its tool and count; a kind of work as the plain node says it. */
+function footOf(rows: Row[]): Line[] {
+  return [...rows.filter(row => !KIND_ROWS.has(row.kind)).map(footLine), ...linesOf(rows.filter(row => KIND_ROWS.has(row.kind)))]
+}
+
+function footLine(row: Row): Line {
+  const line = lineOf(row)
+  const counts = row.counts
+  if (!counts || !row.command || counts.passed + counts.failed === 0 || line.since) return line
+  const step = /^Related tests/.test(row.text) ? 'related' : toolOf(row.command)
+  return { ...line, text: `${step} ${counts.passed}${counts.failed ? ` · ${counts.failed} failed` : ''}` }
+}
 
 /** A look's verdict line, as KOLONİ asks for it: "Verdict: MERGE", "Verdict: HOLD". */
 const VERDICT = /^\W*(?:final\s+)?verdict\W+(MERGE|HOLD)\b/im
@@ -203,7 +219,7 @@ export function loopOf(state: ConvState, run: Run, data: ChecksData, asking: Rea
     status,
     tone,
     dots: Array.from({ length: passes }, (_, n) => (n === passes - 1 ? last : 'held')),
-    tests: linesOf(testRows(rows)),
+    tests: footOf(testRows(rows)),
     stop: running ? null : stopOf(rows),
   }
 }
@@ -232,10 +248,19 @@ export function settleChecks(state: ConvState, run: Run, checks: GraphNode, node
   const asking = new Set(nodes.filter(n => n.runId === run.id && n.kind === 'agent' && (n.data as AgentData).attention).map(n => n.agentId ?? ''))
   data.loop = loopOf(state, run, data, asking)
   const gone = takeOut(nodes, new Set((data.loop?.agents ?? []).map(id => `agent:${id}`)))
-  const beside = nodes.some(n => n.kind === 'agent' && (n.data as AgentData).parentId === data.leadId)
-  const long = beside && !checks.team ? `agent:${data.leadId}>${checks.id}` : null
-  for (let at = edges.length - 1; at >= 0; at--) if (gone.has(edges[at].source) || gone.has(edges[at].target) || edges[at].id === long) edges.splice(at, 1)
+  const own = nodes.filter(n => n.kind === 'agent' && (n.data as AgentData).parentId === data.leadId)
+  // (The plain node of lines with the Orchestrator's agents beside it: no long line down past them; the box: its arrow.)
+  const drop = !checks.team && (data.loop || own.length) ? `agent:${data.leadId}>${checks.id}` : null
+  for (let at = edges.length - 1; at >= 0; at--) if (gone.has(edges[at].source) || gone.has(edges[at].target) || edges[at].id === drop) edges.splice(at, 1)
+  if (data.loop && !checks.team) edges.push(arrowInto(checks, own, data.loop))
   return gone
+}
+
+/** The box right of the Orchestrator's work, an arrow into it from that work: its middle agent, else the Orchestrator. */
+function arrowInto(checks: GraphNode, own: GraphNode[], loop: Loop): GraphEdge {
+  const data = checks.data as ChecksData
+  const from = own.length ? own[Math.floor((own.length - 1) / 2)].id : `agent:${data.leadId}`
+  return { id: `${from}>${checks.id}`, source: from, target: checks.id, active: Boolean(data.running) || loop.tone === 'run' }
 }
 
 /** The nodes `gone` names, and what sits in them, taken out of `nodes`; returns all their ids. */
@@ -249,16 +274,18 @@ function takeOut(nodes: GraphNode[], gone: Set<string>): Set<string> {
 }
 
 /**
- * The box's measures (its CSS draws to them): a card a role, in two columns - its looks, ⇄, its fixes - under a head with its
- * rounds, over a foot; with neither (one look, nothing sent back) as wide as a node.
+ * The box's measures (its CSS draws to them, `.node-checks-box`): a card a role as big as an agent's - its name and one line -
+ * with room for its shadows, in two columns (its looks, ⇄, its fixes), under its tag on the frame's top edge, over its foot.
+ * One column where nothing was fixed.
  */
-export const LOOP = { width: 440, narrow: 220, head: 34, card: 42, gap: 8, foot: 28, pad: 12 }
+export const LOOP = { card: 200, cardH: 56, shadow: 6, gap: 12, way: 24, top: 22, foot: 30, pad: 16 }
 
 /** How big the Checks node is drawn with its loop; null: as any node (its lines alone). */
 export function checksSize(data: ChecksData): { width: number; height: number } | null {
   const loop = data.loop
   if (!loop) return null
   const rows = Math.max(loop.looks.length, loop.fixes.length, 1)
-  const width = loop.loop || loop.fixes.length ? LOOP.width : LOOP.narrow
-  return { width, height: LOOP.head + rows * LOOP.card + (rows - 1) * LOOP.gap + LOOP.foot + 2 * LOOP.pad }
+  const column = LOOP.card + LOOP.shadow
+  const width = 2 * LOOP.pad + (loop.fixes.length ? 2 * column + 2 * LOOP.gap + LOOP.way : column)
+  return { width, height: LOOP.top + rows * (LOOP.cardH + LOOP.shadow) + (rows - 1) * LOOP.gap + LOOP.foot + LOOP.pad }
 }

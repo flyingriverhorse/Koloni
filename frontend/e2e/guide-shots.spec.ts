@@ -311,7 +311,12 @@ test('☾ Away: the Away panel, and the summary when you are back', async ({ pag
 // (The e2e project's own check.py and slow.py: the Checks node names a command by its script.)
 const PASSING = 'python check.py'
 const SLOW = 'python slow.py'
-const WRITTEN = ['kanit.py', 'rehber_a.py', 'rehber_b.py', 'rehber_c.py', 'rehber_d.py', 'dongu_a.py', 'dongu_b.py', 'dongu_c.py', 'dongu_d.py']
+const WRITTEN = [
+  'kanit.py',
+  ...['a', 'b', 'c', 'd'].map(one => `rehber_${one}.py`),
+  // (The Checks loop's turn: its three Coders' modules - fake-model.mjs `LOOPED_WORK`.)
+  ...['runner', 'runner_cli', 'runner_log', 'runner_conf', 'runner_util', 'auth_check', 'auth_rules', 'auth_util', 'netcheck', 'netcheck_cli', 'netcheck_util'].map(one => `${one}.py`),
+]
 const WORKFLOW = 'name: ci\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: python -m pytest -q\n'
 
 /** The project's After a change on, with `command`, and the page read again: the composer says what the chat checks. */
@@ -388,6 +393,7 @@ test.describe('proven finish (0.1.6)', () => {
   })
 
   test('a big change looked over: the Reviewer’s rows, and the Reviewer in the Checks box', async ({ page }) => {
+    test.setTimeout(90_000) // (KOLONİ's Reviewer looks after the tests: on a busy machine over the default 30 s)
     await openFreshConversation(page)
     await checksOn(page, PASSING)
     await level(page, 'auto_edit')
@@ -418,6 +424,16 @@ test.describe('proven finish (0.1.6)', () => {
       await settled(page)
       await box.getByText('Checks · KOLONİ').click()
       await expect(page.getByRole('complementary', { name: 'Inspector' }).getByRole('region', { name: 'Round 3' })).toBeVisible()
+      await settled(page)
+      // (Drawn larger - fitted beside the panel, its cards' words are too small to read -, the turn moved to the middle of the canvas.)
+      await page.locator('.react-flow__controls-zoomin').click()
+      await settled(page)
+      const [first, last, stage] = await Promise.all([page.locator('.react-flow__node-request').first(), box, page.locator('.react-flow')].map(async one => (await one.boundingBox())!))
+      const shift = stage.x + (stage.width - (last.x + last.width - first.x)) / 2 - first.x
+      await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height - 180)
+      await page.mouse.down()
+      await page.mouse.move(stage.x + stage.width / 2 + shift, stage.y + stage.height - 180, { steps: 6 })
+      await page.mouse.up()
       await settled(page)
       await picture(page, 'checks-loop')
     } finally {

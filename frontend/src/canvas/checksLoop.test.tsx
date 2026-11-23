@@ -7,7 +7,7 @@ import { Inspector } from '../inspector/Inspector'
 import { FIX_REVIEW } from '../chat/checked'
 import { useApp } from '../state/store'
 import { agent, assistantMessage, convState, fileChange, run, toolCall } from '../test-fixtures'
-import { checksSize, type Loop } from './checksLoop'
+import { checksSize, LOOP, type Loop } from './checksLoop'
 import type { ChecksData } from './checksNode'
 import { deriveGraph } from './deriveGraph'
 import { nodeOf } from './foldGraph'
@@ -80,13 +80,13 @@ test('the sketched turn: KOLONİ’s looks and the fixes it sent back are one lo
   expect(loop.fixes).toEqual([{ agentId: 'f2', name: 'Coder · fix', count: 2, said: 'last: 4 files', tone: 'note' }])
   expect(loop.status).toBe('⟲ 3 looks · 2 fix rounds · on hold')
   expect(loop.dots).toEqual(['held', 'held', 'held'])
-  expect(loop.tests.map(line => line.text)).toEqual(['related tests · 19 passed', 'pytest · 36 ✓'])
+  expect(loop.tests.map(line => line.text)).toEqual(['related 19', 'pytest 36'])
   // Each of the box's agents is no node, nor at a line's end; the Orchestrator's own three are, as before.
   const agents = graph.nodes.filter(n => n.kind === 'agent').map(n => n.id)
   expect(agents).toEqual(['agent:r', 'agent:c1', 'agent:c2', 'agent:c3'])
   for (const id of loop.agents) expect(graph.edges.some(e => e.source === `agent:${id}` || e.target === `agent:${id}`)).toBe(false)
-  // No long line from the Orchestrator down past its Coders to the box, and no round's line back up to it.
-  expect(graph.edges.filter(e => e.source.startsWith('checks:') || e.target.startsWith('checks:'))).toEqual([])
+  // One arrow into the box from the Orchestrator's work - its middle Coder -; no long line down past them, no round's line back.
+  expect(graph.edges.filter(e => e.source.startsWith('checks:') || e.target.startsWith('checks:'))).toEqual([{ id: 'agent:c2>checks:r', source: 'agent:c2', target: 'checks:r', active: false }])
 })
 
 test('round by round: who looked and what each said, the first blocking finding, who fixed it with how many files; why the last stopped', () => {
@@ -168,22 +168,24 @@ test('one look and nothing sent back is the plain box: no loop, no ×N; with no 
   const once = convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed'), look.agent], toolCalls: [look.call, test_run('p1', 2)], messages: [checked([passed])] })
   const graph = deriveGraph(once)
   expect(loopIn(graph)).toMatchObject({ loop: false, looks: [{ name: 'Reviewer', count: 1, said: 'MERGE', tone: 'ok' }], fixes: [] })
-  // (No agent of the Orchestrator's own: a node's width, under it, its short line straight down.)
+  // (No agent of the Orchestrator's own: one column, right of the Orchestrator, level with it, its arrow from it.)
   const { positions, sizes } = layoutGraph(graph.nodes, graph.edges)
-  expect([positions['checks:r'].x, sizes['checks:r'].width]).toEqual([positions['agent:r'].x, NODE_W])
-  expect(graph.edges.map(e => e.id)).toContain('agent:r>checks:r')
+  expect(positions['checks:r']).toEqual({ x: positions['agent:r'].x + NODE_W + COL_GAP, y: positions['agent:r'].y })
+  expect(sizes['checks:r'].width).toBe(2 * LOOP.pad + LOOP.card + LOOP.shadow)
+  expect(graph.edges.filter(e => e.target === 'checks:r')).toEqual([{ id: 'agent:r>checks:r', source: 'agent:r', target: 'checks:r', active: false }])
   const plain = convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], toolCalls: [test_run('p1', 2)], messages: [checked([passed])] })
   expect(loopIn(deriveGraph(plain))).toBeNull()
 })
 
-test('layout: the box stands under the Orchestrator’s Coders, in their column, as big as its loop - over nothing', () => {
+test('layout: the box stands right of the Orchestrator’s Coders (the sketch’s state 1), level with their middle, as big as its loop - over nothing', () => {
   const graph = deriveGraph(sketched())
   const { positions, sizes } = layoutGraph(graph.nodes, graph.edges)
   const box = { ...positions['checks:r'], ...sizes['checks:r'] }
   expect(sizes['checks:r']).toEqual(checksSize(dataIn(graph)))
-  expect(box.x).toBe(positions['agent:r'].x + NODE_W + COL_GAP)
-  const coders = ['agent:c1', 'agent:c2', 'agent:c3'].map(id => positions[id])
-  expect(box.y).toBeGreaterThanOrEqual(Math.max(...coders.map(at => at.y)) + NODE_H)
+  const coders = ['agent:c1', 'agent:c2', 'agent:c3'].map(id => ({ ...positions[id], ...(sizes[id] ?? { width: NODE_W, height: NODE_H }) }))
+  expect(box.x).toBe(Math.max(...coders.map(at => at.x + at.width)) + COL_GAP)
+  const [high, low] = [Math.min(...coders.map(at => at.y)), Math.max(...coders.map(at => at.y + at.height))]
+  expect(box.y + box.height / 2).toBeCloseTo((high + low) / 2, 0)
   for (const node of graph.nodes.filter(n => n.id !== 'checks:r')) {
     const at = { ...positions[node.id], ...(sizes[node.id] ?? { width: NODE_W, height: NODE_H }) }
     const apart = at.x + at.width <= box.x || box.x + box.width <= at.x || at.y + at.height <= box.y || box.y + box.height <= at.y
@@ -202,11 +204,20 @@ test('the node: Checks · KOLONİ, its rounds in its head, each role once with �
   expect(container.querySelector('.node-checks-loop')).not.toBeNull()
   expect(screen.getByText('Checks · KOLONİ')).toBeInTheDocument()
   expect(screen.getByText('⟲ 3 looks · 2 fix rounds · on hold')).toBeInTheDocument()
-  const cards = Array.from(container.querySelectorAll('.checks-card'), card => card.textContent)
+  const cards = Array.from(container.querySelectorAll('.checks-card-at'), card => card.textContent)
   expect(cards).toEqual(['×3Reviewerlast: HOLD · 1 blocking', '×3Security reviewerlast: HOLD · 2 blocking', '×2Coder · fixlast: 4 files'])
   expect(screen.getByText('⇄')).toBeInTheDocument()
-  expect(container.querySelector('.checks-tests')?.textContent).toBe('✓ related tests · 19 passed · ✓ pytest · 36 ✓')
+  expect(container.querySelector('.checks-tests')?.textContent).toBe('✓ related 19 · ✓ pytest 36')
+  // (Each role with its earlier rounds behind it: the shadows' cards.)
+  expect(container.querySelectorAll('.checks-stack')).toHaveLength(3)
   expect(screen.getByRole('img', { name: '3 rounds: held, held, held' }).children).toHaveLength(3)
+  // Its panel open: the frame amber.
+  const picked = render(
+    <ReactFlowProvider>
+      <ChecksNode {...({ ...props, selected: true } as Parameters<typeof ChecksNode>[0])} />
+    </ReactFlowProvider>,
+  )
+  expect(picked.container.querySelector('.node-checks-loop')).toHaveClass('node-checks-selected')
 })
 
 test('the panel: its tests, round by round with each agent’s window a click away, Fix it on the latest turn, and the way to the Checked section', async () => {

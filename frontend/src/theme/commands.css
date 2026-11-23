@@ -4996,24 +4996,52 @@ fieldset.choice > label .choice-note,
   color: var(--accent);
 }
 
-/* tuval-kontrol-dongusu: the Checks node with the agents KOLONİ's checks opened - as big as the layout made it (`checksSize`);
-   sent back at least once, a dashed red loop as the recipe editor's "back, at most N rounds". */
-.node.node-checks-box {
+/* tuval-kontrol-dongusu (the approved sketch, checks-rounds-v3): the Checks node with the agents KOLONİ's checks opened - as big
+   as the layout made it (`checksSize`), its title a tag on its frame's top edge; sent back at least once, a dashed red loop as
+   the recipe editor's "back, at most N rounds"; amber while its panel is open. */
+.node-checks-box {
+  position: relative;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
   width: 100%;
   height: 100%;
+  padding: 22px 16px 16px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 14px;
+  cursor: grab;
 }
 
 .node-checks-loop {
-  border: 1.5px dashed color-mix(in srgb, var(--del) 70%, var(--border));
-  border-radius: 14px;
+  border: 1.5px dashed color-mix(in srgb, var(--del) 85%, var(--border));
+}
+
+.node-checks-selected {
+  border-color: var(--warn);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--warn) 35%, transparent);
+}
+
+/* On the frame's top edge, the canvas behind it: the line runs into it and out of it. */
+.checks-tag {
+  position: absolute;
+  top: -10px;
+  left: 14px;
+  display: flex;
+  gap: 10px;
+  max-width: calc(100% - 64px);
+  padding: 0 6px;
+  background: var(--bg);
+  font-size: var(--text-meta);
+  white-space: nowrap;
+}
+
+.checks-tag-title {
+  color: var(--warn);
+  font-weight: var(--weight-strong);
 }
 
 .checks-status {
   overflow: hidden;
-  font-size: var(--text-meta);
-  white-space: nowrap;
   text-overflow: ellipsis;
 }
 
@@ -5029,45 +5057,79 @@ fieldset.choice > label .choice-note,
   color: var(--accent);
 }
 
+.checks-box-menu {
+  position: absolute;
+  top: -12px;
+  right: 12px;
+  padding: 0 4px;
+  background: var(--bg);
+}
+
 .checks-cards {
   display: flex;
   flex: 1;
   align-items: center;
   gap: 12px;
-  padding: 4px 12px;
 }
 
 .checks-col {
   display: flex;
-  flex: 1;
   flex-direction: column;
-  gap: 8px;
-  min-width: 0;
+  gap: 12px;
 }
 
 .checks-way {
   color: var(--muted);
-  font-size: 15px;
+  font-size: 18px;
+}
+
+/* A role's card, as big as an agent's: room right of it and under it for its two shadows. */
+.checks-card-at {
+  position: relative;
+  width: 206px;
+  height: 62px;
+}
+
+.checks-card,
+.checks-stack::before,
+.checks-stack::after {
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  width: 200px;
+  height: 56px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
 .checks-card {
-  position: relative;
+  z-index: 2;
   display: flex;
   flex-direction: column;
-  height: 42px;
-  padding: 4px 8px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 10px;
   background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
-/* The rounds before: two cards behind the latest, as its shadows. */
-.checks-stack {
-  box-shadow:
-    3px 3px 0 -1px var(--surface),
-    3px 3px 0 0 var(--border),
-    6px 6px 0 -1px var(--surface),
-    6px 6px 0 0 var(--border);
+/* The earlier rounds: two cards behind it, a little down and right. */
+.checks-stack::before,
+.checks-stack::after {
+  content: '';
+  border-color: var(--border-strong);
+  background: var(--panel);
+}
+
+.checks-stack::before {
+  z-index: 0;
+  transform: translate(6px, 6px);
+}
+
+.checks-stack::after {
+  z-index: 1;
+  transform: translate(3px, 3px);
 }
 
 .checks-card b,
@@ -5078,12 +5140,14 @@ fieldset.choice > label .choice-note,
 }
 
 .checks-card b {
-  font-size: var(--text-meta);
+  font-size: var(--text-body);
+  font-weight: var(--weight-strong);
 }
 
 .checks-card small {
   color: var(--muted);
-  font-size: var(--text-kicker);
+  font-family: var(--mono);
+  font-size: var(--text-mono);
 }
 
 .checks-card[data-tone='bad'] small {
@@ -5102,11 +5166,13 @@ fieldset.choice > label .choice-note,
   color: var(--warn);
 }
 
+/* ×N on its card's top right corner. */
 .checks-badge {
   position: absolute;
   top: -8px;
-  right: -8px;
-  padding: 0 6px;
+  right: -2px;
+  z-index: 5;
+  padding: 1px 6px;
   border-radius: 9px;
   background: var(--warn);
   color: var(--surface);
@@ -5117,17 +5183,28 @@ fieldset.choice > label .choice-note,
 .checks-foot {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 12px 8px;
-  font-size: var(--text-kicker);
+  gap: 10px;
+  margin-top: 6px;
+  font-size: var(--text-meta);
 }
 
 .checks-tests {
-  flex: 1;
   overflow: hidden;
   color: var(--muted);
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.checks-tests [data-state='passed'] {
+  color: var(--ok);
+}
+
+.checks-tests [data-state='failed'] {
+  color: var(--del);
+}
+
+.checks-tests [data-state='running'] {
+  color: var(--accent);
 }
 
 .checks-dots {
