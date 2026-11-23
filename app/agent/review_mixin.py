@@ -26,7 +26,7 @@ from app.agent.summary import _blocking, _findings
 from app.db.models import Agent, Conversation, Message, Run, now
 from app.model_client import ToolCallRequest
 from app.proof import Row
-from app.roles import READ, shown_name
+from app.roles import BROWSER, READ, shown_name
 from app.tools import ToolError
 
 if TYPE_CHECKING:
@@ -344,9 +344,11 @@ class ReviewMixin:
             return REVIEW_ASK.format(role=role, instructions=plain, docs=extra) + body
         return brief
 
-    async def _review_look(self: "AgentRunner", ctx: Ctx, role: str, task: str) -> Look:
+    async def _review_look(self: "AgentRunner", ctx: Ctx, role: str, task: str,
+                           tryout: bool = False) -> Look:
         """One reviewer opened by KOLONİ on the Lead's last answer, as its own spawn: read tools
-        only (`_read_only_calls`), no recipe started by it; its report read as it ended."""
+        only (`_read_only_calls`), no recipe started by it; its report read as it ended.
+        `tryout` (S5b): the live try's Tester - its browser tools too (`_try_calls`)."""
         with self._factory() as session:
             message_id = session.scalar(select(Message.id).where(
                 Message.agent_id == ctx.agent_id, Message.run_id == ctx.run_id,
@@ -354,10 +356,13 @@ class ReviewMixin:
                 Message.created_at.desc(), literal_column("messages.rowid").desc()).limit(1))
         if message_id is None:
             return Look(role, "", None, None, "the Orchestrator's answer is not on record")
-        request = ToolCallRequest(f"{proof.PROOF_CALL}review_{uuid.uuid4().hex[:12]}",
+        request = ToolCallRequest(f"{proof.PROOF_CALL}{'try' if tryout else 'review'}_"
+                                  f"{uuid.uuid4().hex[:12]}",
                                   "spawn_agent", json.dumps({"role": role, "task": task}))
         ((call_id, _payload),) = self._record_calls(ctx, message_id, [request])
         self._read_only_calls.add(call_id)
+        if tryout:
+            self._try_calls.add(call_id)
         going = asyncio.ensure_future(self._run_call(ctx, call_id, request))
         self._looks.setdefault(ctx.run_id, set()).add(going)
         try:
@@ -372,6 +377,7 @@ class ReviewMixin:
             status, said = "failed", str(exc) or type(exc).__name__
         finally:
             self._read_only_calls.discard(call_id)
+            self._try_calls.discard(call_id)
             self._looks.get(ctx.run_id, set()).discard(going)
         with self._factory() as session:
             agent = session.scalar(select(Agent).where(Agent.tool_call_id == call_id))
@@ -419,11 +425,14 @@ class ReviewMixin:
         (`_review_refuses`), no team's tools offered it."""
         if call_id in self._read_only_calls:
             self._read_only_agents.add(agent_id)
+        if call_id in self._try_calls:  # (S5b: the live try's Tester)
+            self._try_agents.add(agent_id)
 
     def _review_refuses(self: "AgentRunner", ctx: Ctx, tool: str) -> None:
         """B2: KOLONİ's Reviewer calls only what reads (REVIEW_ALLOWED) - whatever it was offered
         or its role holds: refused by raising."""
-        if ctx.agent_id in self._read_only_agents and tool not in REVIEW_ALLOWED:
+        if ctx.agent_id in self._read_only_agents and tool not in REVIEW_ALLOWED and not (
+                ctx.agent_id in self._try_agents and tool in BROWSER):  # (S5b: the Tester)
             raise ToolError(NOT_FOR_REVIEW.format(tool=tool))
 
     def _recipe_reviewer(self: "AgentRunner", ctx: Ctx, child: Ctx, role: str) -> None:
@@ -464,8 +473,9 @@ class ReviewMixin:
     def _read_only(self: "AgentRunner", call_id: str, tools: list[str]) -> list[str]:
         """A spawn's tools - read tools only where it is KOLONİ's Reviewer: it changes nothing,
         whatever tools the user gave its role."""
-        return [tool for tool in tools if tool in READ] if call_id in self._read_only_calls else (
-            tools)
+        browse = BROWSER if call_id in self._try_calls else ()  # (S5b: the live try's Tester)
+        return [tool for tool in tools if tool in READ or tool in browse] if (
+            call_id in self._read_only_calls) else tools
 
     def _recipe_reviewed(self: "AgentRunner", session, run_id: str, since) -> bool:
         """Decision 13: a recipe step of the turn had its own Reviewer look - one a recipe opened

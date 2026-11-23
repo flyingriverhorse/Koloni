@@ -283,6 +283,7 @@ from app.agent.test_ask_mixin import TestAskMixin
 from app.agent.tiers_mixin import HOW_HARD as HOW_HARD
 from app.agent.tiers_mixin import OUTSIDE_A_COPY as OUTSIDE_A_COPY
 from app.agent.tiers_mixin import TiersMixin
+from app.agent.try_mixin import TryMixin
 from app.agent.words import (
     AGENT_TERMINAL,
     ANSWER_PREFIX,
@@ -1029,7 +1030,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
                   LimitsMixin, MemoryMixin, SlotsMixin, RecordMixin, TiersMixin, QuestionsMixin,
                   SkillsMixin, AwayMixin, ClaimsMixin, BrowserMixin, PoMixin, JudgeMixin,
                   ProofMixin, FoundMixin, ProofLaterMixin, ReviewMixin, TestAskMixin,
-                  KindsMixin, BeforeMixin, CoverageMixin):
+                  KindsMixin, BeforeMixin, CoverageMixin, TryMixin):
     """Runs one turn (a Run) per asyncio task: its lead agent and any sub-agents."""
 
     def __init__(
@@ -1398,6 +1399,10 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         # ...their agents (`_review_refuses`), a recipe step's Reviewers by run, and the looks
         # running now (Stop this check ends them).
         self._read_only_agents: set[str] = set()
+        # S5b: of those, KOLONİ's live try (the Tester): its calls and agents - browser tools
+        # too, on this machine's previews alone (`_review_refuses`, `_browser`).
+        self._try_calls: set[str] = set()
+        self._try_agents: set[str] = set()
         self._recipe_reviewers: dict[str, set[str]] = {}
         self._looks: dict[str, set[asyncio.Future]] = {}
         # K-evrim: the agents opened as a step's candidates - each in a copy of its own until one
@@ -4097,6 +4102,7 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         gated: str = "refuse", once: set[str] | None = None, cwd: str = ".",
         seconds: int | None = None, where: Callable[[dict], Awaitable[Workspace]] | None = None,
         env: Mapping[str, str] | None = None, over: Callable[[], bool] | None = None,
+        keep_running: bool = False,
     ) -> tuple[int | None, str, str, str | None]:
         """KOLONİ's own run of a project command where the agent's commands run (`ws`: its
         working copy, or the project), on record under `call_id`, with the check's time limit
@@ -4144,7 +4150,8 @@ class AgentRunner(RoomsMixin, SpawnMixin, LoopMixin, ContextMixin, ObserveMixin,
         since, at = time.monotonic(), now()  # (before the look: a write after it is not its)
         held = await asyncio.to_thread(standing_files, ctx.root) if ctx.root else None
         ran = False
-        args = {"command": command, "timeout_seconds": seconds or CHECK_SECONDS, "cwd": cwd}
+        args = {"command": command, "timeout_seconds": seconds or CHECK_SECONDS, "cwd": cwd,
+                **({"keep_running": True} if keep_running else {})}  # (S5b: a dev server)
         try:
             status, said = await self.commands.run(
                 ctx.run_id, ctx.cid, ctx.agent_id, ws, own, args,

@@ -4,6 +4,8 @@ import type { AgentData, GraphEdge, GraphNode } from './deriveGraph'
 
 /** KOLONİ's own end-of-turn test run: its call on the Lead's answer (`ProofMixin.PROOF_CALL`). */
 export const PROOF_CALL = 'koloni_proof_'
+/** ...and S5b's live try's own runs (`try_mixin.TRY_CALL`): no test run. */
+export const TRY_CALL = `${PROOF_CALL}try_`
 /** How often the end check sends work back, at most, where its Checked section does not say yet (the project's Fix rounds' default). */
 export const MOST_ROUNDS = 2
 /** S10: a turn of a chat whose Check after a change was off - no node, only the Orchestrator's strip says so. */
@@ -122,8 +124,8 @@ export function stripOf(data: ChecksData): string | null {
 export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges: GraphEdge[]): ChecksData | null {
   const lead = state.agents.find(a => a.run_id === run.id && a.depth === 0)
   const own = state.toolCalls.filter(c => c.run_id === run.id && c.provider_call_id.startsWith(PROOF_CALL))
-  // (Its test runs; its spawns are S3's Reviewers.)
-  const calls = own.filter(c => c.name === 'run_command')
+  // (Its test runs - not S5b's live try's (`TRY_CALL`): a tool's --help, a preview; its spawns are S3's Reviewers and S5b's Tester.)
+  const calls = own.filter(c => c.name === 'run_command' && !c.provider_call_id.startsWith(TRY_CALL))
   const checked = state.messages.find(m => m.run_id === run.id && m.role === 'checked')
   if (!lead || (!own.length && !checked)) return null
   // (Off for this chat, or After a change at Nothing: KOLONİ checked nothing - no node, as no check ran.)

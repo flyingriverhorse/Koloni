@@ -46,6 +46,10 @@ SITE_UNWATCHED = (
     "with this machine's previews, and say in your report what you would have opened."
 )
 
+# S5b: KOLONİ's Tester at its live try opens this machine's preview alone.
+TRY_ONLY_HERE = ("browser_open is not available here: KOLONİ's Tester opens this machine's "
+                 "preview alone")
+
 KEY_HELD = (
     "not pressed: on a site, a key goes into a password field (or a field KOLONİ cannot see, "
     "in a frame) only through browser_type, which asks the user"
@@ -79,10 +83,7 @@ class BrowserMixin:
         command = browser.find_browser()
         if command is None:
             raise ToolError(browser.NONE)
-        try:
-            site = browser.site_of(args.get("url")) if name == "browser_open" else None
-        except browser.BrowserError as exc:
-            raise ToolError(str(exc)) from None
+        site = self._site_named(ctx, name, args)
         held = site is not None and await self._site(ctx, call_id, args["url"].strip(), site)
         if site is not None:
             try:  # (as `_web`: what the name stands for is looked up after the yes, not before)
@@ -128,6 +129,17 @@ class BrowserMixin:
             return said + one.refused()
         except browser.BrowserError as exc:
             raise ToolError(str(exc) + (one.refused() if one else "")) from None
+
+    def _site_named(self: "AgentRunner", ctx: Ctx, name: str, args: dict) -> str | None:
+        """The site out on the internet a browser_open names; None for this machine's page. S5b:
+        KOLONİ's Tester at its live try is refused one - no card, nothing out there."""
+        try:
+            site = browser.site_of(args.get("url")) if name == "browser_open" else None
+        except browser.BrowserError as exc:
+            raise ToolError(str(exc)) from None
+        if site is not None and ctx.agent_id in self._try_agents:
+            raise ToolError(TRY_ONLY_HERE)
+        return site
 
     async def _browser_does(
         self: "AgentRunner", ctx: Ctx, ws: Workspace, call_id: str, name: str, args: dict,

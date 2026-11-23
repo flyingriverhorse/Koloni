@@ -393,6 +393,40 @@ that round, the turn's end says "Still on hold after round 1: not settled by the
 decide (Fix it)" where the hold stood. Where code is looked over too, the Reviewer's brief takes
 the documents in: one look a turn in all.
 
+## The live try
+
+Under **Test and review**, once a turn, after the tests and the review, KOLONİ tries the change as
+a user would:
+
+- **A command-line tool** the turn changed - a script in `bin/`, a `bin` of `package.json`, a
+  console script of `pyproject.toml` - is run once with `--help` and once plain, as KOLONİ's own
+  commands, asked about as an agent's would be (a card below Full auto where one is asked). "Tried
+  python bin/tool.py --help: exit 0, 12 lines" passes; a `--help` that fails (or runs on past 30
+  s) goes back as a fix round; the plain run is said as it ended ("Ran python bin/tool.py once:
+  exit 2"). A console script whose module does not run itself (`if __name__ == "__main__"`) is
+  said as not tried.
+- **A big change of screens** (more than 80 lines or 3 files of `.tsx`, `.jsx`, `.vue`, `.svelte`,
+  `.html`, `.css`...) is tried by the **Tester**, an agent KOLONİ opens itself as it opens the
+  Reviewer: it opens the chat's preview in KOLONİ's own browser, goes through what your request
+  changed - clicks, types, reads, takes screenshots - reads the console, and ends with MERGE or
+  HOLD and its findings: "Tried: Tester (…) on http://127.0.0.1:5173/ - HOLD, 2 findings, 1
+  blocking". A blocking finding goes back as a fix round; the try is not made again that turn. The
+  Tester gets its role's read and browser tools only - no writing, no command - and opens this
+  machine's preview alone; its screenshots are shown to its model only where that model takes
+  images (else it is told so, and reads the page's text). Its spawn opens no card at any level.
+- **With no preview running**, KOLONİ starts the project's dev server itself - `npm run dev`
+  (else `npm start`) of the nearest `package.json` above the changed screens - on a free port
+  (`PORT`, for a server that reads it; no browser window of its own), as one of KOLONİ's own runs
+  (**Settings › The app**: with them all busy, "Not tried: KOLONİ's own runs fill the machine"),
+  and stops it after the try. Starting it is asked below Full auto, as any server is. A preview
+  runs in the project itself only: where the work waits in a working copy, "Not tried: the work
+  waits in a working copy…".
+- Not tried, and said: while the tests still fail, in a turn nobody watches (Away, a trigger, a
+  To-do task), or where the Tester's role has no browser tools.
+
+On the canvas the Tester is an agent node after the Checks node; KOLONİ's own runs of the try
+(the `--help`, the dev server) are not counted as test runs there.
+
 ## How long it waits
 
 A long test suite does not hold up the answer. In a turn you watch, whose work is in the project

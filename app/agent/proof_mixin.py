@@ -120,6 +120,9 @@ class Proof:
     review_rounds: int = 0
     # S5b: the turn's documents were read once against the request (no code review was asked).
     docs_read: bool = False
+    # S5b (`TryMixin`): the live try was made (once a turn), and its rows.
+    tried: bool = False
+    tried_rows: list[Row] = field(default_factory=list)
     # S1b (`FoundMixin`): where a guess came from ("guess", "look"), by (command, folder); and
     # why nothing was run - the look found no test, or there was no model to look.
     found_from: dict[tuple[str, str], str] = field(default_factory=dict)
@@ -132,7 +135,7 @@ class Proof:
 class ProofMixin:
     # The gate's steps, run in order: the first nudge ends the pass (later slices append theirs).
     PROOF_STEPS: tuple[str, ...] = ("_proof_tests", "_proof_kinds", "_proof_review",
-                                    "_proof_test_ask")
+                                    "_proof_test_ask", "_proof_try")
 
     async def _end_left(self: "AgentRunner", ctx: Ctx) -> str | None:
         """What the Lead is told before its answer may end the turn; None: it may."""
