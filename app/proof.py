@@ -877,7 +877,8 @@ def checks_of(session: Session, conversation: Conversation, run: Run | None = No
     on: set[str] = set()
     most: int | None = 0
     for one, who in recipes:
-        parts = set() if one is None else {part for part in PARTS if one.get(part)}
+        # (Config is on unless unticked: a row's graph from before has no such key.)
+        parts = set() if one is None else {p for p in PARTS if one.get(p, p == "config")}
         asked = None if one is None else one.get("fix_rounds")
         # (Review of S5c: only a recipe the user picked may lower the project's checks - one the
         # Orchestrator picked only adds to them, or it would switch its own checks off.)

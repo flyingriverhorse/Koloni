@@ -457,7 +457,7 @@ export const CHECK_PARTS: [part: Exclude<keyof Checks, 'fix_rounds'>, name: stri
   ['config', 'Config', 'JSON, YAML and TOML parse; package.json, pyproject.toml, workflows, Compose'],
 ]
 /** "Set for this recipe" as it starts: the project's usual Test and review for code. */
-export const ownChecks = (): Checks => ({ tests: true, review: true, docs: false, diagram: false, data: false, slides: false, ui: false, config: false, fix_rounds: null })
+export const ownChecks = (): Checks => ({ tests: true, review: true, docs: false, diagram: false, data: false, slides: false, ui: false, config: true, fix_rounds: null })
 
 /** The Checks step's choice: set for the recipe, or - null - following the project (no `checks` kept, as the server keeps it). */
 export function setChecks(graph: RecipeGraph, checks: Checks | null): RecipeGraph {

@@ -228,3 +228,53 @@ def test_unended_strings_and_comments_are_read_in_one_pass(tmp_path):
     rows = said(tmp_path, hostile)
     assert time.monotonic() - started < scaled(5), rows
     assert [state for state, _text in rows] == ["failed", "failed", "failed"], rows
+
+
+def config_recipe(client, **checks):
+    """One step, the Coder's - its Checks step set for the recipe: the tests, and `checks`."""
+    from tests.test_recipe_run_scenarios import made
+    from tests.test_recipes_scenarios import graph
+    from tests.test_recipes_scenarios import step as part
+
+    return made(
+        client,
+        "Build it",
+        {
+            **graph(
+                [part("build", "Build it", {"role": "Coder"})],
+                [("start", "build"), ("build", "end")],
+            ),
+            "checks": {"tests": True, "review": False, "fix_rounds": 0, **checks},
+        },
+    )
+
+
+@pytest.mark.no_po
+@pytest.mark.parametrize("unticked", [False, True])
+def test_a_recipes_checks_step_has_config_on_unless_unticked(
+    make_client, wait_run, project_dir, unticked
+):
+    # (A recipe set for itself before 0.1.7 has no Config: it reads as on - model-free and cheap.)
+    from tests.test_recipe_end_checks_scenarios import run_it
+    from tests.test_recipe_run_scenarios import own_test
+    from tests.test_spawn import spawn
+
+    client, _model = make_client(
+        {
+            "Lead": [spawn("Coder", "write the package", "c1"), text("done")],
+            "Coder": [write("package.json", BROKEN), text("written")],
+        },
+        executor=ScriptedExecutor([PASS]),
+    )
+    recipe = config_recipe(client, **({"config": False} if unticked else {}))
+    assert recipe["graph"]["checks"]["config"] is not unticked
+    own_test(client, project_dir)
+    cid, run_id = run_it(client, project_dir, recipe)
+    rows = texts(wait_run(client, cid, run_id))
+    off = "Not checked: config files off in this recipe's Checks step"
+    if unticked:
+        assert off in rows and not any(one.startswith("package.json") for one in rows), rows
+    else:
+        assert off not in rows and any(
+            one.startswith("package.json:3: does not parse") for one in rows
+        ), rows
