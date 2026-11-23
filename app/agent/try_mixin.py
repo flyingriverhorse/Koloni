@@ -111,7 +111,7 @@ class TryMixin:
             return None
         held.tried, rows, problems = True, [], []
         tried: list[Row] = []
-        if any(one["kind"] == "tests" and one["state"] == "failed" for one in held.rows):
+        if proof.still_failing(held.rows):  # (N: not one failing before this turn)
             rows.append(proof.row("try", "note", NOT_TRIED.format(why=FAILING)))
         elif not self._watched(ctx.run_id) or self._away_now(ctx):
             rows.append(proof.row("try", "note", NOT_TRIED.format(why=UNWATCHED)))

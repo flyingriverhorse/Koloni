@@ -204,10 +204,11 @@ REVIEW_ON = {
     "test_proof_until_scenarios",
     "test_recipe_review_once_scenarios",
     "test_look_where_scenarios",
+    "test_before_gates_scenarios",
 }
 # S7: a failing run is run again alone and on the old code, and a pass is held to the last green
 # state - in a test, runs of the scripted executor more. On only where tested.
-BEFORE_ON = {"test_proof_before_scenarios"}
+BEFORE_ON = {"test_proof_before_scenarios", "test_before_gates_scenarios"}
 # S2: a turn that changed code and no test is asked once for one at its end - in a test, a step of
 # the scripted Lead more in every such turn; its rows too. On only where tested.
 ASK_ON = {

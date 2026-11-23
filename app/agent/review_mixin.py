@@ -358,7 +358,7 @@ class ReviewMixin:
             root = project.root_path if project is not None else None
         forced = held.review_forced  # (S11: a stronger model changed a test - always read)
         off = REVIEW_OFF if held.checks.own else TESTS_ONLY  # (S5c: the recipe's, or Tests only)
-        failing = any(one["kind"] == "tests" and one["state"] == "failed" for one in held.rows)
+        failing = proof.still_failing(held.rows)  # (N: not one failing before this turn)
         why = (
             None
             if forced

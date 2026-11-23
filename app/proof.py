@@ -945,6 +945,9 @@ class Row(TypedDict):
     # S11: why a stronger model's rounds were no pass (`Reason`): Fix it's fixed sentence goes by
     # it, never by the row's text, which names what a model chose.
     reason: NotRequired[Reason]
+    # N: a failed "tests" row whose every failure was failing before this turn, or flaky (S7, a
+    # lint's CL-336 M) - said, not sent back: no gate waits on it (`still_failing`).
+    before: NotRequired[bool]
 
 
 ICONS = {"passed": "✓ ", "failed": "✗ ", "running": "… "}
@@ -1035,6 +1038,15 @@ def row(
     if reason is not None:
         made["reason"] = reason
     return made
+
+
+def still_failing(rows: list[Row]) -> bool:
+    """Whether a test run of the turn failed that is the turn's own: a failed "tests" row not
+    excused as failing before it (N: the review and the live try wait on these alone)."""
+    return any(
+        one["kind"] == "tests" and one["state"] == "failed" and not one.get("before")
+        for one in rows
+    )
 
 
 def clock(seconds: int) -> str:

@@ -569,7 +569,8 @@ also what does not fit in the diff the Reviewer is shown.
   "Previous verdict" line is not this look's. Any HOLD wins; a report with no verdict is "Review
   gave no verdict: not counted".
 - **Stop this check** ends a look that runs now too: "Review stopped by you - not checked".
-- No look: a small change, **Tests only**, tests that still fail (they are fixed first), a turn
+- No look: a small change, **Tests only**, tests that still fail (they are fixed first - not those
+  that were failing before this turn: said, not sent back, they hold no look back), a turn
   over its token limit, or a recipe whose own Review step looked already - rounds never stack.
   A recipe without a Review step gets this review at its end.
 
@@ -620,7 +621,8 @@ a user would:
   and stops it after the try. Starting it is asked below Full auto, as any server is. A preview
   runs in the project itself only: where the work waits in a working copy, "Not tried: the work
   waits in a working copy…".
-- Not tried, and said: while the tests still fail, in a turn nobody watches (Away, a trigger, a
+- Not tried, and said: while the turn's tests still fail (not those failing before it), in a turn
+  nobody watches (Away, a trigger, a
   To-do task), or where the Tester's role has no browser tools.
 
 On the canvas the Tester is an agent node after the Checks node; KOLONİ's own runs of the try

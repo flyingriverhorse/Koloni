@@ -466,8 +466,12 @@ class ProofMixin:
         if not runs:
             held.rows.append(self._no_runs_row(held))
             return None
-        failed = await self._all_tests(ctx, held, runs)  # (S6: related first, the rest later)
-        failed = await self._proof_before(ctx, held, failed) if failed else failed  # (S7)
+        failing = await self._all_tests(ctx, held, runs)  # (S6: related first, the rest later)
+        failed = await self._proof_before(ctx, held, failing) if failing else failing  # (S7)
+        excused = {run.command for run, _output in failing} - {run.command for run, _o in failed}
+        for one in held.rows:  # (N: failing before this turn - said, not sent back)
+            if one["kind"] == "tests" and one["state"] == "failed" and one["command"] in excused:
+                one["before"] = True
         held.left_failing = list(failed)  # (S11: the pass's own failures)
         if failed:
             held.attempts.append(
