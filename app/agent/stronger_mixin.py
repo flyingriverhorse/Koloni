@@ -561,17 +561,22 @@ class StrongerMixin:
 
     def _tests_touched(self: "AgentRunner", ctx: Ctx, fixer: str | None) -> list[str]:
         """The test files a round's agent (and those it opened) changed or deleted (`is_test`) -
-        not one it added (k-onceki-1, J: a new test loosens none) - and what steers the tests,
-        added too (a conftest that leaves a test out).
+        not one it added, by its first record (k-onceki-1, J: a new test loosens none, written
+        again or not) - and what steers the tests, added too (a conftest that leaves a test out).
         shortcut: one a command rewrote (`sed -i`) has no FileChange; read the copy's moved files
-        if that is seen."""
+        if that is seen. And a brand-new test module that patches the code under test as it is
+        imported is not counted - adding tests stays allowed; read new tests' imports if one is
+        seen."""
         if fixer is None:
             return []
         with self._factory() as session:
             line = select(Agent.id).where(or_(Agent.id == fixer, Agent.parent_agent_id == fixer))
-            made = session.execute(select(FileChange.path, FileChange.kind).where(
-                FileChange.run_id == ctx.run_id, FileChange.agent_id.in_(line))).all()
-        return sorted({path for path, kind in made if steers_tests(path) or (
+            first: dict[str, str] = {}
+            for path, kind in session.execute(select(FileChange.path, FileChange.kind).where(
+                    FileChange.run_id == ctx.run_id, FileChange.agent_id.in_(line)).order_by(
+                    FileChange.created_at, literal_column("file_changes.rowid"))):
+                first.setdefault(path, kind)  # (a delete, then a create: the delete counts)
+        return sorted({path for path, kind in first.items() if steers_tests(path) or (
             proof.is_test(path) and kind != "create")})
 
     @staticmethod

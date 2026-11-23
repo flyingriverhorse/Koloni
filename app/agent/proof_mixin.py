@@ -737,7 +737,9 @@ class ProofMixin:
     @staticmethod
     def _waiting_rows(session, found: list[Change]) -> list[Row]:
         """One row an agent whose work waits in Ready for you: not what was checked."""
-        waiting = list(dict.fromkeys(one.agent_id for one in found if not one.in_project))
+        # (k-onceki-1: and one whose newer change of a path the project holds waits in a copy)
+        waiting = list(dict.fromkeys(filter(None, (
+            one.waiting if one.in_project else one.agent_id for one in found))))
         names = {one: name or role for one, name, role in session.execute(
             select(Agent.id, Agent.name, Agent.role_name).where(Agent.id.in_(waiting)))}
         return [proof.row("waiting", "note", proof.WAITING.format(name=names.get(one, "an agent")))

@@ -128,6 +128,8 @@ class Change(NamedTuple):
     in_project: bool
     # S2: whether it was there before the turn - one it made and deleted again is no removal.
     existed: bool = True
+    # k-onceki-1: in the project, with a newer change of it waiting in a copy - that agent's.
+    waiting: str | None = None
 
 
 def changes(session: Session, run_id: str, lead_id: str,
@@ -146,8 +148,10 @@ def changes(session: Session, run_id: str, lead_id: str,
         last = made[there[-1]] if there else made[-1]
         _diff, added, removed = unified_diff(made[0].before_content, last.after_content or "",
                                              path, context=0)
+        after = made[there[-1] + 1:] if there else []
         found.append(Change(path, kind_of(path), added, removed, last.kind == "delete",
-                            last.agent_id, bool(there), made[0].kind != "create"))
+                            last.agent_id, bool(there), made[0].kind != "create",
+                            after[-1].agent_id if after else None))
     return found
 
 

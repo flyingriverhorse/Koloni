@@ -247,6 +247,19 @@ def test_a_copy_waiting_for_take_in_is_not_in_project(factory):
         assert all(one.in_project for one in proof.changes(s, "r", "lead", ("coder",)))
 
 
+def test_a_copy_waiting_over_a_change_in_the_project_is_still_said_waiting(factory):
+    # (k-onceki-1: the path the project holds the Lead's change of is in the project - and the
+    # Coder's newer change of it, waiting in its copy, is still said)
+    from app.agent.proof_mixin import ProofMixin
+    with factory() as s:
+        change(s, "a.py", "1\n", "2\n", at=now() - timedelta(seconds=2))
+        change(s, "a.py", "2\n", "3\n", agent="coder", status="in_copy", at=now())
+        (found,) = proof.changes(s, "r", "lead")
+        assert (found.in_project, found.agent_id, found.waiting) == (True, "lead", "coder")
+        assert [r["text"] for r in ProofMixin._waiting_rows(s, [found])] == [
+            proof.WAITING.format(name="Coder")]
+
+
 def test_a_pass_before_the_last_change_is_not_fresh(factory):
     at = now()
     with factory() as s:

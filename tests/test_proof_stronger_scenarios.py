@@ -388,30 +388,38 @@ class ByTheWork(ScriptedExecutor):
         return await super().start(command_id, command, cwd, copy, links, secrets, env)
 
 
-def fixer_writes(*files):
-    """The strongest model's fix round: its diagnosis (fix-incomplete), then `files` written."""
+def fixer_writes(*files, again=()):
+    """The strongest model's fix round: its diagnosis (fix-incomplete), then `files` written -
+    and `again`, in a step after."""
+    def wrote(written, first):
+        return step(*(write(path, body, f"w{first + at}").tool_calls[0]
+                      for at, (path, body) in enumerate(written)))
     return {"Coder 2": [said(s11.FIX_INCOMPLETE)],
-            "Coder 3": [step(*(write(path, body, f"w{at}").tool_calls[0]
-                               for at, (path, body) in enumerate(files))), text("fixed")]}
+            "Coder 3": [wrote(files, 0), *([wrote(again, len(files))] if again else []),
+                        text("fixed")]}
 
 
-def handed(team, wait_run, project_dir, files, **project):  # noqa: F811
+def handed(team, wait_run, project_dir, files, again=(), **project):  # noqa: F811
     """J's turn: the balanced model's work fails the project's own pytest; the strongest is
-    handed it and writes `files`."""
+    handed it and writes `files` (and `again`, after)."""
     executor = ByTheWork()
-    client, cid, run_id = started(team, project_dir, {"Lead": ONE, **fixer_writes(*files)}, WORK,
-                                  executor, check_command=PYTEST, **project)
+    client, cid, run_id = started(team, project_dir, {
+        "Lead": ONE, **fixer_writes(*files, again=again)}, WORK, executor, check_command=PYTEST,
+        **project)
     snap = wait_run(client, cid, run_id, timeout=60)
     return [one[2] for one in rows_of(snap, run_id)], snap
 
 
+@pytest.mark.parametrize("again", [(), [("test_new.py", "def test_new():\n    assert 3\n")]])
 def test_a_fix_with_a_new_test_is_judged_on_the_whole_suites_verdict(team, wait_run,  # noqa: F811
-                                                                      project_dir):
+                                                                      project_dir, again):
     # (J: the related tests passed, the whole suite went on after the answer - and the hand-off
-    # judged "no verdict" before it ended: "Still failing" over passing work)
+    # judged "no verdict" before it ended: "Still failing" over passing work. Its new test
+    # written again is still a new test of its own - no test changed without leave.)
     texts, _snap = handed(team, wait_run, project_dir,
-                          [("a.py", "x = 3\n"), ("test_new.py", "def test_new(): pass\n")])
+                          [("a.py", "x = 3\n"), ("test_new.py", "def test_new(): pass\n")], again)
     assert s11.NO_VERDICT not in texts, texts
+    assert not any(one.startswith("Not a pass") for one in texts), texts
     assert not any(one.startswith("Still failing") for one in texts), texts
     assert f"Tests passed: {PYTEST} - 4 passed in 0.1s" in texts, texts
 
