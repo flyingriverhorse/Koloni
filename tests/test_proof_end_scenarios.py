@@ -1088,19 +1088,40 @@ class _Deletes(ScriptedExecutor):
 
 
 @pytest.mark.skipif(__import__("shutil").which("git") is None, reason="git is not installed")
-def test_a_tracked_file_koloni_own_run_changed_is_put_back_and_said(make_client, wait_run,
-                                                                    project_dir, monkeypatch):
+def test_a_tracked_file_changed_while_kolonis_run_went_on_is_said_and_put_back_by_a_click(
+        make_client, wait_run, project_dir, monkeypatch):
     # (CL-329: `ruff check --fix .` from the CI, run at the end check, changed a source file -
-    # on no record, in no diff)
-    (project_dir / "calc.py").write_text("import os\nx = 1\n")
+    # on no record, in no diff. Review: never put back by itself - it may be the user's work.)
+    (project_dir / "calc.py").write_bytes(b"import os\nx = 1\n")
     _git_project(project_dir, monkeypatch)
     fixes = Script(["....\n===== 4 passed in 0.1s =====\n"], writes={"calc.py": "x = 1\n"})
     executor = ScriptedExecutor([fixes])
     client, _model = make_client([write("a.py", "y = 2\n"), text("done")], executor=executor)
     cid, run_id = begin(client, project_dir, check_command="python check.py")
     rows = texts(wait_run(client, cid, run_id))
-    assert (project_dir / "calc.py").read_text() == "import os\nx = 1\n"
-    assert proof.PUT_BACK.format(command="python check.py", files="calc.py") in rows, rows
+    assert proof.CHANGED_DURING.format(command="python check.py", files="calc.py") in rows, rows
+    assert (project_dir / "calc.py").read_text() == "x = 1\n"  # (nothing until the click)
+    put = client.post(f"/api/runs/{run_id}/check/put-back", headers=OWN)
+    assert put.status_code == 200 and put.json() == {"put_back": ["calc.py"], "refused": []}
+    assert (project_dir / "calc.py").read_bytes() == b"import os\nx = 1\n"
+    assert client.post(f"/api/runs/{run_id}/check/put-back", headers=OWN).status_code == 409
+
+
+@pytest.mark.skipif(__import__("shutil").which("git") is None, reason="git is not installed")
+def test_a_file_changed_again_after_kolonis_run_is_not_put_back(make_client, wait_run,
+                                                                 project_dir, monkeypatch):
+    (project_dir / "calc.py").write_bytes(b"import os\nx = 1\n")
+    _git_project(project_dir, monkeypatch)
+    fixes = Script(["....\n===== 4 passed in 0.1s =====\n"], writes={"calc.py": "x = 1\n"})
+    client, _model = make_client([write("a.py", "y = 2\n"), text("done")],
+                                 executor=ScriptedExecutor([fixes]))
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    wait_run(client, cid, run_id)
+    (project_dir / "calc.py").write_bytes(b"x = 1\ny = 'the user, after the run'\n")
+    put = client.post(f"/api/runs/{run_id}/check/put-back", headers=OWN)
+    assert put.json() == {"put_back": [], "refused": [
+        {"path": "calc.py", "why": "calc.py changed again since KOLONİ's run"}]}
+    assert (project_dir / "calc.py").read_bytes() == b"x = 1\ny = 'the user, after the run'\n"
 
 
 @pytest.mark.skipif(__import__("shutil").which("git") is None, reason="git is not installed")

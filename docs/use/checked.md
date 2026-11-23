@@ -177,10 +177,13 @@ format`, `eslint --fix`, `tsc --build`, a test run's `-u` or `--junitxml=…`), 
 x`, `go test -exec`) or runs a file in place of the tool by its name (`./pytest`, `lint.cmd`,
 `python -m lint`) is not, and its step says why: "CI step Fix: not run: it changes files".
 
-KOLONİ's own runs leave the project as they found it: a file git tracks that one of them changed
-(a check that formats, say) is put back, and the section says so - "Put back: ruff check . changed
-calc.py - KOLONİ's own run leaves the project as it was". A file it made that git does not track (a
-report, a cache) is left; one an agent wrote on record meanwhile is never touched.
+A file git tracks that changed while one of KOLONİ's own runs went on is said: "Changed while
+KOLONİ's run of ruff check . went on: calc.py". It may be the run's doing (a check that formats) -
+or yours, saved in your editor meanwhile, or another chat's: KOLONİ never puts it back by itself.
+**Put back** on that row does, for each file still as the run left it: as it was when the run
+started (its commit's, through git's own line ends and filters). One changed again since is not
+put back, and says so. A file the run made that git does not track (a report, a cache), and one
+an agent wrote on record meanwhile, are not listed.
 
 ### Saved by KOLONİ
 
@@ -753,7 +756,7 @@ the Orchestrator's window, whose record holds the runs.
 | – Review gave no verdict: not counted (`role`, `provider · model`) | Its report had no verdict line KOLONİ could read: nothing was sent back. |
 | ✓ Documents read: Reviewer (`provider · model`) - MERGE, no findings · ✗ … - HOLD, 1 finding, 1 blocking | The turn's long documents, read once against your request; a blocking finding goes back as a fix round. |
 | – No review: changes made by a command are not recorded | The turn's only change was a command's: there is no diff for a Reviewer to read. |
-| – Put back: `command` changed `files` - KOLONİ's own run leaves the project as it was | One of KOLONİ's own runs changed a file git tracks: put back. |
+| – Changed while KOLONİ's run of `command` went on: `files` | A file git tracks changed while one of KOLONİ's own runs went on - by the run, or by you meanwhile. **Put back** (your click) restores each still as the run left it. |
 | – A command of this turn may have changed files KOLONİ did not record: `files` - `command` | A command (a `sed -i`, a formatter, a script) wrote files no record holds; in a git project the files git lists are named. The tests ran on them. |
 | – Review not run: `why` | It could not look: it failed, it was refused, or the turn's token limit was reached. |
 | – No review: a small change (12 lines, 1 files) | Not big, and no security touch. |

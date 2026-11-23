@@ -18,7 +18,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from sqlalchemy import literal_column, select
+from sqlalchemy import literal_column, or_, select
 
 from app import away, injection, ledger, proof, proof_before, recipe_run
 from app.agent.before_mixin import NOT_YOURS
@@ -593,6 +593,7 @@ class ProofMixin:
                 raise ToolError(SLOT_BUSY) from None
             taken.append(True)
             check.going.set_result(now())
+            look["before"], look["started"] = await self._sources_now(ctx, held, copy), now()
             if (now_left := left()) is not None:
                 if now_left < 1:
                     taken.append(False)
@@ -603,7 +604,7 @@ class ProofMixin:
         copy = self._copies.get(self._works_in(ctx) or "")
         was, kept = await asyncio.to_thread(lambda: copy.snapshot(
             [path for path, _kind, _state in copy.changes()])) if copy else ({}, {})
-        sources, started = await self._sources_now(ctx, held, copy), now()
+        look: dict = {}  # (CL-329: the project as the run starts - taken once it has its slot)
         try:
             code, output, said, ended = await self._run_in_copy(
                 ctx, ws, line, call_id, ask=how == "ask",
@@ -626,7 +627,7 @@ class ProofMixin:
             if True in taken:
                 slot.release()
         await self._tests_put_back(copy, was, kept)
-        await self._sources_put_back(ctx, held, run, sources, started)
+        await self._changed_said(ctx, held, run, look.get("before"), look.get("started"))
         self._set_call(ctx.cid, call_id, status="denied" if ended == "rejected" else
                        "failed" if code is None else "succeeded", result=said, ended_at=now())
         self._always_kept(ctx, held, run, call_id)  # (option A: Always on its own card)
@@ -638,30 +639,82 @@ class ProofMixin:
                                given["seconds"] or MAX_TIMEOUT), output
 
     @staticmethod
-    async def _sources_now(ctx: Ctx, held: Proof, copy) -> dict | None:
+    async def _sources_now(ctx: Ctx, held: Proof, copy) -> proof.Before | None:
         """CL-329: in the project itself (not a copy, nor S7's old code), its tracked files as
-        they are before KOLONİ's own run - put back after it (`_sources_put_back`)."""
+        they are as KOLONİ's own run starts - what changed while it went on is said after it
+        (`_changed_said`)."""
         if copy is not None or held.place is not None:
             return None
         return await asyncio.to_thread(proof.sources_before, Path(ctx.folder))
 
-    async def _sources_put_back(self: "AgentRunner", ctx: Ctx, held: Proof, run: TestRun,
-                                sources: dict | None, started) -> None:
-        """CL-329: a tracked file of the project KOLONİ's own run changed (a CI line's `--fix`, a
-        check that formats) is put back, and said - never one an agent wrote on record since it
-        started (`spare`: a turn that went on beside it).
-        shortcut: a run that was stopped leaves what it changed; put it back there too if seen."""
-        if sources is None:
+    async def _changed_said(self: "AgentRunner", ctx: Ctx, held: Proof, run: TestRun,
+                            before: proof.Before | None, started) -> None:
+        """CL-329 (review: say it, never revert it by itself): a tracked file of the project that
+        changed while KOLONİ's own run went on - by the run (a check that formats), the user's
+        editor or another chat - is said on a row with Put back, the user's click
+        (`put_back_changed`); one an agent wrote on record since the run started is not.
+        shortcut: a run that was stopped says nothing of what changed; say it there too if seen."""
+        if before is None:
             return
         with self._factory() as session:
-            spare = set(session.scalars(select(FileChange.path).where(
-                FileChange.created_at >= started)))
-        put = await asyncio.to_thread(proof.put_back_sources, Path(ctx.folder), sources, spare)
-        if put:
-            more = f" +{len(put) - proof.MOST_TOUCHED} more" if len(
-                put) > proof.MOST_TOUCHED else ""
-            held.rows.append(proof.row("put_back", "note", proof.PUT_BACK.format(
-                command=run.command, files=", ".join(put[:proof.MOST_TOUCHED]) + more)))
+            spare = set(session.scalars(select(FileChange.path).where(or_(
+                FileChange.created_at >= started, FileChange.decided_at >= started))))
+        changed = await asyncio.to_thread(proof.changed_during, Path(ctx.folder), before, spare)
+        if not changed:
+            return
+        await asyncio.to_thread(self._keep_changed, ctx, before, changed)
+        more = f" +{len(changed) - proof.MOST_TOUCHED} more" if len(
+            changed) > proof.MOST_TOUCHED else ""
+        held.rows.append(proof.row("changed_during", "note", proof.CHANGED_DURING.format(
+            command=run.command, files=", ".join(list(changed)[:proof.MOST_TOUCHED]) + more)))
+
+    def _changed_place(self: "AgentRunner", run_id: str) -> Path:
+        """Where what Put back needs is kept, KOLONİ's own: the files' bytes before the run."""
+        return self.settings.runtime_root / "changed-during" / run_id
+
+    def _keep_changed(self: "AgentRunner", ctx: Ctx, before: proof.Before,
+                      changed: dict[str, str]) -> None:
+        """What Put back needs of `changed`: the project, the run's commit, and each file's
+        digest after the run and bytes before it (none: the commit's)."""
+        place = self._changed_place(ctx.run_id)
+        place.mkdir(parents=True, exist_ok=True)
+        state = self._changed_state(ctx.run_id) or {"files": {}}
+        state.update(folder=ctx.folder, head=before.head)
+        for rel, after in changed.items():
+            kept = None
+            if before.files.get(rel) is not None:
+                kept = uuid.uuid4().hex
+                (place / kept).write_bytes(before.files[rel] or b"")
+            state["files"][rel] = {"after": after, "before": kept}
+        (place / "state.json").write_text(json.dumps(state), encoding="utf-8")
+
+    def _changed_state(self: "AgentRunner", run_id: str) -> dict | None:
+        try:
+            return json.loads((self._changed_place(run_id) / "state.json").read_text(
+                encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+
+    def put_back_changed(self: "AgentRunner", run_id: str) -> dict | None:
+        """The user's Put back (CL-329): each file changed while KOLONİ's run went on, as it was
+        when the run started - where it is still as the run left it; one changed again since is
+        refused, said. What was put back and what not; None: nothing waits. Blocking."""
+        state = self._changed_state(run_id)
+        if not state or not state.get("files"):
+            return None
+        folder, place = Path(state["folder"]), self._changed_place(run_id)
+        done, refused = [], []
+        for rel, one in list(state["files"].items()):
+            kept = (place / one["before"]).read_bytes() if one.get("before") else None
+            why = proof.put_back(folder, rel, proof.Before(state.get("head"), {rel: kept}),
+                                 one["after"])
+            if why is None:
+                done.append(rel)
+                del state["files"][rel]
+            else:
+                refused.append({"path": rel, "why": why})
+        (place / "state.json").write_text(json.dumps(state), encoding="utf-8")
+        return {"put_back": done, "refused": refused}
 
     def _timeout_on_record(self: "AgentRunner", call_id: str, seconds: int) -> None:
         """The limit a run really has, on its record: what is left of the wait once it held the

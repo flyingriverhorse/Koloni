@@ -413,19 +413,54 @@ def test_a_test_file_a_command_deleted_is_counted_and_another_file_is_put_back(t
     (folder / "c.py").unlink()
     assert proof.touched_since(folder, now(), set()) == ["test_b.py"]
     assert proof.touched_since(folder, now(), {"test_b.py"}) == []
-    # (KOLONİ's own run leaves the tracked files as it found them: a.py was unchanged - back to
-    # the commit; b.py was changed before - back to that; d.py it made, untracked - left; e.py
-    # an agent wrote on record meanwhile - spared)
-    (folder / "b.py").write_bytes(b"mine\n")
+
+
+
+@pytest.mark.skipif(__import__("shutil").which("git") is None, reason="git is not installed")
+def test_what_changed_while_kolonis_run_went_on_is_said_and_put_back_only_by_a_click(
+        tmp_path, monkeypatch):
+    # (review of k-onceki-2: the run's put-back reverted the user's editor save, newer uncommitted
+    # work, another chat's change and an edit after a commit. Nothing is put back by itself now:
+    # it is said, and Put back - the user's click - restores one still as the run left it.)
+    from tests.test_take_in_scenarios import git, repository
+    (tmp_path / "gitconfig").write_text("")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "gitconfig"))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    folder = tmp_path / "p"
+    folder.mkdir()
+    for name in ("a.py", "b.py", "c.py", "d.py", "e.txt", "f.py"):
+        (folder / name).write_bytes(b"1\n")
+    repository(folder)
+    (folder / "c.py").write_bytes(b"C = 2  # the user's uncommitted work\n")
     before = proof.sources_before(folder)
-    assert before is not None and before["b.py"] == b"mine\n"
-    (folder / "a.py").write_text("fixed by ruff\n")
-    (folder / "b.py").write_text("fixed by ruff\n")
-    (folder / "d.py").write_text("a report\n")
-    assert proof.put_back_sources(folder, before, {"a.py"}) == ["b.py"]
-    assert (folder / "b.py").read_text() == "mine\n"
-    assert proof.put_back_sources(folder, before, set()) == ["a.py"]
-    assert (folder / "a.py").read_text() == "1\n" and (folder / "d.py").exists()
+    assert before is not None and before.files == {"c.py": b"C = 2  # the user's uncommitted work\n"}
+    # (while the run goes on: the user's editor, newer work, another chat's command, the run's
+    # own reformat, a commit then an edit; an agent's write on record; a report it made)
+    (folder / "a.py").write_bytes(b"NEW = 'the user saved this'\n")
+    (folder / "c.py").write_bytes(b"C = 3  # newer\n")
+    (folder / "d.py").write_bytes(b"D = 2  # another chat\n")
+    (folder / "b.py").write_bytes(b"B = 1  # reformatted by the run\n")
+    (folder / "e.txt").write_bytes(b"committed\n")
+    git(folder, "commit", "-qm", "mid-run", "--", "e.txt")
+    (folder / "e.txt").write_bytes(b"committed\nstill editing\n")
+    (folder / "f.py").write_bytes(b"an agent's\n")
+    (folder / "report.xml").write_bytes(b"<r/>")
+    changed = proof.changed_during(folder, before, {"f.py"})
+    assert sorted(changed) == ["a.py", "b.py", "c.py", "d.py", "e.txt"]
+    # (nothing lost without a click)
+    assert (folder / "a.py").read_bytes() == b"NEW = 'the user saved this'\n"
+    assert (folder / "c.py").read_bytes() == b"C = 3  # newer\n"
+    assert (folder / "e.txt").read_bytes() == b"committed\nstill editing\n"
+    # (a click: b.py as the run's commit had it, c.py as it was then; one changed again: refused)
+    assert proof.put_back(folder, "b.py", before, changed["b.py"]) is None
+    assert (folder / "b.py").read_bytes() == b"1\n"
+    assert proof.put_back(folder, "c.py", before, changed["c.py"]) is None
+    assert (folder / "c.py").read_bytes() == b"C = 2  # the user's uncommitted work\n"
+    (folder / "a.py").write_bytes(b"NEW = 'and saved again'\n")
+    assert proof.put_back(folder, "a.py", before, changed["a.py"]) == (
+        "a.py changed again since KOLONİ's run")
+    assert (folder / "a.py").read_bytes() == b"NEW = 'and saved again'\n"
+    assert proof.put_back(folder, "../x.py", before, "") == "../x.py is not in the project"
 
 
 def test_exit_0_with_command_not_found_in_its_output_is_passed():

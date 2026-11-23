@@ -2111,6 +2111,22 @@ def branch_diffs(
     return found
 
 
+def restore_at(project: Path, commit: str, rel: str) -> str | None:
+    """CL-329: a file of the working tree put back as `commit` holds it - through the repository's
+    own filters and line ends (`git restore --source`), the index left as it is - by the user's
+    click (Put back). None: done; else why not."""
+    if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", commit):
+        return "no such commit"
+    try:
+        git, _folder = repository(project)
+    except Refused as exc:
+        return str(exc)
+    code, _out, said = _in(project, git, "restore", f"--source={commit}", "--worktree", "--", rel,
+                           seconds=SHORT_SECONDS)
+    return None if code == 0 else (said.decode("utf-8", "replace").strip()
+                                   or "git could not put it back")
+
+
 def blob_at(project: Path, commit: str, path: str, most: int) -> bytes | None:
     """W-1: a file as `commit` holds it, as git would check it out - its line ends as the
     repository's settings and attributes turn them (`cat-file --filters`), no filter driver of
