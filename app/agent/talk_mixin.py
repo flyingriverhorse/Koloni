@@ -28,6 +28,7 @@ from app.agent.cards import _changes_nothing
 from app.agent.ctx import Ctx, announce
 from app.agent.summary import _lines_written_out
 from app.agent.words import CANT_UNDO, FROM, HANDED, LEADS_LATER, NOT_HEARD
+from app.api.recipes import agents_of
 from app.db.models import (
     Agent,
     BoardPost,
@@ -42,6 +43,7 @@ from app.db.models import (
 from app.discussion import MEMORY_HEAD
 from app.providers import list_providers
 from app.roles import LEAD, ORCHESTRATOR, agent_roles, closed, pickable, team_roles, tools_off
+from app.schemas import RecipeGraph
 from app.serialize import board_post_out, message_out
 from app.team import guide, quoted
 from app.tools import (
@@ -183,7 +185,12 @@ class TalkMixin:
                 [
                     pick_schema(
                         [(team, team_roles(session, team)) for team in may],
-                        session.scalars(select(Recipe.name).order_by(Recipe.created_at)).all(),
+                        [  # (T2: each with its agents, as the Recipes list says them)
+                            (name, agents_of(RecipeGraph.model_validate(graph)))
+                            for name, graph in session.execute(
+                                select(Recipe.name, Recipe.graph).order_by(Recipe.created_at)
+                            )
+                        ],
                     )
                 ]
                 if may
