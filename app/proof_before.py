@@ -242,6 +242,35 @@ def excuse(answer: str, said: str) -> str | None:
     return None
 
 
+# R (CL-345): a test file's tests and skips, counted in its text - whether a turn's change to it
+# could take tests away or skip them (`BeforeMixin._could_drop`). Python: `def test_…` / `async def
+# test_…`, at the top or in a class; skipped: `@pytest.mark.skip…`, `pytest.skip(`,
+# `@unittest.skip`. JS / TS: `test(`, `it(`, `test.each`, `.only`, `.concurrent`, `.skip`,
+# `.todo`; skipped: `.skip(`, `xit(`, `xtest(`, `xdescribe(`. Over MOST_COUNTED characters, or
+# another language: not counted.
+# shortcut: a parametrized test is one definition - its cases the runner counts may change while
+# the definitions do not; count its parameters if a drop of cases is put down to the outside.
+MOST_COUNTED = 512 * 1024
+_PY_TEST = re.compile(r"^[ \t]*(?:async[ \t]+)?def[ \t]+test\w*[ \t]*\(", re.MULTILINE)
+_PY_SKIP = re.compile(r"@pytest\.mark\.skip|\bpytest\.skip\(|@unittest\.skip")
+_JS_TEST = re.compile(r"(?<![\w.$])(?:it|test)(?:\.(?:each|only|concurrent|skip|todo))?[ \t]*[(`]")
+_JS_SKIP = re.compile(r"(?<![\w.$])(?:(?:it|test|describe)\.skip|x(?:it|test|describe))[ \t]*\(")
+_JS = (".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts")
+
+
+def tests_in(path: str, text: str | None) -> tuple[int, int] | None:
+    """R: a test file's test definitions and skipped ones, by its text; None where they are not
+    counted - no text (not UTF-8, too large for a change record), over MOST_COUNTED, or a language
+    not read here."""
+    if text is None or len(text) > MOST_COUNTED:
+        return None
+    if path.endswith(".py"):
+        return len(_PY_TEST.findall(text)), len(_PY_SKIP.findall(text))
+    if path.endswith(_JS):
+        return len(_JS_TEST.findall(text)), len(_JS_SKIP.findall(text))
+    return None
+
+
 def green_said(was: dict | None, ran: int, skipped: int) -> list[str]:
     """Decision 14b: what a whole suite that passed says against the project's last green run -
     fewer tests that ran, more skipped. [] where it holds or none is known yet."""

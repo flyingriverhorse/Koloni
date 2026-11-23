@@ -322,9 +322,13 @@ or xfail): "Tests went from 214 to 210 (4 removed)", "Skipped rose from 3 to 9" 
 failing test. Said why, it is still shown, as a note quoting that sentence - "Tests went from 4 to
 3 (1 removed) - the answer says why: “I removed the obsolete test of the old parser”" - and the
 new counts are the green state from then on. Only a turn whose own work could take tests away is
-held to it: one that changed, renamed or deleted a test file that was there before it, or what
-says which tests run (a `conftest.py`, `pytest.ini`, `pyproject.toml`, `setup.cfg`, `tox.ini`,
-`package.json`, a Vitest or Jest config), or ran a command whose change is on no record. Tests
+held to it: a test file of the project's it changed now holds fewer tests (`def test_…`, `test(`,
+`it(` - counted in the file's text before and after the turn; a deleted file holds none) or more
+skips (`@pytest.mark.skip`, `pytest.skip(`, `.skip(`, `xit(`), or it changed what says which tests
+run (a `conftest.py`, `pytest.ini`, `pyproject.toml`, `setup.cfg`, `tox.ini`, `package.json`, a
+Vitest or Jest config), or ran a command whose change is on no record. A turn that adds a test to
+a file takes none away. A test file whose text KOLONİ cannot count (not UTF-8, too large, another
+language) counts as the turn's; a parametrized test counts as one, whatever its cases. Tests
 gone otherwise - deleted by hand, a pull, another branch checked out - are said and not sent back,
 "Tests went from 48 to 45 (3 removed) - not this turn's change", and the new counts are the green
 state. Where the rounds end with no test failing but fewer run, or more skipped, the line says so:

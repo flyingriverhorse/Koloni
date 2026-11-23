@@ -244,13 +244,13 @@ class BeforeMixin:
             if project is None:
                 return []
             said = proof_before.green_said((project.tests_green or {}).get(key), ran, skipped)
-            if said and not self._could_drop(held):  # (R: the green state moves to this run)
-                for one in said:
-                    self._said_once(
-                        held,
-                        proof.row("tests", "note", NOT_OURS.format(said=one), run.command),
-                    )
-                said = []
+            fewer, skips = self._could_drop(session, ctx, held) if said else (True, True)
+            ours = [one for one in said if (skips if one.startswith("Skipped") else fewer)]
+            for one in (one for one in said if one not in ours):  # (R: the green state moves)
+                self._said_once(
+                    held, proof.row("tests", "note", NOT_OURS.format(said=one), run.command)
+                )
+            said = ours
             answer = self._last_answer(session, ctx)
             why = {one: proof_before.excuse(answer, one) for one in said}
             for one in (one for one in said if why[one]):  # (excused, still shown: a note)
@@ -274,19 +274,34 @@ class BeforeMixin:
         return []
 
     @staticmethod
-    def _could_drop(held: "Proof") -> bool:
-        """R (CL-345): whether the turn's own work could make fewer tests run, or more skipped -
-        a test file that was there before it, changed, renamed or deleted (one it added takes
-        none away), what says which tests run (a conftest, pytest.ini, pyproject.toml, setup.cfg,
+    def _could_drop(session, ctx: Ctx, held: "Proof") -> tuple[bool, bool]:
+        """R (CL-345): whether the turn's own work could make fewer tests run, and more skipped -
+        a test file that was there before it with fewer test definitions now, or more skips
+        (`proof_before.tests_in`, its text before the turn against its text now; deleted: none
+        now), what says which tests run (a conftest, pytest.ini, pyproject.toml, setup.cfg,
         tox.ini, package.json, a Vitest or Jest config: `steers_tests`), a test a command of its
-        deleted, a command whose change is on no record. Else the drop is not the turn's.
-        shortcut: a test file the turn edited counts whole - a test of another file gone since
-        the green run is put down to it too; tell them apart by the green run's ids (`passed_ids`,
-        where the runner lists them) if that is met."""
-        return bool(held.unrecorded or held.gone_tests) or any(
-            one.in_project and (proof.is_test(one.path) and one.existed or steers_tests(one.path))
-            for one in held.changes
-        )
+        deleted, a command whose change is on no record. A test file whose text is not counted
+        (no record of it, not UTF-8, too large) is the turn's: fail safe. A turn that only adds
+        tests takes none away: a drop then is not its own (deleted by hand, a pull, a branch)."""
+        if (
+            held.unrecorded
+            or held.gone_tests
+            or any(one.in_project and steers_tests(one.path) for one in held.changes)
+        ):
+            return True, True
+        kept, fewer, skips = proof._kept(session, ctx.run_id), False, False
+        for one in held.changes:
+            if not (one.in_project and one.existed and proof.is_test(one.path)):
+                continue
+            made = kept.get(one.path)
+            was = proof_before.tests_in(one.path, made[0].before_content if made else None)
+            now = proof_before.tests_in(
+                one.path, "" if one.deleted else made[-1].after_content if made else None
+            )
+            if was is None or now is None:
+                return True, True
+            fewer, skips = fewer or now[0] < was[0], skips or now[1] > was[1]
+        return fewer, skips
 
     @staticmethod
     def _passed_now(session, ctx: Ctx, run: TestRun) -> list[str] | None:

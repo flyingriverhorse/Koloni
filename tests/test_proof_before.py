@@ -374,3 +374,84 @@ def test_a_count_left_failing_is_said_as_fewer_tests_never_as_failing_ones():
     assert stronger_mixin.FIX_HELD.format(why=reason, question="Q?", reply="a").startswith(
         "The last turn's work was not taken in: fewer of its tests run, or more are skipped."
     )
+
+
+def test_a_test_files_tests_and_skips_are_counted_in_its_text():
+    # (R: whether a turn's change to a test file could take tests away, or skip them)
+    py = (
+        "import pytest\n\ndef test_a():\n    pass\n\nclass TestX:\n    async def test_b(self):\n"
+        "        pass\n\n    @pytest.mark.skip\n    def test_c(self):\n        pytest.skip('no')\n"
+    )
+    assert proof_before.tests_in("tests/test_x.py", py) == (3, 2)
+    js = (
+        "test('a', () => {})\nit.skip('b', () => {})\ntest.each([1, 2])('c %i', () => {})\n"
+        "xit('d', () => {})\nconst t = re.test('e')\n"
+    )
+    assert proof_before.tests_in("src/a.test.ts", js) == (3, 2)
+    # (not counted - the turn's then, fail safe: no text, too large, a language not read here)
+    assert proof_before.tests_in("tests/test_x.py", None) is None
+    assert proof_before.tests_in("tests/test_x.rb", "def test_a; end") is None
+    assert proof_before.tests_in("t.py", "x" * (proof_before.MOST_COUNTED + 1)) is None
+
+
+def test_a_changed_test_file_whose_text_is_not_counted_is_the_turns(monkeypatch):
+    from types import SimpleNamespace
+
+    from app import proof
+    from app.agent.before_mixin import BeforeMixin
+    from app.agent.proof_mixin import Proof
+
+    held = Proof()
+    held.changes = [proof.Change("tests/test_x.py", "code", 1, 0, False, "a", True, True)]
+    ctx = SimpleNamespace(run_id="r")
+
+    def records(before, after):
+        row = SimpleNamespace(before_content=before, after_content=after)
+        monkeypatch.setattr(proof, "_kept", lambda _session, _run: {"tests/test_x.py": [row]})
+
+    two = "def test_a():\n    pass\n\ndef test_b():\n    pass\n"
+    records(two, two + "\ndef test_c():\n    pass\n")
+    assert BeforeMixin._could_drop(None, ctx, held) == (False, False)  # (it only adds)
+    records(two, "def test_a():\n    pass\n")
+    assert BeforeMixin._could_drop(None, ctx, held) == (True, False)
+    records(two, "import pytest\n@pytest.mark.skip\n" + two)
+    assert BeforeMixin._could_drop(None, ctx, held) == (False, True)
+    records(None, two)  # (no text on record: not UTF-8, too large)
+    assert BeforeMixin._could_drop(None, ctx, held) == (True, True)
+
+
+COUNTED = """
+import sys, time
+from app import proof_before
+began = time.perf_counter()
+for path, bad in (
+    ("t.py", " \t" * 8000 + "x"),
+    ("t.py", "async " * 2600 + "x"),
+    ("t.ts", "it" * 8000 + "x"),
+    ("t.ts", "test." * 3200 + "x"),
+    ("t.ts", "xdescribe" * 1800),
+):
+    proof_before.tests_in(path, bad)
+print(1000 * (time.perf_counter() - began))
+"""
+
+
+def test_counting_a_test_files_tests_reads_a_long_line_in_time():
+    # (16 KB at most, in a child process with a time limit: a pattern that backtracks holds up
+    # that process, never this run)
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    from tests.conftest import scaled
+
+    done = subprocess.run(
+        [sys.executable, "-c", COUNTED],
+        capture_output=True,
+        text=True,
+        timeout=scaled(60),
+        cwd=Path(__file__).resolve().parents[1],
+    )
+    assert done.returncode == 0, done.stderr
+    assert float(done.stdout) < (200 if os.environ.get("CI") else 50), done.stdout

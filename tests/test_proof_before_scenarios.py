@@ -660,3 +660,114 @@ def test_tests_deleted_outside_koloni_are_no_turns_drop(make_client, wait_run, p
     said = before_mixin.NOT_OURS.format(said="Tests went from 4 to 3 (1 removed)")
     assert (said, "note") in rows and not any(state == "failed" for _t, state in rows), rows
     assert len(model.calls) == 4 and green_ran(client) == 3  # (nothing sent back)
+
+
+CALC_TESTS = "def test_one():\n    pass\n\n\ndef test_two():\n    pass\n"
+
+
+def second_turn(make_client, wait_run, project_dir, edited, counts, by_hand=None):
+    """Green at a first turn's run (48); `by_hand` done to the project between the turns; then a
+    turn by a recipe at Full auto - its one step, Fix it (Coder), writes tests/test_calc.py as
+    `edited` (it was CALC_TESTS) and fixes calc.py; KOLONİ's checks run in its copy, `counts`
+    passing. Its Checked rows, whether the work went in, and the scripted model."""
+    from tests.test_chat_teams_scenarios import OWN, teams_of
+    from tests.test_recipe_run_scenarios import made
+    from tests.test_recipes_scenarios import graph
+    from tests.test_recipes_scenarios import step as part
+    from tests.test_spawn import spawn
+
+    (project_dir / "tests").mkdir(exist_ok=True)
+    (project_dir / "tests" / "test_calc.py").write_text(CALC_TESTS, encoding="utf-8")
+    (project_dir / "tests" / "test_old.py").write_text("def test_a():\n    pass\n", "utf-8")
+    client, model = make_client(
+        {
+            "Lead": [
+                write("a.py", "x = 1\n"),  # (no related test: the whole suite now - green)
+                text("done"),
+                spawn("Coder", "fix it", "c1"),
+                *[text(f"done {i}") for i in range(4)],
+            ],
+            "Coder": [
+                write("tests/test_calc.py", edited, "w2"),
+                write("calc.py", "x = 2\n", "w3"),
+                text("fixed, and a test for it"),
+            ],
+            "Coder 2": [text("nothing to change")],
+        },
+        executor=ScriptedExecutor([passing(48), *[passing(*counts)] * 8]),
+    )
+    cid, run_id = begin(client, project_dir, check_command=PYTEST, fix_rounds=1)
+    wait_run(client, cid, run_id)
+    if by_hand:
+        by_hand()
+    recipe = made(
+        client,
+        "Just fix it",
+        {
+            **graph([part("fix", "Fix it", {"role": "Coder"})], [("start", "fix"), ("fix", "end")]),
+            "checks": {"tests": True, "review": False},
+        },
+    )
+    web = teams_of(client)["Web app"]
+    patched = client.patch(
+        f"/api/conversations/{cid}",
+        json={
+            "spawn_approval": "never",
+            "teams_mode": "manual",
+            "teams": [{"team_id": web["id"], "recipe_id": recipe["id"]}],
+        },
+        headers=OWN,
+    )
+    assert patched.status_code == 200, patched.text
+    second = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "fix"}, headers=OWN
+    ).json()["run"]["id"]
+    snap = wait_run(client, cid, second)
+    rows = [
+        (r["text"], r["state"])
+        for m in snap["messages"]
+        if m["role"] == "checked" and m["run_id"] == second
+        for r in m["checked"]
+    ]
+    taken = project_dir / "calc.py"
+    return rows, taken.exists() and taken.read_text(encoding="utf-8") == "x = 2\n", model
+
+
+def test_a_turn_that_adds_a_test_to_a_file_does_not_take_on_tests_deleted_by_hand(
+    make_client, wait_run, project_dir
+):
+    # (R, the live shape: 48 green, tests deleted by hand in another file, the turn adds a test to
+    # an existing test file and fixes the code - 46 run. It took none away: a note, nothing sent
+    # back, the work taken in)
+    rows, taken, _model = second_turn(
+        make_client,
+        wait_run,
+        project_dir,
+        CALC_TESTS + "\n\ndef test_three():\n    pass\n",
+        (46,),
+        by_hand=lambda: (project_dir / "tests" / "test_old.py").unlink(),
+    )
+    said = before_mixin.NOT_OURS.format(said="Tests went from 48 to 46 (2 removed)")
+    assert (said, "note") in rows and not any(state == "failed" for _t, state in rows), rows
+    assert taken, rows
+
+
+@pytest.mark.parametrize(
+    ("edited", "counts", "said"),
+    [
+        ("def test_one():\n    pass\n", (47,), "Tests went from 48 to 47 (1 removed)"),
+        (
+            CALC_TESTS.replace("def test_two", "@pytest.mark.skip\ndef test_two"),
+            (48, 1),
+            "Skipped rose from 0 to 1",
+        ),
+    ],
+    ids=["a_test_removed", "a_skip_added"],
+)
+def test_a_turn_that_takes_a_test_away_or_skips_one_is_still_sent_back(
+    make_client, wait_run, project_dir, edited, counts, said
+):
+    rows, taken, _model = second_turn(make_client, wait_run, project_dir, edited, counts)
+    assert (said, "failed") in rows, rows
+    assert any(text.startswith("Sent back to fix") for text, _st in rows), rows
+    assert not taken, rows
