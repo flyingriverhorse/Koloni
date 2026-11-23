@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { api, errorText } from '../api/client'
 import type { Project, ProjectMap as MapOf } from '../api/types'
+
+/** The root as a part where no project file makes it one: its test command runs on the whole project. */
+const WHOLE: MapOf['parts'][number] = { path: './', language: 'none', files: 0, more: false, agents_md: false, guess: null, test: null, edited: false }
 import { useApp } from '../state/store'
 
 /** The map in a line: the project, whether it is in git, how many parts - and that not every folder was looked in. */
@@ -71,7 +74,9 @@ export function ProjectMap({ project }: { project: Project }) {
       return api.get<MapOf>(`/projects/${project.id}/map`)
     }, 'Saved')
 
-  const parts = map?.parts ?? []
+  // (0.1.7: the root is a part you may set a test command for even where no project file makes it one)
+  const found = map?.parts ?? []
+  const parts = map && !found.some(part => part.path === './') ? [WHOLE, ...found] : found
   return (
     <>
       <h2>Project map</h2>
@@ -80,8 +85,8 @@ export function ProjectMap({ project }: { project: Project }) {
         chat’s Orchestrator is told of them when there is more than one. A test command runs in its part’s folder; saved empty, the part has no test. A
         command you write here runs in its part without a card, at every level; KOLONİ’s guess is asked as any command.
       </span>
-      {map && mapLine(project.name, map, parts.length)}
-      {map && parts.length === 0 && <p className="muted">No part found: no folder has a project file.</p>}
+      {map && mapLine(project.name, map, found.length)}
+      {map && found.length === 0 && <p className="muted">No part found: no folder has a project file. A test command for the whole project still runs from its root.</p>}
       {parts.length > 0 && (
         <table className="usage-table project-map" aria-label="Parts of this folder">
           <thead>
@@ -102,7 +107,7 @@ export function ProjectMap({ project }: { project: Project }) {
                   <th scope="row" className="mono">
                     {part.path}
                   </th>
-                  <td>{part.language}</td>
+                  <td>{part.language === 'none' ? 'the whole project' : part.language}</td>
                   <td>{part.more ? `${part.files}+` : part.files}</td>
                   <td>{part.agents_md ? '✓' : <span className="muted">✗</span>}</td>
                   <td>

@@ -44,8 +44,6 @@ export interface ProjectSettingsValues {
   turn_token_limit?: number | null
   /** What a calendar month's turns may cost, in the prices' currency; null: no budget. Sent only when changed. */
   monthly_budget?: number | null
-  /** The command that checks a sub-agent's work before it is taken; empty: none. Sent only when changed. */
-  check_command?: string
   /** K-evrim: the command that scores a candidate's work - the last line of its output, 0–100; empty: none. Sent only when changed. */
   measure_command?: string
   /** Kanıtlı bitiş: what KOLONİ checks after a turn that changed code - Test and review, Tests only or Nothing. Sent only when changed. */

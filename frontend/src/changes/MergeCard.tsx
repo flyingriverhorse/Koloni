@@ -179,7 +179,7 @@ function Check({ merge, onRun, onBranch = false }: { merge: Merge; onRun?: { off
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const check = merge.check
-  if (!check) return <div className="muted cmd-approval-note">No test command is set: not tested.</div>
+  if (!check) return <div className="muted cmd-approval-note">No tests of its own to run before it is added - KOLONİ’s check at the turn’s end runs every test.</div>
   const ran = check.state === 'passed' || check.state === 'failed'
 
   async function run() {

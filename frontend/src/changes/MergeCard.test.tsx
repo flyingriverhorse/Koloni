@@ -203,7 +203,7 @@ const check = (over: Partial<NonNullable<Merge['check']>> = {}): NonNullable<Mer
 
 test('with no check command the card says that nothing was checked', () => {
   render(<MergeCard merge={merge()} name="Coder" onDecide={vi.fn()} onCheck={vi.fn()} />)
-  expect(screen.getByText('No test command is set: not tested.')).toBeInTheDocument()
+  expect(screen.getByText('No tests of its own to run before it is added - KOLONİ’s check at the turn’s end runs every test.')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: /Run the test/ })).not.toBeInTheDocument()
   expect(screen.queryByText(/passed/)).not.toBeInTheDocument()
 })
