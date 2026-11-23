@@ -471,21 +471,36 @@ ASK_SECRET_SCHEMA = _fn(
 
 def pick_schema(teams, recipes) -> dict:
     """pick_teams (slice 84b), listing the teams the Lead may pick - each with its roles - and
-    KOLONİ's recipes. ("call this first": B-70, a Lead that opened a Coder and a Reviewer
-    with no team.)"""
+    KOLONİ's recipes (`recipes`: each name and how many agents its run opens, `RecipeAgents`,
+    None: not counted). ("call this first": B-70, a Lead that opened a Coder and a Reviewer
+    with no team. T2 of tarif maliyeti: but not for a small change - the user's choice, 23 Nov.)"""
     listed = "\n".join(
         f"- {team.name}: {', '.join(roles) or 'no roles yet'}" for team, roles in teams
+    )
+    counted = "".join(
+        f"\n- {name}: {one.least}{'' if one.least == one.most else f'-{one.most}'} "
+        f"agent{'' if one.most == 1 else 's'}"
+        for name, one in recipes
+        if one is not None
     )
     return _fn(
         "pick_teams",
         "Pick the teams that work on the user's message, each with a recipe, and say why in a "
         "sentence; the user sees your picks. The user left the teams to you: for a message that "
-        "asks for work (a change, a fix to be checked, a feature), call this first, before any "
-        "spawn_agent. Pick before you open their roles: once picked, "
-        "spawn_agent opens only the roles of the teams picked; until then, any role but one only "
-        "in teams you may not pick. A simple question needs no team: answer it yourself. A "
-        "later pick replaces this one: name every team then. Their roles listed are those on. "
-        f"Teams you may pick:\n{listed}",
+        "asks for bigger work (a feature, a fix across files, a change to be built and checked), "
+        "call this first, before any spawn_agent. A small change - a few lines in one or two "
+        "files - needs no team: make it with one agent (or yourself, where you may write "
+        "files), and say in one line why no team; KOLONİ checks the work at the end all the "
+        "same. Pick before you open their roles: once picked, spawn_agent opens only the roles "
+        "of the teams picked; until then, any role but one only in teams you may not pick. A "
+        "simple question needs no team: answer it yourself. A later pick replaces this one: "
+        f"name every team then. Their roles listed are those on. Teams you may pick:\n{listed}"
+        + (
+            "\nRecipes, with how many agents a run opens - where nothing goes back, to where "
+            f"every loop does: weigh the cost against the work:{counted}"
+            if counted
+            else ""
+        ),
         {
             "teams": {
                 "type": "array",
@@ -495,7 +510,7 @@ def pick_schema(teams, recipes) -> dict:
                         "team": {"type": "string", "description": "A team's name, as listed."},
                         "recipe": {
                             "type": "string",
-                            **({"enum": list(recipes)} if recipes else {}),
+                            **({"enum": [name for name, _one in recipes]} if recipes else {}),
                             "description": "Optional: the recipe it works by; left "
                             "out, the team's own default.",
                         },

@@ -411,11 +411,15 @@ class NativeMixin:
                     forget_session(kept, self.settings.runtime_root)  # (27: one no turn goes on in)
             self._native[ctx.cid] -= counted
             self._end_live(ctx)
+            self._last_looks.append(watch)  # (its looks still wait for Take in's writes)
             self._watches[ctx.cid].remove(watch)
-            if asks:
-                with contextlib.suppress(Exception):
-                    await self._settle_watch(ctx, watch)
-            await self._native_work_last_look(ctx, transcript, watch, view, copy)
+            try:
+                if asks:
+                    with contextlib.suppress(Exception):
+                        await self._settle_watch(ctx, watch)
+                await self._native_work_last_look(ctx, transcript, watch, view, copy)
+            finally:
+                self._last_looks.remove(watch)
         self._count_tokens(
             ctx,
             usage.input_tokens,

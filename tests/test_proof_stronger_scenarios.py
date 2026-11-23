@@ -371,6 +371,8 @@ def test_a_round_that_loosens_the_test_without_leave_is_no_pass(
         if r["kind"] in ("stronger", "rounds") and r["state"] == "failed"
     ]
     assert rows and all(r["command"] == CHECK for r in rows), rows
+    # (and why, as a code of KOLONİ's: Fix it's sentence goes by it, never by the row's words)
+    assert [r["reason"] for r in rows] == ["touched", "still"], rows
 
 
 def test_a_test_wrong_round_is_read_by_the_reviewer(
@@ -405,6 +407,14 @@ def test_a_test_wrong_round_is_read_by_the_reviewer(
     )
     assert (1, True) in seen, (seen, texts)
     assert s11.TEST_HELD.format(model="big-model") in texts, texts
+    reasons = [
+        r["reason"]
+        for m in _snap["messages"]
+        if m["role"] == "checked"
+        for r in m["checked"]
+        if r["kind"] == "stronger" and r["state"] == "failed"
+    ]
+    assert reasons == ["held"], reasons
 
 
 def test_s7s_failed_row_is_no_stronger_pass():

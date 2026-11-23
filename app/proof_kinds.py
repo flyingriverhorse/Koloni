@@ -8,8 +8,9 @@ the turn is a note too: the turn did not make it.
 
 Each check reads only inside the project, through `Workspace` - a link that leads out of it is
 never looked at - with what it reads capped: the files are the project's, untrusted input.
-`check_docs`, `check_diagrams`, `check_data` and `check_slides` hold no state of a turn: S5c's
-recipe Checks step runs them too."""
+`check_docs`, `check_diagrams`, `check_data`, `check_slides` and `check_config` (0.1.7: a JSON,
+YAML or TOML file parses, a well-known one keeps its shape) hold no state of a turn: S5c's recipe
+Checks step runs them too."""
 
 import asyncio
 import base64
@@ -18,6 +19,7 @@ import io
 import json
 import posixpath
 import re
+import tomllib
 import zipfile
 import zlib
 from collections import Counter
@@ -28,13 +30,15 @@ from urllib.parse import unquote, urlsplit
 from xml.etree import ElementTree
 from xml.parsers import expat
 
-from app import browser
+import yaml
+
+from app import browser, ci_commands
 from app.proof import Row, row
-from app.workspace import Outside, Workspace, WorkspaceError
+from app.workspace import Outside, Workspace, WorkspaceError, secret_in_project, secret_named
 
 # The kinds a project switches (`Project.check_kinds`) checked with no browser, each as Settings
 # says it; and S5b's pages (`check_pages`, "ui"), which need KOLONİ's own browser.
-KINDS = ("docs", "slides", "diagram", "data")
+KINDS = ("docs", "slides", "diagram", "data", "config")
 UI = "ui"
 WRITTEN = (*KINDS, UI)
 SHOWN = {
@@ -42,6 +46,7 @@ SHOWN = {
     "slides": "slides",
     "diagram": "diagrams",
     "data": "data",
+    "config": "config files",
     UI: "pages",
 }
 KINDS_TO_FIX = (
@@ -771,11 +776,300 @@ def check_slides(
     return _each(ws, paths, "slides", one, before or {})
 
 
+# --- config (0.1.7): JSON, YAML and TOML parse; a few well-known files keep their shape ---------
+
+# The files Config reads, by their ending (the user's rule: a kind by its file's ending) - other
+# files `proof.kind_of` calls config (a Makefile, a lock file) are not its (`kinds_mixin._written`).
+CONFIG_FILES = (".json", ".yaml", ".yml", ".toml")
+# How deep a config file nests, at most, to be read - a parser recurses: a deeper one is no
+# config anyone writes. YAML and TOML are read in Python, slowly - TOML's dotted keys in time and
+# memory squared (review of Config): a bigger file is not read, nor more YAML in all a turn than
+# S8 reads of the CI's files.
+MOST_DEPTH = 100
+MOST_READ = ci_commands.MOST_BYTES
+MOST_YAML_ALL = ci_commands.MOST_ALL
+TOO_DEEP = f"it nests over {MOST_DEPTH} deep"
+SECRET = "a secret file is never read"
+# (Not secrets by name elsewhere - an agent may read them - but they often hold one.)
+MAY_HOLD = "it may hold a secret"
+_MAY_HOLD = re.compile(r"credentials\.json|token\.json|kubeconfig[^/]*|client_secret[^/]*\.json")
+NO_PARSE = "does not parse - "
+_BRACKET = re.compile(r"[\[\]{}]")
+# (Each one unended - a lone backslash before the end too - runs to the end of its line, or of the
+# file for a comment or a long string, in one match: never read again from each later quote,
+# which takes time squared. `re` holds the GIL: a slow one stops the whole server.)
+_QUOTED = r'"(?:[^"\\\n]|\\.)*(?:"|\\?(?:\n|\Z))'
+_JSON_STRING = re.compile(_QUOTED)
+# (A multi-line string ends as TOML ends it: its escaped quotes are its own, and it closes on its
+# LAST quote - up to two more are its text, `"""x""""` is `x"` - or the scan loses step with it.)
+_TOML_SKIP = re.compile(
+    r'"""(?:[^"\\]|\\[\s\S]|"(?!""))*(?:"{3,5}|\\?\Z)'
+    r"|'''(?:[^']|'(?!''))*(?:'{3,5}|\Z)"
+    rf"|{_QUOTED}"
+    r"|'[^'\n]*(?:'|\n|\Z)"
+    r"|#.*"
+)
+# A TOML key of over MOST_DEPTH dotted parts - each part a table deeper; looked for in the text as
+# it is too, so no string the scan misreads hides one (a string of as many dots is not read).
+_DOTTED = re.compile(rf"(?:\.[^.=\n\[\]{{}},]*){{{MOST_DEPTH}}}")
+# JSON with comments (tsconfig.json, VS Code's): its comments and trailing commas left out, its
+# lines kept where they were, its strings as they are.
+_JSONC = re.compile(rf"({_QUOTED})|//.*|/\*[\s\S]*?(?:\*/|\Z)|,(?=\s*[}}\]])")
+# The JSON files their tools read with comments and trailing commas (TypeScript's, VS Code's, a dev
+# container's, ESLint's) - every other .json is strict: its reader breaks on them.
+# shortcut: by name; add one here when its tool is seen to read comments.
+_COMMENTED = re.compile(
+    r"/(tsconfig[^/]*|jsconfig[^/]*|\.eslintrc|\.?devcontainer)\.json$|/\.vscode/[^/]+\.json$"
+)
+_TOML_AT = re.compile(r" \(at line (\d+), column \d+\)$")  # (one space: never a run of them)
+_TOML_END = " (at end of document)"
+_COMPOSE = re.compile(r"(docker-)?compose([.-][\w.-]*)?\.ya?ml")
+
+
+class _Deep(Exception):
+    pass
+
+
+class _Nested(ci_commands.NoAliases):
+    """S8's YAML with no aliases, its nesting capped as it is composed (`MOST_DEPTH`); a tag it
+    does not know (mkdocs' `!!python/name:`, Compose's `!reset`) read as the plain value under
+    it - never constructed, and never said back (a verbatim tag is any text)."""
+
+    depth = 0
+
+    def compose_node(self, parent, index):
+        self.depth += 1
+        try:
+            if self.depth > MOST_DEPTH:
+                raise _Deep
+            return super().compose_node(parent, index)
+        finally:
+            self.depth -= 1
+
+
+def _untagged(loader: yaml.SafeLoader, _tag: str, node: yaml.Node) -> object:
+    if isinstance(node, yaml.MappingNode):
+        return loader.construct_mapping(node, deep=True)
+    if isinstance(node, yaml.SequenceNode):
+        return loader.construct_sequence(node, deep=True)
+    return loader.construct_scalar(node)  # type: ignore[arg-type]
+
+
+_Nested.add_multi_constructor("", _untagged)
+
+
+def _deep(bare: str) -> bool:
+    """Whether its brackets - its strings left out - nest over MOST_DEPTH."""
+    depth = 0
+    for found in _BRACKET.finditer(bare):
+        depth += 1 if found.group() in "[{" else -1
+        if depth > MOST_DEPTH:
+            return True
+    return False
+
+
+def _toml(text: str, rel: str) -> tuple[object, str | None]:
+    if len(text) > MOST_READ:
+        raise WorkspaceError(f"it is over {MOST_READ // 1024} KB of TOML")
+    bare = _TOML_SKIP.sub("", text)
+    if _deep(bare) or _DOTTED.search(bare) or _DOTTED.search(text):
+        raise WorkspaceError(TOO_DEEP)
+    try:
+        return tomllib.loads(text), None
+    except RecursionError:
+        raise WorkspaceError(TOO_DEEP) from None
+    except tomllib.TOMLDecodeError as exc:
+        said, line = str(exc), 1
+        if at := _TOML_AT.search(said):
+            said, line = said[: at.start()], int(at.group(1))
+        elif said.endswith(_TOML_END):
+            said, line = said.removesuffix(_TOML_END), text.count("\n") + 1
+        return None, f"{rel}:{line}: {NO_PARSE}{_said(said)}"
+
+
+def _yaml(text: str, rel: str) -> tuple[object, str | None]:
+    """Its first document (each parses), and its parser's first complaint."""
+    if len(text) > MOST_READ:
+        raise WorkspaceError(f"it is over {MOST_READ // 1024} KB of YAML")
+    try:
+        docs = list(yaml.load_all(text, Loader=_Nested))  # noqa: S506 (SafeLoader's)
+    except ci_commands.Alias:
+        raise WorkspaceError("it uses YAML aliases, which are not read") from None
+    except (_Deep, RecursionError):
+        raise WorkspaceError(TOO_DEEP) from None
+    except yaml.MarkedYAMLError as exc:
+        line = exc.problem_mark.line + 1 if exc.problem_mark else 1
+        return None, f"{rel}:{line}: {NO_PARSE}{_said(exc.problem or 'not YAML')}"
+    except yaml.YAMLError as exc:
+        return None, f"{rel}: {NO_PARSE}{_said(str(exc))}"
+    return docs[0] if docs else None, None
+
+
+def _json(text: str, rel: str) -> tuple[object, str | None]:
+    """Strict JSON - or, for a file its tool reads with comments and trailing commas
+    (`_COMMENTED`), JSON with them."""
+    if _deep(_JSON_STRING.sub("", text)):
+        raise WorkspaceError(TOO_DEEP)
+    try:
+        return json.loads(text), None
+    except json.JSONDecodeError as strict:
+        if not _COMMENTED.search("/" + rel.replace("\\", "/").casefold()):
+            return None, f"{rel}:{strict.lineno}: {NO_PARSE}{strict.msg}"
+        bare = _JSONC.sub(lambda m: m.group(1) or "\n" * m.group(0).count("\n"), text)
+        try:
+            return json.loads(bare), None
+        except json.JSONDecodeError as exc:
+            return None, f"{rel}:{exc.lineno}: {NO_PARSE}{exc.msg}"
+    except RecursionError:
+        raise WorkspaceError(TOO_DEEP) from None
+
+
+def _package(value: object) -> list[str]:
+    if not isinstance(value, dict):
+        return ["not a JSON object"]
+    found = [f"{key} is not a string" for key in ("name", "version") if not _string(value, key)]
+    scripts = value.get("scripts", {})
+    if not isinstance(scripts, dict):
+        return [*found, "scripts is not an object"]
+    return found + [
+        f"scripts.{_key(key)} is not a string" for key in scripts if not _string(scripts, key)
+    ]
+
+
+def _key(key: object) -> str:
+    """A key of the file, said on one line (a JSON key may hold a newline)."""
+    return _said(" ".join(str(key).split()))
+
+
+def _string(value: dict, key: str) -> bool:
+    return key not in value or isinstance(value[key], str)
+
+
+def _pyproject(value: object) -> list[str]:
+    if not isinstance(value, dict):  # (TOML is a table: never, but said)
+        return ["not a table"]
+    found, project, tools = [], value.get("project"), value.get("tool")
+    if project is not None and not isinstance(project, dict):
+        found.append("project is not a table")
+    elif isinstance(project, dict) and not isinstance(project.get("name"), str):
+        found.append("[project] has no name")
+    if tools is not None and not isinstance(tools, dict):
+        found.append("tool is not a table")
+    elif isinstance(tools, dict):
+        found += [
+            f"tool.{_key(key)} is not a table"
+            for key, one in tools.items()
+            if not isinstance(one, dict)
+        ]
+    return found
+
+
+def _workflow(value: object) -> list[str]:
+    if not isinstance(value, dict):
+        return ["not a mapping"]
+    # (YAML 1.1 reads a bare `on` as true: its key is True there)
+    found = [] if "on" in value or True in value else ["has no on: (what starts it)"]
+    jobs = value.get("jobs")
+    if not isinstance(jobs, dict) or not jobs:
+        return [*found, "has no jobs" if jobs is None else "jobs is not a mapping of jobs"]
+    for name, job in jobs.items():
+        said = _key(name)
+        if not isinstance(job, dict):
+            found.append(f"job {said} is not a mapping")
+        elif "uses" not in job and "runs-on" not in job:
+            found.append(f"job {said} has no runs-on or uses")
+        elif "uses" not in job and not isinstance(job.get("steps"), list):
+            found.append(f"job {said} has no list of steps")
+    return found
+
+
+def _compose(value: object) -> list[str]:
+    if not isinstance(value, dict):
+        return ["not a mapping"]
+    # (An override file may hold only volumes or networks.)
+    return [] if isinstance(value.get("services", {}), dict) else ["services is not a mapping"]
+
+
+def _shape(rel: str) -> tuple[str, Callable[[object], list[str]]] | None:
+    """A well-known file's shape check, and what it is checked as; None: no such file."""
+    name = rel.replace("\\", "/").casefold()
+    base = name.rsplit("/", 1)[-1]
+    if base == "package.json":
+        return "a package.json", _package
+    if base == "pyproject.toml":
+        return "a pyproject.toml", _pyproject
+    if "/.github/workflows/" in f"/{name}" and base.endswith((".yml", ".yaml")):
+        return "a GitHub workflow", _workflow
+    if _COMPOSE.fullmatch(base):
+        return "a Compose file", _compose
+    return None
+
+
+def _config(data: bytes, rel: str) -> list[Row]:
+    name = rel.casefold()
+    if not name.endswith(CONFIG_FILES):
+        why = "only JSON, YAML and TOML are read"
+        return [row("config", "note", NOT_CHECKED_FILE.format(path=rel, why=why))]
+    read = _toml if name.endswith(".toml") else _yaml if name.endswith(("yml", "yaml")) else _json
+    value, failed = read(_text(data), rel)
+    if failed is not None:
+        return [row("config", "failed", failed)]
+    if (shape := _shape(rel)) is None:
+        return [row("config", "passed", f"{rel}: parses")]
+    what, check = shape
+    problems = check(value)
+    return [row("config", "failed", f"{rel}: {one}") for one in problems] or [
+        row("config", "passed", f"{rel}: parses, as {what} should")
+    ]
+
+
+def check_config(
+    root: Path | Workspace, paths: list[str], before: Mapping[str, str | None] | None = None
+) -> list[Row]:
+    """Config: a JSON, YAML or TOML file parses - else failed, with its parser's first complaint
+    and its line - and a package.json, a pyproject.toml, a GitHub workflow or a Compose file has
+    the shape its tool reads; a secret file is never read, nor one whose name often holds a
+    secret (credentials.json), one that nests too deep, YAML with aliases, nor a file past its
+    size (`MOST_READ`, and `MOST_YAML_ALL` of YAML in all)."""
+    ws, left, counted = _workspace(root), MOST_YAML_ALL, set()
+
+    def kept_out(rel: str) -> str | None:
+        """Why it is not read: a secret, or a name that often holds one; None: it is read."""
+        try:  # (by its name, and by where a link of that name leads in the project)
+            secret = secret_named(rel, ws.rel(ws.resolve(rel)))
+        except Exception:  # (a link loop: RuntimeError on 3.12 - the read says so, in `_each`)
+            secret = secret_in_project(rel)
+        name = rel.replace("\\", "/").rsplit("/", 1)[-1].casefold()
+        return SECRET if secret else MAY_HOLD if _MAY_HOLD.fullmatch(name) else None
+
+    def one(data: bytes, rel: str) -> list[Row]:
+        nonlocal left
+        # (Its text now only: the one before - `_each` reads it after - is its own file again, and
+        # a budget spent there would read an old problem as the turn's.)
+        name = rel.casefold()
+        if name.endswith(("yml", "yaml")) and len(data) <= MOST_READ and rel not in counted:
+            counted.add(rel)
+            if len(data) > left:
+                raise WorkspaceError(f"past {MOST_YAML_ALL // 1024} KB of YAML in all")
+            left -= len(data)
+        return _config(data, rel)
+
+    out = {rel: why for rel in paths if (why := kept_out(rel)) is not None}
+    return [
+        *(
+            row("config", "note", NOT_CHECKED_FILE.format(path=rel, why=why))
+            for rel, why in out.items()
+        ),
+        *_each(ws, [rel for rel in paths if rel not in out], "config", one, before or {}),
+    ]
+
+
 CHECKS: dict[str, Callable[..., list[Row]]] = {
     "docs": check_docs,
     "diagram": check_diagrams,
     "data": check_data,
     "slides": check_slides,
+    "config": check_config,
 }
 
 

@@ -21,8 +21,10 @@ smallest that fits: every extra agent is more model calls, so more tokens, money
 ## Examples
 
 **"Fix the failing date test."**
-Just ask. One bug in one place is a job for the Orchestrator, or one Coder it opens. With
-**Teams for this chat** → **No teams**, it never brings in a team.
+Just ask. One bug in one place is a job for the Orchestrator, or one Coder it opens. Under
+**Orchestrator decides** too, a change of a few lines in one or two files gets no team: it says why
+in one line, and KOLONİ's checks run at the end all the same. With **Teams for this chat** →
+**No teams**, it never brings in a team.
 
 **"Add a password reset page, with review and tests."**
 A team with the **Feature** recipe: in **Teams for this chat** choose **Manual**, then the **Web app**

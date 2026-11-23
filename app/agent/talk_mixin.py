@@ -4,6 +4,7 @@ and the shared notebook (post_note / read_notes) - `TalkMixin`.
 """
 
 import asyncio
+import logging
 from collections.abc import Callable, Collection
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -28,6 +29,7 @@ from app.agent.cards import _changes_nothing
 from app.agent.ctx import Ctx, announce
 from app.agent.summary import _lines_written_out
 from app.agent.words import CANT_UNDO, FROM, HANDED, LEADS_LATER, NOT_HEARD
+from app.api.recipes import agents_of
 from app.db.models import (
     Agent,
     BoardPost,
@@ -42,6 +44,7 @@ from app.db.models import (
 from app.discussion import MEMORY_HEAD
 from app.providers import list_providers
 from app.roles import LEAD, ORCHESTRATOR, agent_roles, closed, pickable, team_roles, tools_off
+from app.schemas import RecipeAgents, RecipeGraph
 from app.serialize import board_post_out, message_out
 from app.team import guide, quoted
 from app.tools import (
@@ -99,6 +102,22 @@ RECIPE_RULES = (
 )
 
 MAX_MESSAGES_PER_TURN = 30
+
+log = logging.getLogger(__name__)
+# Review of T2: the stored recipes that no longer read, each said once (read at every Lead step).
+_UNREAD: set[str] = set()
+
+
+def _counted(name: str, graph: dict) -> tuple[str, RecipeAgents | None] | None:
+    """A recipe as pick_teams lists it: its name and its agents (`agents_of`); None - left out,
+    logged once - where its stored drawing no longer reads: one old recipe fails no turn."""
+    try:
+        return name, agents_of(RecipeGraph.model_validate(graph))
+    except Exception as exc:  # (a stored row is untrusted here: whatever it breaks)
+        if name not in _UNREAD:
+            _UNREAD.add(name)
+            log.warning("recipe %r is not offered to pick_teams: %s", name, exc)
+        return None
 
 
 class TalkMixin:
@@ -183,7 +202,13 @@ class TalkMixin:
                 [
                     pick_schema(
                         [(team, team_roles(session, team)) for team in may],
-                        session.scalars(select(Recipe.name).order_by(Recipe.created_at)).all(),
+                        [  # (T2: each with its agents, as the Recipes list says them)
+                            one
+                            for name, graph in session.execute(
+                                select(Recipe.name, Recipe.graph).order_by(Recipe.created_at)
+                            )
+                            if (one := _counted(name, graph)) is not None
+                        ],
                     )
                 ]
                 if may

@@ -33,7 +33,7 @@ On the canvas, **Teams for this chat** chooses how the chat uses teams:
 
 | Mode | What it does |
 |---|---|
-| **Orchestrator decides** | "It picks the teams and a recipe for each, and says why." |
+| **Orchestrator decides** | "It picks the teams and a recipe for each, and says why. A small change (a few lines in one or two files) needs no team: it makes it with one agent (or itself, where the project lets it write), and KOLONİ checks it all the same." It says why in one line, and sees how many agents each recipe opens ("Feature: 6-16 agents") to weigh the cost. |
 | **Manual** | "You pick the teams it may use; it opens only those a message needs." For each team, pick its default recipe, **No recipe**, or another recipe. **+ Add a team with a recipe** adds one. |
 | **No teams** | "As before: it calls any role itself." |
 

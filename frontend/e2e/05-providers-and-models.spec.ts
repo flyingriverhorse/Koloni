@@ -66,4 +66,6 @@ test('a role can be given its own model on the Agents page', async ({ page }) =>
   await page.getByRole('button', { name: 'Agents', exact: true }).click()
   await editRole(page, 'Reviewer', 'tiers')
   await page.getByRole('button', { name: 'Reset to default' }).click()
+  // (landed before the page closes: else 28a found the Reviewer still on one model, on CI)
+  await expect(page.getByRole('radio', { name: 'Orchestrator', exact: true })).toBeChecked()
 })

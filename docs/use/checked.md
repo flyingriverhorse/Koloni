@@ -75,7 +75,7 @@ project:
 - **Nothing** runs nothing and sends nothing back. The Checked section still says that nothing
   was checked, and names the last test run an agent made in the turn.
 
-![Settings, This project, Checks and git: After a change on Test and review with the line of what it does here, Fix rounds on Until it passes, Then a stronger model ticked, and Check by kind of work with Documents, Slides, Diagrams, Data and Pages](../images/settings-checks.png)
+![Settings, This project, Checks and git: After a change on Test and review with the line of what it does here, Fix rounds on Until it passes, Then a stronger model ticked, and Check by kind of work with Documents, Slides, Diagrams, Data, Pages and Config](../images/settings-checks.png)
 
 The line under the choice says what it does in this project now, from its real state - for
 example "Runs python -m pytest -q in ./ (found by KOLONİ), related tests first, the whole suite in
@@ -402,8 +402,9 @@ Ask for changes would: its own roles fix it in its copy, and its end checks it a
 
 ## Documents, diagrams, data and slides
 
-Under **Test and review**, a turn that wrote documents, diagrams, data or slides gets KOLONİ's
-checks of them, with no model and nothing installed: each file its own line under the answer.
+Under **Test and review**, a turn that wrote documents, diagrams, data, slides or config files
+gets KOLONİ's checks of them, with no model and nothing installed: each file its own line under
+the answer. Which kind a file is, its ending says.
 They come after the tests and before the review. A turn that wrote only such files runs no tests
 ("No tests: only documents, slides, diagrams or data changed") and gets these checks. Under
 **Tests only**, **Nothing**, or where checks are off for the chat, they do not run.
@@ -414,6 +415,7 @@ They come after the tests and before the review. A turn that wrote only such fil
 | Diagrams (`.drawio`, `.svg`, `.mmd`, `.puml`) | a draw.io file (a compressed page too) or an SVG that does not parse; an edge that points at nothing; PlantUML without `@startuml` … `@enduml` (or `@startmindmap` … `@endmindmap` and the like) | labelled shapes on one box, shapes not connected where the page has edges, a Mermaid type KOLONİ does not know, "drawn: not checked" for Mermaid |
 | Data (`.csv`, `.tsv`, `.ipynb`) | rows with another number of fields than the header; a notebook that does not parse, or a cell that ends in an error | cells not run 1, 2, 3 … in order; "not re-run: KOLONİ does not run notebooks"; Parquet and Excel are not read |
 | Slides (`.pptx`) | a file that does not open; a slide with no text and no picture | the slides and how many have notes; "overflow and contrast: not checked"; `.odp` and `.key` are not read |
+| Config (`.json`, `.yaml`, `.yml`, `.toml`) | a file that does not parse, with its parser's first complaint and line ("package.json:3: does not parse - Expecting property name enclosed in double quotes"); a `package.json` that is no object, or whose `name`, `version` or a script is no string; a `pyproject.toml` whose `[project]` has no name or whose `[tool.…]` is no table; a GitHub workflow (`.github/workflows/*.yml`) with no `on:` or no jobs, or a job with neither `runs-on` nor `uses`, or with no list of steps; a Compose file (`compose.yaml`, `docker-compose*.yml`) whose `services` is no mapping | a secret file (`.env.json`, `secrets.yaml`) is never read, nor one whose name often holds a secret (`credentials.json`, `token.json`, `kubeconfig…`, `client_secret….json`); a file nested over 100 deep (a TOML key of over 100 dotted parts too), a YAML or TOML file over 256 KB, YAML past 1 MB in all in a turn, or YAML with aliases is not read; a YAML tag KOLONİ does not know (`!!python/name:`, `!reset`) is read as the value under it; JSON with comments and trailing commas passes where its tool reads them (`tsconfig.json`), never a `package.json` |
 
 A deck, Word file or other file a command made (a script that writes a `.pptx`) is checked too,
 when the turn has a change on record. A checked problem goes back to the Orchestrator as a fix

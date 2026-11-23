@@ -73,7 +73,17 @@ def test_paths_in_a_task():
 # --- who is handed on, on record -------------------------------------------------------------
 
 
-def ended(session, cid, task, status="completed", days_ago=0, part=None, name="Coder", **more):
+def ended(
+    session,
+    cid,
+    task,
+    status="completed",
+    days_ago=0,
+    part=None,
+    name="Coder",
+    minutes_ago=0,
+    **more,
+):
     run = Run(conversation_id=cid, status="completed", started_at=now(), ended_at=now())
     session.add(run)
     session.flush()
@@ -86,7 +96,7 @@ def ended(session, cid, task, status="completed", days_ago=0, part=None, name="C
         depth=1,
         status=status,
         started_at=now(),
-        ended_at=now() - timedelta(days=days_ago),
+        ended_at=now() - timedelta(days=days_ago, minutes=minutes_ago),
         **more,
     )
     session.add(agent)
@@ -106,7 +116,9 @@ def test_found_takes_files_then_part_then_words_and_leaves_out_the_rejected_and_
         ui = Conversation(project_id=project.id, part="ui/")
         session.add_all([core, ui])
         session.flush()
-        on_file = ended(session, core.id, "do the thing", report=REPORT)
+        # (Each ends at a time of its own: Windows' clock gives records made at once the same
+        # one, and "newest first" is then their ids' order.)
+        on_file = ended(session, core.id, "do the thing", report=REPORT, minutes_ago=6)
         session.add(
             FileChange(
                 run_id=on_file.run_id,
@@ -118,9 +130,9 @@ def test_found_takes_files_then_part_then_words_and_leaves_out_the_rejected_and_
                 status="applied",
             )
         )
-        in_core = ended(session, core.id, "tidy the core")
-        in_ui = ended(session, ui.id, "the etl report page")
-        ended(session, ui.id, "etl report", status="rejected")
+        in_core = ended(session, core.id, "tidy the core", minutes_ago=5)
+        in_ui = ended(session, ui.id, "the etl report page", minutes_ago=4)
+        ended(session, ui.id, "etl report", status="rejected", minutes_ago=3)
         ended(session, ui.id, "etl report of old", days_ago=31)
         failed = ended(
             session,
@@ -129,6 +141,7 @@ def test_found_takes_files_then_part_then_words_and_leaves_out_the_rejected_and_
             status="failed",
             error="step_limit",
             stopped_by_koloni=True,
+            minutes_ago=2,
         )
         session.commit()
         ids = lambda found: [a.id for a in found]  # noqa: E731

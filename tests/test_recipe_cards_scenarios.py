@@ -10,6 +10,7 @@ import pytest
 
 import app.agent
 from app.model_client import ModelUnavailable
+from tests.conftest import scaled
 from tests.test_chat_flow import text
 from tests.test_chat_teams_scenarios import OWN, teams_of
 from tests.test_claim_scenarios import write
@@ -472,8 +473,11 @@ def test_with_no_other_role_on_to_check_it_the_writer_checks_and_its_node_says_s
 def test_a_limit_still_reached_at_go_ons_time_brings_the_card_back_with_its_next_reset(
     make_client, wait_run, project_dir
 ):
+    # (Its reset still to come as its card is made: one already past is not offered
+    # (`_cant_run`), and Go on waited for the window's, an hour off - on a loaded runner the
+    # card came over a second after the limit, 23 Nov.)
     client, model = make_client(
-        {"Lead": [spawn("Coder", "build"), text("done")], "Coder": [hit(1)]}
+        {"Lead": [spawn("Coder", "build"), text("done")], "Coder": [hit(scaled(2))]}
     )
     later = datetime.now(UTC) + timedelta(hours=1)
     limits = client.app.state.runner.providers.limits
@@ -485,7 +489,9 @@ def test_a_limit_still_reached_at_go_ons_time_brings_the_card_back_with_its_next
     web = teams_of(client)["Web app"]
     cid, run_id = manual(client, project_dir, (web, one_step(client, "Just build", "Coder")))
     card = asked(until(client, cid, asked))
-    answer(client, card, next(word for word in card["options"] if word.startswith("Go on at ")))
+    go_on = next(word for word in card["options"] if word.startswith("Go on at "))
+    assert go_on != f"Go on at {later.astimezone():%H:%M}", card
+    answer(client, card, go_on)
     again = asked(until(client, cid, other(card), timeout=10))
     assert (
         f"Go on at {later.astimezone():%H:%M}" in again["options"]
