@@ -202,7 +202,7 @@ REVIEW_ON = {"test_proof_review_scenarios", "test_recipe_end_checks_scenarios",
 BEFORE_ON = {"test_proof_before_scenarios"}
 # S2: a turn that changed code and no test is asked once for one at its end - in a test, a step of
 # the scripted Lead more in every such turn; its rows too. On only where tested.
-ASK_ON = {"test_proof_test_ask_scenarios"}
+ASK_ON = {"test_proof_test_ask_scenarios", "test_proof_try_ask_scenarios"}
 # S5a: a turn that wrote documents, diagrams, data or slides gets KOLONİ's file checks - in a test,
 # their rows in every such turn, and a step of the scripted Lead more where one fails. On only
 # where tested.
@@ -214,7 +214,7 @@ PAGES_ON = {"test_proof_pages"}
 # S5b: the live try - a changed tool run with --help, a big change of screens tried by the Tester
 # on a preview - in a test, runs of the scripted executor and a scripted agent more. On only where
 # tested.
-TRY_ON = {"test_proof_try_scenarios"}
+TRY_ON = {"test_proof_try_scenarios", "test_proof_try_ask_scenarios"}
 
 
 async def _none(*_args, **_more):

@@ -378,6 +378,56 @@ def test_touched_since_counts_an_earlier_write_and_a_committed_one(tmp_path, mon
     assert proof.touched_since(folder, began, {"a.py"}, head) == ["b.py"]
 
 
+@pytest.mark.parametrize("line", [
+    "cat gen.py > calc.py", "> f", "git show HEAD:f > f", "grep -v x a > b", "rg x > f",
+    "head -3 a > f", "type a > b", "Get-Content a > b", "npm test -- -u", "npx jest -u",
+    "npx vitest run -u", "pytest --snapshot-update", "python -m pytest -q --junitxml=calc.py",
+    "pytest -q $(sed -i s/a/b/ a.py)", 'bash -c "pytest -q > a.py"'])
+def test_a_redirect_or_a_test_runs_writing_option_may_write(line):
+    # (CL-329 G: the end check opened for none of these - `ledger._split` drops a redirection,
+    # and a test run was taken as reading only)
+    assert proof.may_write(line)
+
+
+@pytest.mark.parametrize("line", [
+    "pytest -q", "pytest -q 2>&1 | tail -1", "git status > /dev/null", "python -m pytest -q > NUL",
+    'bash -c "pytest -q"', "rg KEY .", "python -u -m pytest -q", "pytest --cov-report=term"])
+def test_a_stream_nowhere_or_a_plain_test_run_writes_nothing(line):
+    assert not proof.may_write(line)
+
+
+@pytest.mark.skipif(__import__("shutil").which("git") is None, reason="git is not installed")
+def test_a_test_file_a_command_deleted_is_counted_and_another_file_is_put_back(tmp_path,
+                                                                              monkeypatch):
+    from tests.test_take_in_scenarios import repository
+    (tmp_path / "gitconfig").write_text("")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "gitconfig"))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    folder = tmp_path / "p"
+    folder.mkdir()
+    for name in ("a.py", "b.py", "test_b.py", "c.py"):
+        (folder / name).write_text("1\n")
+    repository(folder)
+    # (CL-329 G: a tracked test deleted - no time to read - is counted; another file is not)
+    (folder / "test_b.py").unlink()
+    (folder / "c.py").unlink()
+    assert proof.touched_since(folder, now(), set()) == ["test_b.py"]
+    assert proof.touched_since(folder, now(), {"test_b.py"}) == []
+    # (KOLONİ's own run leaves the tracked files as it found them: a.py was unchanged - back to
+    # the commit; b.py was changed before - back to that; d.py it made, untracked - left; e.py
+    # an agent wrote on record meanwhile - spared)
+    (folder / "b.py").write_bytes(b"mine\n")
+    before = proof.sources_before(folder)
+    assert before is not None and before["b.py"] == b"mine\n"
+    (folder / "a.py").write_text("fixed by ruff\n")
+    (folder / "b.py").write_text("fixed by ruff\n")
+    (folder / "d.py").write_text("a report\n")
+    assert proof.put_back_sources(folder, before, {"a.py"}) == ["b.py"]
+    assert (folder / "b.py").read_text() == "mine\n"
+    assert proof.put_back_sources(folder, before, set()) == ["a.py"]
+    assert (folder / "a.py").read_text() == "1\n" and (folder / "d.py").exists()
+
+
 def test_exit_0_with_command_not_found_in_its_output_is_passed():
     out = "test_cli.py::test_missing_tool PASSED  (asserts 'bash: foo: command not found')\n3 passed\n"
     assert proof.tests_row(RUN, 0, out, "exited", "")["state"] == "passed"

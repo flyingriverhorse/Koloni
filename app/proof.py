@@ -363,9 +363,27 @@ def _ran_in(cwd: str | None, folder: str | None) -> bool:
 def may_write(line: str) -> bool:
     """Whether a command line may change files: a part of it (`ledger._split`) is neither a mere
     read (`only_reads`), a lone search (`only_searches`: `rg KEY .`) nor a test run
-    (`ledger.read_test`) - `black . && pytest -q` may."""
-    return any(ledger.read_test(part) is None and not only_reads(part) and not only_searches(part)
-               for part in (" ".join(words) for words, _op in ledger._split(line) if words))
+    (`ledger.read_test`) - `black . && pytest -q` may. CL-329 G: so may a line that redirects
+    into a file (`cat a > b`, `git show HEAD:f > f`; not `2>&1`, `/dev/null`), a test run with
+    an option that writes (`jest -u`, `--junitxml=a.py`: `ledger.test_writes`), a command
+    substitution (`pytest -q $(sed -i …)`) and a line handed to a shell that may
+    (`bash -c "pytest -q > a.py"`)."""
+    if ledger.written_to(line) or "$(" in line or "`" in line:
+        return True
+    for words, _op in ledger._split(line):
+        if not words:
+            continue
+        handed = ledger._handed_on(ledger._past_leads(words))
+        part = " ".join(words)
+        if handed is not None:
+            if may_write(handed):
+                return True
+        elif ledger.read_test(part) is not None:
+            if ledger.test_writes(part):
+                return True
+        elif not only_reads(part) and not only_searches(part):
+            return True
+    return False
 
 
 def touched_since(folder: Path, since: datetime | None, recorded: Collection[str],
@@ -373,9 +391,12 @@ def touched_since(folder: Path, since: datetime | None, recorded: Collection[str
     """Review of CL-321 D: what commands may have changed, by git - the files `git status`
     lists in `folder` (changed, added, untracked; not ignored) and, from `head` (the turn's
     start), those committed since (`black . && git commit -am x`), but those on record
-    (`recorded`), written at or after `since`. None: no git there (or it did not answer in
-    time). Blocking: call it off the event loop.
-    shortcut: a file deleted is not seen (no time to read); count git's deletions if missed.
+    (`recorded`), written at or after `since` - and (CL-329 G) a tracked test file deleted, which
+    has no time to read. None: no git there (or it did not answer in time). Blocking: call it
+    off the event loop.
+    shortcut: a tracked test file deleted before the turn is counted too (git says no when);
+    read the deletions as the turn begins if that is seen.
+    shortcut: another tracked file deleted is not seen (no time to read); count those if missed.
     shortcut: a write that keeps an old time (`cp -p`, `tar x`, `unzip`, `touch -d`), one into
     an ignored folder and a secret-named file (`git.changes` leaves it out) are not seen; ask
     git for them, or read the files' hashes as the turn begins, if a change slips by so."""
@@ -386,14 +407,72 @@ def touched_since(folder: Path, since: datetime | None, recorded: Collection[str
     if head is not None:
         paths += [one for one in git.committed_since(folder, head) if not is_secret(one)]
     edge = since.timestamp() - MTIME_SLACK if since is not None else float("-inf")
-    found = []
+    found = [one["path"] for one in listed
+             if one["status"] == "D" and is_test(one["path"]) and one["path"] not in recorded]
     for path in dict.fromkeys(paths):
-        if path in recorded:
+        if path in recorded or path in found:
             continue
         with contextlib.suppress(OSError):
             if (folder / path).stat().st_mtime >= edge:
                 found.append(path)
     return sorted(found)
+
+
+# CL-329: a tracked file over this size is left as KOLONİ's own run left it (not read to keep).
+MOST_PUT_BACK = 2 * 1024 * 1024
+
+
+def sources_before(folder: Path) -> dict[str, bytes | None] | None:
+    """CL-329: what KOLONİ's own run must leave as it found it - each tracked file git lists as
+    changed before the run, by its bytes (None: gone, or too big to keep); one git lists as
+    unchanged is the commit's. None: no git there. Blocking: call it off the event loop."""
+    listed = git.changes(folder)
+    if listed is None:
+        return None
+    kept: dict[str, bytes | None] = {}
+    for one in listed:
+        if one["status"] == "?":
+            continue
+        try:
+            path = folder / one["path"]
+            kept[one["path"]] = path.read_bytes() if path.stat().st_size <= MOST_PUT_BACK else None
+        except OSError:
+            kept[one["path"]] = None
+    return kept
+
+
+def put_back_sources(folder: Path, before: dict[str, bytes | None],
+                     spare: Collection[str]) -> list[str]:
+    """After KOLONİ's own run (CL-329: `ruff check --fix .` from the CI changed a source file at
+    the end check, on no record): each tracked file it changed put back - to the commit where it
+    was unchanged before (`git.blob_at`), else to its bytes then (`sources_before`) - but those in
+    `spare`, written on record meanwhile (an agent's). What was put back, by path. A file it
+    made that git does not track is left: a report, a cache. Blocking: off the event loop."""
+    listed = git.changes(folder)
+    put: list[str] = []
+    for one in listed or []:
+        rel = one["path"]
+        if one["status"] == "?" or rel in spare or (rel in before and before[rel] is None):
+            continue
+        target = folder / rel
+        if rel in before:
+            try:
+                same = target.read_bytes() == before[rel]
+            except OSError:
+                same = False
+            data = None if same else before[rel]
+        else:
+            try:
+                data = git.blob_at(folder, "HEAD", rel, MOST_PUT_BACK)
+            except git.Refused:
+                data = None
+        if data is None:
+            continue
+        with contextlib.suppress(OSError):
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+            put.append(rel)
+    return put
 
 
 def change_states(session: Session, run_id: str) -> dict[str, tuple[str, str | None]]:
@@ -659,6 +738,8 @@ RUN_BY = "Tests passed: {command} - run by {who} after the last change"
 NOT_CHECKED = "Not checked: After a change is set to Nothing"
 # CL-321 Bulgu D: a turn whose only change a command made - no change of it on record.
 UNRECORDED = "A command of this turn may have changed files KOLONİ did not record: {command}"
+# CL-329: KOLONİ's own run changed a tracked file of the project - put back, said.
+PUT_BACK = "Put back: {command} changed {files} - KOLONİ's own run leaves the project as it was"
 MOST_COMMAND = 120  # characters of such a command said
 MOST_TOUCHED = 5  # files it changed named, then "+N more"
 # A file's time against a command's start: what a file system rounds down (FAT: 2 s).

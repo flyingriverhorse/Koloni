@@ -7,6 +7,7 @@ import asyncio
 import json
 import re
 import time
+from pathlib import Path
 
 import pytest
 
@@ -1074,6 +1075,32 @@ def test_in_a_git_project_a_write_the_command_committed_counts(make_client, wait
     assert "app.py" not in git(project_dir, "status", "--porcelain")  # (committed: status clean)
     assert texts(snap) == [proof.UNRECORDED.format(command="app.py - python fmt.py"),
                            "Tests passed: python check.py - 4 passed in 0.1s"], texts(snap)
+
+
+class _Deletes(ScriptedExecutor):
+    """As `python -c "import os; os.remove('test_b.py')"`: `python rm.py` deletes the test."""
+
+    async def start(self, command_id, command, cwd, *args, **kwargs):
+        started = await super().start(command_id, command, cwd, *args, **kwargs)
+        if command == "python rm.py":
+            (Path(cwd) / "test_b.py").unlink()
+        return started
+
+
+@pytest.mark.skipif(__import__("shutil").which("git") is None, reason="git is not installed")
+def test_a_tracked_file_koloni_own_run_changed_is_put_back_and_said(make_client, wait_run,
+                                                                    project_dir, monkeypatch):
+    # (CL-329: `ruff check --fix .` from the CI, run at the end check, changed a source file -
+    # on no record, in no diff)
+    (project_dir / "calc.py").write_text("import os\nx = 1\n")
+    _git_project(project_dir, monkeypatch)
+    fixes = Script(["....\n===== 4 passed in 0.1s =====\n"], writes={"calc.py": "x = 1\n"})
+    executor = ScriptedExecutor([fixes])
+    client, _model = make_client([write("a.py", "y = 2\n"), text("done")], executor=executor)
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    rows = texts(wait_run(client, cid, run_id))
+    assert (project_dir / "calc.py").read_text() == "import os\nx = 1\n"
+    assert proof.PUT_BACK.format(command="python check.py", files="calc.py") in rows, rows
 
 
 @pytest.mark.skipif(__import__("shutil").which("git") is None, reason="git is not installed")

@@ -138,7 +138,8 @@ class FoundMixin:
             self._ci_said(held, "ci", one)
         # (an approval stored before a stricter reading is held to it: one plain command each)
         return [TestRun(one["command"], one["cwd"], True, ci=True)
-                for one in approved["commands"] if ci_commands.kept(one["command"])]
+                for one in approved["commands"] if ci_commands.kept(one["command"],
+                                                                    place / one["cwd"])]
 
     def _ci_offered(self: "AgentRunner", ctx: Ctx, offered: dict) -> None:
         """The project's offer, now: what Run these may approve - only by its own name."""

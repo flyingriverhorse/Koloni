@@ -27,7 +27,7 @@ from app.agent.proof_later_mixin import WORKERS_ENV, Check, Slots
 from app.agent.words import MAX_SENT_BACK, TESTS_TAIL_LINES
 from app.api.usage import over_month
 from app.commands import web_off_reason
-from app.db.models import Agent, Command, Conversation, Message, Run, ToolCall, now
+from app.db.models import Agent, Command, Conversation, FileChange, Message, Run, ToolCall, now
 from app.model_client import ToolCallRequest
 from app.proof import Change, Row, TestRun
 from app.serialize import message_out
@@ -106,8 +106,10 @@ class Proof:
     # Plan decision 13: a recipe of the turn ran its own fix loop to its end - rounds never stack.
     recipe_spent: bool = False
     # CL-321 Bulgu D: the turn's newest command that may have changed files off the record
-    # (`proof.unrecorded`, shortened); None: none.
+    # (`proof.unrecorded`, shortened); None: none. CL-329 G: the test files such commands
+    # deleted (git's word): "Test removed" each.
     unrecorded: str | None = None
+    gone_tests: list[str] = field(default_factory=list)
     # S5c: what this pass checks (`proof.checks_of`: the project's, or its recipe's Checks step).
     checks: proof.Checks = proof.Checks(frozenset(proof.PARTS), MAX_SENT_BACK, "check", False)
     changes: list[Change] = field(default_factory=list)
@@ -180,8 +182,10 @@ class Proof:
 
 class ProofMixin:
     # The gate's steps, run in order: the first nudge ends the pass (later slices append theirs).
+    # (CL-329 I: the live try before the ask for a test - an answer to that ask with a reason
+    # and no call ends the turn, and the try was never made.)
     PROOF_STEPS: tuple[str, ...] = ("_proof_tests", "_proof_kinds", "_proof_review",
-                                    "_proof_test_ask", "_proof_try")
+                                    "_proof_try", "_proof_test_ask")
 
     async def _end_left(self: "AgentRunner", ctx: Ctx) -> str | None:
         """What the Lead is told before its answer may end the turn; None: it may."""
@@ -206,14 +210,15 @@ class ProofMixin:
             # (CL-321 Bulgu D: a change a command made is on no record - the gate opens for it.)
             ran = proof.unrecorded(session, ctx.run_id, {ctx.agent_id, *self._sharing(ctx)},
                                    ctx.root)
-        unrecorded = await self._what_it_touched(ctx, ran, found) if ran is not None else None
+        unrecorded, gone = await self._what_it_touched(ctx, ran, found) if ran is not None else (
+            None, [])
         if not any(one.in_project for one in found) and unrecorded is None:
             return None
         until = checks.rounds is None  # (k-canli-016: until it passes, to its ceiling)
         most = proof.UNTIL_CEILING if checks.rounds is None else checks.rounds
         held = self._proofs.setdefault(ctx.run_id, Proof(most=most))
         held.changes, held.checks, held.most, held.until_passes = found, checks, most, until
-        held.unrecorded = unrecorded
+        held.unrecorded, held.gone_tests = unrecorded, gone
         held.recipe_spent = held.recipe_spent or self._recipe_spent(ctx)
         for name in self.PROOF_STEPS:
             try:
@@ -259,23 +264,26 @@ class ProofMixin:
         return True
 
     async def _what_it_touched(self: "AgentRunner", ctx: Ctx, ran: tuple[str, Any],
-                               found: list[Change]) -> str | None:
+                               found: list[Change]) -> tuple[str | None, list[str]]:
         """Review of CL-321 D: in a git project, unrecorded commands count only where git lists a
         file written since the first of them started (or committed since the turn began) - then
         the newest said with up to MOST_TOUCHED of them ("a.py, b.py - python gen.py"); none:
         they changed nothing (a question's `python main.py`). Not a git project: the command
-        alone, as it may have changed anything."""
+        alone, as it may have changed anything. And (CL-329 G) the test files they deleted -
+        each a "Test removed" row, as one a change on record deleted."""
         command, since = ran
         head = (self._git_at.get(ctx.run_id) or {}).get("head")  # (`_git_start`)
         touched = await asyncio.to_thread(
             proof.touched_since, Path(ctx.folder), since, {one.path for one in found}, head)
         if touched is None:
-            return command
+            return command, []
         if not touched:
-            return None
+            return None, []
+        gone = [path for path in touched
+                if proof.is_test(path) and not (Path(ctx.folder) / path).exists()]
         more = f" +{len(touched) - proof.MOST_TOUCHED} more" if len(
             touched) > proof.MOST_TOUCHED else ""
-        return f"{', '.join(touched[:proof.MOST_TOUCHED])}{more} - {command}"
+        return f"{', '.join(touched[:proof.MOST_TOUCHED])}{more} - {command}", gone
 
     @staticmethod
     def _round_of(held: "Proof") -> str:
@@ -595,6 +603,7 @@ class ProofMixin:
         copy = self._copies.get(self._works_in(ctx) or "")
         was, kept = await asyncio.to_thread(lambda: copy.snapshot(
             [path for path, _kind, _state in copy.changes()])) if copy else ({}, {})
+        sources, started = await self._sources_now(ctx, held, copy), now()
         try:
             code, output, said, ended = await self._run_in_copy(
                 ctx, ws, line, call_id, ask=how == "ask",
@@ -617,6 +626,7 @@ class ProofMixin:
             if True in taken:
                 slot.release()
         await self._tests_put_back(copy, was, kept)
+        await self._sources_put_back(ctx, held, run, sources, started)
         self._set_call(ctx.cid, call_id, status="denied" if ended == "rejected" else
                        "failed" if code is None else "succeeded", result=said, ended_at=now())
         self._always_kept(ctx, held, run, call_id)  # (option A: Always on its own card)
@@ -626,6 +636,32 @@ class ProofMixin:
                 run.guessed), ""
         return proof.tests_row(run, code, output, ended, said,
                                given["seconds"] or MAX_TIMEOUT), output
+
+    @staticmethod
+    async def _sources_now(ctx: Ctx, held: Proof, copy) -> dict | None:
+        """CL-329: in the project itself (not a copy, nor S7's old code), its tracked files as
+        they are before KOLONİ's own run - put back after it (`_sources_put_back`)."""
+        if copy is not None or held.place is not None:
+            return None
+        return await asyncio.to_thread(proof.sources_before, Path(ctx.folder))
+
+    async def _sources_put_back(self: "AgentRunner", ctx: Ctx, held: Proof, run: TestRun,
+                                sources: dict | None, started) -> None:
+        """CL-329: a tracked file of the project KOLONİ's own run changed (a CI line's `--fix`, a
+        check that formats) is put back, and said - never one an agent wrote on record since it
+        started (`spare`: a turn that went on beside it).
+        shortcut: a run that was stopped leaves what it changed; put it back there too if seen."""
+        if sources is None:
+            return
+        with self._factory() as session:
+            spare = set(session.scalars(select(FileChange.path).where(
+                FileChange.created_at >= started)))
+        put = await asyncio.to_thread(proof.put_back_sources, Path(ctx.folder), sources, spare)
+        if put:
+            more = f" +{len(put) - proof.MOST_TOUCHED} more" if len(
+                put) > proof.MOST_TOUCHED else ""
+            held.rows.append(proof.row("put_back", "note", proof.PUT_BACK.format(
+                command=run.command, files=", ".join(put[:proof.MOST_TOUCHED]) + more)))
 
     def _timeout_on_record(self: "AgentRunner", call_id: str, seconds: int) -> None:
         """The limit a run really has, on its record: what is left of the wait once it held the
