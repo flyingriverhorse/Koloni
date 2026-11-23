@@ -166,3 +166,50 @@ def test_lint_findings_name_the_project_files_each_tool_says(tmp_path):
     # (coloured output is read as plain)
     assert proof_before.lint_findings("\x1b[1mold.py\x1b[0m:1:1: E1\n", tmp_path, ".")[0] == {
         "old.py"}
+
+
+# ruff 0.x's own words on an old.py of `import os`, `y   =  1`, `x = np.zeros(3,4)` (measured):
+# the code it quotes names no file.
+RUFF_FORMAT = """unformatted: File would be reformatted
+ --> old.py:2:1
+  |
+1 | import os
+  - y   =  1
+  - x = np.zeros(3,4)
+2 +
+3 + y = 1
+4 + x = np.zeros(3, 4)
+  |
+
+1 file would be reformatted, 1 file already formatted
+"""
+RUFF_CHECK = """F401 [*] `os` imported but unused
+ --> old.py:1:8
+  |
+1 | import os
+  |        ^^
+2 | y   =  1
+3 | x = np.zeros(3,4)
+  |
+help: Remove unused import: `os`
+
+F821 Undefined name `np`
+ --> old.py:3:5
+  |
+2 | y   =  1
+3 | x = np.zeros(3,4)
+  |     ^^
+  |
+
+Found 2 errors.
+[*] 1 fixable with the `--fix` option.
+"""
+
+
+def test_lint_findings_read_ruffs_own_output(tmp_path):
+    (tmp_path / "old.py").write_text("import os\n", encoding="utf-8")
+    assert proof_before.lint_findings(RUFF_FORMAT, tmp_path, ".") == (frozenset({"old.py"}),
+        frozenset({"unformatted: File would be reformatted --> old.py:2:1"}))
+    assert proof_before.lint_findings(RUFF_CHECK, tmp_path, ".") == (frozenset({"old.py"}),
+        frozenset({"F401 [*] `os` imported but unused --> old.py:1:8",
+                   "F821 Undefined name `np` --> old.py:3:5"}))

@@ -427,8 +427,8 @@ def reformat(file):
     return Script([REFORMAT.format(file=file)], exit_code=1)
 
 
-@pytest.mark.parametrize("case", ["old file", "the turn's file", "not on the old code",
-                                  "no file named"])
+@pytest.mark.parametrize("case", ["old file", "the turn's file", "the turn's nested file",
+                                  "not on the old code", "no file named"])
 def test_a_ci_check_failing_only_where_the_turn_did_not_change_is_no_round(
         make_client, wait_run, project_dir, case):
     # (CL-336 M: `ruff format --check .` failing on an old unformatted file the turn never
@@ -437,14 +437,16 @@ def test_a_ci_check_failing_only_where_the_turn_did_not_change_is_no_round(
     # file, one the old code has not (a type error the turn caused), or none named: the turn's)
     write_flow(project_dir, FORMAT)
     (project_dir / "old.py").write_text("y   =  1\n", encoding="utf-8")
+    mine = "pkg/a.py" if case == "the turn's nested file" else "a.py"
     now = {"old file": reformat("old.py"), "the turn's file": reformat("a.py"),
+           "the turn's nested file": reformat("pkg/a.py"),
            "not on the old code": reformat("old.py"),
            "no file named": Script(["error: Failed to parse pyproject.toml\n"], exit_code=2)}[case]
     then = {"old file": [reformat("old.py")], "not on the old code": [Script(["ok\n"])]}
     executor = ScriptedExecutor([now, PASS, *then.get(case, []), Script(["ok\n"]), PASS])
-    client, model = make_client([write("a.py", "x = 1\n"), text("done"),
-                                 write("a.py", "x = 2\n", "w2"), text("done"),
-                                 write("a.py", "x = 3\n", "w3"), text("fixed")],
+    client, model = make_client([write(mine, "x = 1\n"), text("done"),
+                                 write(mine, "x = 2\n", "w2"), text("done"),
+                                 write(mine, "x = 3\n", "w3"), text("fixed")],
                                 executor=executor)
     cid, run_id = begin(client, project_dir)
     ci_scenarios.approve(client, wait_run(client, cid, run_id), run_id)

@@ -41,11 +41,12 @@ MOST_SAID = 120  # characters of the sentence quoted
 # characters only - letters of any alphabet (`test_düzelt`), digits, `_ - . / \ : [ ]`; none a
 # shell reads (`$ ( ) ; % ^ & | < >`, a backtick, a quote - PowerShell's curly ones too - a space).
 _PLAIN_ID = re.compile(r"[\w\-./\\:\[\]]{1,500}")
-# CL-336 M: a lint, format or type check's findings by the file each names - `path:3`,
-# `path:3:1`, `path(3,1)` (ruff, flake8, pylint, mypy, tsc), a path alone or after "would
-# reformat" / "[warn]" (ruff format, black, prettier; eslint's and pyright's file above its lines),
-# eslint's `  3:1  error ...` under it, and ruff's / ty's `--> path:3:1` with the line above it.
-_AT = re.compile(r"([^\s:()\"'<>\[\]`]+\.[A-Za-z0-9]{1,8})(?::\d+|\(\d+,\d+\))")
+# CL-336 M: a lint, format or type check's findings by the file each names where a finding
+# starts - `path:3`, `path:3:1`, `path(3,1)` (ruff, flake8, pylint, mypy, tsc), ruff's / ty's
+# `--> path:3:1` (with the line above it), a path alone or after "would reformat" / "[warn]" (ruff
+# format, black, prettier; eslint's and pyright's file above its lines) and eslint's
+# `  3:1  error ...` under it. (Not inside a line: ruff quotes the code, `np.zeros(3,4)`.)
+_AT = re.compile(r"^\s*(?:-->\s*)?([^\s:()\"'<>\[\]`]+\.[A-Za-z0-9]{1,8})(?::\d+|\(\d+,\d+\))")
 _BARE = re.compile(r"^\s*(?:would reformat:?\s+|\[warn\]\s+)?([^\s:]+\.[A-Za-z0-9]{1,8})\s*$",
                    re.IGNORECASE)
 _UNDER = re.compile(r"^\s+\d+:\d+\s")
@@ -128,7 +129,7 @@ def lint_findings(output: str, root: Path,
     header, last = None, ""
     for line in text.splitlines():
         bare = _BARE.match(line)
-        named = [bare[1]] if bare else _AT.findall(line)
+        named = [bare[1]] if bare else [at[1]] if (at := _AT.match(line)) else []
         if named:
             rels = [_project_file(one, folder, root) for one in named]
             if None in rels:

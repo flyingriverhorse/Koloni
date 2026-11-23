@@ -308,7 +308,10 @@ class ProofLaterMixin:
                      ctx: Ctx, held: "Proof", run: TestRun) -> None:
         """A suite gone on after its answer is over: its row as it ended - and a guess that
         really ran tests saved, as in the turn (`_save_found`), its row under it. Ended by KOLONİ
-        closing: nothing here - the next start says so (`proof.settle_running`)."""
+        closing: nothing here - the next start says so (`proof.settle_running`).
+        shortcut: a lint line gone on after the answer that fails only where it failed before is
+        not told apart (S7 / CL-336 M run in the turn only): its row offers Fix it, nothing starts
+        by itself; run `_lint_before` here too if that is seen to mislead."""
         if done.cancelled() and self._closing:
             return
         saved: list[Row] = []
