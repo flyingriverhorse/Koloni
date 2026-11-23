@@ -5,7 +5,7 @@
 Open **Usage** on the left rail. Choose **This project** or **All projects**, and a period: **Today**,
 **7 days**, **30 days** or **All**.
 
-![The Usage page for this project today: messages, tokens sent and written, cost, failed and files changed, and the table by provider and model](../images/usage.png)
+![The Usage page for this project today: messages, tokens sent and written, cost, failed and files changed, the table by provider and model, and Cards - one card asked and approved, by why it was asked](../images/usage.png)
 
 *The Usage page, counted from the record: no model is asked.*
 

@@ -99,19 +99,20 @@ function Numbers({ cards }: { cards: Cards }) {
         {cards.asked} asked: {cards.approved} approved, {cards.rejected} rejected, {cards.unanswered} not answered
         {cards.decide_seconds !== null && ` · ${waited(cards.decide_seconds)} to answer, on average`}
       </p>
+      <div className="tools-table">
       <table className="usage-table" aria-label="Cards by reason">
         <thead>
           <tr>
-            <th>Why it was asked</th>
-            <th>Asked</th>
-            <th>Approved</th>
-            <th>Rejected</th>
+            <th scope="col">Why it was asked</th>
+            <th scope="col">Asked</th>
+            <th scope="col">Approved</th>
+            <th scope="col">Rejected</th>
           </tr>
         </thead>
         <tbody>
           {cards.by_reason.map(one => (
             <tr key={one.reason}>
-              <td>{one.said}</td>
+              <th scope="row">{one.said}</th>
               <td>{one.asked}</td>
               <td>{one.approved}</td>
               <td>{one.rejected}</td>
@@ -119,6 +120,7 @@ function Numbers({ cards }: { cards: Cards }) {
           ))}
         </tbody>
       </table>
+      </div>
       {checked}
     </>
   )
