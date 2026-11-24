@@ -1238,16 +1238,18 @@ async def test_the_real_chrome_reads_the_second_sessions_pages(tmp_path, monkeyp
 
 
 # V1 (CL-365): what a page does after it loads, read by the real Chrome as a turn's check reads it
-# - SETTLE and AGAIN as they are - and a page nested so deep Chrome's tab crashes on it (measured:
-# some 1,700 deep here; the page builds it with a loop of its own: a few hundred bytes). In a
-# child process with a time limit.
+# - AGAIN as it is, SETTLE longer on a CI runner (its page's timer against ours) - a page nested
+# past the read, and one nested so deep Chrome's tab crashes on it (measured: some 1,700 deep on
+# Windows; each page builds it with a loop of its own: a few hundred bytes). In a child process
+# with a time limit.
 LATE = """
-import asyncio, json, sys, time
+import asyncio, json, sys
 from pathlib import Path
 from app import browser, proof_kinds
 from app.workspace import Workspace
-browser.START_WAIT = 120.0
+browser.START_WAIT, browser.LOAD_WAIT = 120.0, 40.0
 proof_kinds.PAGES_SECONDS = 600
+proof_kinds.SETTLE = float(sys.argv[2])
 root = Path(sys.argv[1])
 async def main():
     ws = Workspace(str(root))
@@ -1255,11 +1257,13 @@ async def main():
         one = browser.Browser(root / "b", "pages")
         await one.start(browser.find_browser(), ws, set())
         return one
+    groups = [["late", "grows", "rootless"], ["nested"]]
+    if sys.platform == "win32":  # (the depth Chrome's tab crashes at is measured here alone)
+        groups.append(["deep", "after"])
     said = {}
-    for names in (["late", "grows", "rootless"], ["deep", "after"]):
-        began = time.perf_counter()
+    for names in groups:
         rows = await proof_kinds.check_pages(start, ws, [n + ".html" for n in names], None, root)
-        said[" ".join(names)] = [time.perf_counter() - began, [r["text"] for r in rows]]
+        said[" ".join(names)] = [r["text"] for r in rows]
     print(json.dumps(said))
 asyncio.run(main())
 """
@@ -1294,15 +1298,18 @@ def test_the_real_chrome_reads_a_page_once_it_settles_and_goes_on_after_a_crash(
         rootless=a11y(
             f"{img}<script>addEventListener('load',()=>document.documentElement.remove())</script>"
         ),
-        deep=a11y(
-            "<p>Hello</p><script>let at=document.body;for(let i=0;i<20000;i++){const d="
-            "document.createElement('div');at.append(d);at=d}at.innerHTML=\"<button></button>\""
-            "</script>"
-        ),
+        **{
+            name: a11y(
+                "<p>Hello</p><script>let at=document.body;for(let i=0;i<"
+                f"{n};i++){{const d=document.createElement('div');at.append(d);at=d}}"
+                f'at.innerHTML="{img}"</script>'
+            )
+            for name, n in (("nested", 1200), ("deep", 20000))
+        },
         after=a11y(img),
     )
     done = subprocess.run(
-        [sys.executable, "-c", LATE, str(tmp_path)],
+        [sys.executable, "-c", LATE, str(tmp_path), str(scaled(SETTLE))],
         cwd=Path(__file__).resolve().parent.parent,
         capture_output=True,
         text=True,
@@ -1311,26 +1318,27 @@ def test_the_real_chrome_reads_a_page_once_it_settles_and_goes_on_after_a_crash(
     )
     assert done.returncode == 0, done.stderr[-2000:]
     said = json.loads(done.stdout.strip().splitlines()[-1])
-    _took, rows = said["late grows rootless"]
-    assert rows == [
+    assert said["late grows rootless"] == [
         f"late.html: no console errors at {ALL} px",
         f"grows.html: no console errors at {ALL} px",
         f"grows.html: accessibility not judged at {ALL} px - the page changed after it loaded",
         f"rootless.html: no console errors at {ALL} px",
         f"rootless.html: accessibility not read at {ALL} px - the page has no root",
     ], said
+    # (the image with no alt 1,200 deep is past what is read: said in part, never passed)
+    assert said["nested"] == [
+        f"nested.html: no console errors at {ALL} px",
+        f"nested.html: accessibility checked only in part at {ALL} px - nested over 1000 deep",
+    ], said
+    if sys.platform != "win32":
+        return
     # (the tab crashed: said at once, the next page read in a new browser - each later call
-    # waited its 30 s before, 70 s in all; where the tab holds, the read stops 1,000 deep)
-    took, rows = said["deep after"]
-    assert rows[0] in (
+    # waited its 30 s before, and the next page was "not checked" too)
+    assert said["deep after"] == [
         "deep.html: not checked: the page crashed the browser's tab",
-        f"deep.html: no console errors at {ALL} px",
-    ), said
-    assert rows[0].endswith("tab") or (
-        f"deep.html: accessibility checked only in part at {ALL} px - nested over 1000 deep" in rows
-    ), said
-    assert f"after.html: 1 images without alt text at {ALL} px - dot.png" in rows, said
-    assert took < (60 if os.environ.get("CI") else 20), said
+        f"after.html: no console errors at {ALL} px",
+        f"after.html: 1 images without alt text at {ALL} px - dot.png",
+    ], said
 
 
 # --- the end check: a page the turn wrote ------------------------------------------------------

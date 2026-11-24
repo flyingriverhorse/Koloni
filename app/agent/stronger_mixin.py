@@ -158,6 +158,7 @@ FIX_HELD = (
 HELD_WHY = {
     "on_hold": "a look of KOLONİ's still held it",
     "removed": "fewer of its tests run, or more are skipped",
+    "kinds": "KOLONİ's checks of what it wrote still found problems",
 }
 HELD_WHY_TESTS = "its tests still fail"
 

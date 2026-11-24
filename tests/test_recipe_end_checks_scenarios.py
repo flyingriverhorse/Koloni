@@ -90,6 +90,26 @@ def test_a_recipe_with_tests_off_and_docs_on_runs_no_test_and_checks_its_docs(
     assert kept["reason"] == "kinds" and kept["question"] == stronger_mixin.ASK_KINDS, kept
     assert kept.get("merge_id") and row(snap)["status"] != "in", row(snap)
     assert not (project_dir / "README.md").exists()
+    # (Fix it with an answer: a turn in the kept copy, told why by the row's code)
+    from tests.test_proof_end_scenarios import OWN
+
+    model.by_agent["Lead"] += [text("on it")]
+    went = client.post(
+        f"/api/runs/{run_id}/held/fix",
+        json={"merge_id": kept["merge_id"], "reply": "fix the link"},
+        headers=OWN,
+    )
+    assert went.status_code == 202, went.text
+    snap = wait_run(client, cid, went.json()["run_id"])
+    (asked,) = [
+        m["content"]
+        for m in snap["messages"]
+        if m["role"] == "user" and m["run_id"] == went.json()["run_id"]
+    ]
+    assert asked.startswith(
+        "The last turn's work was not taken in: KOLONİ's checks of what it wrote still found "
+        "problems."
+    ), asked
 
 
 def test_fix_rounds_0_checks_only_and_sends_nothing_back(make_client, wait_run, project_dir):

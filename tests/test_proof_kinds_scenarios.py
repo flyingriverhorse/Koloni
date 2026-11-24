@@ -204,3 +204,20 @@ def test_a_link_broken_before_the_turn_is_said_and_not_sent_back(make_client, wa
     rows = [(row["state"], row["text"]) for row in checked(wait_run(client, cid, run_id))]
     assert told(model) == 0
     assert ("note", "README.md: link to docs/gone.md not found - so before this turn") in rows, rows
+
+
+def test_until_it_passes_an_unchanged_answer_to_a_kinds_round_stops_there(
+    make_client, wait_run, guide
+):
+    # (Until it passes, the default: an answer that changed nothing is no progress for a kind's
+    # problem too - said, its code for Fix it)
+    client, _model = make_client(
+        [write("README.md", BROKEN), text("done"), text("Leave the link.")],
+        executor=ScriptedExecutor([]),
+    )
+    cid, run_id = begin(client, guide, fix_rounds="until")
+    last = checked(wait_run(client, cid, run_id))[-1]
+    assert (last["text"], last.get("reason")) == (
+        "Stopped after round 1: no progress in two rounds - you decide (Fix it)",
+        "kinds",
+    ), last
