@@ -875,6 +875,9 @@ class Agent(Base):
     # search / recall and a CLI's own reads as KOLONİ recorded them. None: not counted -
     # a lead, or a CLI whose reads are not seen (`app.handoff.rediscovery`).
     rediscovery: Mapped[int | None] = mapped_column(Integer, default=None)
+    # L1: a sub-agent whose role writes finished with no file change on record
+    # (`app.ledger.changed_nothing`). None: not judged so - every other agent.
+    changed_nothing: Mapped[bool | None] = mapped_column(Boolean, default=None)
     # K-devir-1: the ended agents of the project whose work its briefing carried ("Earlier
     # on this", `app.handoff.earlier_on`): their ids. None: nothing was carried.
     handed_from: Mapped[list | None] = mapped_column(JSON, default=None)

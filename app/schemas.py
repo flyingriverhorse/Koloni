@@ -1875,6 +1875,8 @@ class AgentOut(Out):
     # of the ended agents whose work its briefing carried (None: nothing was).
     rediscovery: int | None = None
     handed_from: list[str] | None = None
+    # L1: a sub-agent whose role writes finished with no file changed (None: not judged so).
+    changed_nothing: bool | None = None
     # K-skill-uyum: the role's skills it started with, and those left out with why.
     skills: AgentSkills | None = None
 

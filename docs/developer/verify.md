@@ -13,12 +13,13 @@ cd ..
 
 1. `pytest -q -n auto` (in parallel);
 2. `ruff check app tests scripts alembic`;
-3. `ty check app`;
-4. in `frontend/`: the generated-API-types check, oxlint, the type check, the complexity check, Vitest,
+3. `scripts/check_file_size.py` (below);
+4. `ty check app`;
+5. in `frontend/`: the generated-API-types check, oxlint, the type check, the complexity check, Vitest,
    the build, the guide's checks (below; skipped when Zensical is not installed), and the Playwright
    end-to-end tests.
 
-`-BackendOnly` runs only the first three. On Linux and macOS, run the script with `pwsh`; on Linux,
+`-BackendOnly` runs only the first four. On Linux and macOS, run the script with `pwsh`; on Linux,
 install Playwright's browser with `--with-deps`.
 
 The parallel test run can load a machine heavily. `PYTEST_XDIST_AUTO_NUM_WORKERS` sets how many processes
@@ -38,6 +39,21 @@ in Python, an entry in the baseline in the frontend. Both lists only shrink. Whe
 under 12, delete its `noqa`; the frontend check says `you can lower or remove N baseline entries`, and
 `npm run check:complexity -- --update` rewrites the baseline, lowering or dropping entries, never
 adding one. Renaming a baselined function makes it look new: rename its key in the baseline by hand.
+
+## File size
+
+No source file may be longer than 1,500 lines. `scripts/check_file_size.py` reads the `.py`, `.ts` and
+`.tsx` files under `app/`, `frontend/src/`, `scripts/` and `tests/` that git tracks or would track
+(gitignored files and the generated `frontend/src/api/generated.ts` are skipped) and fails on a file over
+the limit. Split it; don't raise the limit.
+
+The files that were already over it when the check came in are listed in `scripts/file_size_allow.txt`,
+each with its line count then (`10612 app/agent/__init__.py`). The list only shrinks: a listed file fails
+when it grows past its count, and when it drops to 1,500 lines or under or is gone - take its line off. A
+listed file that shrank is a note with its new count. `scripts/check_file_size.py --update` lowers each
+count to its file's own and takes off the files at the limit or under, or gone, then checks; it never
+raises a count nor adds a file. Moving or renaming a listed file makes it look new: change its path in the
+list by hand.
 
 ## End-to-end tests
 
@@ -96,8 +112,8 @@ The first needs a model server on port 8080 and, for its CLI tests, signed-in `c
 ## CI
 
 Each push and pull request to `main` runs the same checks once, on Ubuntu with Python 3.12
-(`.github/workflows/pr-check.yml`): pytest, ruff and ty, the API types, the frontend's lint,
-typecheck, complexity, unit tests and build, and the guide's checks. A change to the guide or the
+(`.github/workflows/pr-check.yml`): pytest, ruff, the file size check and ty, the API types, the
+frontend's lint, typecheck, complexity, unit tests and build, and the guide's checks. A change to the guide or the
 plans alone runs only the guide's checks, or nothing.
 
 End-to-end tests and the backend on Windows and on Python 3.13 and 3.14 run in `heavy.yml`, on each

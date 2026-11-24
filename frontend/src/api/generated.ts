@@ -4959,6 +4959,8 @@ export interface components {
             cache_read_tokens: number | null;
             /** Cache Write Tokens */
             cache_write_tokens: number | null;
+            /** Changed Nothing */
+            changed_nothing?: boolean | null;
             /** Chosen */
             chosen: boolean;
             /** Chosen Why */

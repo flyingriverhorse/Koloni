@@ -40,6 +40,8 @@ export function SpawnRow({ agent, onSelect, asks = false }: Props) {
         <span className="tool-row-summary">
           <strong>{titleOf(agent.name || agent.role_name, teams)}</strong> <span className="muted">{firstLine}</span>
         </span>
+        {/* L1: a role that writes, done with no file changed on KOLONİ's record. */}
+        {agent.changed_nothing && <span className="tag tag-warn">No file changed</span>}
         <StatusLabel color={color}>{label}</StatusLabel>
       </button>
     </div>
