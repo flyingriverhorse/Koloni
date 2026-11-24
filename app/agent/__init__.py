@@ -3051,8 +3051,9 @@ class AgentRunner(
         if copy is None or known is None:
             return
         # shortcut: kept copies have no cap, and only the user's Discard clears them - a trigger
-        # nobody watches, over its budget, leaves one a firing. Settings › Your data lists them,
-        # their size and Discard (`/api/storage`); cap them by project if that is not enough.
+        # nobody watches, over its budget, leaves one a firing. Settings › The app › Your data
+        # lists them, their size and Discard (`/api/storage`); cap them by project if that is not
+        # enough.
         with contextlib.suppress(OSError, ValueError):
             copies.unlink(self.settings.runtime_root, copy.name)
         if copy.secrets():  # (refused after the turn too: `copies.load`, `_merge_file`)

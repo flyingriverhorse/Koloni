@@ -402,7 +402,8 @@ def test_kept_copies_are_listed_in_your_data_with_what_they_take_and_go_only_on_
     make_client, wait_run, project_dir, settings_env
 ):
     """Kept copies have no cap - a trigger over its budget keeps one a firing - and KOLONİ deletes
-    none unasked: Settings › Your data lists them, what they take, and each one's Discard."""
+    none unasked: Settings › The app › Your data lists them, what they take, and each one's
+    Discard."""
     first = Gate()
     client, model, cid, run_id = one(
         make_client,
