@@ -21,7 +21,6 @@ from typing import NamedTuple
 from app import proof
 from app.commands import _program
 from app.proof import Row, row
-from app.proof_kinds import _json
 from app.workspace import WorkspaceError, sha256_text
 
 STYLE = "style"
@@ -246,6 +245,9 @@ def _tsconfig_says(folder: Path) -> str | None:
     exit 2, and the file is written all the same). One that cannot be read is said too.
     shortcut: this file alone, not what it `extends` - a base that is composite is not seen; read
     the chain if a project is met with one."""
+    # Here, not at the top: proof_kinds imports browser → command_runner → this module.
+    from app.proof_kinds import _json
+
     try:
         found, said = _json(_read(folder / "tsconfig.json"), "tsconfig.json")
     except WorkspaceError:
