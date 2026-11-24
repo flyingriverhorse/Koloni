@@ -7,6 +7,7 @@ import re
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from pathlib import Path, PurePosixPath
+from typing import NamedTuple
 from urllib.parse import urlsplit
 
 from sqlalchemy import func, literal_column, or_, select, true
@@ -189,12 +190,16 @@ PLANTED_REFUSED = "KOLONİ did not run this: {why}, and nobody is here to ask. "
 # (`corepack` before one: the same) in the node_modules of the folder it runs in or of one above
 # it, beside the files that make it run code of their own there: `.npmrc` (`node-options`,
 # `script-shell`), yarn's (`yarnPath` names the JS it runs, `.yarn/releases`, Plug'n'Play's
-# loader), bun's preloads; uv, poetry, pipenv, pdm, hatch and `python -m` in an environment: the
-# .venv there or above, or one KOLONİ cannot place - any install folder of the project's counts
-# (fails closed).
+# loader), pnpm's hooks (`.pnpmfile.cjs`), bun's preloads; uv, poetry, pipenv, pdm, hatch and
+# `python -m` in an environment: the .venv there or above, or one KOLONİ cannot place - any
+# install folder of the project's counts (fails closed). A Python also imports what the folder it
+# runs in holds first (`python -m`), and in a working copy what PYTHONPATH names - the copy's root
+# and its `src` (`host.copy_python_path`) - `sitecustomize` there before anything it runs.
 _NODE_RUNNERS = frozenset({"npx", "pnpx", "bunx", "npm", "pnpm", "yarn", "bun"})
 _NODE_SETTINGS = {
     "yarn": (".yarnrc.yml", ".yarnrc", ".yarn", ".pnp.cjs", ".pnp.loader.mjs", ".npmrc"),
+    "pnpm": (".pnpmfile.cjs", ".npmrc"),
+    "pnpx": (".pnpmfile.cjs", ".npmrc"),
     "bun": ("bunfig.toml",),
     "bunx": ("bunfig.toml",),
 }
@@ -203,51 +208,70 @@ _PY_INSTALLS = (".venv", "venv", "site-packages")
 _PYTHON = re.compile(r"python[\d.]*w?|pyw?")
 # (`python -m pytest` imports the project's own modules by design - its tests are its code)
 _RUNS_THE_PROJECT = frozenset({"pytest", "unittest"})
+_COPY_PATH = (".", "src")  # (`host.copy_python_path`'s, from the copy's root)
 
 
-def _python_module(words: list[str]) -> tuple[str, bool] | None:
-    """`python [its options] -m x` (`-mx`, `-Im x` too): x, and whether the folder it runs in
-    comes first on sys.path - not under -I or -P (W6: a `subprocess.py` there is imported before
-    the standard one); None: no `-m` before a script or `-c`."""
-    safe, at = False, 1
+class _Reach(NamedTuple):
+    """W6: where a line's program comes from - folders and files from the root (None: its path,
+    `proof_style.wrote_program`), install folders it may take it from anywhere in the project -
+    and, of a Python, whether it imports the modules of the folder it runs in first (`python
+    -m`), whether it reads PYTHONPATH (a copy's root and `src`), and whether only
+    `sitecustomize` / `usercustomize` count (`pytest`'s tests import the project's code anyway -
+    those run before anything)."""
+
+    places: list[str] | None
+    anywhere: tuple[str, ...] = ()
+    reads_cwd: bool = False
+    reads_path: bool = False
+    startup_only: bool = False
+
+
+def _python_module(words: list[str]) -> tuple[str, str] | None:
+    """`python [its options] -m x` (`-mx`, `-Im x` too): x, and the letters of its options before
+    it (`-I`, `-P`: not the folder it runs in; `-I`, `-E`: not PYTHONPATH); None: no `-m` before a
+    script or `-c`."""
+    flags, at = "", 1
     while at < len(words):
         word = words[at]
         if not word.startswith("-") or word in ("-", "--"):
             return None
         head, m, tail = word[1:].partition("m")
-        safe = safe or (not word.startswith("--") and bool({"I", "P"} & set(head)))
-        if m and not word.startswith("--"):
+        if word.startswith("--"):
+            at += 1
+            continue
+        flags += head
+        if m:
             module = tail or (words[at + 1] if at + 1 < len(words) else "")
-            return (module, not safe) if module else None
-        if "c" in head and not word.startswith("--"):
+            return (module, flags) if module else None
+        if "c" in head:
             return None
         at += 2 if word in ("-X", "-W") else 1
     return None
 
 
-def _runner_places(words: list[str], cwd: str) -> tuple[list[str], tuple[str, ...], bool] | None:
-    """W6: where a package runner's line (`words`) finds its program - folders and files from the
-    root -, the install folders it may take it from anywhere in the project, and whether it reads
-    the folder's own modules first (`python -m`: `proof_style.shadows`); None: no runner's
-    line."""
+def _runner_places(words: list[str], cwd: str) -> _Reach | None:
+    """W6: where a package runner's or a Python's line (`words`) finds what it runs (`_Reach`);
+    None: neither."""
     words = words[1:] if words and _program(words[0]) == "corepack" else words
     name = _program(words[0]) if words else ""
     above = [PurePosixPath(cwd), *PurePosixPath(cwd).parents]
     if name in _NODE_RUNNERS:
         names = ("node_modules", *_NODE_SETTINGS.get(name, (".npmrc",)))
-        return [str(folder / one) for folder in above for one in names], (), False
+        return _Reach([str(folder / one) for folder in above for one in names])
     python = next((at for at, word in enumerate(words) if _PYTHON.fullmatch(_program(word))), None)
     module = _python_module(words[python:]) if python is not None else None
     if name not in _PY_RUNNERS and module is None:
         return None
-    shadow = (
-        module is not None
-        and module[1]
-        and module[0].split(".")[0] not in _RUNS_THE_PROJECT
-        and not os.environ.get("PYTHONSAFEPATH")
+    flags = set(module[1]) if module else set()
+    tool = module[0] if module else next((w for w in words[1:] if w[:1] != "-" and w != "run"), "")
+    safe_path = bool(os.environ.get("PYTHONSAFEPATH")) and "E" not in flags
+    return _Reach(
+        [str(folder / env) for folder in above for env in (".venv", "venv")],
+        _PY_INSTALLS,
+        reads_cwd=module is not None and not flags & {"I", "P"} and not safe_path,
+        reads_path=not flags & {"I", "E"},
+        startup_only=_program(tool.split(".")[0]) in _RUNS_THE_PROJECT,
     )
-    envs = [str(folder / env) for folder in above for env in (".venv", "venv")]
-    return envs, _PY_INSTALLS, shadow
 
 
 def _program_word(words: list[str]) -> str:
@@ -263,14 +287,27 @@ def _program_word(words: list[str]) -> str:
     return program
 
 
+def _path_reach(parts: tuple[str, ...]) -> _Reach:
+    """A program named by its path: a console script of a Python environment (`.venv/Scripts/x`,
+    `venv/bin/x`) reads PYTHONPATH as its Python does (W6)."""
+    folded = [part.casefold() for part in parts]
+    script = any(
+        one in (".venv", "venv") and two in ("scripts", "bin")
+        for one, two in zip(folded, folded[1:], strict=False)
+    )
+    tool = _program(parts[-1]) if parts else ""
+    return _Reach(None, reads_path=script, startup_only=tool in _RUNS_THE_PROJECT)
+
+
 def _planted(factory, cid: str, root: Path, command: str, cwd: str) -> str | None:
     """W2, W6: why a rule, a yes given before or a trigger's leave - each matches by the line's
     text, in any folder - does not cover `command`: its program, named by its path, is one an
     agent wrote on record - any turn's, as it still stands in `root` (`proof_style.
     still_written`) -, or is in the install folder such a write is in (`proof_style.
     wrote_program`); or a package runner's line (`_runner_places`) finds its program where such
-    a write is. None: no such write. In a thread: the records are matched to the program's place
-    first, and only those files are read, once the session is closed.
+    a write is; or a Python imports a module such a write is (`proof_style.shadows`). None: no
+    such write. In a thread: the records are matched to the program's place first, and only
+    those files are read, once the session is closed.
     shortcut: the program alone - a script an interpreter is given (`node x.js`) is not judged
     so; judge it too if a rule of one is seen to run one an agent wrote."""
     words = [word.strip("'\"") for word in _words(command)]
@@ -278,12 +315,10 @@ def _planted(factory, cid: str, root: Path, command: str, cwd: str) -> str | Non
     program = _program_word(words)
     parts = PurePosixPath(program.replace("\\", "/")).parts
     # (a runner first: `.venv/Scripts/python.exe -m x` is named by its path, and reads its folder)
-    if runner := _runner_places(words, cwd):
-        places, anywhere, shadow = runner
-        named = [*{PurePosixPath(place).name for place in places}, *anywhere]
-        named += [".py", ".pyc", ".pyd", ".so", "__init__"] if shadow else []
+    if reach := _runner_places(words, cwd):
+        named = [*{PurePosixPath(place).name for place in reach.places or ()}, *reach.anywhere]
     elif parts and ("/" in program or "\\" in program):
-        places, anywhere, shadow = None, (), False
+        reach = _path_reach(parts)
         named = [
             next(
                 (part for part in parts if part.casefold() in proof_style.INSTALLS),
@@ -292,8 +327,19 @@ def _planted(factory, cid: str, root: Path, command: str, cwd: str) -> str | Non
         ]
     else:
         return None
-    looked = [name.lower() for name in named]
     with factory() as session:
+        project = session.scalar(
+            select(Project.root_path)
+            .join(Conversation, Conversation.project_id == Project.id)
+            .where(Conversation.id == cid)
+        )
+        in_copy = project is not None and Path(project).resolve() != root
+        own = reach.reads_cwd and not reach.startup_only  # (the folder it runs in: `-m`)
+        path = in_copy and reach.reads_path  # (a copy's PYTHONPATH)
+        looked = [
+            one.lower()
+            for one in [*named, *((*proof_style.MODULE_ENDINGS, "__init__") if own or path else ())]
+        ]
         found = session.execute(
             select(FileChange.path, FileChange.after_sha)
             .join(Run, Run.id == FileChange.run_id)
@@ -310,12 +356,18 @@ def _planted(factory, cid: str, root: Path, command: str, cwd: str) -> str | Non
             .order_by(FileChange.created_at, literal_column("file_changes.rowid"))
         ).all()
     newest = {path: digest for path, digest in found}
+    places, anywhere = reach.places, reach.anywhere
+    # (the folders a Python imports from first, and whether only its `sitecustomize` counts)
+    imported = [(cwd, False)] * own + [(one, reach.startup_only) for one in _COPY_PATH] * path
 
     def plants(rel: str) -> str | None:
         if places is None:
-            return proof_style.wrote_program(root, cwd, program, [rel])
-        return proof_style.planted_in(root, places, anywhere, rel) or (
-            proof_style.shadows(cwd, rel) if shadow else None
+            found = proof_style.wrote_program(root, cwd, program, [rel])
+        else:
+            found = proof_style.planted_in(root, places, anywhere, rel)
+        return found or next(
+            (one for entry, only in imported if (one := proof_style.shadows(entry, rel, only))),
+            None,
         )
 
     held = proof_style.still_written(root, [one for one in newest.items() if plants(one[0])])

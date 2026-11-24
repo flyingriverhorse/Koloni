@@ -1078,48 +1078,135 @@ def test_a_package_runners_rule_does_not_cover_a_program_an_agent_wrote(
 def test_a_package_runner_finds_its_program_up_the_tree_or_anywhere_it_cannot_place(tmp_path):
     from app.command_runner import _runner_places
 
-    places, anywhere, shadow = _runner_places(["npx", "tsc"], "web/app")
+    reach = _runner_places(["npx", "tsc"], "web/app")
+    places, anywhere = reach.places, reach.anywhere
     assert "web/app/node_modules" in places and "node_modules" in places and "web/.npmrc" in places
-    assert not anywhere and not shadow
+    assert not anywhere and not reach.reads_cwd and not reach.reads_path
     found = proof_style.planted_in
     assert found(tmp_path, places, anywhere, "web/Node_Modules/x/y.js") == "web/node_modules"
     assert found(tmp_path, places, anywhere, "api/node_modules/x.js") is None  # (not its own)
     # (an environment KOLONİ cannot place: any install folder of the project's - fails closed)
-    places, anywhere, shadow = _runner_places(["poetry", "run", "ruff", "check"], ".")
-    assert found(tmp_path, places, anywhere, "tools/env/Lib/site-packages/ruff/x.py") == (
+    reach = _runner_places(["poetry", "run", "ruff", "check"], ".")
+    assert found(tmp_path, reach.places, reach.anywhere, "tools/env/Lib/site-packages/r.py") == (
         "tools/env/Lib/site-packages"
     )
-    assert not shadow  # (poetry's `ruff`: its environment's)
-    places, anywhere, shadow = _runner_places(["corepack", "yarn", "tsc"], "web")
-    assert found(tmp_path, places, anywhere, ".yarn/releases/yarn-4.cjs") == ".yarn"
+    assert not reach.reads_cwd and reach.reads_path  # (its Python reads PYTHONPATH)
+    reach = _runner_places(["corepack", "yarn", "tsc"], "web")
+    assert found(tmp_path, reach.places, (), ".yarn/releases/yarn-4.cjs") == ".yarn"
+    reach = _runner_places(["pnpm", "exec", "tsc"], "web")  # (its hooks run code)
+    assert found(tmp_path, reach.places, (), ".pnpmfile.cjs") == ".pnpmfile.cjs"
     assert _runner_places(["pytest", "-q"], ".") is None
     assert _runner_places(["python", "x.py"], ".") is None
 
 
 @pytest.mark.parametrize(
-    ("words", "said"),
+    ("words", "module", "reads_cwd", "reads_path"),
     [
-        (["python", "-m", "ruff"], ("ruff", True)),
-        (["python", "-mruff", "check"], ("ruff", True)),
-        (["python", "-X", "dev", "-m", "ruff"], ("ruff", True)),
-        (["py", "-3.12", "-m", "ruff"], ("ruff", True)),
-        (["python", "-I", "-m", "ruff"], ("ruff", False)),  # (isolated: no folder on sys.path)
-        (["python", "-Im", "ruff"], ("ruff", False)),
-        (["python3.12", "-P", "-m", "ruff"], ("ruff", False)),
-        (["python", "x.py", "-m", "ruff"], None),
-        (["python", "-c", "import ruff"], None),
+        (["python", "-m", "ruff"], "ruff", True, True),
+        (["python", "-mruff", "check"], "ruff", True, True),
+        (["python", "-X", "dev", "-m", "ruff"], "ruff", True, True),
+        (["py", "-3.12", "-m", "ruff"], "ruff", True, True),
+        (["python", "-I", "-m", "ruff"], "ruff", False, False),  # (isolated: neither)
+        (["python", "-Im", "ruff"], "ruff", False, False),
+        (["python3.12", "-P", "-m", "ruff"], "ruff", False, True),  # (PYTHONPATH all the same)
+        (["python", "-E", "-m", "ruff"], "ruff", True, False),
+        (["python", "x.py", "-m", "ruff"], None, False, False),
+        (["python", "-c", "import ruff"], None, False, False),
     ],
 )
-def test_python_m_reads_the_folder_it_runs_in_first_unless_told_not_to(words, said, monkeypatch):
+def test_python_m_reads_the_folder_it_runs_in_first_unless_told_not_to(
+    words, module, reads_cwd, reads_path, monkeypatch
+):
     # W6: `python -m ruff` imported a `subprocess.py` the agent wrote in its folder
     from app.command_runner import _python_module, _runner_places
 
-    assert _python_module(words) == said
-    if said:
+    said = _python_module(words)
+    assert (said and said[0]) == module
+    if module:
         monkeypatch.delenv("PYTHONSAFEPATH", raising=False)
-        assert _runner_places(words, ".")[2] is said[1]
+        reach = _runner_places(words, ".")
+        assert (reach.reads_cwd, reach.reads_path) == (reads_cwd, reads_path)
         monkeypatch.setenv("PYTHONSAFEPATH", "1")
-        assert _runner_places(words, ".")[2] is False
+        # (under -E the variable is not read either)
+        assert _runner_places(words, ".").reads_cwd is (reads_cwd and "-E" in words)
+
+
+def _copy_db(tmp_path, writes: dict[str, str]):
+    """A project in `tmp_path/p` whose agent wrote `writes` on record - and the copy
+    `tmp_path/copy` that holds them."""
+    from app.db.models import Agent, Conversation, FileChange, Project
+    from app.db.models import Run as RunRow
+    from app.db.session import make_engine, make_session_factory, upgrade_db
+    from app.workspace import sha256_text
+
+    upgrade_db(tmp_path / "k.db")
+    factory = make_session_factory(make_engine(tmp_path / "k.db"))
+    (tmp_path / "p").mkdir()
+    for rel, said in writes.items():
+        (tmp_path / "copy" / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / "copy" / rel).write_text(said, encoding="utf-8")
+    with factory() as session:
+        session.add(Project(id="p", name="p", root_path=str(tmp_path / "p")))
+        session.flush()
+        session.add(Conversation(id="c", project_id="p"))
+        session.flush()
+        session.add(RunRow(id="r", conversation_id="c", status="completed"))
+        session.flush()
+        session.add(Agent(id="a", run_id="r", role_name="Coder", tools=[]))
+        session.flush()
+        for rel, said in writes.items():
+            session.add(
+                FileChange(
+                    run_id="r",
+                    agent_id="a",
+                    path=rel,
+                    kind="create",
+                    after_content=said,
+                    after_sha=sha256_text(said),
+                    status="in_copy",
+                )
+            )
+        session.commit()
+    return factory
+
+
+UVICORN = ".venv/Scripts/uvicorn.exe" if sys.platform == "win32" else ".venv/bin/uvicorn"
+
+
+@pytest.mark.parametrize(
+    ("line", "cwd", "written", "asked"),
+    [
+        ("python -m ruff --version", ".", "src/subprocess.py", "src/subprocess.py"),  # (A)
+        ("python -m ruff --version", "sub", "subprocess.py", "subprocess.py"),  # (B)
+        ("python -m ruff --version", "sub", "sitecustomize.py", "sitecustomize.py"),  # (C)
+        (f"{UVICORN} app:app", ".", "src/subprocess.py", "src/subprocess.py"),  # (D)
+        (f"{UVICORN} app:app", "sub", "sitecustomize.py", "sitecustomize.py"),
+        ("uv run mypy .", "sub", "src/click/__init__.py", "src/click"),
+        # (pytest's tests import the project's code anyway - not what runs before them)
+        ("python -m pytest -q", "sub", "subprocess.py", None),
+        ("python -m pytest -q", "sub", "src/sitecustomize.py", "src/sitecustomize.py"),
+        (".venv/Scripts/pytest.exe -q", ".", "usercustomize.py", "usercustomize.py"),
+        # (-E: PYTHONPATH is not read - the folder it runs in still is)
+        ("python -E -m ruff --version", "sub", "subprocess.py", None),
+        ("python -E -m ruff --version", ".", "subprocess.py", "subprocess.py"),
+        ("python -m ruff --version", ".", "src/app/core.py", None),  # (no module of its own)
+    ],
+)
+def test_in_a_copy_a_python_imports_what_its_pythonpath_holds_first(
+    tmp_path, line, cwd, written, asked
+):
+    """W6, the final look's probe: in a working copy every command gets PYTHONPATH=<copy>;
+    <copy>/src (`host.copy_python_path`) - a `subprocess.py` an agent wrote there ran under
+    `python -m ruff` in any folder, a `sitecustomize.py` under every Python started there."""
+    from app.command_runner import PLANTED, _planted
+
+    factory = _copy_db(tmp_path, {written: "print('PLANTED')\n"})
+    (tmp_path / "copy" / "sub").mkdir(exist_ok=True)
+    said = _planted(factory, "c", (tmp_path / "copy").resolve(), line, cwd)
+    assert said == (PLANTED.format(place=asked) if asked else None)
+    # (the same writes in the project itself: no PYTHONPATH - only `-m`'s own folder)
+    if written.startswith("src/") or cwd == "sub":
+        assert _planted(factory, "c", (tmp_path / "p").resolve(), line, cwd) is None
 
 
 def test_python_m_imports_a_module_its_folder_holds_before_the_standard_one(tmp_path):
@@ -1148,6 +1235,38 @@ def test_python_m_imports_a_module_its_folder_holds_before_the_standard_one(tmp_
         )
 
 
+def test_a_sitecustomize_on_pythonpath_runs_before_anything_under_p_too(tmp_path):
+    """The premise of the copy's `sitecustomize` (W6): a Python started with a folder on
+    PYTHONPATH imports its `sitecustomize.py` before the module it runs - under -P too, not
+    under -E; one in the folder it runs in alone is not imported so."""
+    site, work = tmp_path / "site", tmp_path / "work"
+    (site / "standin").mkdir(parents=True)
+    (site / "standin" / "__init__.py").write_text("", encoding="utf-8")
+    (site / "standin" / "__main__.py").write_text("print('ran')\n", encoding="utf-8")
+    work.mkdir()
+    (work / "sitecustomize.py").write_text("print('PLANTED')\n", encoding="utf-8")
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONSAFEPATH"}
+    for path, flags, planted in (
+        ([work, site], ["-P"], True),
+        ([work, site], ["-E"], False),
+        ([site], [], False),
+    ):
+        env["PYTHONPATH"] = os.pathsep.join(map(str, path))
+        argv = [sys.executable, *flags, "-c", "print('ran')"] if "-E" in flags else None
+        done = subprocess.run(
+            argv or [sys.executable, *flags, "-m", "standin"],
+            cwd=work,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=scaled(30),
+        )
+        assert ("PLANTED" in done.stdout) is planted and "ran" in done.stdout, (
+            flags,
+            done.stdout + done.stderr,
+        )
+
+
 def test_what_python_m_imports_from_its_folder_before_the_tools_own():
     shadows = proof_style.shadows
     assert shadows(".", "subprocess.py") == "subprocess.py"
@@ -1156,6 +1275,9 @@ def test_what_python_m_imports_from_its_folder_before_the_tools_own():
     assert shadows("api", "json.py") is None  # (another folder's)
     assert shadows(".", "app/core.py") is None  # (in a package of the project's own)
     assert shadows(".", "notes.md") is None
+    # (`startup_only`: what `site` imports before anything - pytest's own run)
+    assert shadows("src", "src/sitecustomize.py", startup_only=True) == "src/sitecustomize.py"
+    assert shadows(".", "subprocess.py", startup_only=True) is None
 
 
 def proof_style_planted(place: str) -> str:
