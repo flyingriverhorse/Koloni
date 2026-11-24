@@ -162,6 +162,71 @@ def test_a_role_named_in_a_table_a_quote_or_code_is_no_claim(make_client, wait_r
     assert koloni(wait_run(client, cid, again)) == ["Tester was not opened this turn."]
 
 
+def test_a_step_loads_only_the_tool_calls_of_the_messages_it_sends(
+    make_client, wait_run, project_dir, gate, monkeypatch
+):
+    """Each model step's history loaded every tool call of the chat - its sub-agents' too, which
+    a Lead is never sent (`_history_calls`). Now only those of its messages, and what it is sent
+    is the same."""
+    from sqlalchemy import event, select
+
+    from app.agent import AgentRunner
+    from app.agent.proof_mixin import PROOF_CALL
+    from app.db.models import Run, ToolCall
+
+    client, _model = make_client(
+        [
+            spawn("Coder", "look around"),
+            *[step(call("list_dir", {}, f"l{n}")) for n in range(3)],
+            text("Looked."),
+            text("The coder looked."),
+            gate.step(text("Again.")),
+        ]
+    )
+    cid, run_id = begin(client, project_dir, "full_auto")
+    wait_run(client, cid, run_id)
+    client.post(
+        f"/api/conversations/{cid}/messages",
+        json={"content": "again"},
+        headers={"Origin": "http://127.0.0.1:8790"},
+    )
+    gate.wait_partial()  # (the Lead's step of the second turn, held)
+    runner = client.app.state.runner
+    lead = next(ctx for ctx in runner._ctxs.values() if ctx.depth == 0)
+
+    def every_call(self, session, ids):  # the loader before: the whole chat's
+        calls: dict = {}
+        for one in session.scalars(
+            select(ToolCall)
+            .join(Run, Run.id == ToolCall.run_id)
+            .where(Run.conversation_id == cid)
+            .order_by(ToolCall.seq)
+        ):
+            if not one.provider_call_id.startswith(PROOF_CALL):
+                calls.setdefault(one.message_id, []).append(one)
+        return calls
+
+    loaded: list[str] = []
+
+    def history() -> tuple[list[dict], int]:
+        loaded.clear()
+        return client.portal.call(lambda: runner._history(lead, None, quiet=True)), len(loaded)
+
+    def counted(target, _context):
+        loaded.append(target.name)
+
+    event.listen(ToolCall, "load", counted)
+    try:
+        sent, narrow = history()
+        monkeypatch.setattr(AgentRunner, "_history_calls", every_call)
+        before, wide = history()
+    finally:
+        event.remove(ToolCall, "load", counted)
+    gate.release()
+    assert sent == before and "spawn_agent" in str(sent)
+    assert (narrow, wide) == (1, 4)  # (the Lead's spawn_agent; before, the Coder's 3 list_dir too)
+
+
 # --- the child loop -----------------------------------------------------------
 
 

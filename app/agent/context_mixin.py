@@ -1476,7 +1476,7 @@ class ContextMixin:
             )
             read_how, told_files, seen = self._history_files(session, ctx, off, rows, messages)
             carried = self._history_carried(session, ctx, family)
-            calls = self._history_calls(session, cid)
+            calls = self._history_calls(session, [row.id for row in rows])
             # A note from an agent that is not of this conversation: of another one of
             # the project (what KOLONİ said of a file both work on).
             far = {
@@ -1541,20 +1541,22 @@ class ContextMixin:
         return messages
 
     def _history_calls(
-        self: "AgentRunner", session: Session, cid: str
+        self: "AgentRunner", session: Session, ids: list[str]
     ) -> dict[str, list[ToolCall]]:
-        """`_history`'s tool calls of the conversation, by the message they were made in."""
+        """`_history`'s tool calls of the messages it sends (`ids`), by the message they were
+        made in - not the whole conversation's: a long-lived chat's sub-agents made most."""
         calls: dict[str, list[ToolCall]] = {}
-        for call in session.scalars(
-            select(ToolCall)
-            .join(Run, Run.id == ToolCall.run_id)
-            .where(Run.conversation_id == cid)
-            .order_by(ToolCall.seq)
-        ):
-            # (Not KOLONİ's own end-of-turn test run, put on an answer after the fact: that answer
-            # is sent back as it was given - its thinking too. `ProofMixin`, `PROOF_CALL`.)
-            if not call.provider_call_id.startswith(PROOF_CALL):
-                calls.setdefault(call.message_id, []).append(call)
+        for at in range(0, len(ids), 900):  # (under SQLite's oldest bound of 999 variables)
+            for call in session.scalars(
+                select(ToolCall)
+                .where(ToolCall.message_id.in_(ids[at : at + 900]))
+                .order_by(ToolCall.seq)
+            ):
+                # (Not KOLONİ's own end-of-turn test run, put on an answer after the fact: that
+                # answer is sent back as it was given - its thinking too. `ProofMixin`,
+                # `PROOF_CALL`.)
+                if not call.provider_call_id.startswith(PROOF_CALL):
+                    calls.setdefault(call.message_id, []).append(call)
         return calls
 
     def _history_system(
