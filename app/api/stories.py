@@ -16,6 +16,7 @@ from app.schemas import GoalIn, GoalOut, GoalPatch, StoryIn, StoryOut, StoryPatc
 router = APIRouter(prefix="/api", tags=["backlog"])
 OWN = [Depends(require_own_origin)]
 OTHER_GOAL = "a story's goal is one of its project"
+TAKEN = "the project has a story of this name already: “{title}”"
 
 
 def _project(session: Session, project_id: str) -> Project:
@@ -107,7 +108,10 @@ async def add_story(
     project = _project(session, project_id)
     if body.goal_id is not None and not stories.of_project(session, Goal, project.id, body.goal_id):
         raise HTTPException(422, OTHER_GOAL)
-    story = stories.add_story(session, project.id, _title(body.title), body.goal_id, "user")
+    title = _title(body.title)
+    if found := stories.taken(session, project.id, title):
+        raise HTTPException(422, TAKEN.format(title=found.title))
+    story = stories.add_story(session, project.id, title, body.goal_id, "user")
     session.commit()
     _told(request, project_id)
     return _story_out(session, story)
@@ -120,14 +124,25 @@ async def change_story(
     story = _story(session, story_id)
     changes = body.model_dump(exclude_unset=True)
     if changes.get("title") is not None:
-        story.title = _title(changes["title"])
+        title = _title(changes["title"])
+        if found := stories.taken(session, story.project_id, title, but=story.id):
+            raise HTTPException(422, TAKEN.format(title=found.title))
+        story.title = title
     if "goal_id" in changes:  # (null takes it out of its goal)
         goal_id = changes["goal_id"]
         if goal_id is not None and not stories.of_project(session, Goal, story.project_id, goal_id):
             raise HTTPException(422, OTHER_GOAL)
         story.goal_id = goal_id
+    if (
+        changes.get("closed")
+        and story.closed_at is None
+        and (left := stories.not_closable(session, story))
+    ):
+        raise HTTPException(
+            409, f"a story is closed once each of its tasks is done: {left} of them are not"
+        )
     if changes.get("closed") is not None:
-        story.closed_at = now() if changes["closed"] else None
+        story.closed_at = (story.closed_at or now()) if changes["closed"] else None
     if changes.get("position") is not None:
         stories.renumber(session, Story, story.project_id, story, changes["position"])
     session.commit()

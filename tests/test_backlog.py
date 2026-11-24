@@ -335,10 +335,11 @@ def test_add_task_puts_a_proposal_in_a_story_named_by_its_title(client, project_
     (task,) = client.get(f"/api/projects/{pid}/backlog").json()
     assert task["story_id"] == mine
     assert client.delete(f"/api/backlog/{task['id']}").status_code == 204
-    client.patch(f"/api/stories/{mine}", json={"closed": True})
-    agent(client, pid, "add_task", title="z", story="Mine")
-    (task,) = client.get(f"/api/projects/{pid}/backlog").json()
-    assert task["story_id"] != mine
+    assert client.patch(f"/api/stories/{mine}", json={"closed": True}).status_code == 200
+    # A closed one is not added to, nor named again: the agent is told so.
+    with pytest.raises(backlog.Refused, match="is closed"):
+        agent(client, pid, "add_task", title="z", story="mine")
+    assert client.get(f"/api/projects/{pid}/backlog").json() == []
 
 
 def test_an_approved_proposal_makes_its_story_the_users_and_its_row_names_it(client, project_dir):

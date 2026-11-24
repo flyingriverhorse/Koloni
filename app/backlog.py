@@ -865,6 +865,12 @@ def _check_tree(session: Session, project_id: str, tree: dict) -> None:
                 raise Refused("a task's story is one of its project")
         elif not (one.get("title") or "").strip():
             raise Refused("a new story needs a title")
+    new = [one["title"].strip() for one in tree["stories"] if one.get("id") is None]
+    for title in new:
+        if (found := stories.taken(session, project_id, title)) is not None:
+            raise Refused(f"the project has a story of this name already: “{found.title}”")
+    if len({title.casefold() for title in new}) < len(new):
+        raise Refused("two new stories of one name")
     every = [*(task for one in tree["stories"] for task in one["tasks"]), *tree["tasks"]]
     if any(not task["title"].strip() for task in every):
         raise Refused("a task needs a title")
@@ -1325,12 +1331,17 @@ def add_task(session: Session, project_id: str, args: dict, chat: str | None = N
 def _story_for(session: Session, project_id: str, args: dict) -> Story | None:
     """The story an agent's add_task names by its title: the project's open one of that title,
     whatever its case, else a new one of the agent's - under `goal`, the project's goal of that
-    title or a new one. None where it names none."""
+    title or a new one. None where it names none; refused where it names a closed one."""
     title, goal = _text(args, "story"), _text(args, "goal")
     if title is None:
         return None
     if (story := stories.story_named(session, project_id, title)) is not None:
         return story
+    if (closed := stories.taken(session, project_id, title)) is not None:
+        raise Refused(
+            f"the story {closed.title!r} is closed: name another story, or none for a task "
+            "that stands alone"
+        )
     goal_id = None
     if goal is not None:
         found = stories.goal_named(session, project_id, goal)
