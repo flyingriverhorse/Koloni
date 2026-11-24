@@ -70,7 +70,7 @@ test('a short explanation behind ⓘ: shown while hovered, kept by a click or a 
 const project: Project = {
   id: 'p', name: 'demo', root_path: 'C:/demo', created_at: 't', exec_location: 'host', docker_image: null, docker_network: false,
   search_url: null, search_order: 'builtin', search_agy: false, has_notify_url: false, notify_format: 'slack', notify_desktop: false,
-  turn_token_limit: null, max_agents: null, continue_steps: 25, monthly_budget: null, check_command: null, measure_command: null, after_change: 'check', fix_rounds: 2, stronger_model: true, check_kinds: {}, review_lines: 80, review_files: 3, after_change_from_off: false, tests_found: {}, tests_look: null, test_commands: {}, full_auto_check: 'ask', disposable_deletes: false, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small', git_commit: false, finish_way: null, auto_notes: false, observe_reports: false, suggest_tasks: true, suggest_tier: 'fast', day_note_at: null, also_in: [], read_in: [], teams_mode: 'none', teams: [],
+  turn_token_limit: null, max_agents: null, continue_steps: 25, monthly_budget: null, measure_command: null, after_change: 'check', fix_rounds: 2, stronger_model: true, check_kinds: {}, review_lines: 80, review_files: 3, after_change_from_off: false, tests_found: {}, tests_look: null, test_commands: {}, full_auto_check: 'ask', disposable_deletes: false, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small', git_commit: false, finish_way: null, auto_notes: false, observe_reports: false, suggest_tasks: true, suggest_tier: 'fast', day_note_at: null, also_in: [], read_in: [], teams_mode: 'none', teams: [],
   hide_secrets: true, canary: true, lead_work: 'delegates', when_away: 'waits', away_minutes: 10, spawn_approval: 'auto', spawn_max_depth: 2, spawn_max_agents: 6, spawn_max_parallel: 2, discussion_budget: null, room_posts: 40, room_tokens: null, room_minutes: 30, room_min_tokens: 60000, pass_env: null, held_env: [], koloni: { settings_kept: false, rules_kept: false, rules: null, broken: [], asks: {} },
 }
 
@@ -93,8 +93,8 @@ test('a note with a hint loses nothing: its first sentence stands, the rest is b
   // every hint on this page, section by section: none of them open, each with something in it;
   // and what warns of what a setting runs, spends or does not hold is never behind one: it is read before the field is set
   const warnings = [
-    /It runs by itself only where commands do/,
-    /together with what the project changed meanwhile, in the sub-agent’s working copy, where this project’s commands run/,
+    /they run by themselves in Full auto, or where the part’s test command is yours/,
+    /the tests the sub-agent wrote or changed run in its working copy - only those/,
     /a search with it uses your plan/,
     /a CLI that reports no tokens is not limited by this/,
     /is sent the task, the report, the diffs of the changed files and the test’s output, with the secrets KOLONİ knows masked/,

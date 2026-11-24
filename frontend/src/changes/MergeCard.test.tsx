@@ -203,9 +203,17 @@ const check = (over: Partial<NonNullable<Merge['check']>> = {}): NonNullable<Mer
 
 test('with no check command the card says that nothing was checked', () => {
   render(<MergeCard merge={merge()} name="Coder" onDecide={vi.fn()} onCheck={vi.fn()} />)
-  expect(screen.getByText('No test command is set: not tested.')).toBeInTheDocument()
+  expect(screen.getByText('No tests of its own to run before it is added - KOLONİ’s check at the turn’s end runs every test.')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: /Run the test/ })).not.toBeInTheDocument()
   expect(screen.queryByText(/passed/)).not.toBeInTheDocument()
+})
+
+test('tests it wrote that no part can run alone: why, and no button that would run nothing', () => {
+  const said = '.: its test command (python check.py) cannot run just these files (its runner is not one KOLONİ narrows) - not run'
+  render(<MergeCard merge={merge({ files: [lines], check: check({ command: '', note: said }) })} name="Coder" onDecide={vi.fn()} onCheck={vi.fn()} />)
+  const block = screen.getByRole('group', { name: 'Test' })
+  expect(within(block).getByText(`${said} - KOLONİ’s check at the turn’s end runs every test.`)).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /Run the test/ })).not.toBeInTheDocument()
 })
 
 test('a check that has not run says so, and you start it from the card - with what you chose, and not before', async () => {

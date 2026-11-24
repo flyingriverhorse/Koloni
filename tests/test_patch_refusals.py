@@ -210,7 +210,6 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
         "max_agents": 3,
         "continue_steps": 4,
         "monthly_budget": 12.5,
-        "check_command": " pytest ",
         "measure_command": " score ",
         "git_commit": True,
         "finish_way": "pull_request",
@@ -250,7 +249,6 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
         **sent,
         "docker_image": "python:3.12",
         "search_url": "http://127.0.0.1:9/search",
-        "check_command": "pytest",
         "measure_command": "score",
         "embedding_model": "embed",
         "pass_env": "A_KEY",
@@ -266,7 +264,7 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
         client,
         f"/api/projects/{pid}",
         {
-            "check_command": " ",
+            "measure_command": " ",
             "pass_env": "",
             "search_url": "",
             "embedding_model": " ",
@@ -280,7 +278,7 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
     assert [
         out[name]
         for name in (
-            "check_command",
+            "measure_command",
             "pass_env",
             "search_url",
             "turn_token_limit",
@@ -300,7 +298,6 @@ def test_a_project_takes_each_group_of_fields(client, pid, tmp_path, monkeypatch
         {"notify_url": ""},
         {"notify_format": "text"},
         {"notify_desktop": False},
-        {"check_command": ""},
         {"measure_command": ""},
         {"git_commit": False},
         {"finish_way": "merge"},
@@ -376,7 +373,7 @@ def test_a_project_is_refused_for_the_first_rule_it_breaks(client, pid, missing,
     # from the app's own page is, from anywhere else, refused for that.
     for later in (pull, desktop, links, embeds, search, notify, day):
         assert answer(client, url, later, own=False) == NO_ORIGIN, later
-        assert answer(client, url, {"check_command": "x", **later}, own=False) == NO_ORIGIN, later
+        assert answer(client, url, {"measure_command": "x", **later}, own=False) == NO_ORIGIN, later
     assert answer(client, url, teams) == (422, "unknown team")
     assert answer(client, url, {**teams, "also_in": [folder]}) == (422, "unknown team")
     assert answer(client, url, {"also_in": [folder], "read_in": ["not absolute"]}) == not_there

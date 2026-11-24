@@ -36,16 +36,21 @@ from tests.test_parallel import until
 from tests.test_spawn import call, step
 from tests.test_take_in_scenarios import (
     CHECK,
+    CHECKED,
     LINES,
     LONG,
     ORIGIN,
+    OWN,
     card,
     edit,
+    guessed,
     lines,
     meanwhile,
     needs_git,
     of,
+    own_test,
     repository,
+    root_runs,
     same,
     start,
 )
@@ -686,8 +691,12 @@ def test_the_lines_the_project_changed_meanwhile_are_told_as_not_the_agents(
     client, _pid, cid, run_id = start(
         make_client,
         project_dir,
-        [step(edit("two", "TWO-agent")), held.step(text("I changed line 2"))],
-        project={"check_command": "python -c pass"} if check else None,
+        [
+            step(edit("two", "TWO-agent")),
+            *([own_test()] if check else []),
+            held.step(text("I changed line 2")),
+        ],
+        project=root_runs() if check else None,
         permission_mode="ask",
     )
     held.wait_partial()
@@ -933,19 +942,18 @@ def test_two_sides_written_together_before_a_restart_are_still_one_change_to_und
                     step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
                     text("done"),
                 ],
-                "Coder": [step(edit("two", "TWO-agent")), held.step(text("A done"))],
+                "Coder": [
+                    step(edit("two", "TWO-agent")),
+                    own_test(body="pass"),
+                    held.step(text("A done")),
+                ],
             }
         ),
     )
     with TestClient(app_, base_url="http://127.0.0.1:8790") as client:
         client.headers["Origin"] = ORIGIN
         pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-        assert (
-            client.patch(
-                f"/api/projects/{pid}", json={"check_command": "python -c pass"}
-            ).status_code
-            == 200
-        )
+        assert client.patch(f"/api/projects/{pid}", json=root_runs()).status_code == 200
         cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
         assert (
             client.patch(
@@ -970,8 +978,15 @@ def test_two_sides_written_together_before_a_restart_are_still_one_change_to_und
         assert done.status_code == 200 and done.json()["status"] == "applied"
         assert lines(project_dir) == with_(two="TWO-agent", six="SIX-user")
         snap = client.get(f"/api/conversations/{cid}").json()
-        assert sorted(f["status"] for f in snap["file_changes"]) == ["applied", "merged"]
-        (one,) = [f for f in snap["file_changes"] if f["status"] == "applied"]
+        # (and the Coder's own test, taken with it: 0.1.7)
+        assert sorted((f["path"], f["status"]) for f in snap["file_changes"]) == [
+            ("lines.txt", "applied"),
+            ("lines.txt", "merged"),
+            (OWN, "applied"),
+        ]
+        (one,) = [
+            f for f in snap["file_changes"] if f["status"] == "applied" and f["path"] == "lines.txt"
+        ]
         assert client.post(f"/api/file-changes/{one['id']}/revert").status_code == 200
         assert (project_dir / "lines.txt").read_bytes() == before
 
@@ -983,13 +998,16 @@ def test_the_check_sees_what_the_project_changed_meanwhile_in_files_the_agent_le
     make_client, wait_run, project_dir
 ):
     (project_dir / "other.txt").write_bytes(b"old")
-    sees = "python -c \"import sys;sys.exit(0 if open('other.txt').read()=='USER' else 1)\""
     held = Gate()
     client, _pid, cid, run_id = start(
         make_client,
         project_dir,
-        [step(write("a.txt", "A")), held.step(text("A done"))],
-        project={"check_command": sees},
+        [
+            step(write("a.txt", "A")),
+            own_test(body="assert open('other.txt').read() == 'USER'"),
+            held.step(text("A done")),
+        ],
+        project=root_runs(),
     )
     held.wait_partial()
     (project_dir / "other.txt").write_bytes(b"USER")
@@ -997,10 +1015,10 @@ def test_the_check_sees_what_the_project_changed_meanwhile_in_files_the_agent_le
     snap = wait_run(client, cid, run_id, timeout=LONG)
     (merge,) = snap["merges"]
     assert merge["check"]["state"] == "passed" and merge["status"] == "applied"
-    assert [f["path"] for f in merge["files"]] == ["a.txt"]  # it is not the agent's
+    assert [f["path"] for f in merge["files"]] == ["a.txt", OWN]  # other.txt is not the agent's
     # on record where commands are: one of the Coder's, run in its copy
     (ran,) = snap["commands"]
-    assert ran["command"] == sees and ran["agent_id"] == agent(snap, "Coder")["id"]
+    assert ran["command"] == CHECKED and ran["agent_id"] == agent(snap, "Coder")["id"]
     assert (ran["status"], ran["exit_code"]) == ("exited", 0)
 
 
@@ -1012,16 +1030,16 @@ def test_what_the_check_itself_writes_in_the_copy_is_neither_shown_nor_taken(
     changes or deletes: none of it is the agent's work, whether the check passes or not.
     (Below Full auto: there a failing check goes to the Lead first, K-fullauto-sorma 2.)"""
     does = (
-        "import os;open('report.xml','w').write('x');open('a.txt','w').write('REWRITTEN');"
-        "open('lines.txt','a').write('more');os.remove('hello.py')"
+        "open('report.xml','w').write('x')\nopen('a.txt','w').write('REWRITTEN')\n"
+        "open('lines.txt','a').write('more')\nos.remove('hello.py')"
     )
     if ends == "failed":
-        does += ";raise SystemExit(1)"
+        does += "\nassert False"
     client, _pid, cid, run_id = start(
         make_client,
         project_dir,
-        [step(write("a.txt", "A")), text("A done")],
-        project={"check_command": f'python -c "{does}"'},
+        [step(write("a.txt", "A")), own_test(body=does), text("A done")],
+        project=root_runs(),
         permission_mode=mode,
     )
     merge = card(client, cid)
@@ -1029,16 +1047,16 @@ def test_what_the_check_itself_writes_in_the_copy_is_neither_shown_nor_taken(
     snap = until(client, cid, lambda s: s["merges"][0]["check"]["state"] == ends, timeout=LONG)
     (merge,) = snap["merges"]
     # the card asks about what it asked about before, as it was: the result is of that
-    assert {f["path"]: f["state"] for f in merge["files"]} == {"a.txt": "ready"}
+    assert {f["path"]: f["state"] for f in merge["files"]} == {"a.txt": "ready", OWN: "ready"}
     assert "+A" in of(merge, "a.txt")["diff"] and merge["check"]["stale"] is False
     assert client.post(f"/api/merges/{merge['id']}/approve").status_code == 200
     snap = wait_run(client, cid, run_id, timeout=LONG)
     (merge,) = snap["merges"]  # and no second card for the rest
-    assert merge["status"] == "applied" and [f["path"] for f in merge["files"]] == ["a.txt"]
+    assert merge["status"] == "applied" and [f["path"] for f in merge["files"]] == ["a.txt", OWN]
     assert (project_dir / "a.txt").read_text(encoding="utf-8") == "A"
     assert not (project_dir / "report.xml").exists() and (project_dir / "hello.py").exists()
     assert lines(project_dir) == NUMBERS
-    assert [f["path"] for f in snap["file_changes"]] == ["a.txt"]
+    assert sorted(f["path"] for f in snap["file_changes"]) == ["a.txt", OWN]
 
 
 def test_a_check_that_does_not_end_in_time_did_not_pass(
@@ -1048,8 +1066,8 @@ def test_a_check_that_does_not_end_in_time_did_not_pass(
     client, _pid, cid, run_id = start(
         make_client,
         project_dir,
-        [step(write("a.txt", "A")), text("A done")],
-        project={"check_command": 'python -c "import time;time.sleep(60)"'},
+        [step(write("a.txt", "A")), own_test(body="import time\ntime.sleep(60)"), text("A done")],
+        project=root_runs(),
         permission_mode="auto_edit",
     )  # (at Full auto it would go to the Lead first)
     merge = card(client, cid)
@@ -1071,11 +1089,15 @@ def test_stop_while_the_check_runs_ends_it_and_it_is_not_left_saying_that_it_run
     client, _pid, cid, run_id = start(
         make_client,
         project_dir,
-        [step(write("a.txt", "A")), text("A done")],
-        project={
-            "check_command": f"python -c \"import pathlib,time;p=pathlib.Path('{runs}');"
-            "n=p.exists();p.write_text('x');time.sleep(60*n)\""
-        },
+        [
+            step(write("a.txt", "A")),
+            own_test(
+                body=f"import pathlib, time\np = pathlib.Path('{runs}')\nn = p.exists()\n"
+                "p.write_text('x')\ntime.sleep(60 * n)"
+            ),
+            text("A done"),
+        ],
+        project=root_runs(),
         permission_mode="ask",
     )
     merge = card(client, cid)
@@ -1112,7 +1134,7 @@ def test_in_a_project_whose_commands_run_in_a_container_the_check_runs_there_in_
                 step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
                 text("done"),
             ],
-            "Coder": [step(write("a.txt", "A")), text("A done")],
+            "Coder": [step(write("a.txt", "A")), own_test(), text("A done")],
         },
         executor=executor,
     )
@@ -1120,7 +1142,7 @@ def test_in_a_project_whose_commands_run_in_a_container_the_check_runs_there_in_
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
     for change in (
         {"docker_image": "python:3.12"},
-        {"exec_location": "docker", "check_command": "python -m pytest -q"},
+        {"exec_location": "docker", **root_runs("python -m pytest -q")},
     ):
         assert client.patch(f"/api/projects/{pid}", json=change).status_code == 200
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
@@ -1142,7 +1164,7 @@ def test_in_a_project_whose_commands_run_in_a_container_the_check_runs_there_in_
     assert executor.locations == ["docker"]
     ((ran, cwd),) = executor.started
     ((copy, _links),) = executor.copies
-    assert ran == "python -m pytest -q" and copy is not None and same(cwd, copy)
+    assert ran == f"python -m pytest -q {OWN}" and copy is not None and same(cwd, copy)
     assert not same(cwd, project_dir)
     (on_record,) = snap["commands"]
     assert (on_record["location"], on_record["image"]) == ("docker", "python:3.12")
@@ -1152,8 +1174,8 @@ def test_a_result_of_an_earlier_state_says_so(make_client, wait_run, project_dir
     client, _pid, cid, run_id = start(
         make_client,
         project_dir,
-        [step(write("a.txt", "A")), text("A done")],
-        project={"check_command": "python check.py one"},
+        [own_test("one"), text("A done")],  # (its work is its own test - 0.1.7)
+        project=root_runs(),
         permission_mode="ask",
     )
     merge = card(client, cid)
@@ -1161,15 +1183,15 @@ def test_a_result_of_an_earlier_state_says_so(make_client, wait_run, project_dir
     snap = until(client, cid, lambda s: s["merges"][0]["check"]["state"] == "passed", timeout=LONG)
     assert snap["merges"][0]["check"]["stale"] is False
     # the project gets a file of that name by another hand: the card's file is not as checked
-    (project_dir / "a.txt").write_bytes(b"THE USER'S OWN")
+    (project_dir / OWN).write_bytes(b"THE USER'S OWN")
     assert client.post(f"/api/merges/{merge['id']}/approve").status_code == 409
     said = card(client, cid)
-    assert of(said, "a.txt")["state"] == "conflict"
+    assert of(said, OWN)["state"] == "conflict"
     assert said["check"]["state"] == "passed" and said["check"]["stale"] is True
     # run again, on what the user now chooses, it is of this state
     assert (
         client.post(
-            f"/api/merges/{merge['id']}/check", json={"choices": {"a.txt": "project"}}
+            f"/api/merges/{merge['id']}/check", json={"choices": {OWN: "project"}}
         ).status_code
         == 200
     )
@@ -1182,7 +1204,7 @@ def test_a_result_of_an_earlier_state_says_so(make_client, wait_run, project_dir
         timeout=LONG,
     )
     snap = wait_run(client, cid, run_id, timeout=LONG)  # nothing of it is left to take
-    assert (project_dir / "a.txt").read_bytes() == b"THE USER'S OWN"
+    assert (project_dir / OWN).read_bytes() == b"THE USER'S OWN"
     assert snap["merges"][0]["status"] == "discarded"
 
 
@@ -1195,8 +1217,8 @@ def test_where_only_commands_are_asked_about_the_check_runs_by_itself_before_any
     client, _pid, cid, run_id = start(
         make_client,
         project_dir,
-        [step(write("a.txt", "A")), text("A done")],
-        project={"check_command": f"python check.py {words}"},
+        [step(write("a.txt", "A")), own_test(words), text("A done")],
+        project=root_runs(),
         permission_mode="auto_edit",
     )
     if passes:
@@ -1239,20 +1261,20 @@ def test_nobody_watching_a_clash_is_not_decided_and_nothing_is_taken_unchecked(
             "Coder": [
                 step(edit("two", "TWO-agent", "e1")),
                 step(write("a.txt", "A")),
+                own_test("one"),
                 held.step(text("A done")),
             ],
         }
     )
     client.headers["Origin"] = ORIGIN
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    command = "python check.py one"
-    assert client.patch(f"/api/projects/{pid}", json={"check_command": command}).status_code == 200
+    assert client.patch(f"/api/projects/{pid}", json=root_runs()).status_code == 200
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     made = trigger(
         client,
         pid,
         cid,
-        permissions={"write": True, "commands": [allow(client, cid, command)], "agents": 1},
+        permissions={"write": True, "commands": [allow(client, cid, CHECKED)], "agents": 1},
     )
     run_id = run_now(client, made["id"])
     held.wait_partial()
@@ -1265,6 +1287,7 @@ def test_nobody_watching_a_clash_is_not_decided_and_nothing_is_taken_unchecked(
     assert {f["path"]: f["state"] for f in merge["files"]} == {
         "a.txt": "ready",
         "lines.txt": "conflict",
+        OWN: "ready",
     }
     assert not (project_dir / "a.txt").exists() and lines(project_dir) == with_(two="TWO-other")
     assert "kept in" in calls(snap, "Lead", "spawn_agent")[0][1]
@@ -1493,9 +1516,9 @@ def test_a_commit_of_nothing_and_one_without_a_message_are_refused(
 
 
 @needs_git
-@pytest.mark.parametrize("ticked", [True, False])
+@pytest.mark.parametrize("yours", [True, False])
 def test_what_a_turn_nobody_watched_left_is_offered_its_commit_only_once_the_user_takes_it(
-    make_client, wait_run, project_dir, ticked
+    make_client, wait_run, project_dir, monkeypatch, yours
 ):
     """Never in the trigger's own turn; a copy it kept is then the user's own Apply."""
     (project_dir / "lines.txt").write_bytes(LINES.encode())
@@ -1507,27 +1530,26 @@ def test_what_a_turn_nobody_watched_left_is_offered_its_commit_only_once_the_use
                 step(call("spawn_agent", {"role": "Coder", "task": "do it"}, "s")),
                 text("done"),
             ],
-            "Coder": [step(write("a.txt", "A")), text("A done")],
+            "Coder": [step(write("a.txt", "A")), own_test("NEVER-THERE"), text("A done")],
         }
     )
     client.headers["Origin"] = ORIGIN
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    command = "python check.py NEVER-THERE"
-    assert (
-        client.patch(
-            f"/api/projects/{pid}", json={"check_command": command, "git_commit": True}
-        ).status_code
-        == 200
+    # (the user's own test command runs in such a turn; KOLONİ's guess never - 0.1.7 round 2)
+    if not yours:
+        guessed(monkeypatch, project_dir)
+    project = (
+        root_runs(git_commit=True) if yours else {"git_commit": True, "after_change": "nothing"}
     )
+    assert client.patch(f"/api/projects/{pid}", json=project).status_code == 200
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    rules = [allow(client, cid, command)] if ticked else []
-    made = trigger(client, pid, cid, permissions={"write": True, "commands": rules, "agents": 1})
+    made = trigger(client, pid, cid, permissions={"write": True, "commands": [], "agents": 1})
     snap = wait_run(client, cid, run_now(client, made["id"]), timeout=LONG)
     (merge,) = snap["merges"]
     # taken in the turn itself where the check may not run, kept where it ran and failed
-    assert merge["status"] == ("kept" if ticked else "applied")
+    assert merge["status"] == ("kept" if yours else "applied")
     assert merge["commit"] is None
-    if ticked:
+    if yours:
         done = client.post(f"/api/merges/{merge['id']}/approve")
         assert done.status_code == 200 and done.json()["status"] == "applied"
         assert done.json()["commit"]["state"] == "offered"

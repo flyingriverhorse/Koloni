@@ -23,7 +23,6 @@ const project = {
   turn_token_limit: null,
   max_agents: null,
   monthly_budget: null,
-  check_command: null,
   git_commit: false,
   auto_notes: false,
   observe_reports: false,

@@ -106,9 +106,6 @@ class Project(Base):
     monthly_budget: Mapped[float | None] = mapped_column(Float, default=None)
     # The month ("2026-10") the user's desktop was told the budget is 80% used: once a month.
     budget_told: Mapped[str | None] = mapped_column(String(7), default=None)
-    # The command that checks a sub-agent's work, run in its working copy on what is
-    # about to go into the project (`AgentRunner._check`). None: nothing is checked.
-    check_command: Mapped[str | None] = mapped_column(String(500), default=None)
     # K-evrim: the command that scores a candidate's work - the last line of its output, a
     # number from 0 to 100 (`evolve.score_of`). None: nothing is measured.
     measure_command: Mapped[str | None] = mapped_column(String(500), default=None)

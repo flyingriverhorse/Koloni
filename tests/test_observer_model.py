@@ -22,22 +22,30 @@ from tests.test_observer_model_scenarios import (
 )
 from tests.test_parallel import until
 from tests.test_spawn import begin, call, reported, spawn, step
+from tests.test_take_in_scenarios import RUNS, own_test
 
 
 def test_it_sees_the_diff_and_the_check_and_what_it_spent_is_under_the_model_it_asked(
     make_client, wait_run, project_dir
 ):
+    # (0.1.7: the check is the Coder's own test, written in the same step - with -s, what it
+    # prints is in the check's output)
+    (checks,) = own_test(body="print('CHECKED')").tool_calls
     client, model = make_client(
         [
             spawn("Coder", TASK),
-            step(write("a.txt", "NEW-LINE")),
+            step(write("a.txt", "NEW-LINE"), checks),
             text(REPORT),
             text(SAID, i=11, o=7),  # the observer
             text("Good."),
         ]
     )
     pid = project(
-        client, project_dir, observe_reports=True, check_command="python -c \"print('CHECKED')\""
+        client,
+        project_dir,
+        observe_reports=True,
+        check_command=f"{RUNS} -s",
+        after_change="nothing",
     )
     cid, run_id = turn(client, pid)
     snap = wait_run(client, cid, run_id, timeout=20)

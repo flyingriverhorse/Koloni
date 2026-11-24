@@ -122,7 +122,9 @@ def test_a_two_line_fix_through_bugfix_opens_two_agents_and_asks_the_lead_three_
     # in this module (conftest): with no Tester, KOLONİ runs the tests; a small change gets no
     # review, the recipe's or KOLONİ's.
     guess(monkeypatch, PYTEST)
-    executor = ScriptedExecutor([REPRO, PASSED])  # (a third run would find no script)
+    # (and Take in's check of the Debugger's own test, tests/test_repro.py - 0.1.7; a fourth run
+    # would find no script)
+    executor = ScriptedExecutor([REPRO, PASSED, PASSED])
     client, model = make_client(
         {"Lead": THIN, "Debugger": list(REPRODUCES), "Coder": fixed()}, executor=executor
     )
@@ -145,7 +147,8 @@ def test_koloni_s_fix_round_goes_back_to_fix_it_not_to_reproduce_it(
     # (Before T1's engine change it went back to Reproduce it - whose Debugger would find no new
     # failing test to show, and the work stopped Not checked.)
     guess(monkeypatch, PYTEST)
-    executor = ScriptedExecutor([REPRO, FAILED, PASSED])
+    # (and Take in's check of the Debugger's own test - 0.1.7)
+    executor = ScriptedExecutor([REPRO, FAILED, PASSED, PASSED])
     lead = [*THIN[:2], spawn("Coder", "fix the failing test", "c1"), text("done")]
     client, model = make_client(
         {
@@ -209,7 +212,8 @@ def test_a_bugfix_with_its_own_test_and_review_steps_gets_no_review_of_kolonis(
     # (The ready Bugfix before T1, a copy of the user's now: 4 agents, the Lead asked 5 times;
     # the Tester's run passed after the last change and the recipe's Reviewer looked.)
     guess(monkeypatch, PYTEST)
-    executor = ScriptedExecutor([REPRO, PASSED])
+    # (and Take in's check of the Debugger's own test - 0.1.7)
+    executor = ScriptedExecutor([REPRO, PASSED, PASSED])
     client, model = make_client({**scripts(ran_tests()), "Coder": fixed()}, executor=executor)
     cid, run_id = bugfix_run(client, project_dir)
     snap = wait_run(client, cid, run_id)

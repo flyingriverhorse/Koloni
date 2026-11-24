@@ -14,7 +14,6 @@ const COMMIT_REST =
 
 /** This project › Checks and git: what is run on a sub-agent's work before it is added, and how it reaches git. */
 export function useChecks(project: Project, shown: boolean) {
-  const [checkCommand, setCheckCommand] = useState(project.check_command ?? '')
   const [measureCommand, setMeasureCommand] = useState(project.measure_command ?? '')
   const [gitCommit, setGitCommit] = useState(project.git_commit)
   // D2: how finished branches reach the user's - and, read when the section opens, why a pull request cannot be chosen.
@@ -32,7 +31,6 @@ export function useChecks(project: Project, shown: boolean) {
   const patch = {
     ...after.patch,
     ...kinds.patch,
-    ...(checkCommand.trim() !== (project.check_command ?? '') && { check_command: checkCommand.trim() }),
     ...(measureCommand.trim() !== (project.measure_command ?? '') && { measure_command: measureCommand.trim() }),
     ...(gitCommit !== project.git_commit && { git_commit: gitCommit }),
     ...(finishWay && finishWay !== project.finish_way && { finish_way: finishWay }),
@@ -45,25 +43,15 @@ export function useChecks(project: Project, shown: boolean) {
       {after.view}
       {kinds.view}
       <h2>When a sub-agent’s work is added</h2>
-      <Row
-        label="Test before adding"
-        htmlFor="check-command"
-        whyId="check-command-more"
-        doc={GUIDE.settingsChecks} why="What it writes to the copy’s own files is put back afterwards; the dependency folders (node_modules, .venv, venv) are linked from the project, so they are the project’s own. When work nobody watches fails it, the copy is kept for you."
-        warn={
-          // What it runs, on what and where, and what it does not undo, stays in sight; only how it works is behind ⓘ.
-          <span id="check-command-note" className="choice-note">
-            This command runs first on the sub-agent’s changes together with what the project changed meanwhile, in the
-            sub-agent’s working copy, where this project’s commands run. Only exit code 0 passes. If it fails, you decide;
-            work nobody watches is not added. Empty: no test. It runs by itself only where commands do: in Full auto, and in
-            a trigger’s run that has this very command ticked. In “Ask before changes” and “Auto-edit files” the card
-            shows the changes first and you start it there: it runs what the agent wrote. What it writes into
-            node_modules, .venv or venv stays.
-          </span>
-        }
-      >
-        <input id="check-command" className="input mono" value={checkCommand} maxLength={500} placeholder="python -m pytest -q" aria-describedby="check-command-note check-command-more" onChange={e => setCheckCommand(e.target.value)} />
-      </Row>
+      {/* (0.1.7: no field - the test files the sub-agent wrote run, each part's runner narrowed to them) */}
+      <p className="choice-note" id="own-tests-note">
+        Before its work is added, the tests the sub-agent wrote or changed run in its working copy - only those, with
+        each part’s test command from the project map narrowed to them; none written: no test before adding, and the
+        card says so. KOLONİ’s check at the turn’s end still runs every test. Those tests are the sub-agent’s own code:
+        they run by themselves in Full auto, or where the part’s test command is yours (set on the map, or a saved one
+        under an Always rule); with KOLONİ’s guess the card waits for your Run the test, and while you are away or in a
+        trigger’s run a guess never runs them.
+      </p>
       <Row
         label="Measure command"
         htmlFor="measure-command"

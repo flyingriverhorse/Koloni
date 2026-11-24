@@ -590,22 +590,32 @@ def test_an_agents_test_run_in_an_away_job_is_not_adopted(make_client, project_d
 @pytest.mark.parametrize(
     "marker",
     [
-        ("web", "package.json", json.dumps({"scripts": {"test": "vitest run"}}), "web/a.js"),
-        ("api", "pom.xml", "<project/>", "api/A.java"),
+        (
+            "web",
+            "package.json",
+            json.dumps({"scripts": {"test": "vitest run"}}),
+            "web/a.js",
+            "npm test",
+        ),
+        ("api", "pom.xml", "<project/>", "api/A.java", "mvn test"),
     ],
 )
-def test_the_users_check_command_runs_alone(make_client, wait_run, project_dir, marker):
-    folder, name, body, edited = marker
+def test_the_users_root_test_command_runs_beside_the_other_parts_guesses(
+    make_client, wait_run, project_dir, marker
+):
+    # (0.1.7, Test before adding gone: the user's command for the whole project is the root
+    # part's, one part among the map's - no longer one that stands alone; each other part's guess
+    # runs beside it, in its folder)
+    folder, name, body, edited, guessed = marker
     (project_dir / folder).mkdir()
     (project_dir / folder / name).write_text(body, encoding="utf-8")
     executor = ScriptedExecutor([PASS, PASS, PASS])
     client, _model = make_client([write(edited, "x\n"), text("done")], executor=executor)
     cid, run_id = begin(client, project_dir, check_command="python check.py")
     snap = wait_run(client, cid, run_id)
-    assert executor.started == [("python check.py", str(project_dir))], (
-        executor.started,
-        texts(snap),
-    )
+    assert sorted(executor.started) == sorted(
+        [("python check.py", str(project_dir)), (guessed, str(project_dir / folder))]
+    ), (executor.started, texts(snap))
 
 
 def test_a_part_the_user_set_to_no_test_is_not_guessed(make_client, wait_run, project_dir):

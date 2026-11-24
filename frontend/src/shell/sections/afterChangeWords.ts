@@ -1,6 +1,6 @@
 import type { Project } from '../../api/types'
 
-type Testing = Pick<Project, 'check_command' | 'tests_found' | 'test_commands'>
+type Testing = Pick<Project, 'tests_found' | 'test_commands'>
 
 /** Where none is known yet: KOLONİ finds one, and asks you once. */
 export const FINDS_ONE = 'the test command KOLONİ finds (it asks you once)'
@@ -9,14 +9,11 @@ export const FINDS_ONE = 'the test command KOLONİ finds (it asks you once)'
 const folderOf = (key: string) => key.replace(/^\.(\/|$)/, '').replace(/\/$/, '')
 
 /**
- * The test command(s) the end check runs now, as the project stands (`proof.test_runs`, `FoundMixin._runs_found`): your
- * own check command; else each part's test command you set on the project map, then what KOLONİ saved for any other
- * folder; none: it finds one. `where`: with each folder, and who found it.
+ * The test command(s) the end check runs now, as the project stands (`proof.test_runs`, `FoundMixin._runs_found`): each
+ * part's test command you set on the project map, then what KOLONİ saved for any other folder; none: it finds one. `where`: with each folder, and who found it.
  * shortcut: a part the map no longer finds is still named; drop it if a project whose parts moved reads this line wrong.
  */
 export function testsRun(project: Testing, where = true): string {
-  const own = project.check_command?.trim()
-  if (own) return where ? `${own} in ./` : own
   const yours = Object.entries(project.test_commands ?? {}).filter(([, line]) => line.trim())
   // (A save for a folder whose part has your command is not run: yours is. Folders in one case - Windows keeps saves so.)
   const theirs = new Set(yours.map(([key]) => folderOf(key).toLowerCase()))

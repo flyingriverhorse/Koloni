@@ -204,7 +204,8 @@ def test_a_ready_bugfix_checks_its_tests_in_a_project_at_nothing(
     from tests.test_recipe_proof_scenarios import PASSED, PYTEST, REPRO, REPRODUCES
 
     guess(monkeypatch, PYTEST)
-    executor = ScriptedExecutor([REPRO, PASSED])
+    # (and Take in's check of the Debugger's own test - 0.1.7)
+    executor = ScriptedExecutor([REPRO, PASSED, PASSED])
     client, _model = make_client(
         {"Lead": THIN, "Debugger": list(REPRODUCES), "Coder": fixed()}, executor=executor
     )

@@ -23,7 +23,7 @@ const project: Project = {
   turn_token_limit: null,
   max_agents: null, continue_steps: 25,
   monthly_budget: null,
-  check_command: null, measure_command: null, after_change: 'check', fix_rounds: 2, stronger_model: true, check_kinds: {}, review_lines: 80, review_files: 3, after_change_from_off: false, tests_found: {}, tests_look: null, test_commands: {}, full_auto_check: 'ask', disposable_deletes: false, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small',
+  measure_command: null, after_change: 'check', fix_rounds: 2, stronger_model: true, check_kinds: {}, review_lines: 80, review_files: 3, after_change_from_off: false, tests_found: {}, tests_look: null, test_commands: {}, full_auto_check: 'ask', disposable_deletes: false, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small',
   git_commit: false,
   finish_way: null,
   auto_notes: false,
@@ -58,22 +58,14 @@ test('under “This machine” the shell is named; without PowerShell 7, or with
 /** The page shows one section at a time: its row in the list is chosen first. */
 const choose = (name: RegExp) => userEvent.click(screen.getByRole('button', { name }))
 
-test('the check command and the commit of what is taken are set here, each saying when it runs; sent only when changed', async () => {
+test('no test command to fill in for added work: what runs is said - the sub-agent’s own tests (0.1.7); the commit of what is taken is set here, sent only when changed', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
   const { unmount } = render(<ProjectSettings {...base} onSave={onSave} />)
   await choose(/^Checks/)
-  const command = screen.getByLabelText('Test before adding')
-  expect(command).toHaveValue('')
-  // what it does, on what and where, and when it runs by itself - in sight, not behind ⓘ
-  const said = screen.getByText(/^This command runs first on the sub-agent’s changes together with what the project changed meanwhile, in the sub-agent’s working copy, where this project’s commands run\./)
-  expect(said.closest('.hint')).toBeNull()
-  expect(said).toHaveTextContent(/Only exit code 0 passes\. If it fails, you decide; work nobody watches is not added\. Empty: no test\./)
-  expect(said).toHaveTextContent(/It runs by itself only where commands do: in Full auto, and in a trigger’s run that has this very command ticked\./)
-  expect(said).toHaveTextContent(/In “Ask before changes” and “Auto-edit files” the card shows the changes first and you start it there: it runs what the agent wrote\./)
-  // what of its own doing is not undone: the linked folders are the project's own
-  expect(said).toHaveTextContent(/What it writes into node_modules, \.venv or venv stays\./)
-  // how it works is behind ⓘ, and still describes the field
-  expect(command).toHaveAccessibleDescription(/venv stays\. What it writes to the copy’s own files is put back afterwards; .* the copy is kept for you\.$/)
+  expect(screen.queryByLabelText('Test before adding')).toBeNull()
+  const said = screen.getByText(/^Before its work is added, the tests the sub-agent wrote or changed run in its working copy - only those/)
+  expect(said).toHaveTextContent(/none written: no test before adding, and the card says so\. KOLONİ’s check at the turn’s end still runs every test\./)
+  expect(said).toHaveTextContent(/they run by themselves in Full auto, or where the part’s test command is yours .*; with KOLONİ’s guess the card waits for your Run the test, and while you are away or in a trigger’s run a guess never runs them./)
   const commit = screen.getByLabelText(/^Save each sub-agent’s work as a git commit/)
   expect(commit).not.toBeChecked()
   // (its first sentence stands under the box; the rest of the note is behind ⓘ beside it, closed)
@@ -85,22 +77,16 @@ test('the check command and the commit of what is taken are set here, each sayin
   // (less the hint's "Learn more →": a link to the guide, no part of the note)
   const shown = offered.closest('label')!.textContent!.replace('Learn more →', '')
   expect(commit.getAttribute('aria-label')!.replace(/\s+/g, '')).toBe(shown.replace(/\s+/g, ''))
-  await userEvent.type(command, ' python -m pytest -q ')
   await userEvent.click(commit)
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(onSave).toHaveBeenCalledWith({ check_command: 'python -m pytest -q', git_commit: true })
+  expect(onSave).toHaveBeenCalledWith({ git_commit: true })
   unmount()
-  // What is set is shown; left alone it is not sent; emptied, the check is taken away.
+  // What is set is shown; left alone it is not sent.
   onSave.mockClear()
-  render(<ProjectSettings {...base} project={{ ...project, check_command: 'npm test', git_commit: true }} onSave={onSave} />)
+  render(<ProjectSettings {...base} project={{ ...project, git_commit: true }} onSave={onSave} />)
   await choose(/^Checks/)
-  expect(screen.getByLabelText('Test before adding')).toHaveValue('npm test')
   expect(screen.getByLabelText(/^Save each sub-agent’s work as a git commit/)).toBeChecked()
-  // Left as it is, nothing is sent: there is nothing to save.
   expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
-  await userEvent.clear(screen.getByLabelText('Test before adding'))
-  await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(onSave).toHaveBeenLastCalledWith({ check_command: '' })
 })
 
 test('the measure command is set beside the test command, saying its last line is the score; sent only when changed', async () => {
@@ -449,7 +435,7 @@ test('a chosen section alone is shown, each field under its label as before', as
     [/^Agents/, ['Who changes the files']],
     [/^Asking and away/, ['Opening a sub-agent', 'When you’re away', 'A harmful-looking command at Full auto']],
     [/^New chats start with/, ['New chats’ teams', 'Posts, at most', 'Minutes, at most', 'Tokens, at most']],
-    [/^Checks/, ['After a change', 'Test before adding', /^Save each sub-agent’s work as a git commit/]],
+    [/^Checks/, ['After a change', /^Save each sub-agent’s work as a git commit/]],
     [/^Memory and web/, [/^Note what the work found, by itself/, 'Search by meaning with', 'Search address (SearXNG)', 'Otherwise search with', /^Let agy search too/]],
     [/^Notifications/, ['Notification address', 'Post it as', /^Show a desktop notification/]],
     [/^Limits and money/, ['At most this many agents at work in this project', 'Agents at the same time', 'Continue gives this many more steps', 'Stop the work on a message over this many tokens']],

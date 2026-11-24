@@ -921,9 +921,9 @@ class ReviewMixin:
             raise ToolError(ASKED_FOR_REVIEW.format(command=command, why=why))
 
     async def _approved_tests(self: "AgentRunner", ctx: Ctx) -> list[tuple[str, str]]:
-        """The project's approved test commands, (line, folder): the user's check command and
-        part tests, a saved one an Always rule covers (`FoundMixin._runs_found`'s `kept`), and
-        the CI lines the user approved while no workflow changed since (`_ci_runs`)."""
+        """The project's approved test commands, (line, folder): the user's part tests on the
+        map (the whole project's too), a saved one an Always rule covers (`FoundMixin._runs_found`'s
+        `kept`), and the CI lines the user approved while no workflow changed since (`_ci_runs`)."""
         with self._factory() as session:
             project = self._project(session, ctx.cid)
             if project is None:
@@ -932,12 +932,10 @@ class ReviewMixin:
                 rule.prefix
                 for rule in session.scalars(rules_here(session.get_one(Conversation, ctx.cid)))
             ]
-            check = (project.check_command or "").strip()
             parts = dict(project.test_commands or {})
             saved = dict(project.tests_found or {})
             approved, root = (project.ci_commands or {}).get("approved"), project.root_path
-        runs = [(check, ".")] if check else []
-        runs += [
+        runs = [
             (line, part.removeprefix(project_map.ROOT).rstrip("/") or ".")
             for part, line in parts.items()
             if line

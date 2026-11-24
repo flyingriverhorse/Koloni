@@ -9052,8 +9052,6 @@ export interface components {
             away_minutes: number;
             /** Canary */
             canary: boolean;
-            /** Check Command */
-            check_command: string | null;
             /**
              * Check Kinds
              * @default {}
@@ -9252,8 +9250,6 @@ export interface components {
             away_minutes?: number | null;
             /** Canary */
             canary?: boolean | null;
-            /** Check Command */
-            check_command?: string | null;
             /** Check Kinds */
             check_kinds?: {
                 [key: string]: boolean;

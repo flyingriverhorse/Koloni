@@ -7,6 +7,7 @@ from app import model_native
 from app.model_client import ModelUnavailable
 from tests.conftest import scaled
 from tests.fakes import Script, ScriptedExecutor
+from tests.keyed import root_test
 from tests.test_agent_commands import approve, cmd
 from tests.test_agent_talk import message
 from tests.test_agent_writes import wait_status
@@ -18,6 +19,7 @@ from tests.test_parallel import until
 from tests.test_recipe_ends_scenarios import SCRIPTS, build_then_test
 from tests.test_recipe_run_scenarios import READY, answer, asked, manual, one_step, row
 from tests.test_spawn import begin, call, spawn, step
+from tests.test_take_in_scenarios import RUNS, own_test
 
 
 def test_a_command_approved_in_a_continued_turn_runs(make_client, wait_run, project_dir):
@@ -331,7 +333,8 @@ def test_a_recipes_take_in_at_auto_edit_runs_the_check_first_and_a_failing_one_i
     client, _model = make_client(
         {
             "Lead": [spawn("Coder", "build a.py", "c"), text("all done")],
-            "Coder": [step(write("a.py", "a\n")), text("built")],
+            # (0.1.7: Take in's check is the tests it wrote - here one that fails)
+            "Coder": [step(write("a.py", "a\n")), own_test(body="assert False"), text("built")],
         }
     )
     teams = teams_of(client)
@@ -343,15 +346,16 @@ def test_a_recipes_take_in_at_auto_edit_runs_the_check_first_and_a_failing_one_i
     ]
     assert (
         client.patch(
-            f"/api/projects/{pid}",
-            json={"check_command": 'python -c "raise SystemExit(1)"', "after_change": "nothing"},
-            headers=OWN,
+            f"/api/projects/{pid}", json={"after_change": "nothing"}, headers=OWN
         ).status_code
         == 200
     )
     cid, run_id = manual(
         client, project_dir, (teams["Web app"], one_step(client, "Just build", "Coder"))
     )
+    # (0.1.7: the root part's test command, which Take in's check narrows to the Coder's test -
+    # after `manual`, which sets one of its own)
+    root_test(client, pid, RUNS)
     snap = until(client, cid, lambda s: asked(s) and READY in asked(s)["question"])
     answer(client, asked(snap), "Take in")
     snap = until(

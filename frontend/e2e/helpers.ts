@@ -27,7 +27,16 @@ export async function dropKnowledge(request: APIRequestContext, topic: string) {
 
 /** The e2e project's settings, as Settings › This project saves them (tek-ev: a chat follows them, and is refused them). */
 export async function setProject(page: Page, data: Record<string, unknown>) {
-  const saved = await page.request.patch(`/api/projects/${await e2eProject(page)}`, { data, headers: OWN })
+  const id = await e2eProject(page)
+  // (0.1.7: Test before adding is gone - an old `check_command` is the root part's own test command, as the map sets it)
+  const { check_command: check, ...rest } = data
+  if (typeof check === 'string') {
+    const set = check.trim()
+      ? await page.request.put(`/api/projects/${id}/map/test`, { data: { path: './', command: check.trim() }, headers: OWN })
+      : await page.request.delete(`/api/projects/${id}/map/test?path=./`, { headers: OWN })
+    expect(set.ok()).toBe(true)
+  }
+  const saved = await page.request.patch(`/api/projects/${id}`, { data: rest, headers: OWN })
   expect(saved.ok()).toBe(true)
 }
 

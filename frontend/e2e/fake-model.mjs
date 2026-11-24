@@ -425,11 +425,15 @@ function nextStep(all, tools = [], model = '') {
         : say(`Wrote ${own[1]}.txt.`)
     }
     // A Coder that changes a line of lines.txt in its copy and stays at work for a while: the
-    // user changes the same line in the project meanwhile (taking its work in, slice 30).
+    // user changes the same line in the project meanwhile (taking its work in, slice 30). Then it
+    // writes its own test - what Take in's check runs (0.1.7): both sides' lines are there.
     if (messages.some(m => m.role === 'user' && /^Edit lines\.txt/.test(String(m.content)))) {
-      return last.role === 'user'
-        ? toolCall('c91', 'edit_file', { path: 'lines.txt', old_string: 'two', new_string: 'TWO-agent' })
-        : say('Edited lines.txt.')
+      if (last.role === 'user') return toolCall('c91', 'edit_file', { path: 'lines.txt', old_string: 'two', new_string: 'TWO-agent' })
+      if (!messages.some(m => m.tool_calls?.some(c => c.function.name === 'write_file'))) {
+        const test = "def test_lines():\n    said = open('lines.txt', encoding='utf-8').read()\n    assert 'TWO-agent' in said and 'SIX-user' in said\n"
+        return toolCall('c92', 'write_file', { path: 'test_lines.py', content: test })
+      }
+      return say('Edited lines.txt and wrote its test.')
     }
     // Two Coders on one file (file claims). The first writes notes.txt and stays at work
     // for a while; the second wants the same file a moment later: it waits, is told to

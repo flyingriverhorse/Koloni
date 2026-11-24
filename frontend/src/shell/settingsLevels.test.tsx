@@ -12,7 +12,7 @@ import { APP_SECTIONS, Settings } from './Settings'
 const project: Project = {
   id: 'p', name: 'demo', root_path: 'C:/demo', created_at: 't', exec_location: 'docker', docker_image: 'python:3.12', docker_network: false,
   search_url: null, search_order: 'builtin', search_agy: false, has_notify_url: false, notify_format: 'slack', notify_desktop: false,
-  turn_token_limit: null, max_agents: null, continue_steps: 25, monthly_budget: null, check_command: null, measure_command: null, after_change: 'check', fix_rounds: 2, stronger_model: true, check_kinds: {}, review_lines: 80, review_files: 3, after_change_from_off: false, tests_found: {}, tests_look: null, test_commands: {}, full_auto_check: 'ask', disposable_deletes: false,
+  turn_token_limit: null, max_agents: null, continue_steps: 25, monthly_budget: null, measure_command: null, after_change: 'check', fix_rounds: 2, stronger_model: true, check_kinds: {}, review_lines: 80, review_files: 3, after_change_from_off: false, tests_found: {}, tests_look: null, test_commands: {}, full_auto_check: 'ask', disposable_deletes: false,
   memory_links: [], embedding_provider_id: null, embedding_model: 'm',
   git_commit: false, finish_way: null, auto_notes: false, observe_reports: false, suggest_tasks: true, suggest_tier: 'fast', day_note_at: null, also_in: [], read_in: [], teams_mode: 'none', teams: [],
   hide_secrets: true, canary: true, lead_work: 'delegates', when_away: 'waits', away_minutes: 10, spawn_approval: 'auto', spawn_max_depth: 2, spawn_max_agents: 6,
@@ -109,7 +109,7 @@ const ONCE: (string | RegExp)[] = [
   'At most this many agents at work in this project', 'Agents at the same time', 'Sub-agent levels', 'Sub-agents per request',
   'Continue gives this many more steps', 'Stop the work on a message over this many tokens', 'A discussion’s tokens, at most', 'Monthly budget',
   /^This machine/, /^Docker container/, 'Image', 'Allow network access', /^Hide secret files from commands/, 'Secret variables commands may see', /^Planted test key/,
-  'After a change', 'Test before adding', 'Measure command', /^Save each sub-agent’s work as a git commit/, /Merge here/, /Open a pull request/,
+  'After a change', 'Measure command', /^Save each sub-agent’s work as a git commit/, /Merge here/, /Open a pull request/,
   /^Note what the work found, by itself/, 'Search by meaning with', 'Embedding model', 'Also look in the memory of other',
   'Search address (SearXNG)', 'Otherwise search with', /^Let agy search too/,
   'Notification address', 'Post it as', /^Show a desktop notification/, 'Send the day’s summary at',

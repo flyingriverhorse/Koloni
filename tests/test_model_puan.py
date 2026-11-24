@@ -11,7 +11,7 @@ from tests.test_claim_scenarios import write
 from tests.test_handoff import ended
 from tests.test_parallel import until
 from tests.test_spawn import step
-from tests.test_take_in_scenarios import CHECK, GO_ON, LINES, LONG
+from tests.test_take_in_scenarios import CHECK, GO_ON, LINES, LONG, own_test, root_runs
 from tests.test_team import team  # noqa: F401  (a fixture)
 from tests.test_tier_scenarios import WHY, spawn, tiered
 from tests.test_topics import db
@@ -111,20 +111,19 @@ def test_the_lead_is_told_how_a_roles_models_did_only_from_five_jobs_on_two_mode
 # --- one tier up after the last failed check at Full auto ------------------------------------
 
 
+NEVER = own_test("NEVER-THERE")
+
+
 def _checked(team, project_dir, local, fast=(), spawn_approval="auto"):  # noqa: F811
-    """A Full auto turn in a project whose check never passes; Local · big-model is the
-    strongest tier, Fast · deep balanced (a Coder's own, given no tier), Fast · quick fast."""
+    """A Full auto turn in a project whose check never passes (each Coder's own test, `NEVER`);
+    Local · big-model is the strongest tier, Fast · deep balanced (a Coder's own, given no tier),
+    Fast · quick fast."""
     (project_dir / "lines.txt").write_bytes(LINES.encode())
     (project_dir / "check.py").write_bytes(CHECK.encode())
     client, _default, _fast = team(local, fast)
     tiered(team, client)
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    assert (
-        client.patch(
-            f"/api/projects/{pid}", json={"check_command": "python check.py NEVER-THERE"}
-        ).status_code
-        == 200
-    )
+    assert client.patch(f"/api/projects/{pid}", json=root_runs()).status_code == 200
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
     assert (
         client.patch(
@@ -156,9 +155,9 @@ def test_after_the_last_failed_check_the_lead_is_told_the_tier_above_and_a_job_t
                 step(spawn("Coder", "strongest", WHY, task="do it again", id="s2")),
                 text("done"),
             ],
-            "Coder 2": [step(write("a.txt", "A")), text("done up there")],
+            "Coder 2": [step(write("a.txt", "A")), NEVER, text("done up there")],
         },
-        fast={"Coder": [step(write("a.txt", "A")), text("A done"), text("tried")]},
+        fast={"Coder": [step(write("a.txt", "A")), NEVER, text("A done"), text("tried")]},
     )
     # the third failed check of the turn is the user's: its card is where the turn waits
     snap = until(
@@ -190,7 +189,7 @@ def test_at_the_top_tier_the_lead_is_told_there_is_no_tier_above(team, wait_run,
                 GO_ON,
                 text("done"),
             ],
-            "Coder": [step(write("a.txt", "A")), text("A done"), text("tried")],
+            "Coder": [step(write("a.txt", "A")), NEVER, text("A done"), text("tried")],
         },
     )
     snap = wait_run(client, cid, run_id, timeout=LONG)

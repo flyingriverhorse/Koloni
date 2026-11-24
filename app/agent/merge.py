@@ -657,8 +657,13 @@ def _check_is_over(merge: Merge) -> None:
     cut short (Stop, a restart) - it did not pass, and says so."""
     if merge.check and merge.check.get("state") == "running":
         merge.check = {**merge.check, "state": "failed", "note": CHECK_CUT_SHORT}
-    elif merge.check and merge.check.get("note") in (CHECK_PRESS_RUN, CHECK_PRESS_RUN_WAS):
-        merge.check = {**merge.check, "note": None}  # (a kept copy has no Run to press)
+    elif merge.check and merge.check.get("note"):  # (a kept copy has no Run to press)
+        said = [
+            one
+            for one in merge.check["note"].split("; ")
+            if one not in (CHECK_PRESS_RUN, CHECK_PRESS_RUN_WAS)
+        ]
+        merge.check = {**merge.check, "note": "; ".join(said) or None}
 
 
 def _no_diff_no_trust(one: dict) -> None:

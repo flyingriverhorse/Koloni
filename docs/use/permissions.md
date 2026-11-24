@@ -213,10 +213,15 @@ get a card, at any level. You decide once, when their work comes back:
 
 - At **Ask before changes**, a card asks whether to take their changes into the project.
 - At **Auto-edit files** and **Full auto**, the changes come in without a card when the sub-agent
-  finished, its changes do not clash with yours, and the project's test passed (if you set one
-  under Settings › This project › Checks and git). Otherwise a card asks.
+  finished, its changes do not clash with yours, and the tests it wrote passed - each part's test
+  command narrowed to them ([Checked](checked.md#when-the-tests-fail)). Those tests are its own
+  code: they run by themselves at Full auto, or where the part's command is yours (set on the
+  project map, or a saved one under an **Always** rule). With KOLONİ's guess at Auto-edit the
+  card waits for your **Run the test** first. Otherwise a card asks.
 - At **Full auto**, if the test fails, the work goes back to the Orchestrator a few times before the card
   asks you.
+- While you are away, or in a trigger's turn, KOLONİ's guess never runs a sub-agent's tests: the
+  work comes in as one with no test would, said "not run". Your own command runs there.
 
 Files that steer agents are held for your card at every level.
 

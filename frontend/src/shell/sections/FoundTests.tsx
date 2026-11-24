@@ -5,7 +5,7 @@ const WHENCE: Record<string, string> = { guess: 'from the project’s files', ag
 
 /**
  * S1b: the test command(s) KOLONİ saved itself, by folder, and where each came from - the end check runs them as the
- * project's; a command of yours (Test before adding, or a part's in This folder) always wins. Forget: found again.
+ * project's; a command of yours (a part's in This folder, the whole project's too) always wins. Forget: found again.
  */
 export function FoundTests({ found, forget, setForget }: { found: Record<string, { command?: string; from?: string; at?: string }>; forget: boolean; setForget: (on: boolean) => void }) {
   const folders = Object.keys(found)
@@ -23,7 +23,7 @@ export function FoundTests({ found, forget, setForget }: { found: Record<string,
           <input type="checkbox" checked={forget} onChange={e => setForget(e.target.checked)} />
           <span>
             Forget it
-            <span className="choice-note">KOLONİ saved it the first time it really ran tests. Yours wins: set Test before adding below, or a part’s test command in This folder. Forgotten, it is found again at the next change.</span>
+            <span className="choice-note">KOLONİ saved it the first time it really ran tests. Yours wins: set a part’s test command in This folder - the whole project’s too. Forgotten, it is found again at the next change.</span>
           </span>
         </label>
       </span>
