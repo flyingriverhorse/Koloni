@@ -9,7 +9,7 @@ It works the same for every model and CLI.
 
 ![The Checked section under an answer: Tests passed: python check.py - 2 passed; No review: a small change (3 lines, 2 files); No new test: the Orchestrator said "Updated the greeting in hello.py."](../images/checked-section.png)
 
-[![Proven finish: the Orchestrator's answer, the related tests, the whole suite after the answer, the documents, diagrams, data, slides and pages, a Reviewer's look (long documents read against the request), the live try, a test for the change, then Checked; a failure goes back as a fix round, then to a stronger model that says what is wrong first, and failing work is not taken in; and where Settings sets each part](../diagrams/proven-finish.svg)](../diagrams/proven-finish.svg)
+[![Proven finish: the Orchestrator's answer, the related tests, the whole suite after the answer, the documents, diagrams, data, slides, config files and scripts, the project's own code style and type checks and pages (console, width, accessibility), a Reviewer's look (long documents read against the request), the live try, a test for the change, then Checked; a failure goes back as a fix round, then to a stronger model that says what is wrong first, and failing work is not taken in; apart from them, a sub-agent's own tests before its work is taken in; and where Settings sets each part](../diagrams/proven-finish.svg)](../diagrams/proven-finish.svg)
 
 *What KOLONİ checks at a turn's end, and where you set each part. ([full size](../diagrams/proven-finish.svg))*
 
@@ -20,7 +20,8 @@ checked again:
    ([Which tests](#which-tests), [Asking](#asking), [How long it waits](#how-long-it-waits)). What
    is not this turn's - a flaky test, one failing before - is told apart
    ([Not this turn's](#not-this-turns-flaky-tests-and-failures-from-before)).
-2. **What it wrote besides code** - documents, diagrams, data, slides
+2. **What it wrote besides code** - documents, diagrams, data, slides, config files and scripts,
+   and the changed code by the project's own ruff, eslint, tsc and mypy
    ([Documents, diagrams, data and slides](#documents-diagrams-data-and-slides)), and a changed
    page opened in KOLONİ's own browser at a phone's, a tablet's and a desktop's width - its
    console, its width and its accessibility ([Pages](#pages)).
@@ -75,7 +76,7 @@ project:
 - **Nothing** runs nothing and sends nothing back. The Checked section still says that nothing
   was checked, and names the last test run an agent made in the turn.
 
-![Settings, This project, Checks and git: After a change on Test and review with the line of what it does here, Fix rounds on Until it passes, Then a stronger model ticked, and Check by kind of work with Documents, Slides, Diagrams, Data, Pages, Config and Scripts](../images/settings-checks.png)
+![Settings, This project, Checks and git: After a change on Test and review with the line of what it does here, Fix rounds on Until it passes, Then a stronger model ticked, and Check by kind of work with Documents, Slides, Diagrams, Data, Pages, Config, Scripts and Code style and types](../images/settings-checks.png)
 
 The line under the choice says what it does in this project now, from its real state - for
 example "Runs python -m pytest -q in ./ (found by KOLONİ), related tests first, the whole suite in
@@ -136,7 +137,7 @@ A project that had turned off the old **Finish only when the tests pass** switch
    in Usage. It is asked again only when the project's parts change; until then the commands it
    named are tried again. With no Fast-tier model the section says so.
 
-A line an agent ran (5) or the model named (6) is tried only if it is one of the commands in 4,
+A line an agent ran (4) or the model named (5) is tried only if it is one of the commands in 3,
 or `pytest`, `npx vitest run`, `npx jest`, `yarn test`, `pnpm test`, `bun test`, `tox`, `nox` or
 `ctest` - with at most `-q` or `-v` after it, in a folder of the project. Any other line (more options, a wrapper, a chain) is never run: the look's row says
 how many it named that were not tried.
@@ -188,7 +189,9 @@ back by itself. **Put back** on that row does, for each file still as the run le
 when the run started. One changed before the run comes back byte for byte; one that was as
 committed comes back from its commit through git's own filters, so its line ends are git's (CRLF
 where `core.autocrlf` is on) - `git diff` shows nothing, though the bytes may differ from before
-the run. One changed again since is not put back, and says so; while a test run of the turn still
+the run. One changed again since is not put back, and says so. Each turn's **Put back** is for its
+own run - its tip says "as they were before this turn's run" -, so an older turn's puts back only
+what is still as its run left it. While a test run of the turn still
 goes on, Put back waits ("put back once it ends"). A file the run made that git does not track (a
 report, a cache), and one an agent wrote on record meanwhile, are not listed; nor is a secret file
 (`.env`, a key) - KOLONİ keeps no copy of one, so putting it back is yours. What Put back keeps
@@ -464,7 +467,8 @@ Ask for changes would: its own roles fix it in its copy, and its end checks it a
 
 Under **Test and review**, a turn that wrote documents, diagrams, data, slides, config files or
 shell scripts gets KOLONİ's checks of them, with no model and nothing installed: each file its own line under
-the answer. Which kind a file is, its ending says.
+the answer. Which kind a file is, its ending says. Changed code also goes to the project's own
+ruff, eslint, tsc and mypy, where it has them (**Code style and types**, below).
 They come after the tests and before the review. A turn that wrote only such files runs no tests
 ("No tests: only documents, slides, diagrams or data changed") and gets these checks. Under
 **Tests only**, **Nothing**, or where checks are off for the chat, they do not run.
@@ -696,12 +700,16 @@ also what does not fit in the diff the Reviewer is shown.
   lists the findings and says "Still on hold after 2 fix rounds: you decide (Fix it)"; **Fix it**
   sends a new message asking for them to be fixed, and the Orchestrator is handed the findings
   as data, never as your words. The findings are the rows of all its **Findings** sections - a
-  `## Findings` heading or a "Findings:" line, each to the next heading. A "Findings:" line that
+  `## Findings` heading or a "Findings:" line, each to the next heading of its level or above (a
+  `### Blocking` or `### Suggestions` under `## Findings` is part of it; after a "Findings:" line,
+  any heading ends it). A fenced code block in it is not read, and the section goes on after it; a
+  label line in it (`Checked: ran pytest`) ends nothing. A "Findings:" line that
   sums up - "Findings: 1 blocking" above the rows, "Findings: see above, nothing blocking."
   closing the report - takes no row away; "Findings: none" says it found nothing where no
   section has a row. A section quoted from an earlier look (indented four spaces, or after `>`)
-  is not read - rows nested under a section of its own are - and neither is the instruction's
-  own row echoed back (`<what> | kind: <kind>`).
+  opens none: alone it is not read, and inside a section of this look's it ends nothing - its
+  rows are read with the rest. Rows nested under a section of its own are read; the
+  instruction's own row echoed back (`<what> | kind: <kind>`) is not.
 - Each look is an agent's work on its model: on the canvas, in its window and in Usage. In the
   chat its step reads "KOLONİ's look: Reviewer", not as one of the Orchestrator's. KOLONİ's looks
   - a review, a look again, the live try's Tester, a stronger model's diagnosis and fix - use none

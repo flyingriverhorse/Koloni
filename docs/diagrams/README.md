@@ -23,7 +23,7 @@ the code it was drawn from and the day it was checked against it.
 | `working-copy.drawio` | [Working copies and Take in](../use/workspace.md) |
 | `recipe-engine.drawio` | [Recipes and candidates](../agents/recipes.md) |
 | `install-update.drawio` | [Backup and update](../backup-and-update.md) |
-| `proven-finish.drawio` | [What KOLONİ checked](../use/checked.md) (to be linked there), the README's See it |
+| `proven-finish.drawio` | [What KOLONİ checked](../use/checked.md) |
 
 ## Opening and editing
 
