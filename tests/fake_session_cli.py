@@ -6,6 +6,7 @@ tools, and then follows the script, printing the same stream events:
 
     {"say": "text"}                     an assistant text block
     {"call": "read_file", "args": {}}   announce a tool call, make it over MCP, print the result
+                                        ("args_file": a path: its arguments read from there then)
     {"parallel": [{"call": ..}, ..]}    make several calls at once, then read the answers
     {"call_then_die": "x", "after": 1}  make a call and exit before it is answered
     {"send": "x", "args": {}}           make a call and go on without waiting for its answer
@@ -196,6 +197,8 @@ for number, action in enumerate(script):
         )
     elif "call" in action:
         call_id = f"toolu_{number}"
+        if "args_file" in action:  # (what the test wrote while it ran: an id KOLONİ gave, say)
+            action["args"] = json.loads(Path(action["args_file"]).read_text(encoding="utf-8"))
         emit(
             {
                 "type": "assistant",

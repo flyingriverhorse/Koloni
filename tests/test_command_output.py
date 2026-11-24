@@ -17,7 +17,10 @@ from app.model_native import ClaudeNativeClient
 from tests.fakes import Script, ScriptedExecutor, ScriptedModel
 from tests.keyed import TestClient
 from tests.test_chat_flow import start_in_mode, text
-from tests.test_keep_running import serve, snap, until
+from tests.test_keep_running import serve, snap
+from tests.test_proof_background_scenarios import until
+from tests.test_session_agent import session_app  # noqa: F401  (a fixture)
+from tests.test_session_agent import start as session_start
 
 SECRET = "s3cr3t-value-for-the-mask-1234"
 LOG = [
@@ -200,3 +203,36 @@ def test_claude_code_run_native_reads_a_running_server_over_the_bridge(
     assert "mcp__koloni__stop_command" not in allowed
     ((status, said),) = results(done, "command_output")
     assert status == "succeeded" and "GET / 500 boom in handler" in said
+
+
+def test_a_cli_session_is_given_both_at_its_start_and_serves_reads_and_stops_in_one_turn(
+    session_app,  # noqa: F811
+    wait_run,
+    project_dir,
+    gate,
+    tmp_path,
+):
+    """A CLI session is offered its tools once, as it starts - before it has started anything."""
+    executor = ScriptedExecutor([Script(LOG[:2], hold=gate)])
+    named = tmp_path / "id.json"
+    client, provider, _ = session_app(
+        [
+            {"call": "run_command", "args": {"command": "npm run dev", "keep_running": True}},
+            {"wait_for": str(named)},
+            {"call": "command_output", "args_file": str(named)},
+            {"call": "stop_command", "args_file": str(named)},
+            {"say": "Restarted nothing."},
+        ],
+        executor=executor,
+    )
+    cid, run_id = session_start(client, project_dir, provider)
+    (command,) = until(lambda: snap(client, cid)["commands"])
+    named.write_text(json.dumps({"id": command["id"]}), encoding="utf-8")
+    done = wait_run(client, cid, run_id, 30.0)
+    assert done["runs"][0]["status"] == "completed", done["runs"][0]["error"]
+    assert {"command_output", "stop_command"} <= set(session_app.record()["tools"])
+    ((status, said),) = results(done, "command_output")
+    assert status == "succeeded" and "GET / 500 boom in handler" in said
+    ((status, said),) = results(done, "stop_command")
+    assert status == "succeeded" and said.endswith("is stopped (killed).")
+    assert executor.killed == [command["id"]]

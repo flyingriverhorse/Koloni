@@ -179,11 +179,16 @@ class TalkMixin:
             return "not in a turn nobody watches"
         return None
 
-    def _serving_offered(self: "AgentRunner", ctx: Ctx) -> list[dict]:
+    def _serving_offered(self: "AgentRunner", ctx: Ctx, session: bool = False) -> list[dict]:
         """0.1.8: command_output while a command keeps running in the chat, and stop_command
-        while one of them is the agent's own (`_serving_not`)."""
+        while one of them is the agent's own (`_serving_not`). `session`: a CLI session that runs
+        KOLONİ's run_command, given its tools once at its start - both, before it starts any."""
+        if self._serving_not(ctx) is not None:
+            return []
+        if session:
+            return [COMMAND_OUTPUT_SCHEMA, STOP_COMMAND_SCHEMA]
         running = self.commands.serving_here(ctx.cid)
-        if not running or self._serving_not(ctx) is not None:
+        if not running:
             return []
         mine = any(agent_id == ctx.agent_id for _id, agent_id, _line in running)
         return [COMMAND_OUTPUT_SCHEMA, *([STOP_COMMAND_SCHEMA] if mine else [])]
@@ -363,7 +368,7 @@ class TalkMixin:
             # At its own work, as show is; always, not only once something was cut: the tools
             # are the cache's first part.
             schemas = [*schemas, RECALL_OUTPUT_SCHEMA]
-        schemas += self._serving_offered(ctx)
+        schemas += self._serving_offered(ctx, always and "run_command" in tools)
         return (
             schemas
             + between

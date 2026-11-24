@@ -154,6 +154,8 @@ def test_a_session_turn_is_recorded_like_any_other(session_app, wait_run, projec
         "remember",
         "recall",
         "recall_output",
+        "command_output",  # (0.1.8: a session is given its tools once, before it serves any)
+        "stop_command",
     ]
     document = json.loads(seen["stdin"][seen["stdin"].index("\n\n{") + 2 :])
     assert "You are the Orchestrator (the role 'Lead') agent" in document["instructions"]
