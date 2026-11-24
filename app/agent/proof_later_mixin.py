@@ -9,7 +9,8 @@ work in a copy (a branch turn's: taken in or set aside under the run) wait for i
 Every one of KOLONİ's test runs at a turn's end is a task of its own (`Check`): the user may stop
 it ("Stop this check", `stop_check`), a newer run in the project takes the place of one going on
 after its turn, and Stop everything, putting the chat away and KOLONİ closing end it. Settings ›
-The app says how many go at once and how many test processes each may start (`proof.load_of`)."""
+The app says how many go at once and how many test processes each may start (`proof.load_of`).
+And (N1) what a turn that changed nothing says of failing checks before it (`_still_failing`)."""
 
 import asyncio
 import logging
@@ -20,12 +21,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
+from sqlalchemy import literal_column, select
 
 from app import proof, proof_related
 from app.agent.ctx import Ctx
 from app.agent.merge import Written, _digest
-from app.db.models import Command, Message, now
+from app.db.models import Command, Conversation, FileChange, Merge, Message, Run, now
 from app.proof import Row, TestRun
 from app.serialize import message_out
 
@@ -104,6 +105,62 @@ class Check:
 
 
 class ProofLaterMixin:
+    @staticmethod
+    def _still_failing(session, run_id: str) -> list[Row]:
+        """N1: a turn that changed nothing, right after one whose checks ended failing: those rows
+        said again - all Fix it reads -, never a turn with nothing to press. Not while work kept
+        out ("not_taken") waits, nor with this chat's checks off now, nor once the turn they came
+        from is undone - N10: found back through the turns that said them again.
+        shortcut: back through at most 50 turns; past them nothing is carried."""
+        mine = session.get_one(Run, run_id)
+        if not proof.checks_of(session, session.get_one(Conversation, mine.conversation_id)).on:
+            return []
+        rows: list[Row] | None = None
+        origin = None
+        for one in session.scalars(
+            select(Run.id)
+            .where(
+                Run.conversation_id == mine.conversation_id,
+                Run.id != run_id,
+                Run.created_at <= mine.created_at,
+            )
+            .order_by(Run.created_at.desc(), literal_column("runs.rowid").desc())
+            .limit(50)
+        ).all():
+            said = (
+                session.scalar(
+                    select(Message.blocks).where(Message.run_id == one, Message.role == "checked")
+                )
+                or {}
+            ).get("rows") or []
+            rows = said if rows is None else rows  # (the turn right before's)
+            if not said[:1] or said[0]["kind"] != "unchanged":
+                origin = one
+                break
+        kept = [one.get("merge_id") for one in rows or [] if one["kind"] == "not_taken"]
+        taken = set(session.scalars(select(Merge.status).where(Merge.id.in_(kept))))
+        undone = session.scalar(
+            select(FileChange.id)
+            .where(FileChange.run_id == origin, FileChange.status == "reverted")
+            .limit(1)
+        )
+        if (
+            origin is None
+            or (undone is not None and proof.last_change(session, origin) is None)
+            or (kept and taken != {"applied"})
+        ):
+            return []
+        failing = [
+            one
+            for one in rows or []
+            if one["kind"] != "not_taken"
+            and (
+                one["state"] == "failed"
+                or (one["kind"] == "finding" and one["text"].startswith("Blocking: "))
+            )
+        ]
+        return [proof.row("unchanged", "note", proof.UNCHANGED), *failing] if failing else []
+
     def _may_go_on(self: "AgentRunner", ctx: Ctx) -> bool:
         """Whether this turn's whole suite may go on after its answer: somebody waits for the
         answer, and the work is in the project itself - not a copy taken in or set aside under

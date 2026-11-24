@@ -4,7 +4,7 @@ import { expect, test, vi } from 'vitest'
 import { api } from '../api/client'
 import type { Merge, Message } from '../api/types'
 import { useApp } from '../state/store'
-import { assistantMessage, convState } from '../test-fixtures'
+import { assistantMessage, convState, fileChange, run } from '../test-fixtures'
 import { FIX_FEWER, FIX_HELD, FIX_IT, FIX_KINDS, FIX_NOT_DONE, FIX_REVIEW, checkedOf, fixOf } from './checked'
 import { CheckedSection } from './CheckedSection'
 
@@ -268,6 +268,33 @@ test('N1: a turn that changed nothing, said still failing with the rows before -
   expect(fixOf(rows)).toBe(FIX_IT('pytest -q'))
   render(<CheckedSection message={checked(rows)} over latest />)
   expect(screen.getByRole('button', { name: 'Fix it' })).toBeInTheDocument()
+})
+
+test('N10b: once the turn its failing lines come from is undone, no Fix it - on its section, nor on one said again', () => {
+  // (r1 failed, r2 said it again; then r1 undone - the page it asks to fix is gone, after a reload too)
+  const first = { ...checked([FAILED]), id: 'k1', run_id: 'r1' }
+  const again = {
+    ...checked([
+      row('note', 'Still failing as last checked - this turn changed nothing', { kind: 'unchanged' }),
+      FAILED,
+    ]),
+    id: 'k2',
+    run_id: 'r2',
+  }
+  for (const [status, shown] of [
+    ['applied', 1],
+    ['reverted', 0],
+  ] as const) {
+    const changes = [fileChange('c1', 'r1', { status })]
+    useApp.setState({
+      conv: convState({ runs: [run('r1'), run('r2')], messages: [first, again], fileChanges: changes }),
+    })
+    for (const message of [first, again]) {
+      const { unmount } = render(<CheckedSection message={message} over latest />)
+      expect(screen.queryAllByRole('button', { name: 'Fix it' })).toHaveLength(shown)
+      unmount()
+    }
+  }
 })
 
 test('S11: a stronger model\u2019s rounds that were no pass - Fix it sends the command and why', () => {

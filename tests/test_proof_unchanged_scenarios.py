@@ -81,6 +81,20 @@ def test_after_its_failing_turn_is_undone_a_question_says_nothing(
     assert again(client, wait_run, cid, "what is x?") == []
 
 
+def test_undone_after_turns_that_said_it_again_a_question_says_nothing(
+    make_client, wait_run, project_dir
+):
+    # (N10: U1 fails, U2 and U3 change nothing - each says it still fails -, U1 undone: U5 read
+    # only U3's section, said again, and still said "Still failing" of work that is gone)
+    asked = [text("x is 1"), text("x is 1, still"), text("x was 1")]
+    client, cid, run_id, _first = failed_then(make_client, wait_run, project_dir, *asked)
+    for question in ("what is x?", "and now?"):
+        assert again(client, wait_run, cid, question)[0]["text"] == proof.UNCHANGED
+    assert client.post(f"/api/runs/{run_id}/undo", headers=OWN).status_code == 200
+    assert not (project_dir / "a.py").exists()
+    assert again(client, wait_run, cid, "what was x?") == []
+
+
 def test_with_the_chats_checks_off_since_a_question_says_nothing(
     make_client, wait_run, project_dir
 ):

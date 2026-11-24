@@ -4,7 +4,7 @@ import { api, errorText } from '../api/client'
 import type { Message } from '../api/types'
 import { isKept } from '../changes/copies'
 import { useApp } from '../state/store'
-import { FIX_HELD, fixOf, runClock } from './checked'
+import { FIX_HELD, fixOf, originUndone, runClock } from './checked'
 
 type Row = NonNullable<Message['checked']>[number]
 
@@ -41,10 +41,12 @@ export function CheckedSection({ message, over, latest }: { message?: Message; o
 
 /**
  * The latest turn's buttons: Fix it (or, for work not taken in, Take in anyway and Fix it - N3: only while its kept copy
- * waits; taken in, said so, and Fix it as for work in the project), Run these.
+ * waits; taken in, said so, and Fix it as for work in the project), Run these. N10b: no Fix it once the turn its failing
+ * lines come from is undone.
  */
 function LatestActions({ rows, runId }: { rows: Row[]; runId: string | null }) {
-  const fix = fixOf(rows)
+  const undone = useApp(s => Boolean(s.conv && runId && originUndone(s.conv, runId)))
+  const fix = undone ? null : fixOf(rows)
   const offer = rows.find(row => row.kind === 'ci_offer')?.offer
   const held = rows.find(row => row.kind === 'not_taken')
   const kept = useKept(held)
