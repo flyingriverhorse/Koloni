@@ -84619,7 +84619,7 @@ false
 "npx prettier --write .": "npx prettier",
 "npx vitest run kill": "npx vitest",
 "pnpm exec tsc -p .": "pnpm exec tsc",
-"poetry run ruff format": "poetry",
+"poetry run ruff format": "poetry run ruff",
 "uv run mypy .": "uv run mypy",
 "uv run pytest -k kill": "uv run pytest",
 "uv run ruff check --fix .": "uv run ruff",

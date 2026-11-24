@@ -129,6 +129,12 @@ def test_an_interpreter_by_any_version_needs_its_script_named(command, offered):
         ("bun x", ""),
         ("corepack pnpm exec tsc --noEmit", "corepack pnpm exec tsc"),
         ("corepack enable", ""),
+        # (W8: an environment's `run` - the program it runs named)
+        ("poetry run ruff check .", "poetry run ruff"),
+        ("pipenv run mypy .", "pipenv run mypy"),
+        ("pdm run ruff check .", "pdm run ruff"),
+        ("hatch run test", "hatch run test"),
+        ("uv run python -m ruff check .", "uv run python -m ruff"),
     ],
 )
 def test_a_package_runner_needs_the_package_named(command, offered):
@@ -607,3 +613,22 @@ def test_a_basetemp_is_a_delete(command):
     the agents' scratch."""
     assert harms(command).startswith("Deletes the folder given to pytest's --basetemp")
     assert harms("python -m pytest --basetemp=.koloni/tmp/x") == ""
+
+
+@pytest.mark.parametrize(
+    ("command", "rule"),
+    [
+        ("poetry run python evil096.py", "poetry"),  # (offered before W8)
+        ("pipenv run python -c x", "pipenv"),
+        ("uv run python evil096.py", "uv run python"),
+        ("uv run python -c x", "uv run python"),
+        ("npx.ps1 -y cowsay hi", "npx.ps1"),
+        ("npx.ps1 -c calc", "npx.ps1"),
+    ],
+)
+def test_a_rule_offered_too_wide_before_covers_nothing_now(command, rule):
+    # W8: such a rule, kept from before or written by hand, named the runner alone
+    assert not matches(command, rule)
+    # (npm's PowerShell shim is npx: the package named, as `npx tsc`)
+    assert suggest_prefix("npx.ps1 tsc --noEmit") == "npx.ps1 tsc"
+    assert suggest_prefix("npx.ps1 -y cowsay hi") == ""

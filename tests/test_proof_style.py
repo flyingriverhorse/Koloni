@@ -903,8 +903,7 @@ def test_a_program_named_in_quotes_is_found_as_its_shell_reads_it(tmp_path):
         "& 'my tools/node_modules/.bin/tsc.cmd'",
     ):
         assert _planted(factory, "c", tmp_path, line, ".") == (
-            "an agent wrote its program (my tools/node_modules): no rule covers a program an "
-            "agent wrote"
+            proof_style_planted("my tools/node_modules")
         ), line
     # (the project's own install over it: theirs again)
     tool.write_text("@echo the project's\n", encoding="utf-8")
@@ -958,9 +957,8 @@ def test_an_always_rule_does_not_cover_a_program_an_agent_wrote(
     snap = wait_status(client, cid, "waiting_approval")
     (card,) = [one for one in snap["commands"] if one["command"] == TSC_LINE]
     assert card["status"] == "proposed", snap["commands"]
-    assert card["danger"] == (
-        f"an agent wrote its program ({asked}): no rule covers a program an agent wrote"
-    )
+    assert card["danger"] == proof_style_planted(asked)
+    assert card["suggested_prefix"] == ""  # (Y2: a rule would not cover it - none is offered)
     assert TSC_LINE not in [line for line, _cwd in executor.started]
     client.post(f"/api/commands/{card['id']}/reject")
     wait_run(client, cid, second["run"]["id"])
@@ -1034,9 +1032,17 @@ def test_a_triggers_leave_does_not_run_a_program_an_agent_wrote(
         ("uv run ruff check .", "src/venv_notes.py", None),
         ("python -m ruff check .", "src/app.py", None),  # (no module of its folder's)
         ("python -m pytest -q", "subprocess.py", None),  # (its tests run the project's code)
+        # (W7: npx and `npm exec` run the local package's `bin` first; uv its [project.scripts])
+        ("npx tsc --noEmit", "package.json", "package.json"),
+        ("npm exec tsc -- --noEmit", "package.json", "package.json"),
+        ("uv run ruff check .", "pyproject.toml", "pyproject.toml"),
+        ("npm test", "package.json", None),  # (a script by its name: the project's code)
+        ("uv run pytest -q", "pyproject.toml", None),
+        # (W8: npm's PowerShell shim is npx)
+        ("npx.ps1 tsc --noEmit", TSC, "node_modules"),
     ],
 )
-def test_a_package_runners_rule_does_not_cover_a_program_an_agent_wrote(
+def test_a_package_runners_rule_does_not_cover_a_program_an_agent_wrote(  # noqa: PLR0913
     make_client, wait_run, project_dir, line, written, asked
 ):
     """W6: `npx tsc` (the rule a card offers for `npx tsc --noEmit`), `npm exec tsc`, `uv run
@@ -1050,8 +1056,9 @@ def test_a_package_runners_rule_does_not_cover_a_program_an_agent_wrote(
     (project_dir / TSC).parent.mkdir(parents=True)
     (project_dir / TSC).write_text("@echo the project's\n", encoding="utf-8")
     executor = ScriptedExecutor([PASS, PASS, PASS, PASS])
+    planted = MANIFESTS.get(written, "PLANTED\n")
     client, _model = make_client(
-        [write(written, "PLANTED\n", "w1"), text("done"), cmd(line, "k1"), text("asked")],
+        [write(written, planted, "w1"), text("done"), cmd(line, "k1"), text("asked")],
         executor=executor,
     )
     cid, run_id = begin(client, project_dir, mode="auto_edit", check_command="python check.py")
@@ -1070,6 +1077,7 @@ def test_a_package_runners_rule_does_not_cover_a_program_an_agent_wrote(
     (card,) = [one for one in snap["commands"] if one["command"] == line]
     assert card["status"] == "proposed", snap["commands"]
     assert card["danger"] == proof_style_planted(asked)
+    assert card["suggested_prefix"] == ""  # (Y2: run once or reject - no rule would cover it)
     assert line not in [one for one, _cwd in executor.started]
     client.post(f"/api/commands/{card['id']}/reject")
     wait_run(client, cid, second["run"]["id"])
@@ -1095,6 +1103,13 @@ def test_a_package_runner_finds_its_program_up_the_tree_or_anywhere_it_cannot_pl
     assert found(tmp_path, reach.places, (), ".yarn/releases/yarn-4.cjs") == ".yarn"
     reach = _runner_places(["pnpm", "exec", "tsc"], "web")  # (its hooks run code)
     assert found(tmp_path, reach.places, (), ".pnpmfile.cjs") == ".pnpmfile.cjs"
+    # (W7: the package's own manifest - but where a script is run by its name, by design)
+    assert found(tmp_path, reach.places, (), "web/package.json") == "web/package.json"
+    for words in (["npm", "test"], ["npm", "run", "build"], ["yarn", "run", "x"]):
+        assert "package.json" not in _runner_places(words, ".").places, words
+    assert "package.json" in _runner_places(["npx.ps1", "tsc"], ".").places  # (W8)
+    assert "pyproject.toml" in _runner_places(["poetry", "run", "ruff"], ".").places
+    assert "pyproject.toml" not in _runner_places(["uv", "run", "pytest"], ".").places
     assert _runner_places(["pytest", "-q"], ".") is None
     assert _runner_places(["python", "x.py"], ".") is None
 
@@ -1278,6 +1293,14 @@ def test_what_python_m_imports_from_its_folder_before_the_tools_own():
     # (`startup_only`: what `site` imports before anything - pytest's own run)
     assert shadows("src", "src/sitecustomize.py", startup_only=True) == "src/sitecustomize.py"
     assert shadows(".", "subprocess.py", startup_only=True) is None
+
+
+# W7: what an agent writes into a package's own manifest (the second session's E4) - each a file
+# Config reads as whole
+MANIFESTS = {
+    "package.json": '{"name": "x", "bin": {"tsc": "./evil096.js"}}\n',
+    "pyproject.toml": '[project]\nname = "x"\n\n[project.scripts]\nruff = "evil096:main"\n',
+}
 
 
 def proof_style_planted(place: str) -> str:
