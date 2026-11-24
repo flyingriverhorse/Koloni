@@ -2,7 +2,7 @@ import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
 import { api } from '../api/client'
-import type { Message } from '../api/types'
+import type { Merge, Message } from '../api/types'
 import { useApp } from '../state/store'
 import { assistantMessage, convState } from '../test-fixtures'
 import { FIX_FEWER, FIX_HELD, FIX_IT, FIX_KINDS, FIX_NOT_DONE, FIX_REVIEW, checkedOf, fixOf } from './checked'
@@ -227,6 +227,47 @@ test('S11: Not taken in - Take in anyway takes the kept copy in, Fix it sends th
   } finally {
     vi.restoreAllMocks()
   }
+})
+
+test('N3: its kept copy taken in - said, no Take in anyway, Fix it as for work in the project; discarded, nothing', async () => {
+  const send = vi.fn().mockResolvedValue(undefined)
+  useApp.setState({ send } as never)
+  const held = row('failed', 'Not taken in: 2 tests still fail', { kind: 'not_taken', merge_id: 'm1', question: 'Q?' })
+  const merge = (status: Merge['status'], applied = false) =>
+    ({
+      id: 'm1',
+      run_id: 'r',
+      agent_id: 'a',
+      status,
+      kept_in: status === 'kept' ? 'k1' : null,
+      files: [{ path: 'a.py', state: applied ? 'applied' : 'ready' }],
+    }) as unknown as Merge
+  const buttons = () => screen.queryAllByRole('button').map(one => one.textContent)
+  for (const [now, shown, words] of [
+    [merge('kept'), ['Take in anyway', 'Fix it'], null],
+    [merge('applied', true), ['Fix it'], 'Taken in anyway.'],
+    [merge('kept', true), ['Fix it'], 'Taken in anyway.'],
+    [merge('discarded'), [], null],
+  ] as const) {
+    useApp.setState({ conv: convState({ merges: [now] }) })
+    const { unmount } = render(<CheckedSection message={checked([FAILED, held])} over latest />)
+    expect(buttons()).toEqual(shown)
+    expect(screen.queryByRole('status')?.textContent ?? null).toBe(words)
+    if (words) await userEvent.click(screen.getByRole('button', { name: 'Fix it' }))
+    unmount()
+  }
+  expect(send).toHaveBeenCalledWith(FIX_IT('pytest -q'))
+})
+
+test('N1: a turn that changed nothing, said still failing with the rows before - Fix it as under them', () => {
+  const rows = [
+    row('note', 'Still failing as last checked - this turn changed nothing', { kind: 'unchanged' }),
+    FAILED,
+    row('failed', 'Still failing after 1 fix rounds: you decide (Fix it)', { kind: 'rounds' }),
+  ]
+  expect(fixOf(rows)).toBe(FIX_IT('pytest -q'))
+  render(<CheckedSection message={checked(rows)} over latest />)
+  expect(screen.getByRole('button', { name: 'Fix it' })).toBeInTheDocument()
 })
 
 test('S11: a stronger model\u2019s rounds that were no pass - Fix it sends the command and why', () => {
