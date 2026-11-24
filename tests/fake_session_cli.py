@@ -197,7 +197,8 @@ for number, action in enumerate(script):
         )
     elif "call" in action:
         call_id = f"toolu_{number}"
-        if "args_file" in action:  # (what the test wrote while it ran: an id KOLONİ gave, say)
+        # (what the test wrote while it ran, an id KOLONİ gave, say: whole - by os.replace)
+        if "args_file" in action:
             action["args"] = json.loads(Path(action["args_file"]).read_text(encoding="utf-8"))
         emit(
             {

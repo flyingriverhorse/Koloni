@@ -1006,7 +1006,7 @@ class ProofMixin:
                 run.command,
                 run.guessed,
             ), ""
-        longest = self.commands.longest(ctx.cid)
+        longest = self._limit_of(ctx, call_id, given["seconds"])
         return proof.tests_row(
             run, code, output, ended, said, given["seconds"] or longest, longest
         ), output
@@ -1167,6 +1167,19 @@ class ProofMixin:
         else:
             shutil.rmtree(place, ignore_errors=True)
         return {"put_back": done, "refused": refused}
+
+    def _limit_of(self: "AgentRunner", ctx: Ctx, call_id: str, wait: int | None) -> int:
+        """The longest a run of KOLONİ's tests could take (`proof.tests_row`'s `longest`): with no
+        wait of its own, the limit it ran with, on its record - the setting may change while it
+        runs; else the project's longest command now."""
+        longest = self.commands.longest(ctx.cid)
+        if wait is not None:
+            return longest
+        with self._factory() as session:
+            recorded = session.scalar(
+                select(Command.timeout_seconds).where(Command.tool_call_id == call_id)
+            )
+        return recorded or longest
 
     def _timeout_on_record(self: "AgentRunner", call_id: str, seconds: int) -> None:
         """The limit a run really has, on its record: what is left of the wait once it held the

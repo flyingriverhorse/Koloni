@@ -156,7 +156,8 @@ def _pointed_to_card() -> dict:
 WRITE_REFUSED = re.compile(r"Access to the path .{1,500}? is denied")
 WRITE_BLOCKED = "blocked: its read-only sandbox refused a write"
 # B-357: no command or patch of its own is at work longer: KOLONİ's own commands' longest
-# (MAX_TIMEOUT) and a minute. One that is ends its turn, failed - none keeps it open for good;
+# (MAX_TIMEOUT; 0.1.8: a project's Longest command may be up to an hour, not followed here) and
+# a minute. One that is ends its turn, failed - none keeps it open for good;
 # one let run that was never seen at work (no start, no output, no end) by then never started.
 # (Not sooner: a command may print nothing for minutes, and whether Codex sends its output as it
 # comes - `item/commandExecution/outputDelta` - is not measured.)

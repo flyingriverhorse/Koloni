@@ -55,6 +55,8 @@ def test_codex_notifies_the_desktop_and_proposes_a_trigger_on_a_card(
             {"say": "Done."},
         ]
     )
+    # (6 an hour here, not a minute: a slow runner's seven calls stay in one window)
+    client.app.state.runner._toasts = app.web.Rate(6, 3600.0)
     pid, cid, run_id = start(client, project_dir, provider, {"notify_desktop": True})
     snap = wait_run(client, cid, run_id, 60.0)
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]

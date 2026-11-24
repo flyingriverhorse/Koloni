@@ -350,6 +350,7 @@ from app.commands import (
     hide_keys,
     installs,
     is_allowed,
+    plain,
     rules_here,
     search_reason,
     sends_canary,
@@ -6030,7 +6031,8 @@ class AgentRunner(
             # (A failed one too: what the page said - a dialog, an address - ends its error.)
             else ("web", BROWSER_WHERE[request.name], output)
             if request.name in BROWSER_WHERE
-            else ("web", FILE_WHERE[request.name], output)
+            # (a server's colours off: a code between two words of a phrase hid it)
+            else ("web", FILE_WHERE[request.name], plain(output))
             if request.name in FILE_WHERE
             else ("agent", AGENT_WHERE[request.name], output)
             if request.name in AGENT_WHERE

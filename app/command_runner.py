@@ -1040,20 +1040,20 @@ class CommandRunner:
         serving[1].cancel()
         return True
 
-    def serving_here(self, cid: str) -> list[tuple[str, str, str]]:
-        """The commands that keep running in a conversation now: (id, agent id, command line)."""
+    def serving_here(self, cid: str) -> list[tuple[str, str]]:
+        """The commands that keep running in a conversation now: (id, command line)."""
         ids = [command_id for command_id, (at, _life) in self._serving.items() if at == cid]
         if not ids:
             return []
         with self._factory() as session:
             return [
-                (command_id, agent_id, line)
-                for command_id, agent_id, line in session.execute(
-                    select(Command.id, Command.agent_id, Command.command).where(Command.id.in_(ids))
+                (command_id, line)
+                for command_id, line in session.execute(
+                    select(Command.id, Command.command).where(Command.id.in_(ids))
                 )
             ]
 
-    def _server(self, cid: str, command_id: str) -> Command:
+    def server(self, cid: str, command_id: str) -> Command:
         """A command that keeps running (or did) in conversation `cid`, by its id - where it is
         none, a ToolError that names the ones running there now."""
         with self._factory() as session:
@@ -1069,17 +1069,17 @@ class CommandRunner:
             if command is not None:
                 session.expunge(command)
                 return command
-        running = "; ".join(f"{one} ({line})" for one, _agent, line in self.serving_here(cid))
+        running = "; ".join(f"{one} ({line})" for one, line in self.serving_here(cid))
         raise ToolError(
             f"no command that keeps running in this conversation has the id {command_id!r}: "
             + (f"these run now - {running}" if running else "none runs now")
         )
 
-    def output_of(self, cid: str, command_id: str, since: int | None) -> str:
-        """command_output: what a command that keeps running in `cid` printed - hidden as it was
+    def output_of(self, command: Command, since: int | None) -> str:
+        """command_output: what a command that keeps running (`server`) printed - hidden as it was
         kept (`_masks`), never the half line still held back - its newest OUTPUT_AT_MOST, or from
         `since` on; of one that ended, its record's."""
-        command = self._server(cid, command_id)
+        command_id = command.id
         live = self._live.get(command_id) if command_id in self._serving else None
         text = live[1] if live is not None else command.output or ""
         total = len(text)
@@ -1102,14 +1102,18 @@ class CommandRunner:
             said += "; past 1 MiB its output is no longer kept"
         return f"{said}:\n{shown}" if shown else f"{said}: nothing new."
 
-    async def stop_own(self, cid: str, agent_id: str, command_id: str) -> str:
-        """stop_command: a command that keeps running, stopped with what it started - only one
-        `agent_id` started itself (its card was its) - and waited for until it is on record ended,
-        so that it can be started again at once (its port free, MAX_SERVING not reached)."""
-        command = self._server(cid, command_id)
+    async def stop_own(self, command: Command, agent_id: str) -> str:
+        """stop_command: a command that keeps running (`server`), stopped with what it started -
+        only one `agent_id` started itself (its card was its) - and waited for until it is on
+        record ended, so that it can be started again at once (its port free, MAX_SERVING not
+        reached)."""
+        command_id = command.id
         if command.agent_id != agent_id:
             raise ToolError(NOT_YOURS.format(id=command_id))
         serving = self._serving.get(command_id)
+        if serving is None and command.status in ("proposed", "approved"):
+            waits = "its card waits for the user" if command.status == "proposed" else "starting"
+            raise ToolError(f"command {command_id} has not started yet: {waits}")
         if serving is None:
             raise ToolError(f"command {command_id} is not running: it has ended ({command.status})")
         serving[1].cancel()

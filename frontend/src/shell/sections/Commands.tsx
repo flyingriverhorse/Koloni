@@ -55,7 +55,7 @@ function useLongest(project: Project) {
         htmlFor="longest-command"
         whyId="longest-command-more"
         doc={GUIDE.settingsCommands}
-        why="An agent’s command, and KOLONİ’s own test runs, are stopped after this long. Raise it for a test suite or build that takes longer than 10 minutes."
+        why="The most an agent’s command may ask for (one still stops after 2 minutes unless it asks for more), and how long KOLONİ’s own test runs are given. Raise it for a test suite or build that takes longer than 10 minutes."
         warn={
           value === undefined && (
             <span id="longest-command-note" className="choice-note">

@@ -1038,6 +1038,10 @@ class CopilotSessionClient(CliSessionClient):
         return env
 
     def _session_arguments(self, config: Path, allowed: list[str]) -> list[str]:
+        # shortcut: Copilot's own time limit on an MCP call is not measured and none is set (Claude
+        # Code and Qoder get MCP_TOOL_TIMEOUT, Codex tool_timeout_sec: 24 h) - a run_command of up
+        # to a project's Longest command (60 minutes, 0.1.8) may be given up on by it; measure it
+        # and set one where it has one.
         names = [COPILOT_PREFIX + name.removeprefix(PREFIX) for name in allowed]
         arguments = [
             "--output-format",

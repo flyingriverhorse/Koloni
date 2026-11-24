@@ -163,35 +163,26 @@ class TalkMixin:
         )
 
     def _serving_not(self: "AgentRunner", ctx: Ctx) -> str | None:
-        """Why command_output and stop_command are not this agent's (None: they are, while a
-        command keeps running in its chat): only one that may run commands, at its own work, in a
-        turn the user watches - where keep_running itself runs. By its role's tools, not by what
-        it is offered: a CLI with tools of its own runs commands with them, not with KOLONİ's."""
+        """Why command_output and stop_command are not this agent's (None: they are): only one
+        that may run commands, at its own work, in a turn the user watches - where keep_running
+        itself runs (a To-do task's turn too: its server's card was the user's). By its role's
+        tools: a CLI with tools of its own runs its commands with them, not with KOLONİ's."""
         if "run_command" not in ctx.tools or ctx.agent_id in self._read_only_agents:
             return f"not to the {ctx.role} role"
         if ctx.answering:
             return "not while answering a message"
-        if (
-            not self._watched(ctx.run_id)
-            or ctx.run_id in self._away_jobs
-            or ctx.run_id in self._backlog_turns
-        ):
+        if not self._watched(ctx.run_id) or ctx.run_id in self._away_jobs:
             return "not in a turn nobody watches"
         return None
 
-    def _serving_offered(self: "AgentRunner", ctx: Ctx, session: bool = False) -> list[dict]:
-        """0.1.8: command_output while a command keeps running in the chat, and stop_command
-        while one of them is the agent's own (`_serving_not`). `session`: a CLI session that runs
-        KOLONİ's run_command, given its tools once at its start - both, before it starts any."""
-        if self._serving_not(ctx) is not None:
+    def _serving_offered(self: "AgentRunner", ctx: Ctx, tools) -> list[dict]:
+        """0.1.8: command_output and stop_command beside KOLONİ's run_command (`_serving_not`) -
+        whether or not anything keeps running now: the tools are the prompt cache's first part,
+        and a CLI session is given its tools once, before it starts any. A call while nothing runs
+        is refused."""
+        if "run_command" not in tools or self._serving_not(ctx) is not None:
             return []
-        if session:
-            return [COMMAND_OUTPUT_SCHEMA, STOP_COMMAND_SCHEMA]
-        running = self.commands.serving_here(ctx.cid)
-        if not running:
-            return []
-        mine = any(agent_id == ctx.agent_id for _id, agent_id, _line in running)
-        return [COMMAND_OUTPUT_SCHEMA, *([STOP_COMMAND_SCHEMA] if mine else [])]
+        return [COMMAND_OUTPUT_SCHEMA, STOP_COMMAND_SCHEMA]
 
     async def _serving_call(self: "AgentRunner", ctx: Ctx, name: str, args: dict) -> str:
         """command_output or stop_command, held to what `_serving_offered` offers - a CLI keeps
@@ -201,14 +192,21 @@ class TalkMixin:
         command_id = args.get("id")
         if not isinstance(command_id, str) or not command_id.strip():
             raise ToolError("missing required argument: id")
+        command = self.commands.server(ctx.cid, command_id.strip())
         if name == "stop_command":
-            return await self.commands.stop_own(ctx.cid, ctx.agent_id, command_id.strip())
+            return await self.commands.stop_own(command, ctx.agent_id)
         since = args.get("since")
         if since is not None and (
             isinstance(since, bool) or not isinstance(since, int) or since < 0
         ):
             raise ToolError("argument since must be a whole number, 0 or more")
-        return self.commands.output_of(ctx.cid, command_id.strip(), since)
+        # Read again only where recall_output would give its command's output again: not one
+        # read on the user's word for that once (a line that names a secret file), nor another
+        # topic's, nor - below the lead - another line's.
+        if command.tool_call_id is None:
+            raise ToolError("no earlier output of this conversation has that id")
+        self._recallable_call(ctx, command.tool_call_id)
+        return self.commands.output_of(command, since)
 
     def _offered(
         self: "AgentRunner", ctx: Ctx, tools, always: bool = False, show: bool = False
@@ -368,7 +366,7 @@ class TalkMixin:
             # At its own work, as show is; always, not only once something was cut: the tools
             # are the cache's first part.
             schemas = [*schemas, RECALL_OUTPUT_SCHEMA]
-        schemas += self._serving_offered(ctx, always and "run_command" in tools)
+        schemas += self._serving_offered(ctx, tools)
         return (
             schemas
             + between
