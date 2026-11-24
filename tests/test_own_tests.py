@@ -288,9 +288,16 @@ def test_a_package_json_the_copy_changed_runs_none_of_its_scripts(tmp_path):
     npm = Run("npm test", "web", True)
     owns, said = own_tests([npm], ["web/package.json", "web/x.test.ts"], copy, project)
     assert owns == [] and said == [
-        "web: the sub-agent changed package.json's test scripts - its tests are not run before "
-        "it is added"
+        "web: the sub-agent changed package.json's test scripts or .npmrc - its tests are not run "
+        "before it is added"
     ]
+    # (the same scripts, and an .npmrc the copy has that the project has not: npm reads it)
+    (copy / "web" / "package.json").write_text(
+        (project / "web" / "package.json").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (copy / "web" / ".npmrc").write_text("script-shell=C:/elsewhere/sh.exe\n", encoding="utf-8")
+    owns, said = own_tests([npm], ["web/package.json", "web/x.test.ts"], copy, project)
+    assert owns == [] and "or .npmrc" in said[0]
     # (`#` in its script: npm's shell would end the line there)
     (project / "web" / "package.json").write_text(
         '{"scripts": {"test": "vitest # x"}}', encoding="utf-8"
@@ -328,3 +335,27 @@ def test_the_whole_projects_no_test_stops_the_guess(monkeypatch):
     project = SimpleNamespace(root_path="x", test_commands={"./": ""}, tests_found={})
     assert proof.test_runs(project, None) == []
     assert proof.test_runs(SimpleNamespace(**{**vars(project), "test_commands": {}}), None)
+
+
+def test_away_a_guess_never_runs_and_the_work_goes_in_as_with_no_test(
+    make_client, wait_run, project_dir, tmp_path, monkeypatch
+):
+    """A To-do task run while Away is a turn the user watches - but is not there for: at Full
+    auto KOLONİ's guess is not run on the sub-agent's tests, and the work is taken as one with no
+    test would be, said "not run" - it never waits on a card for them."""
+    from app.agent import AgentRunner
+    from tests.test_take_in_scenarios import guessed, start
+
+    monkeypatch.setattr(AgentRunner, "_away_now", lambda _self, _ctx: True)
+    guessed(monkeypatch, project_dir)
+    marker = tmp_path / "RAN-WHILE-AWAY"
+    client, _pid, cid, run_id = start(
+        make_client,
+        project_dir,
+        [step(write("test_evil.py", evil(marker))), text("done")],
+        project={"after_change": "nothing"},
+    )
+    (merge,) = wait_run(client, cid, run_id, timeout=LONG)["merges"]
+    assert merge["status"] == "applied" and merge["check"]["state"] == "not_run", merge
+    assert "not run while you are away" in merge["check"]["note"]
+    assert not marker.exists() and (project_dir / "test_evil.py").exists()

@@ -498,8 +498,8 @@ NO_OWN_TESTS = "no tests of its own to run"
 NOT_NARROWED = "{part}: its test command ({command}) cannot run just these files ({why}) - not run"
 NO_PART = "{path}: no test command of its part - not run"
 SCRIPT_CHANGED = (
-    "{part}: the sub-agent changed package.json's test scripts - its tests are not run before it "
-    "is added"
+    "{part}: the sub-agent changed package.json's test scripts or .npmrc - its tests are not run "
+    "before it is added"
 )
 NPM_TESTS = (["npm", "test"], ["npm", "t"], ["npm", "run", "test"])
 # Test files of languages the end gate's narrowing knows no more of than their names (round 2):
@@ -561,7 +561,8 @@ def own_tests(
 
 def _scripts_moved(root: Path, project: Path | None, rel: str) -> bool:
     """Whether the copy's `rel` package.json runs other test scripts than the project's (a new
-    one too): npm reads the copy's, `pretest` and `posttest` with `test`."""
+    one too): npm reads the copy's, `pretest` and `posttest` with `test` - and its `.npmrc` beside
+    it (a `script-shell`, a `node-options` that loads code), which is the project's or none."""
 
     def scripts(at: Path) -> object:
         try:
@@ -570,7 +571,18 @@ def _scripts_moved(root: Path, project: Path | None, rel: str) -> bool:
             return None
         return {key: found.get(key) for key in ("pretest", "test", "posttest")}
 
-    return project is None or scripts(root) != scripts(project) or scripts(project) is None
+    def npmrc(at: Path) -> bytes | None:
+        try:
+            return (at / PurePosixPath(rel).parent / ".npmrc").read_bytes()
+        except OSError:
+            return None
+
+    return (
+        project is None
+        or scripts(root) != scripts(project)
+        or scripts(project) is None
+        or npmrc(root) != npmrc(project)
+    )
 
 
 def _why_not(run: TestRun, paths: list[str], root: Path) -> str:

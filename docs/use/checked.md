@@ -289,7 +289,7 @@ not run, and the card and Checked say which and why ("web/: its test command (np
 run just these files (its test script is not vitest or jest alone) - not run") - beside a pass
 of the other parts, never hidden in it. Tests that ran none (pytest's "no tests collected",
 vitest's "No test files found") are a note, not a pass. Where the sub-agent changed its part's
-`package.json` test scripts, they are not run (they would run instead of yours). The check at
+`package.json` test scripts or `.npmrc`, they are not run (they would run instead of yours). The check at
 the turn's end runs every test. A turn can have both.
 
 ### Not this turn's: flaky tests and failures from before

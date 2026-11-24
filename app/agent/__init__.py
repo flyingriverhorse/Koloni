@@ -3778,7 +3778,9 @@ class AgentRunner(
             await self._check(ctx, copy, {}, check or {}, {}, None, owns)
             if check:
                 check["checked"] = None  # (of the branch's commit, which does not move)
-        decision = "approve" if mode == "full_auto" and _check_lets(check) else ""
+        # (away, KOLONİ's guess not run: in as with no test, said - `_merge_check`)
+        unrun = bool(check and owns and check["state"] == "not_run") and self._away_now(ctx)
+        decision = "approve" if mode == "full_auto" and (_check_lets(check) or unrun) else ""
         merge_id, said, tried, failed = None, {}, False, None
         # (A pull request's branch pushed already, for a `gh pr create` that failed after it; and
         # git's config as the card last showed it.)
@@ -4639,9 +4641,12 @@ class AgentRunner(
         mode: str,
     ) -> tuple[bool, bool]:
         """`_by_itself` for `_merge`, and whether what can be taken is taken unasked: not where
-        the check waits on the card for the user's Run the test (B1, round 2)."""
+        the check waits on the card for the user's Run the test (B1, round 2) - in a turn they
+        watch and are there for: away (a To-do task while Away runs), KOLONİ's guess is not run
+        and the work goes in as one with no test would, said "not run"."""
         by_itself = self._by_itself(ctx, owns, check, watched, unasked, mode)
-        return by_itself, unasked and not (check and owns and watched and not by_itself)
+        there = watched and not self._away_now(ctx)
+        return by_itself, unasked and not (check and owns and there and not by_itself)
 
     def _by_itself(
         self,
