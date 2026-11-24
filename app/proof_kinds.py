@@ -1142,7 +1142,8 @@ TYPE_UNREAD = "it uses a type of a module KOLONİ does not load"
 # python ...): said. bash -n reads one with no such line, or sh, bash or dash - a POSIX sh script
 # parses in bash too, so `--posix` is not asked for.
 OTHER_SHELL = "its first line says it is a {name} script"
-_SHEBANG = re.compile(r"(?i)#![ \t]*([a-z]:[\\/].*?\.exe(?=[ \t]|$)|\S+)[ \t]*(.*)")
+# (a Windows path may hold spaces: to its `.exe`, else the line's end - `…\bin\bash -e`)
+_SHEBANG = re.compile(r"(?i)#![ \t]*([a-z]:[\\/].*?(?:\.exe(?=[ \t]|$)|$)|\S+)[ \t]*(.*)")
 _BASH_READS = frozenset({"sh", "bash", "dash"})
 # U2: what bash -n says with exit code 0 (a here-document ended by the file's end) is a warning.
 BASH_WARNS = "{at}: bash warns - {message}"
@@ -1369,15 +1370,16 @@ def _powershell_said(shell: list[str], text: str) -> list[tuple[object, object]]
 def _shell_named(text: str) -> str | None:
     """U1: the shell or language a script's first line names (`#!/bin/zsh`, `#!/usr/bin/env -S
     fish -l`), by its program's name; None: no such line."""
-    first = _SHEBANG.match(text.split("\n", 1)[0])
+    first = _SHEBANG.match(text.split("\n", 1)[0].rstrip("\r"))
     if first is None:
         return None
     words = [first[1], *first[2].split()]
-    name = re.split(r"[\\/]", words[0])[-1].casefold().removesuffix(".exe")
+    last = re.split(r"[\\/]", words[0])[-1].split()
+    name = (last[0] if last else "").casefold().removesuffix(".exe")
     if name == "env":  # (its first word that is no option nor a variable)
         after = [one for one in words[1:] if one[:1] != "-" and "=" not in one]
         name = re.split(r"[\\/]", after[0])[-1].casefold() if after else name
-    return name[:40]
+    return name[:40] or None  # (a path that names no program: bash reads it)
 
 
 def _bash_said(shell: list[str], text: str) -> tuple[list[tuple[object, object]], object]:

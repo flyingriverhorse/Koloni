@@ -585,8 +585,9 @@ also what does not fit in the diff the Reviewer is shown.
   `## Findings` heading or a "Findings:" line, each to the next heading. A "Findings:" line that
   sums up - "Findings: 1 blocking" above the rows, "Findings: see above, nothing blocking."
   closing the report - takes no row away; "Findings: none" says it found nothing where no
-  section has a row. Rows quoted from an earlier look (indented four spaces, or after `>`) and
-  the instruction's own row echoed back (`<what> | kind: <kind>`) are no findings.
+  section has a row. A section quoted from an earlier look (indented four spaces, or after `>`)
+  is not read - rows nested under a section of its own are - and neither is the instruction's
+  own row echoed back (`<what> | kind: <kind>`).
 - Each look is an agent's work on its model: on the canvas, in its window and in Usage. In the
   chat its step reads "KOLONİ's look: Reviewer", not as one of the Orchestrator's. KOLONİ's looks
   - a review, a look again, the live try's Tester, a stronger model's diagnosis and fix - use none

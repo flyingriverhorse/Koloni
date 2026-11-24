@@ -541,6 +541,10 @@ def test_no_folder_of_a_read_is_left_behind_whatever_its_shell_left_running(
             "#!C:\\tools\\zsh.exe -l",
             ("note", "s.sh: not checked: its first line says it is a zsh script"),
         ),
+        (
+            "#!C:\\Program Files\\Git\\bin\\bash -e",
+            ("failed", "s.sh:5: does not parse - syntax error near unexpected token `fi'"),
+        ),
     ],
 )
 def test_a_script_whose_first_line_names_another_shell_is_not_read_by_bash(
@@ -576,3 +580,13 @@ def test_a_failure_beside_a_warning_says_the_failure(tmp_path, stand_in):
 def test_bash_s_own_failure_beside_its_warning_is_said(tmp_path):
     ((state, line),) = said(tmp_path, {"s.sh": "if true; then\ncat <<EOF\nline\n"})
     assert state == "failed" and "syntax error" in line and "warning" not in line, line
+
+
+def test_a_crlf_scripts_windows_path_to_bash_is_bash(tmp_path, stand_in):
+    # (re-check: its first line's CR left "C:\Program" as the program - "a program script")
+    body = "#!C:\\Program Files\\Git\\bin\\bash.exe\r\n" + BROKEN.replace("\n", "\r\n")
+    rows = said(tmp_path, {"s.sh": body})
+    assert rows[0] == (
+        "failed",
+        "s.sh:5: does not parse - syntax error near unexpected token `fi'",
+    ), rows

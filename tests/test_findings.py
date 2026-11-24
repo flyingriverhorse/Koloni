@@ -463,6 +463,35 @@ def test_every_findings_section_is_read_and_a_summary_line_takes_no_row(report, 
     assert (said, [f["blocking"] for f in found]) == (verdict, blocking)
 
 
+@pytest.mark.parametrize(
+    ("report", "blocking"),
+    [
+        # (re-check: rows nested under an unindented section are its own - a quoted look opens none)
+        (
+            f"Verdict: MERGE\n\n## Findings\n- Blocking:\n    - {ROW_B[2:]}\n- Suggestions:\n    - {ROW_S[2:]}\n",
+            [True, False],
+        ),
+        (f"Verdict: MERGE\n\n## Findings\n\t{ROW_B}\n", [True]),
+        # (a placeholder in another field, or in the finding's own words, is no echo of the prompt)
+        (
+            "Verdict: MERGE\n\n## Findings\n- a.py:3: divides by zero | kind: bug | role: <role> | blocking\n",
+            [True],
+        ),
+        (
+            "Verdict: MERGE\n\n## Findings\n- a.py:3: divides by zero | kind: <kind> | role: Orchestrator | blocking\n",
+            [True],
+        ),
+        (
+            "Verdict: MERGE\n\n## Findings\n- tpl.html:4: the <role> placeholder is never filled | kind: bug | "
+            "role: Orchestrator | blocking\n",
+            [True],
+        ),
+    ],
+)
+def test_a_nested_row_or_a_placeholder_elsewhere_is_still_a_finding(report, blocking):
+    assert [f["blocking"] for f in look(report)[1]] == blocking
+
+
 def test_the_live_report_with_a_closing_line_keeps_its_rows():
     # (Claude Code · haiku: its section, then "Findings: see the suggestions above; …")
     said, found = look(SECTION.format(verdict="MERGE", mark="suggestion", closing="none blocking"))

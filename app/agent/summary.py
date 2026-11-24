@@ -47,7 +47,7 @@ FAILS = re.compile(
     re.IGNORECASE,
 )
 # FINDINGS_PROMPT's own row echoed back, its placeholders unfilled: no finding.
-ECHOED = re.compile(r"<(?:what|kind|role)>", re.IGNORECASE)
+ECHOED = re.compile(r"\s*<what>\s*\|", re.IGNORECASE)
 # What a Findings section says when nothing was found, after its bullet and before a full stop.
 NO_FINDINGS = frozenset(
     {
@@ -241,7 +241,9 @@ def _findings(
     lines, failing = _findings_section(report)
     if lines is None:
         return None
-    said = [BULLET.sub("", line) for line in lines if line and not ECHOED.search(line)]
+    said = [
+        one for one in (BULLET.sub("", line) for line in lines if line) if not ECHOED.match(one)
+    ]
     kept = [line for line in said if _marked_before(line) is None]
     said, failing = kept, failing or len(kept) < len(said)
     if (found := _findings_read(said, roles, agents)) is not None:
@@ -254,9 +256,10 @@ def _findings(
 def _findings_section(report: str) -> tuple[list[str] | None, bool]:
     """`_findings`: the lines of all of a report's Findings sections - each a `#… Findings`
     heading or a "Findings:" line (what follows it on its line its first), to the next heading,
-    fence or "Checked" - outside a fenced block, an indented one (four spaces, a tab) and a `>`
-    quote, as `verdict_of` reads them (an earlier look quoted); None: there is none. And whether
-    it says what was failing before."""
+    fence or "Checked" - outside a fenced block; None: there is none. One indented (four spaces,
+    a tab) or after `>` opens none, as `verdict_of` reads them (an earlier look quoted): it ends
+    the one open, and its rows are not read - rows indented under an open one are its own (a
+    nested list). And whether it says what was failing before."""
     lines: list[str] | None = None
     under = fenced = failing = False
     for line in report.splitlines():
@@ -264,11 +267,14 @@ def _findings_section(report: str) -> tuple[list[str] | None, bool]:
         if bare.startswith(("```", "~~~")):
             fenced, under = not fenced, False
             continue
-        if fenced or line.startswith(("    ", "\t")) or bare.startswith(">"):
+        if fenced:
             continue
-        name, _, rest = bare.lstrip("#").strip(" *").partition(":")
+        quoted = line.startswith(("    ", "\t")) or bare.startswith(">")
+        name, _, rest = bare.lstrip("> ").lstrip("#").strip(" *").partition(":")
         if name.strip(" *-•").casefold() == FAILING_BEFORE:
             failing = True  # (no finding, wherever it is: B-117)
+        elif name.strip(" *").casefold() == "findings" and quoted:
+            under = False
         elif name.strip(" *").casefold() == "findings":
             lines, under = [*(lines or []), rest.strip(" *")], True
         elif bare.startswith("#") or name.strip(" *-•").casefold() == "checked":
