@@ -909,7 +909,12 @@ def test_a_word_in_pieces_a_shell_joins_is_never_harmless_past_a_rule():
             *('"--incremental"', "'-b'", '--no"Emit" false', "--incre\\mental"),
             *('--outDir ".."/x', "--p C:/x/tsconfig.json", "--b", "--B"),
         ],
-        f"{NODE} --format stylish": ['--output-file "."./x', '-o ".."/x', '--format st"yl"ish'],
+        f"{NODE} --format stylish": [
+            *('--output-file "."./x', '-o ".."/x', '--format st"yl"ish', '--output-file="../x"'),
+            *("-o=../x", "-o=C:/x", "-o=/x"),  # (`-o=x` is `-o x` to clap and optionator)
+        ],
+        FIXED_LINE: ["-o=../x", "-o=C:/x", "-o=/x"],  # (the re-check's: ruff wrote outside)
+        f"{tsc} --noEmit": ['--outDir="..\\x"', '--outDir="../x"'],
         ".venv/Scripts/mypy.exe": ['--html-report ".."/x'],
         "pytest": ['-p no:"x"'],
     }
@@ -920,7 +925,16 @@ def test_a_word_in_pieces_a_shell_joins_is_never_harmless_past_a_rule():
     covered = {
         f"{tsc} {proof_style.TSC_WORDS}": ["--noEmit", "--noEmit true", '--outDir "dist"'],
         f"{NODE} --format stylish": ['--format "stylish"', "--format 'json'"],
-        "pytest": ['-k "a or b"', '-p "no:cacheprovider"'],
+        "pytest": ['-k "a or b"', '-p "no:cacheprovider"', '-k="a"', '--tb="short"', "-p=no:x"],
+        # (a value after `=` quoted whole is that value: no card for these)
+        "go test": ['-run="TestX"'],
+        "cargo test": ['--features="a"'],
+        "pytest -q": ['--deselect="tests/a.py::t"', "--cov=app\\core"],
+        FIXED_LINE: ['--select="E,F"'],
+        ".venv/Scripts/mypy.exe": ['--exclude="build/"'],
+        f"{NODE} --no-color": ['--ext=".ts"', '--format="json"'],
+        # (on Windows a backslash is a path's separator: inside)
+        **({"pytest -x": ["--junitxml=.\\out.xml"]} if sys.platform == "win32" else {}),
     }
     for rule, extras in covered.items():
         for extra in extras:

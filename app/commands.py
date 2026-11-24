@@ -872,13 +872,15 @@ def _past_the_rule(words: list[str], extra: list[str]) -> bool:
     own = extra[: extra.index("--")] if "--" in extra else extra
     for at, written in enumerate(own):
         after = own[at + 1] if at + 1 < len(own) else ""
-        # (an option in pieces a shell joins - `--incre"mental"` - is past any rule of these; a
-        # value in pieces is judged with its option, as `after`)
-        option_like = _PIECES.sub("", written).startswith("-")
-        if (given or out) and option_like and _one_piece(written) is None:
-            return True
-        if (word := _one_piece(written, path=True)) is None:
+        # (an option's name in pieces a shell joins - `--incre"mental"` - is past any rule of
+        # these; its value after `=` may be quoted whole, `--select="E,F"`; a value in pieces is
+        # judged with its option - as `after`, or glued as written)
+        name, sep, glued = written.partition("=")
+        if (bare := _one_piece(name)) is None:
+            if (given or out) and _PIECES.sub("", name).startswith("-"):
+                return True
             continue
+        word = f"{bare}{sep}{_one_piece(glued, path=True) or glued}"
         for program, option, takes in given:
             value = _option_given(_option_spelling(program, word), after, option, takes)
             if value is not None and not _harmless(program, option, value):
@@ -962,8 +964,8 @@ def _option_given(word: str, after: str, option: str, takes: str | None) -> str 
         if not word.startswith("-") or word.startswith("--"):
             return None
         for at, letter in enumerate(word[1:], 1):
-            if letter == full:
-                return word[at + 1 :] or after
+            if letter == full:  # (`-o=x` is `-o x` to clap and argparse)
+                return word[at + 1 :].removeprefix("=") or after
             if takes is None or not letter.isalpha() or letter in takes:
                 return None
         return None
