@@ -864,6 +864,53 @@ def test_a_program_named_by_its_path_is_planted_by_itself_or_its_install_folder(
     )
 
 
+def test_a_program_named_in_quotes_is_found_as_its_shell_reads_it(tmp_path):
+    # W2: a quoted program path with a space in it - one word, as `commands._words` reads it
+    from app.command_runner import _planted
+    from app.db.models import Agent, Conversation, FileChange, Project
+    from app.db.models import Run as RunRow
+    from app.db.session import make_engine, make_session_factory, upgrade_db
+    from app.workspace import sha256_text
+
+    upgrade_db(tmp_path / "k.db")
+    factory = make_session_factory(make_engine(tmp_path / "k.db"))
+    tool = tmp_path / "my tools" / "node_modules" / ".bin" / "tsc.cmd"
+    tool.parent.mkdir(parents=True)
+    tool.write_text("@echo PLANTED\n", encoding="utf-8")
+    with factory() as session:
+        session.add(Project(id="p", name="p", root_path=str(tmp_path)))
+        session.flush()
+        session.add(Conversation(id="c", project_id="p"))
+        session.flush()
+        session.add(RunRow(id="r", conversation_id="c", status="completed"))
+        session.flush()
+        session.add(Agent(id="a", run_id="r", role_name="Lead", tools=[]))
+        session.flush()
+        session.add(
+            FileChange(
+                run_id="r",
+                agent_id="a",
+                path="my tools/node_modules/.bin/tsc.cmd",
+                kind="create",
+                after_content="@echo PLANTED\n",
+                after_sha=sha256_text("@echo PLANTED\n"),
+                status="applied",
+            )
+        )
+        session.commit()
+    for line in (
+        '"my tools/node_modules/.bin/tsc.cmd" -p x',
+        "& 'my tools/node_modules/.bin/tsc.cmd'",
+    ):
+        assert _planted(factory, "c", tmp_path, line, ".") == (
+            "an agent wrote its program (my tools/node_modules): no rule covers a program an "
+            "agent wrote"
+        ), line
+    # (the project's own install over it: theirs again)
+    tool.write_text("@echo the project's\n", encoding="utf-8")
+    assert _planted(factory, "c", tmp_path, '"my tools/node_modules/.bin/tsc.cmd"', ".") is None
+
+
 TSC = NODE.replace("eslint", "tsc")
 TSC_LINE = f"{TSC} --noEmit --pretty false --incremental false -p tsconfig.json"
 
@@ -917,6 +964,41 @@ def test_an_always_rule_does_not_cover_a_program_an_agent_wrote(
     assert TSC_LINE not in [line for line, _cwd in executor.started]
     client.post(f"/api/commands/{card['id']}/reject")
     wait_run(client, cid, second["run"]["id"])
+
+
+@pytest.mark.no_po
+@pytest.mark.parametrize("mode", ["auto_edit", "full_auto"])
+def test_a_triggers_leave_does_not_run_a_program_an_agent_wrote(
+    make_client, wait_run, project_dir, mode
+):
+    """W2 where nobody watches (the re-review's probe): a trigger with write leave and a ticked
+    rule for tsc's line - the agent writes over the project's tsc and runs the line: refused,
+    its why in the result, at any level."""
+    from tests.test_agent_commands import cmd
+    from tests.test_triggers import allow, leave, run_now, setup, trigger
+
+    (project_dir / TSC).parent.mkdir(parents=True)
+    (project_dir / TSC).write_text("@echo the project's\n", encoding="utf-8")
+    executor = ScriptedExecutor([PASS, PASS, PASS, PASS])
+    client, model, pid, cid = setup(
+        make_client,
+        project_dir,
+        [write(TSC, "@echo PLANTED %*\n", "w1"), cmd(TSC_LINE, "k1"), text("done")],
+        executor=executor,
+        permission_mode=mode,
+    )
+    rules = [allow(client, cid, TSC_LINE)]
+    made = trigger(client, pid, cid, permissions=leave(write=True, commands=rules))
+    snap = wait_run(client, cid, run_now(client, made["id"]))
+    assert (project_dir / TSC).read_text() == "@echo PLANTED %*\n"
+    assert TSC_LINE not in [line for line, _cwd in executor.started], executor.started
+    (refused,) = [one for one in snap["commands"] if one["command"] == TSC_LINE]
+    assert refused["status"] == "refused", snap["commands"]
+    said = [str(m["content"]) for m in model.calls[-1] if m["role"] == "tool"]
+    assert any(
+        "an agent wrote its program (node_modules)" in one and "nobody is here to ask" in one
+        for one in said
+    ), said
 
 
 # --- the second session's round (W3-W5): what a tool said, how long its lines take ------------

@@ -108,7 +108,8 @@ Nor does a rule - or a yes you gave before - cover a command whose program, name
 the project (`node_modules/.bin/tsc`, `./scripts/check`), is one an agent wrote, or sits in an
 install folder (`node_modules`, `.venv`, `site-packages`) an agent wrote in, while that file still
 holds what the agent wrote: below Full auto it asks on a card that says so ("an agent wrote its
-program (web/node_modules): no rule covers a program an agent wrote"). A rule matches by its
+program (web/node_modules): no rule covers a program an agent wrote"), and in a turn nobody can
+be asked in - a trigger's, whatever its leave - it is not run at any level. A rule matches by its
 words in any folder, so the same line in another folder, or after an agent's write over the
 project's own install, would otherwise run what the agent wrote. Once your own install writes
 over it, the rule covers it again.

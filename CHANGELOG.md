@@ -64,7 +64,7 @@ How to write an entry (every release looks the same):
 
 ### Security
 
-- **Chat**: an **Always run** rule - or a yes given before - no longer covers a command whose program, named by its path in the project, an agent wrote, or that sits in an install folder (`node_modules`, `.venv`, `site-packages`) an agent wrote in, while the file still holds what the agent wrote: below Full auto it asks on a card that says so. A rule matches by its words in any folder, so the root's `node_modules/.bin/tsc` rule ran a tsc an agent wrote in a subfolder's `node_modules` ([docs](docs/use/permissions.md#what-a-rule-never-covers)).
+- **Chat**: an **Always run** rule - or a yes given before - no longer covers a command whose program, named by its path in the project, an agent wrote, or that sits in an install folder (`node_modules`, `.venv`, `site-packages`) an agent wrote in, while the file still holds what the agent wrote: below Full auto it asks on a card that says so, and a trigger's turn, with nobody to ask, does not run it whatever its leave. A rule matches by its words in any folder, so the root's `node_modules/.bin/tsc` rule ran a tsc an agent wrote in a subfolder's `node_modules` ([docs](docs/use/permissions.md#what-a-rule-never-covers)).
 - **Chat**: on Windows, commands KOLONİ runs, servers it starts and the agents' CLIs find a program named bare - `node`, which an npm `.cmd` shim calls - on PATH only: cmd.exe looked in the folder it ran in first, where an agent could have written a `node.cmd` ([docs](docs/use/permissions.md#what-a-rule-never-covers)).
 
 ## [0.1.6] - 2026-11-23
