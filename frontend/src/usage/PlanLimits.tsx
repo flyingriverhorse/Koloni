@@ -135,12 +135,13 @@ export function PlanLimits({ providers, onLimits, onModels }: Props) {
         These are the limits of the account the CLI on this machine is signed in to.{' '}
         <Hint doc={GUIDE.planMeters}>
           This page shows the last reading; agy and Copilot are read again in the background once it is over 10 minutes
-          old. Codex and Copilot also say it in their own native runs, with no model turn of its own. “Check now” asks
-          Codex, agy and Copilot again, without calling a model. Claude Code is not asked here: its limits are read from
-          its own runs and your own Claude Code sessions, or in one short request by Read now on its Models card. Each
-          last reading is kept with its time, also after KOLONİ restarts. No other CLI says what is left of its plan. An
-          API says its rate limits in each answer, read as its agents run (kept until KOLONİ restarts); “Check now” asks
-          DeepSeek its balance.
+          old. Copilot’s chat requests and its premium ones are shown apart, with what its account offers read in the
+          same look. Codex and Copilot also say it in their own native runs, with no model turn of its own. “Check now”
+          asks Codex, agy and Copilot again, without calling a model. Claude Code is not asked here: its limits are read
+          from its own runs and your own Claude Code sessions, or in one short request by Read now on its Models card.
+          Each last reading is kept with its time, also after KOLONİ restarts. No other CLI says what is left of its
+          plan. An API says its rate limits in each answer, read as its agents run (kept until KOLONİ restarts); “Check
+          now” asks DeepSeek its balance.
         </Hint>
       </div>
     </section>

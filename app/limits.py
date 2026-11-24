@@ -8,6 +8,8 @@ Codex says what is left without a model call (`codex app-server`, measured 11 Oc
 sessions sends it as it changes (`of_session`). agy (`agy -p /quota`) and Copilot
 (`account.getQuota`) say it without a model turn too (measured 24 Oct 2026): they are read
 in the background as they are looked at, at most once in `AUTO_EVERY` (`Limits.refresh`).
+Copilot's same start lists what the account offers (`models.list`,
+`app.copilot_offers`): kept on its providers, their rows switched by it (`Limits._offered`).
 No other CLI says it: theirs is unknown, never a made-up number. These are the limits of
 the account the provider's CLI is signed in to - the user's own, or the provider's own
 sign-in folder for KOLONİ (`cli_home`, K-claude-hesap); that account's id is dropped where
@@ -38,7 +40,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.db.models import Agent, LimitReading, Provider
+from app.copilot_offers import offers_of, premium_none, switched
+from app.db.models import Agent, LimitReading, Provider, now
 from app.model_agy import AgyClient
 from app.model_cli import (
     ClaudeCliClient,
@@ -97,6 +100,8 @@ FAILURES = (
 # at (`Limits.refresh`): no more often than this, in seconds, read well or not.
 QUIET = ("agy_cli", "copilot_cli")
 AUTO_EVERY = 600
+# How long Copilot's `models.list` is waited for after its getQuota, at most (`_copilot_asked`).
+ALSO_SECONDS = 5.0
 NAMES = {
     "codex_cli": "Codex",
     "claude_cli": "Claude Code",
@@ -110,7 +115,8 @@ CLI_HOMES = "cli-homes"
 # A provider's id as KOLONİ makes one (`db.models.new_id`): only such a name is a folder there -
 # a row restored from a backup could hold "..".
 PROVIDER_ID = re.compile(r"[0-9a-f]{32}")
-PREMIUM = "premium requests"  # Copilot's one window (`of_copilot`)
+# Copilot's windows (`of_copilot`): its chat requests and its premium ones.
+CHAT, PREMIUM = "chat requests", "premium requests"
 AGY_MINUTES = {"weekly": 10080}  # the one window agy 1.4.7 was seen to name
 
 
@@ -326,16 +332,17 @@ async def copilot_quota(
     timeout: float = SECONDS,
     launcher: list[str] | None = None,
 ) -> dict:
-    """What Copilot headless answers to `account.getQuota` (measured on 1.0.91): only its
-    `quotaSnapshots` are handed on."""
-    told = await _copilot_asked(
+    """What Copilot headless answers to `account.getQuota` (measured on 1.0.91) and, asked
+    next in the same start, `models.list` (1.0.114, 24 Nov 2026): only its `quotaSnapshots`
+    are handed on, and what it listed ("listed": None where it would not say)."""
+    told, listed = await _copilot_asked(
         CopilotNativeClient(executable, api_key=token, launcher=launcher),
-        "account.getQuota",
+        ("account.getQuota", "models.list"),
         "what is left of its plan",
         timeout,
     )
     # Whose account it is is nobody's business here: only what is left of it is kept.
-    return {"quotaSnapshots": _dict(told).get("quotaSnapshots")}
+    return {"quotaSnapshots": _dict(told).get("quotaSnapshots"), "listed": listed}
 
 
 def is_deepseek(provider: Provider) -> bool:
@@ -375,14 +382,13 @@ async def copilot_signed_in(
 ) -> dict:
     """What Copilot headless answers to `auth.getStatus` (measured on 1.0.103): whether it
     is signed in and how. Its statusMessage names the account: it is never kept."""
-    told = _dict(
-        await _copilot_asked(
-            CopilotNativeClient(executable, api_key=token, launcher=launcher),
-            "auth.getStatus",
-            "whether it is signed in",
-            timeout,
-        )
+    (told,) = await _copilot_asked(
+        CopilotNativeClient(executable, api_key=token, launcher=launcher),
+        ("auth.getStatus",),
+        "whether it is signed in",
+        timeout,
     )
+    told = _dict(told)
     signed_in, how = told.get("isAuthenticated"), told.get("authType")
     return {
         "isAuthenticated": signed_in if isinstance(signed_in, bool) else None,
@@ -392,20 +398,21 @@ async def copilot_signed_in(
 
 async def _copilot_asked(
     client: CopilotNativeClient,
-    method: str,
+    methods: tuple[str, ...],
     saying: str,
     timeout: float,
-) -> object:
-    """What Copilot headless answers to `method` after its `ping`: no session, no turn.
-    Started as `client`'s native Copilot is: KOLONİ's empty COPILOT_HOME, the provider's GitHub
-    token or else the user's own gh login, nothing of the user's own Copilot set-up. Its ping
-    refused, `method` is asked all the same. TimeoutError past `timeout`; ModelUnavailable when
-    it cannot be started, says no or ends first."""
+) -> list[object]:
+    """What Copilot headless answers to each of `methods` after its `ping`, in turn: no
+    session, no turn. Started as `client`'s native Copilot is: KOLONİ's empty COPILOT_HOME, the
+    provider's GitHub token or else the user's own gh login, nothing of the user's own Copilot
+    set-up. Its ping refused, they are asked all the same. The first is the one asked for:
+    TimeoutError past `timeout`; ModelUnavailable when it cannot be started, says no or ends
+    first. Each after it is None where it says no, ends or does not answer in time."""
     workdir = Path(tempfile.mkdtemp(prefix="koloni-limits-"))
     starting: asyncio.Future | None = None
     complaints: asyncio.Future | None = None
     try:
-        async with asyncio.timeout(timeout):
+        async with asyncio.timeout(timeout) as whole:
             command, shim = client._command()
             env = client._native_env(workdir)
             argv = [*command, *client._native_arguments(workdir, workdir)]
@@ -447,7 +454,10 @@ async def _copilot_asked(
             # (Refused, `method` may still be answered; ended, its own ask says so.)
             with contextlib.suppress(ModelUnavailable):
                 await ask(1, "ping")
-            told = await ask(2, method)
+            told = [await ask(2, methods[0])]
+            # (Each after it within ALSO_SECONDS and before `timeout` is past: the first is kept.)
+            left = (whole.when() or 0) - asyncio.get_running_loop().time() - 0.5
+            told += await _also(ask, methods[1:], max(0.0, min(ALSO_SECONDS, left)))
     except (BrokenPipeError, ConnectionResetError, ValueError):
         raise ModelUnavailable(f"Copilot ended without saying {saying}") from None
     finally:
@@ -459,6 +469,18 @@ async def _copilot_asked(
             with contextlib.suppress(BaseException):
                 await asyncio.wait({complaints}, timeout=2)
         shutil.rmtree(workdir, ignore_errors=True)
+    return told
+
+
+async def _also(ask: Callable, methods: tuple[str, ...], timeout: float) -> list[object]:
+    """`_copilot_asked`'s methods after its first, each asked in turn: None where it says no,
+    ends or does not answer within `timeout`."""
+    told: list[object] = []
+    for number, method in enumerate(methods, 3):
+        told.append(None)
+        with contextlib.suppress(ModelUnavailable, TimeoutError):
+            async with asyncio.timeout(timeout):
+                told[-1] = await ask(number, method)
     return told
 
 
@@ -554,26 +576,53 @@ def of_agy(told: object, read_at: datetime) -> dict:
     return {"read_at": read_at, "source": None, "plan": None, "windows": windows, "credits": None}
 
 
-def of_copilot(told: object, read_at: datetime) -> dict:
-    """What Copilot's getQuota answered, as it is shown: its premium requests, what is used
-    being what is not left. An unlimited entitlement is no window."""
-    # shortcut: chat and completions were measured unlimited and are not read; show them as
-    # windows of their own once a plan with a limit on them is seen.
-    premium = _dict(_dict(_dict(told).get("quotaSnapshots")).get("premium_interactions"))
-    left = _number(premium.get("remainingPercentage"))
-    resets = _iso(premium.get("resetDate"))
+def _count_of(value: object) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def _copilot_window(name: str, snapshot: dict, read_at: datetime) -> dict | None:
+    """One of Copilot's counters as a window: what is used being what is not left, with how
+    many it allows and how many are left. An unlimited one is none; one of 0 (premium on 24 Nov
+    2026) is none on the plan - nothing of it used, never "100% used"."""
+    if snapshot.get("isUnlimitedEntitlement") is True:
+        return None
+    left, allowed = (
+        _number(snapshot.get("remainingPercentage")),
+        _count_of(snapshot.get("entitlementRequests")),
+    )
+    used = _count_of(snapshot.get("usedRequests"))
+    resets = _iso(snapshot.get("resetDate"))
     # 1.0.103 gave the moment of the call itself as its resetDate (24 Oct 2026): a reset
     # within a few minutes of the reading, or before it, is not known.
     if resets is not None and resets <= read_at.timestamp() + 300:
         resets = None
-    window = (
-        None
-        if premium.get("isUnlimitedEntitlement") is True
-        else _window(PREMIUM, None, None if left is None else round(100 - left, 2), resets)
-    )
-    if not window:
+    share = None if left is None or allowed == 0 else round(100 - left, 2)
+    if share is None and resets is None and allowed is None:
+        return None  # it says nothing of this counter
+    window = {
+        "name": name,
+        "minutes": None,
+        "used_percent": share,
+        "resets_at": when(resets),
+        "stale": False,
+    }
+    if allowed is not None:
+        window |= {"limit": allowed, "remaining": None if used is None else max(allowed - used, 0)}
+    return window
+
+
+def of_copilot(told: object, read_at: datetime) -> dict:
+    """What Copilot's getQuota answered, as it is shown: its chat requests and its premium
+    ones, each a window. Its completions (the editor's) are not KOLONİ's: not shown."""
+    snapshots = _dict(_dict(told).get("quotaSnapshots"))
+    windows = [
+        w
+        for name, key in ((CHAT, "chat"), (PREMIUM, "premium_interactions"))
+        if (w := _copilot_window(name, _dict(snapshots.get(key)), read_at))
+    ]
+    if not windows:
         return {"unknown": "Copilot's answer says nothing of a limited plan"}
-    return {"read_at": read_at, "source": None, "plan": None, "windows": [window], "credits": None}
+    return {"read_at": read_at, "source": None, "plan": None, "windows": windows, "credits": None}
 
 
 def of_deepseek(told: object, read_at: datetime) -> dict:
@@ -843,11 +892,17 @@ def window(
     return "short" if (lead and lead["status"] == "429") or _LIMIT.match(own) else None
 
 
-def at_limit(reading: dict) -> bool:
-    """Whether a reading (`Limits.last`) has its limit reached now, as far as anyone knows."""
-    return bool(reading.get("reached")) or any(
-        (w["used_percent"] or 0) >= 100 for w in reading.get("windows") or []
-    )
+def at_limit(reading: dict, model: str | None = None) -> bool:
+    """Whether a reading (`Limits.last`) has its limit reached now, as far as anyone knows -
+    for `model` where it is named: Copilot's auto has room while either of its counters does.
+    shortcut: which counter auto spends is not measured; it ran with premium at 0 and chat
+    requests left (24 Nov 2026). Measure a turn's getQuota before and after it to know."""
+    windows = reading.get("windows") or []
+    full = [w for w in windows if (w["used_percent"] or 0) >= 100]
+    if model == "auto" and full and any(w["name"] == CHAT for w in windows):
+        room = [w for w in windows if w["name"] in (CHAT, PREMIUM) and w not in full]
+        full = [] if any(w["used_percent"] is not None for w in room) else full
+    return bool(reading.get("reached")) or bool(full)
 
 
 def _loaded(row: LimitReading | None) -> dict:
@@ -995,6 +1050,10 @@ class Limits:
         self._kept: dict[tuple, dict] = {}  # account -> its last reading, or its unknown
         self._reading: dict[tuple, asyncio.Future] = {}  # account -> its CLI being asked now
         self._tried: dict[tuple, float] = {}  # account -> when it was last asked (monotonic)
+        # Copilot's account -> when it was last asked what it offers: a native run's quota
+        # (`copilot_said`) does not list it. One kept from before a restart counts from the start.
+        self._listed: dict[tuple, float] = {}
+        self._born = time.monotonic()
         # A session's post is taken in a worker thread, a run's on the event loop: one at a
         # time, or one would write over a window the other took.
         self._taking = threading.Lock()
@@ -1176,24 +1235,31 @@ class Limits:
         await asyncio.shield(self._asking(provider))
         return self.last(provider)
 
-    def refresh(self, provider: Provider) -> None:
+    def refresh(self, provider: Provider, now: bool = False) -> asyncio.Future | None:
         """agy's or Copilot's plan read in the background as it is looked at (the plan meter,
         every few seconds): when it was last asked - read well or not, or else last read
-        before a restart - more than AUTO_EVERY ago. Never waited for: what was read
-        before is shown meanwhile. Not one switched off: nobody uses it."""
+        before a restart - more than AUTO_EVERY ago, or (`now`) at once: after Copilot refused
+        a model or a routing. A Copilot whose account's list was never kept is due too. Not
+        waited for here: what was read before is shown meanwhile; the reading in flight, if any,
+        is returned to whoever would wait (`api.providers.read_offers`). Not one switched off:
+        nobody uses it."""
         if provider.kind not in QUIET or _on_server(provider) or provider.enabled is False:
-            return
+            return None
         of = account(provider)
         tried = self._tried.get(of)
-        if tried is not None:
+        if now:
+            ago = math.inf
+        elif tried is not None:
             ago = time.monotonic() - tried
         else:
             read_at = self._known(of).get("read_at")
             if read_at is not None and read_at.tzinfo is None:
                 read_at = read_at.replace(tzinfo=UTC)  # (as the database gives it back: UTC)
             ago = (datetime.now(UTC) - read_at).total_seconds() if read_at else math.inf
-        if ago >= AUTO_EVERY:
-            self._asking(provider)
+        if provider.kind == "copilot_cli":  # (and its account's list, never asked: for ever ago)
+            listed = self._listed.get(of, None if provider.offers is None else self._born)
+            ago = max(ago, math.inf if listed is None else time.monotonic() - listed)
+        return self._asking(provider) if ago >= AUTO_EVERY else self._reading.get(of)
 
     def _asking(self, provider: Provider) -> asyncio.Future:
         """The account's CLI being asked: the one asked already, or one asked now."""
@@ -1234,9 +1300,7 @@ class Limits:
                         await agy_quota(executable, self._homes, SECONDS), datetime.now(UTC)
                     )
                 elif kind == "copilot_cli":
-                    told = of_copilot(
-                        await copilot_quota(executable, token, SECONDS), datetime.now(UTC)
-                    )
+                    told = await self._copilot(of, executable, token)
                 elif kind == "openai_compat":  # (DeepSeek's only: `read`)
                     told = of_deepseek(await deepseek_balance(token, SECONDS), datetime.now(UTC))
                 else:
@@ -1279,6 +1343,37 @@ class Limits:
                     self._take_now(of, told)
         finally:
             del self._reading[of]
+
+    async def _copilot(self, of: tuple, executable: str | None, token: str | None) -> dict:
+        """Copilot's plan as it is shown, and what its account offers - kept on its providers
+        (`_offered`) - read in one start (`copilot_quota`)."""
+        self._listed[of] = time.monotonic()
+        answer = await copilot_quota(executable, token, SECONDS)
+        if (offers := offers_of(answer.get("listed"))) is not None:
+            self._offered(of, offers, premium_none(answer))
+        return of_copilot(answer, datetime.now(UTC))
+
+    def _offered(self, of: tuple, offers: dict, no_premium: bool) -> None:
+        """What Copilot's account offers now, kept on each of its providers on GitHub's plan,
+        their rows switched by it against what it offered before (`copilot_offers.switched`) - a
+        provider whose rows changed is marked changed, so that a window open on it shows them.
+        Without a database (a test's Limits): nowhere."""
+        if self._factory is None:
+            return
+        try:
+            with self._factory() as session:
+                for provider in session.scalars(
+                    select(Provider).where(Provider.kind == "copilot_cli")
+                ):
+                    if _on_server(provider) or account(provider) != of:
+                        continue
+                    rows = switched(provider.models or [], offers, no_premium, provider.offers)
+                    provider.offers = offers
+                    if rows != (provider.models or []):
+                        provider.models, provider.updated_at = rows, now()
+                session.commit()
+        except SQLAlchemyError as exc:
+            log.warning("what Copilot's account offers could not be kept: %s", type(exc).__name__)
 
     def why(self, provider: Provider | None, exc: ModelUnavailable) -> tuple[str, datetime | None]:
         """`classify`, and for a limit whose reset the failure did not name: that of a
@@ -1348,14 +1443,20 @@ class Limits:
                 or (failed in by_id and another_account(by_id[failed], provider, failure))
             ):
                 continue
-            why = has_room(session, provider, self.last(provider))
+            # (For the model an agent opened there would run - `spawn_mixin._elsewhere`'s.)
+            model = entry.selectable()[0] if entry.must_name else entry.default
+            why = has_room(session, provider, self.last(provider), model=model)
             if why is not None:
                 found.append((entry, why))
         return found
 
 
 def has_room(
-    session: Session, provider: Provider, reading: dict, never_ran_is_room: bool = False
+    session: Session,
+    provider: Provider,
+    reading: dict,
+    never_ran_is_room: bool = False,
+    model: str | None = None,
 ) -> str | None:
     """Why a provider has room now, from its last reading (`Limits.last`): what of its plan is
     used; or, where nothing of it is known (most API keys: their credit is not read), that its
@@ -1363,9 +1464,10 @@ def has_room(
     up, its credits out - or nothing is known and its last run did not end well (a credit or
     rate-limit failure among others), or it has not run - unless `never_ran_is_room` (B-166,
     the Lead's yes to a sub-agent: what has neither run out nor gone over a limit may be used;
-    `Limits.with_room`'s advice names only one known to have room)."""
+    `Limits.with_room`'s advice names only one known to have room). `model`: the one it would
+    run, where that is known (`at_limit`)."""
     if (
-        at_limit(reading)
+        at_limit(reading, model)
         or reading.get("used_up")
         or (reading.get("credits") or {}).get("has_credits") is False
     ):

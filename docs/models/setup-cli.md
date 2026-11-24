@@ -154,12 +154,16 @@ address** on this machine or your network.
   same way (`fusion → gpt-6-luna`) and an agent goes on with `fusion`. It takes no thinking level either,
   and has no tier, so agents never pick it by themselves.
 - **Routing** (`auto` and `fusion` on your GitHub account): on the model's row of the **Models** tab, beside
-  its **Context**, and in the chat's model panel under **Thinking**. Auto: **Efficiency**, **Balance** or
-  **Intelligence**; Fusion: **Standard** (as Auto Balance), **High** or **Max** - High and Max cost more
-  than `auto`. **Default** sends none: Copilot's own. It is saved on the model's row, so every chat and agent
-  on that provider and model uses it; for two chats to differ, add a second Copilot provider. Run live
-  on 1.0.114: Copilot keeps the tier and says the model it picked and why. High and Max are only on some
-  Copilot plans: on one without them Copilot refuses the turn, and KOLONİ says to pick another routing.
+  its **Context**, and in the chat's model panel under **Thinking**. Auto: **Efficiency**, **Balance**,
+  **Intelligence** or **Fast**; Fusion: **Standard** (as Auto Balance), **High** or **Max** - High and Max
+  cost more than `auto`. Once your account was asked, only the tiers it offers can be chosen, by Copilot's
+  own names ([Copilot on your GitHub account](copilot.md#routing)). **Default** sends none: Copilot's own.
+  It is saved on the model's row, so every chat and agent on that provider and model uses it; for two chats
+  to differ, add a second Copilot provider. Run live on 1.0.114: Copilot keeps the tier and says the model
+  it picked and why. On a plan without a tier Copilot refuses the turn, and KOLONİ says to pick another
+  routing.
+- **Your account's models**: KOLONİ asks Copilot which models your account offers, and switches off the
+  ones it does not list - see [Copilot on your GitHub account](copilot.md).
 - **Versions**: KOLONİ asks Copilot its version and protocol as it starts it, the way a run starts it.
   Copilot updates itself when you run it yourself, and KOLONİ then runs that version too. On the newer
   protocol (1.0.114 on) it runs **Native** through KOLONİ's hook, and each PowerShell command starts in the

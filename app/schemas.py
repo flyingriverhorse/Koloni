@@ -3564,9 +3564,30 @@ class ProviderModel(BaseModel):
     context: Literal["default", "long_context"] | None = None
     # Copilot's auto's or fusion's routing (`model_session.ROUTINGS`), only on the user's GitHub
     # account (`providers.check_guide`). None: Copilot's own default.
-    routing: Literal["efficiency", "balance", "intelligence", "standard", "high", "max"] | None = (
-        None
-    )
+    routing: (
+        Literal["efficiency", "balance", "intelligence", "fast", "standard", "high", "max"] | None
+    ) = None
+
+
+class OfferedTier(BaseModel):
+    """One of Auto's tiers as Copilot's `models.list` said it of the account (`copilot_offers`)."""
+
+    id: str
+    # Its own name for it ("Standard" for balance).
+    name: str
+    type: Literal["auto", "fusion"]
+    # The routing its Fusion takes for it (standard, high, max); None: none.
+    fusion: str | None = None
+    enabled: bool
+    # Why not, in the account's own words; None where it is on.
+    why: str | None = None
+
+
+class CopilotOffers(BaseModel):
+    """What a Copilot account offered when last asked: its models' ids and Auto's tiers."""
+
+    models: list[str]
+    tiers: list[OfferedTier]
 
 
 class TierModel(BaseModel):
@@ -3639,6 +3660,8 @@ class ProviderOut(Out):
     key_warning: str | None = None
     # K-cli-surface: the CLI version it last ran natively on, where KOLONİ did not measure it.
     version_note: str | None = None
+    # Copilot on GitHub's plan: what its account offered when last asked; None: not asked yet.
+    offers: CopilotOffers | None = None
     # K-native-not: by each way it runs with its own tools, which of KOLONİ's rules nobody
     # watches there (`providers.NOT_WATCHED`) - for an agent, by the mode it ran in; and the
     # same where the agent's project runs its commands in Docker (`providers.ON_HOST`).
@@ -3752,10 +3775,12 @@ class CatalogueFillIn(BaseModel):
 
 
 class CatalogueFillOut(BaseModel):
-    """A team guide proposed from the catalogue, not saved; how many did not fit."""
+    """A team guide proposed from the catalogue, not saved; how many did not fit, and why
+    nothing more could be proposed where that is so (a Copilot account that lists no models)."""
 
     models: list[ProviderModel]
     left_out: int
+    note: str | None = None
 
 
 class FillAllProvider(BaseModel):

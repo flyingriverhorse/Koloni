@@ -76,6 +76,8 @@ export interface ListedModel {
   agents: boolean
   /** False: switched off - nobody uses it, you neither; left out, what it had is kept. */
   enabled?: boolean
+  /** Off as KOLONİ switched it, as the page saw it: never taken as why, only as whose off it was. */
+  off_why?: string | null
   /** What the user marked it to take besides text (slice 85b); left out, what it had is kept. */
   inputs?: ModelInput[] | null
   /** Copilot on your GitHub account: its context window tier; left out, what it had is kept. */
@@ -119,6 +121,9 @@ export interface Props {
   onFillNew?: (draft: CatalogueDraft) => Promise<CatalogueFill>
   /** Whether each model can be used now; runs no model. */
   onAvailability?: (providerId: string, free?: boolean) => Promise<Availability>
+  /** Copilot on your GitHub account: what its account offers, asked as the page opens (the server asks it at most
+   *  once in 10 minutes); its rows are switched by it and the provider read again. */
+  onOffers?: (providerId: string) => Promise<void>
   /** What is known of the default model being typed: its levels, window, price, tier. */
   onFacts?: LoadFacts
   /** For a provider not added yet: the catalogue's names, a service's address and key name. */
@@ -194,6 +199,7 @@ export function ModelsPage({
   onTiers,
   onSaveTiers,
   onLimits,
+  onOffers,
   onUsage,
   prices = [],
   ...handlers
@@ -287,6 +293,14 @@ export function ModelsPage({
       }
   }, [providers, openId, onAvailability])
   const availOf = (id: string) => full[id] ?? free[id]
+  // What each Copilot account on GitHub's plan offers, asked as the page opens; a failure leaves what was known.
+  const copilots = providers
+    .filter(p => p.kind === 'copilot_cli' && !p.base_url)
+    .map(p => p.id)
+    .join(' ')
+  useEffect(() => {
+    for (const id of copilots.split(' ').filter(Boolean)) onOffers?.(id).catch(() => {})
+  }, [copilots, onOffers])
   // What each CLI last said of its plan, and when a plan key's quota was last seen used up: read as it is, nothing
   // is started.
   const [limits, setLimits] = useState<Record<string, Limits | null>>({})

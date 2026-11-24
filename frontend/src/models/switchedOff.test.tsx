@@ -76,7 +76,10 @@ test('B-396: a model KOLONİ switched off as its CLI refused it says why; On sen
     <ModelsPage
       providers={[
         provider({
-          models: [{ name: 'dear', note: null, tier: 'balanced', agents: true, enabled: false, off_why: why }],
+          models: [
+            { name: 'dear', note: null, tier: 'balanced', agents: true, enabled: false, off_why: why },
+            { name: 'kept', note: null, tier: 'fast', agents: true, enabled: false, off_why: why },
+          ],
         }),
       ]}
       {...h}
@@ -93,6 +96,8 @@ test('B-396: a model KOLONİ switched off as its CLI refused it says why; On sen
     agents: true,
     enabled: true,
   })
+  // Another row KOLONİ switched off goes with its why, as this page saw it: one KOLONİ switched on since is kept on.
+  expect(h.onSave.mock.lastCall![1].models[1]).toMatchObject({ name: 'kept', enabled: false, off_why: why })
 })
 
 test('a provider is switched off and on from its window’s head; one off is greyed on its card', async () => {

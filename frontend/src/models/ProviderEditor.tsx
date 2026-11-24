@@ -271,6 +271,8 @@ export function ProviderEditor({
       tier: row.tier,
       agents: row.agents,
       ...(row.enabled !== undefined && { enabled: row.enabled }),
+      // (Off as KOLONİ switched it, as this page saw it: one KOLONİ switched on since is not made the user's off.)
+      ...(row.enabled === false && row.off_why && { off_why: row.off_why }),
       ...(row.inputs != null && { inputs: row.inputs }),
       ...(row.context !== undefined && { context: row.context }),
       ...(row.routing !== undefined && { routing: row.routing }),

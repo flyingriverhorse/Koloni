@@ -4517,7 +4517,8 @@ class CopilotNativeClient(CodexNativeClient):
         from app.limits import _copilot_asked  # (it imports this module)
 
         with contextlib.suppress(Exception):
-            return _dict(await _copilot_asked(self, "status.get", "its version", VERSION_SECONDS))
+            told = await _copilot_asked(self, ("status.get",), "its version", VERSION_SECONDS)
+            return _dict(told[0])
         return {}
 
     async def _version(self) -> str:

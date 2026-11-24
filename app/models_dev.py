@@ -37,9 +37,8 @@ log = logging.getLogger(__name__)
 LICENSE = "MIT, Copyright (c) 2025 models.dev (app/models_dev.LICENSE)"
 # KOLONİ's kinds whose models are a models.dev service's; an OpenAI-compatible server's
 # is the service at its address (`app.catalog.catalogue_of`).
-# shortcut: Copilot's list is every model GitHub offers, not those the user's account has (a
-# model it lacks fails the turn, saying so - B-176); mark them once a call that lists the
-# account's models (headless, beside `account.getQuota`) is measured live.
+# Copilot's list is every model GitHub offers, not those the user's account has: what the account
+# offers is asked of Copilot itself (`app.copilot_offers`), and only that is proposed for it.
 SERVICES = {
     "anthropic": "anthropic",
     "claude_cli": "anthropic",

@@ -48,6 +48,7 @@ nav = [
     { "Set up an API provider" = "models/setup-api.md" },
     { "Set up a local model" = "models/setup-local.md" },
     { "Set up a CLI" = "models/setup-cli.md" },
+    { "Copilot on your GitHub account" = "models/copilot.md" },
     { "Tiers and Agents may use" = "models/tiers.md" },
     { "Limits" = "models/limits.md" },
     { "Subscription rules" = "models/subscription-rules.md" },

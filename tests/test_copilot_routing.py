@@ -1,5 +1,5 @@
 """Copilot's `auto` and `fusion` rows take a routing (1.0.114's package: Auto Efficiency /
-Balance / Intelligence, Fusion Standard / High / Max): set on the model's row, only on the
+Balance / Intelligence / Fast, Fusion Standard / High / Max): set on the model's row, only on the
 user's GitHub account, sent as `--auto-tier` / `--fusion-tier` to a session and as
 session.create's `capi` natively - never both."""
 
@@ -36,9 +36,12 @@ def test_a_routing_is_only_for_copilots_auto_and_fusion_on_a_github_account(clie
         ("Copilot 2", [{"name": "gpt-x", "routing": "balance"}]),  # not auto or fusion
         ("Copilot 3", [{**AUTO, "routing": "high"}]),  # fusion's, on auto
         ("Copilot 4", [{**FUSION, "routing": "balance"}]),  # auto's, on fusion
-        ("Copilot 5", [{**AUTO, "routing": "fast"}]),
-    ):  # (integrator-only: not offered)
+        ("Copilot 5", [{**FUSION, "routing": "fast"}]),  # auto's, on fusion
+    ):
         assert made(client, name=name, models=models).status_code == 422, name
+    # An account's own `fast` (on, though not in its picker: models.list, 24 Nov 2026) is kept.
+    fast = made(client, name="Copilot 7", models=[{**AUTO, "routing": "fast"}])
+    assert fast.status_code == 201 and fast.json()["models"][0]["routing"] == "fast"
     own_server = made(client, name="Copilot 6", base_url="http://localhost:8080/v1", models=[AUTO])
     assert own_server.status_code == 422 and "GitHub account" in own_server.text
     claude = client.post(
@@ -144,6 +147,7 @@ def test_the_catalogue_offers_fusion_with_no_tier():
     ("model", "routing", "protocol", "sent"),
     [
         ("auto", "intelligence", 3, {"capi": {"autoTier": "intelligence"}}),
+        ("auto", "fast", 4, {"github": {"capi": {"autoTier": "fast"}}}),  # (not dropped)
         ("fusion", "high", 4, {"github": {"capi": {"fusionTier": "high"}}}),
         ("gpt-x", "high", 4, {}),
     ],

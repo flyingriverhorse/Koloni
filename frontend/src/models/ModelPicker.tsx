@@ -1,5 +1,5 @@
 import { Cpu } from '@phosphor-icons/react'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { errorText } from '../api/client'
 import { type Effort, type Provider, type Tier, TIERS } from '../api/types'
 import { autoPicked, modelName, pickedWhy } from '../shell/modelName'
@@ -10,8 +10,9 @@ import { usePanel } from '../shell/usePanel'
 import { useApp } from '../state/store'
 import { type LoadFacts, LevelOptions, levelsDisabled, levelsKnown, namedLevel, takesOf, useModelFacts } from './levels'
 import { type LoadModels, ModelNameInput, ProviderOptions } from './ModelNameInput'
+import { RoutingOptions } from './ModelRow'
 import type { ListedModel } from './ModelsPage'
-import { type Routing, ROUTINGS, routingOf, withRouting } from './routing'
+import { type Routing, routingChoices, routingOf, withRouting } from './routing'
 
 export interface ModelChoice {
   provider_id: string | null
@@ -41,6 +42,9 @@ interface Props {
   hasHistory?: boolean
   /** Copilot's auto's or fusion's routing changed: its provider's list to save, at once. */
   onRouting?: (providerId: string, models: ListedModel[]) => Promise<void>
+  /** Copilot on your GitHub account: what its account offers, asked as the panel opens on it (the server asks it at
+   *  most once in 10 minutes); the provider is read again with it. */
+  onOffers?: (providerId: string) => Promise<void>
 }
 
 /**
@@ -181,6 +185,15 @@ function switches(
   )
 }
 
+/** The panel open on Copilot on your GitHub account: what its account offers is asked (`onOffers`); a failure says
+ *  nothing here - the menus stay as they were. */
+function useOffers(open: boolean, picked: Provider | undefined, onOffers: Props['onOffers']) {
+  const copilot = open && picked?.kind === 'copilot_cli' && !picked.base_url ? picked.id : null
+  useEffect(() => {
+    if (copilot) onOffers?.(copilot).catch(() => {})
+  }, [copilot, onOffers])
+}
+
 /** Copilot's auto or fusion on your GitHub account, listed on its provider: its routing, saved at once on its Models row. */
 function RoutingField({
   provider,
@@ -211,11 +224,7 @@ function RoutingField({
         onChange={e => void save((e.target.value || null) as Routing | null)}
       >
         <option value="">Default</option>
-        {ROUTINGS[routed].map(([routing, label]) => (
-          <option key={routing} value={routing}>
-            {label}
-          </option>
-        ))}
+        <RoutingOptions choices={routingChoices(provider, routed, row.routing)} />
       </select>
       <span id="pick-routing-note" className="choice-note">
         Saved on its Models row: every chat and agent on {provider.name} · {model} uses it.
@@ -242,6 +251,7 @@ export function ModelPicker({
   lead,
   hasHistory = false,
   onRouting,
+  onOffers,
 }: Props) {
   const [provider, setProvider] = useState(providerId ?? '')
   const [model, setModel] = useState(modelId ?? '')
@@ -269,6 +279,7 @@ export function ModelPicker({
   const facts = useModelFacts(open ? onFacts : undefined, lookedUpId, lookedUpModel)
   const takes = takesOf(facts)
   const switching = switches(hasHistory, used, picked, model, usedModel)
+  useOffers(open, picked, onOffers)
 
   function toggle() {
     if (open) {

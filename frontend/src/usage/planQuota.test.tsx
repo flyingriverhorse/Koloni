@@ -5,6 +5,7 @@ import { dayAndTime } from '../agents/failure'
 import type { Limits, Provider } from '../api/types'
 import { readingOf } from '../models/cards'
 import { ModelsPage } from '../models/ModelsPage'
+import { limitsLine } from './limitsText'
 import { PlanLimits } from './PlanLimits'
 import { PlanUse } from './PlanUse'
 
@@ -81,6 +82,41 @@ test('their cards say what is left of each window, by the name its CLI gives it'
     label: 'left of premium requests',
     more: undefined,
   })
+})
+
+test('Copilot’s chat requests and premium are said apart; premium of none is none, not full', () => {
+  // As the backend shows getQuota on 24 Nov 2026: chat 200 of 200 left, premium 0 of 0.
+  const both = reading([
+    {
+      name: 'chat requests',
+      minutes: null,
+      used_percent: 0,
+      resets_at: null,
+      stale: false,
+      limit: 200,
+      remaining: 200,
+    },
+    {
+      name: 'premium requests',
+      minutes: null,
+      used_percent: null,
+      resets_at: null,
+      stale: false,
+      limit: 0,
+      remaining: 0,
+    },
+  ])
+  expect(readingOf(copilot, { limits: both })).toEqual({
+    share: 1,
+    value: '100%',
+    label: 'left of chat requests',
+    more: 'Premium requests: none on your plan',
+  })
+  expect(limitsLine(both)).toBe('0% of chat requests used (200 of 200 left) · premium requests: none on your plan')
+  // (A reset and a reading's time are said as any plan's are - not an API's clock-only "resets 12:03".)
+  const reset = '2026-12-01T00:00:00Z'
+  const later = reading([{ ...both.windows[0], used_percent: 10, remaining: 180, resets_at: reset }])
+  expect(limitsLine(later)).toBe(`10% of chat requests used (180 of 200 left), resets ${dayAndTime(reset)}`)
 })
 
 test('their cards and Usage’s Check now read them afresh: neither costs a turn', async () => {

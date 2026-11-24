@@ -2,7 +2,7 @@ import { TIERS, type Availability, type Limits, type Provider, type Usage } from
 import { dayAndTime } from '../agents/failure'
 import { Hint } from '../shell/Hint'
 import { totalCost } from '../usage/cost'
-import { balance, readAgo, windowWords } from '../usage/limitsText'
+import { balance, NONE_ON_PLAN, readAgo, windowWords } from '../usage/limitsText'
 import { isCli, stateOf } from './ModelsPage'
 
 /** What switching a provider off does, on its switch (its card's and its window's). */
@@ -143,6 +143,7 @@ function planReading(limits: Limits | null): Reading {
     .filter(w => w !== narrowest)
     .map(w => {
       const name = windowWords(w)[1]
+      if (w.limit === 0) return `${name}: ${NONE_ON_PLAN}`
       if (w.used_percent === null || w.stale) return `${name} –`
       // (One the last reading did not name says when it was read itself: B-74.)
       return `${name} ${left(w)}% left${w.resets_at ? ` · resets ${dayAndTime(w.resets_at)}` : ''}${w.read_at ? ` · ${readAgo(w.read_at)}` : ''}`
