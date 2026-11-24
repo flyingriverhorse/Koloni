@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNow } from '../agents/useNow'
 import { api, errorText } from '../api/client'
 import type { Message } from '../api/types'
+import { isKept } from '../changes/copies'
 import { useApp } from '../state/store'
 import { FIX_HELD, fixOf, runClock } from './checked'
 
@@ -124,11 +125,18 @@ export function FixIt({ asked }: { asked: string }) {
   )
 }
 
-/** S11 (decision 18): failing work not taken in - Take in anyway takes its kept copy in, the user's word; Fix it sends their answer to the stronger model's question. No pop-up card. */
+/**
+ * S11 (decision 18): failing work not taken in - Take in anyway takes its kept copy in, the user's word; Fix it sends their
+ * answer to the stronger model's question. No pop-up card. N3: only while its kept copy waits for the user (as its merge
+ * stands now, after a reload too) - taken in, said so; discarded, or gone on in a Fix it turn: nothing.
+ */
 function NotTaken({ row, runId }: { row: Row; runId: string | null }) {
   const [said, setSaid] = useState<string | null>(null)
   const [answering, setAnswering] = useState(false)
+  const merge = useApp(s => s.conv?.merges.find(m => m.id === row.merge_id))
   const question = row.question ?? ''
+  const taken = merge?.status === 'applied' || merge?.files.some(one => one.state === 'applied')
+  if (merge && (taken || !isKept(merge))) return taken ? <span role="status">Taken in anyway.</span> : null
   return (
     <span className="checked-fix">
       {row.merge_id && (

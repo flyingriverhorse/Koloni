@@ -174,6 +174,46 @@ def test_an_answer_to_a_round_that_changes_nothing_ends_as_a_spent_round(
     ], texts(snap)
 
 
+def test_a_fix_it_turn_that_changes_nothing_says_the_tests_still_fail(
+    make_client, wait_run, project_dir
+):
+    # (N1: Fix it's turn answered with no change - no Checked section, no Fix it left under the
+    # newest turn. Its turn says the last check still fails, with the failing run's row - its
+    # command, what Fix it sends - and only the turn right after a failing one.)
+    client, _model = make_client(
+        [write("a.py", "x = 1\n"), text("done"), text("right as it is"), text("it is")],
+        executor=ScriptedExecutor([failing()]),
+    )
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    first = checked(wait_run(client, cid, run_id))
+    fix = "The tests KOLONİ ran at the end of the last turn failed: `python check.py`. Fix it."
+    again = client.post(f"/api/conversations/{cid}/messages", json={"content": fix}).json()
+    snap = wait_run(client, cid, again["run"]["id"])
+    (rows,) = [
+        m["checked"]
+        for m in snap["messages"]
+        if m["role"] == "checked" and m["run_id"] == again["run"]["id"]
+    ]
+    assert rows[1:] == [first[0], first[2]], rows
+    assert (rows[0]["kind"], rows[0]["state"], rows[0]["text"]) == (
+        "unchanged",
+        "note",
+        proof.UNCHANGED,
+    ), rows
+    assert rows[1]["command"] == "python check.py" and rows[2]["state"] == "failed", rows
+
+
+def test_a_turn_that_changes_nothing_after_a_pass_says_nothing(make_client, wait_run, project_dir):
+    client, _model = make_client(
+        [write("a.py", "x = 1\n"), text("done"), text("ok")], executor=ScriptedExecutor([PASS])
+    )
+    cid, run_id = begin(client, project_dir, check_command="python check.py")
+    wait_run(client, cid, run_id)
+    again = client.post(f"/api/conversations/{cid}/messages", json={"content": "and?"}).json()
+    snap = wait_run(client, cid, again["run"]["id"])
+    assert [m["run_id"] for m in snap["messages"] if m["role"] == "checked"] == [run_id]
+
+
 def test_a_fix_that_passes_ends_with_one_round_said(make_client, wait_run, project_dir):
     executor = ScriptedExecutor([failing(), PASS])
     client, model = make_client(

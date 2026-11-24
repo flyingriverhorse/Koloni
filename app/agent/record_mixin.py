@@ -345,20 +345,26 @@ class RecordMixin:
             payload = message_out(note)
         self.bus.emit(cid, run_id, "message.completed", payload)
 
-    def _say_landed(self: "AgentRunner", cid: str, run_id: str, due: bool) -> None:
+    def _say_landed(
+        self: "AgentRunner", cid: str, run_id: str, due: bool, again: bool = False
+    ) -> None:
         """B-205: where the turn's work is, under the Lead's answer - a "landed" message of
         KOLONİ's own, from the records (`merge.landed`), which no agent is given. Nothing said
-        where not `due`, nor for a turn that changed no file.
-        shortcut: said as it stands at the turn's end; a kept copy taken in or discarded later
-        does not change it (its card says so) - rewrite it at `decide_kept` if that misleads."""
+        where not `due`, nor for a turn that changed no file. `again` (N3): its kept copy taken
+        in or discarded after the turn (`_decide_kept`) - the line it said, written anew; none
+        where it said none."""
         if not due:
             return
         try:
             with self._factory() as session:
                 said = landed(session, run_id)
-                if said is None:
+                note = session.scalar(
+                    select(Message).where(Message.run_id == run_id, Message.role == "landed")
+                )
+                if said is None or (again and (note is None or note.content == said)):
                     return
-                note = Message(conversation_id=cid, run_id=run_id, role="landed", content=said)
+                note = note or Message(conversation_id=cid, run_id=run_id, role="landed")
+                note.content = said
                 session.add(note)
                 session.commit()
                 payload = message_out(note)

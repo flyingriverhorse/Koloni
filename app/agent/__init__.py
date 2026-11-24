@@ -2174,7 +2174,7 @@ class AgentRunner(
             # K-dal-takim: the turn's work, on its own branch, merges as an agent's does -
             # on a card that waits for the user where it is not merged by itself.
             try:
-                said = await self._take_in(ctx, status, lambda: None)
+                said = await self._take_in_checked(ctx, status)  # (N2: as it was checked)
             except asyncio.CancelledError:
                 # Stop while its card waits: the turn ends as Stopped, its copy gone and
                 # the branch kept where KOLONİ's commit is on it (`_into_project`). A Stop
@@ -3280,6 +3280,7 @@ class AgentRunner(
         applied, payloads = self._kept_closed(ctx, merge_id, decision, files, asked, left)
         for kind, payload in payloads:
             self.bus.emit(ctx.cid, ctx.run_id, kind, payload)
+        self._say_landed(ctx.cid, ctx.run_id, True, again=True)  # (N3: no "Not in the project yet")
         if applied:
             if not ctx.depth:  # (the recipe's own copy is its turn's lead's)
                 self._kept_in(ctx)
