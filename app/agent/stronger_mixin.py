@@ -127,6 +127,15 @@ TESTS_REMOVED = "fewer of its tests run, or more are skipped, after its fix roun
 ON_HOLD = "on hold - a look's findings still stand after its fix rounds"
 # k-a11y-2: ...and work a kind's check of still fails after them (a page, a document, a config).
 KINDS_FAILING = "KOLONİ's checks of what it wrote still fail after its fix rounds"
+AFTER_ROUNDS = " after its fix rounds"
+
+
+def held_said(why: str, held: "Proof | None") -> str:
+    """A hold's why as it is said: where no Fix rounds were given (a recipe's "Checked only"),
+    none were spent."""
+    return why.removesuffix(AFTER_ROUNDS) if held is not None and not held.most else why
+
+
 NOT_TAKEN_TOLD = (
     "\n\nNot taken in: {why}. The work stays in its copy, with no card at any "
     "level: change it and KOLONİ checks it again at your answer's end; else the "
@@ -230,16 +239,16 @@ class StrongerMixin:
         """At the end check's end, no step sending work back: where the rounds are spent and the
         last pass's own failures stand, each stronger tier in turn - a diagnosis, then its rounds
         - until the tests pass. Said in Checked; the turn's answer is not held for it."""
-        if not held.left_failing and self._works_in(ctx) is not None:
+        if (
+            not held.left_failing
+            and self._works_in(ctx) is not None
+            and (kept := self._still_kept(held))
+        ):
             # (R: no test fails, but fewer run or more are skipped - or, k-a11y-2, a kind's check
             # fails - and no round is left to send it back for: work in a copy of the turn's own
             # is not taken in, its reason said)
-            if proof.counts_only(held.rows):
-                self._held_back.setdefault(ctx.run_id, TESTS_REMOVED)
-                return None
-            if self._kinds_failing(held.rows):
-                self._held_back.setdefault(ctx.run_id, KINDS_FAILING)
-                return None
+            self._held_back.setdefault(ctx.run_id, kept)
+            return None
         # (k-canli-016: until it passes, also where the rounds stopped for no progress - never
         # for a limit, which a stronger model would only spend more of.)
         if (
@@ -262,11 +271,24 @@ class StrongerMixin:
             held.passed_by_stronger = True  # (its recipe's row still says findings were left)
             # (held before, at the Lead's end: never inside Ready for you, which asks nothing while
             # held - it asks now, these checks standing for it, k-sira-016; P: not while a look
-            # still holds the fixed work - `_on_hold`)
-            if held.verdict != "HOLD" and self._held_back.pop(ctx.run_id, None):
+            # still holds the fixed work - `_on_hold`; k-a11y-2: nor while a kind's check of it
+            # still fails - its tests are all the stronger model's rounds ran again)
+            if self._works_in(ctx) is not None and (kept := self._still_kept(held)):
+                self._held_back[ctx.run_id] = kept
+            elif held.verdict != "HOLD" and self._held_back.pop(ctx.run_id, None):
                 self._mark_ready(ctx, held)
                 await self._ready_at_end(ctx)
         return None
+
+    def _still_kept(self: "AgentRunner", held: "Proof") -> str | None:
+        """Why work in a copy of the turn's own stays out of the project whatever a look of
+        KOLONİ's says of it: its tests still fail, fewer of them run or more are skipped (R), or a
+        kind's check of it still fails (k-a11y-2); None: none of these."""
+        if proof.counts_only(held.rows):
+            return TESTS_REMOVED
+        if held.left_failing:
+            return TESTS_FAILING
+        return KINDS_FAILING if self._kinds_failing(held.rows) else None
 
     async def _hand_up(self: "AgentRunner", ctx: Ctx, held: "Proof") -> bool:
         """Each stronger tier in turn, where Then a stronger model is on. Whether the tests
@@ -319,6 +341,11 @@ class StrongerMixin:
         if held.verdict == "HOLD" and not held.left_failing:
             self._held_back[ctx.run_id] = ON_HOLD
         elif held.verdict != "HOLD" and self._held_back.get(ctx.run_id) == ON_HOLD:
+            # (the look lets it go; failing tests, fewer of them or a kind's failing check - whose
+            # own hold the look's stood in for - still keep it out)
+            if kept := self._still_kept(held):
+                self._held_back[ctx.run_id] = kept
+                return
             del self._held_back[ctx.run_id]  # (held at the Lead's end: never inside Ready for you)
             self._mark_ready(ctx, held)
             await self._ready_at_end(ctx)
@@ -873,7 +900,7 @@ class StrongerMixin:
             self._mark_ready(ctx, was)
         if held := self._recipe_held(ctx, rows) or self._held_back.get(ctx.run_id):
             self._held_back[ctx.run_id] = held
-            return NOT_TAKEN_TOLD.format(why=held)
+            return NOT_TAKEN_TOLD.format(why=held_said(held, self._proofs.get(ctx.run_id)))
         if ctx.run_id in self._proofs:
             self._say_checked(ctx.cid, ctx.run_id, ctx.root is not None)
         return None
@@ -930,7 +957,7 @@ class StrongerMixin:
             "failed",
             NOT_TAKEN.format(what=what, by=by)
             if by and (held and held.left_failing)
-            else NOT_TAKEN_PLAIN.format(why=why),
+            else NOT_TAKEN_PLAIN.format(why=held_said(why, held)),
         )
         if why == ON_HOLD:
             made["question"], made["reason"] = ASK_HOLD, "on_hold"

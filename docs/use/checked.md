@@ -571,11 +571,14 @@ the Orchestrator of a page is only these lines, as data. **Pages** is switched o
 kinds.
 
 At each width the page is also read for accessibility - by KOLONİ, in the page, with no model and
-nothing installed - half a second after it loaded, and again 0.3 s later (some 0.8 s a width). Where
-the two reads differ, the page is still changing (one drawn as its data comes): that width is not
-judged - "accessibility not judged at 375 px - the page changed after it loaded" - neither sent back
-for what it had not drawn yet nor passed for what it drew late. A change after the second read is
-not seen. What the read finds:
+nothing installed - half a second after it loaded, and again 0.3 s later (some 0.8 s a width). What
+both reads find the same fails as below, however the rest of the page moves (a count going up, a
+clock). What one read finds and the other does not, or finds otherwise - an image with no alt
+drawn as its data comes, a name put a moment late - is not judged, said by its rule:
+"accessibility not judged at 375 px for what changed after it loaded - images without alt text";
+it is neither sent back for what the page had not drawn yet nor passed for what it drew late. The
+notes (contrast and what it could not judge) are the second read's. A change after the second
+read is not seen. What the read finds:
 
 - an image with no text for it: "index.html: 2 images without alt text at 375, 768, 1280 px -
   logo.png, hero.jpg". `alt=""` marks a picture as decoration, and one hidden from screen readers
@@ -584,8 +587,9 @@ not seen. What the read finds:
   (image 3)";
 - a button, link or field with no name - no words of its own, `aria-label`, `aria-labelledby`,
   `title`, label (its words, or the `alt` of an image in it), placeholder, a button's value or an
-  image's `alt` in it, and else the words of its own CSS `::before` or `::after` (`content: 'Menu'`;
-  an icon font's glyph is no name): "1 buttons, links or fields with no name at 375, 768, 1280 px -
+  image's `alt` in it, and else the words of the CSS `::before` or `::after` of it or of what is
+  shown in it (`content: 'Menu'`; one with `display: none`, or an icon font's glyph, is no name):
+  "1 buttons, links or fields with no name at 375, 768, 1280 px -
   input[type=email]#email". A control one can tab to counts whatever its size - an empty
   `<a href>` is a tab stop with no name; any other (`tabindex="-1"`, inside `inert`) only where it
   is drawn more than 1 px each way, as an image and a text are. A hidden or disabled one never
@@ -628,7 +632,7 @@ guessed:
   more than 200 drawn elements over it" …). A read cut at its 3 seconds is not read again: that
   width stands on its first read.
 
-A page nested deeper still (some 1,700 elements, measured) crashes the browser's tab as it is
+A page nested deeper still (some 1,600 elements, measured on Windows) crashes the browser's tab as it is
 drawn, before any read: "index.html: not checked: the page crashed the browser's tab", said at
 once, and the turn's next page is read in a new browser.
 
@@ -1041,8 +1045,8 @@ the Orchestrator's window, whose record holds the runs.
 | ✗ `page`: 2 images without alt text · 1 buttons, links or fields with no name … | The page is hard to use with a screen reader: sent back as a fix round. |
 | – `page`: 3 texts below the contrast they need at 375 px - “Muted words” 2.84:1 (needs 4.5:1) | A warning: hard to read, said with its ratio - never sent back. |
 | ✗ `page`: the whole page is hidden from screen readers (aria-hidden) · 2 controls one can tab to inside aria-hidden … | A screen reader is told nothing of the page, or a control one tabs to is not there for it: sent back as a fix round. |
-| – `page`: contrast not checked … on texts with something drawn under them · … the page's colour scheme is dark only · accessibility not read inside N frames or shadow roots · accessibility checked only in part · accessibility not read (… the page has no body · … no root) · accessibility not judged at 375 px - the page changed after it loaded | What the accessibility read could not judge: said, not sent back. |
-| – `page`: not checked: the page crashed the browser's tab | The browser could not draw the page (one nested some 1,700 deep crashes Chrome's tab): said at once; the turn's next page is read in a new browser. |
+| – `page`: contrast not checked … on texts with something drawn under them · … the page's colour scheme is dark only · accessibility not read inside N frames or shadow roots · accessibility checked only in part · accessibility not read (… the page has no body · … no root) · accessibility not judged at 375 px for what changed after it loaded - images without alt text | What the accessibility read could not judge: said, not sent back. |
+| – `page`: not checked: the page crashed the browser's tab | The browser could not draw the page (one nested some 1,600 deep crashes Chrome's tab, measured on Windows): said at once; the turn's next page is read in a new browser. |
 | – Pages not checked: no preview running · no Chrome or Edge here | A component changed and no preview serves the work; or no browser to look with. |
 | ✓ Tried `python 'bin/tool.py' --help`: exit 0, 12 lines | A command-line tool the turn changed answered its `--help`. |
 | ✗ Tried `line`: exit 2 · Tried `line`: it did not end in 30 s | Its `--help` failed or ran on: sent back as a fix round. |

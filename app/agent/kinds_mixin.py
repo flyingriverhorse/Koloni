@@ -60,10 +60,12 @@ KINDS_HELD = (
 
 
 def kinds_held(message: Message) -> str | None:
-    """A turn's Checked section that ended on a kind's problem: its problems, noted, for the
-    Orchestrator's later turns. None: no such end."""
+    """A turn's Checked section that ended on a kind's problem - its closing row, or its work kept
+    out for it: its problems, noted, for the Orchestrator's later turns. None: no such end."""
     rows = (message.blocks or {}).get("rows") or []
-    if not any(one.get("kind") == "rounds" and one.get("reason") == "kinds" for one in rows):
+    if not any(
+        one.get("kind") in ("rounds", "not_taken") and one.get("reason") == "kinds" for one in rows
+    ):
         return None
     found = [
         str(one.get("text", ""))

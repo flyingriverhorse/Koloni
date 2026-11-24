@@ -48,8 +48,9 @@ ENDED = (
     "the browser ended (its connection to KOLONİ dropped, or a frame of the page could "
     "not be guarded): browser_open starts a new one"
 )
-# A page whose tab crashed (measured, Chrome 156: one nested some 1,700 deep, as it is drawn):
-# nothing of it answers until a page is loaded again - each call said at once, not after 30 s.
+# A page whose tab crashed (measured, Chrome 156 on Windows: one nested some 1,600 deep, as it is
+# drawn): nothing of it answers until a page is loaded again - each call said at once, not after
+# 30 s.
 CRASHED = "the page crashed the browser's tab"
 BLANK = "about:blank"
 LOOPBACK = frozenset({"localhost", "127.0.0.1", "::1"})
@@ -644,11 +645,21 @@ _A11Y = r"""(o) => {
     }
     return said;
   };
-  // (its own ::before and ::after words - CSS generated content, part of a name as Chrome's is;
-  // attr() comes resolved. An icon font's glyph, a private-use character, is no word)
-  const generated = (el) => ['::before', '::after'].map((at) =>
-    (getComputedStyle(el, at).content.match(/"(?:[^"\\]|\\.)*"/g) || []).join(' '))
-    .join(' ').replace(/[\uE000-\uF8FF"\\]/g, ' ');
+  // (the ::before and ::after words of it and of what is shown in it - its first 200 elements:
+  // CSS generated content, part of a name as Chrome's is; attr() comes resolved. One not drawn
+  // (display: none) is none, and so is an icon font's glyph, a private-use character)
+  const generated = (el) => {
+    const said = [];
+    const w = walker(document, el, NodeFilter.SHOW_ELEMENT);
+    for (let at = el, i = 0; at && i <= 200; at = w.nextNode(), i++) {
+      if (at !== el && visible && !visible(at, {checkVisibilityCSS: true})) continue;
+      for (const where of ['::before', '::after']) {
+        const s = getComputedStyle(at, where);
+        if (s.display !== 'none') said.push(...(s.content.match(/"(?:[^"\\]|\\.)*"/g) || []));
+      }
+    }
+    return said.join(' ').replace(/[\uE000-\uF8FF"\\]/g, ' ');
+  };
   const named = (el) => {
     const t = tag(el), input = field(el) ? typeOf(el) : '';
     return words([
@@ -1227,7 +1238,8 @@ class Browser:
             return
         self.crashed = True
         self._loaded.set()
-        for future in self._waiting.values():
+        waiting, self._waiting = self._waiting, {}
+        for future in waiting.values():
             if not future.done():
                 future.set_exception(BrowserError(CRASHED))
 
@@ -1401,8 +1413,8 @@ class Browser:
         self.marked = ("", [])
         self._loading.clear()
         self._loaded.clear()
+        self.crashed = False  # (a load is what brings a crashed tab back - one it crashes says so)
         gone = await self._call("Page.navigate", {"url": url})
-        self.crashed = False  # (a load is what brings a crashed tab back)
         if gone.get("errorText"):
             raise BrowserError(f"{url}: {gone['errorText']}")
         with contextlib.suppress(TimeoutError):

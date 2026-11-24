@@ -131,7 +131,8 @@ def test_work_a_look_still_holds_is_not_taken_in_at_any_level(
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     rows = held_rows(snap, run_id)
     (kept,) = [r for r in rows if r["kind"] == "not_taken"]
-    assert kept["text"] == f"Not taken in: {ON_HOLD}", rows
+    # (Fix rounds 0: none were spent - not said "after its fix rounds", k-a11y-2's review)
+    assert kept["text"] == f"Not taken in: {ON_HOLD.removesuffix(' after its fix rounds')}", rows
     assert kept["reason"] == "on_hold" and kept["merge_id"], kept
     assert not any(READY in q["question"] for q in snap["questions"]), snap["questions"]
     assert not (project_dir / "calc.py").exists()

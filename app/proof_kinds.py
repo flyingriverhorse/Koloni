@@ -1545,11 +1545,14 @@ CUT_WHY = {
 A11Y_UNREAD = "{path}: accessibility not read at {widths} px"
 NO_BODY = "{path}: accessibility not read at {widths} px - the page has no body"
 NO_ROOT = "{path}: accessibility not read at {widths} px - the page has no root"
-# V1 (0.1.8): read SETTLE s after the page loaded, then AGAIN s later; two reads that differ judge
-# nothing at that width - a page still changing (one drawn as its data comes) is neither sent back
-# for what it had not drawn yet nor passed for what it drew late.
+# V1 (0.1.8): read SETTLE s after the page loaded, then AGAIN s later; a failing rule whose finding
+# differs between the two is not judged at that width (`_settled`) - a page still changing (one
+# drawn as its data comes) is neither sent back for what it had not drawn yet nor passed for what
+# it drew late; what both reads find fails, however the rest of the page moves.
 SETTLE, AGAIN = 0.5, 0.3
-CHANGED = "{path}: accessibility not judged at {widths} px - the page changed after it loaded"
+CHANGED = (
+    "{path}: accessibility not judged at {widths} px for what changed after it loaded - {named}"
+)
 NEEDS, NEEDS_LARGE = 4.5, 3.0
 LARGE_PX, LARGE_BOLD_PX, BOLD = 24.0, 18.66, 700
 MOST_SNIPPET = 40
@@ -1764,19 +1767,46 @@ async def _accessed(one: "browser.Browser") -> dict | None:
         return None
 
 
-async def _read_twice(one: "browser.Browser", loaded: float) -> dict | None:
-    """V1: the page read SETTLE s after it `loaded` (time.monotonic), and again AGAIN s later -
-    the first read, or {"changed": True} where the two find otherwise. One not answered is not
-    read again (it would cost its 30 s twice).
+async def _read_twice(one: "browser.Browser", loaded: float) -> dict[str, Found]:
+    """V1: what the page's read finds SETTLE s after it `loaded` (time.monotonic), and again
+    AGAIN s later (`_settled`). One not answered is not read again (it would cost its 30 s twice);
+    a second one not answered is "not read".
     shortcut: a read cut at A11Y_MS is not read again either - where it is cut differs from one
     read to the next though nothing changed; such a width stands on its first read, said "in
     part". Read it twice too if a page is seen to change under a cut read."""
     await asyncio.sleep(max(0.0, loaded + SETTLE - time.monotonic()))
     first = await _accessed(one)
     if first is None or "time" in (first.get("cut") or ()):
-        return first
+        return _findings(first)
     await asyncio.sleep(AGAIN)
-    return first if _findings(first) == _findings(await _accessed(one)) else {"changed": True}
+    second = await _accessed(one)
+    return _findings(None) if second is None else _settled(_findings(first), _findings(second))
+
+
+# What a failing rule is, in CHANGED's words.
+_CHANGED = {
+    "hidden": "the page hidden whole",
+    "alt": "images without alt text",
+    "name": "controls with no name",
+    "focus": "controls one tabs to inside aria-hidden",
+}
+
+
+def _settled(first: dict[str, Found], second: dict[str, Found]) -> dict[str, Found]:
+    """Two reads as one: a failing rule's finding the same in both stands (fails); one found in
+    one read only, or otherwise in each, is not judged - said (`CHANGED`), by its rule; the notes
+    are the second read's: one that moves (a count going up in grey, a clock over a gradient)
+    never keeps a failure the page has from failing."""
+    found = {kind: one for kind, one in second.items() if kind not in _CHANGED}
+    moved = []
+    for kind in _CHANGED:
+        if first.get(kind) != second.get(kind):
+            moved.append(_CHANGED[kind])
+        elif kind in second:
+            found[kind] = second[kind]
+    if moved:
+        found["changed"] = (1, tuple(moved), 0)
+    return found
 
 
 def _snippet(text: object) -> str:
@@ -1868,7 +1898,7 @@ def _findings(read: dict | None) -> dict[str, Found]:
     """One width's read (`Browser.access`) as what each rule found."""
     if read is None:
         return {"unread": _ONCE}
-    for said in ("changed", "noroot", "nobody"):  # (`_read_twice`'s, and the page's own state)
+    for said in ("noroot", "nobody"):
         if read.get(said) is True:
             return {said: _ONCE}
     found: dict[str, Found] = {"hidden": _ONCE} if read.get("hidden") is True else {}
@@ -1914,10 +1944,9 @@ def _cut_why(cut: object) -> tuple[str, ...]:
     return tuple(CUT_WHY[one].format(**bounds) for one in keys)
 
 
-def _access_rows(name: str, read: dict[int, dict | None]) -> tuple[list[Row], list[Row]]:
-    """The page's accessibility at each width as lines - failed ones, and notes - a width with
-    the same findings as another said in one line with it."""
-    found = {width: _findings(one) for width, one in read.items()}
+def _access_rows(name: str, found: dict[int, dict[str, Found]]) -> tuple[list[Row], list[Row]]:
+    """What the page's read found at each width (`_read_twice`) as lines - failed ones, and
+    notes - a width with the same findings as another said in one line with it."""
     lines: tuple[list[Row], list[Row]] = ([], [])
     for kinds, said, state in ((_FAILED, lines[0], "failed"), (_NOTED, lines[1], "note")):
         for kind, text in kinds:

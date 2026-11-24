@@ -308,12 +308,18 @@ def accessed(page: str, bounds: dict) -> dict:
         return {**Read(bounds).out, "nobody": True}
     if "data-a11y-no-root" in page:  # (...its root)
         return {**Read(bounds).out, "noroot": True}
-    if "data-a11y-grows" in page:  # (...one more image with no alt at each read: still drawing)
-        state["reads"] = state.get("reads", 0) + 1
-        return {**Read(bounds).out, "images": ["late.png"], "imagesN": state["reads"]}
+    # (a test's page still drawing: the reads since it loaded counted)
+    state["reads"] = reads = state.get("reads", 0) + 1
+    if "data-a11y-grows" in page:  # (one more image with no alt at each read)
+        return {**Read(bounds).out, "images": ["late.png"], "imagesN": reads}
+    if "data-a11y-late" in page:  # (an image with no alt from its second read on)
+        return {**Read(bounds).out, "images": ["late.png"] * (reads > 1), "imagesN": int(reads > 1)}
     read = Read(bounds)
     read.feed(page)
     read.close()
+    if "data-a11y-ticks" in page:  # (a grey count going up at each read, beside what it has)
+        grey = {"color": [170, 170, 170, 1.0], "under": [], "px": 16.0, "weight": 400, "n": 1}
+        read.out["texts"].append({**grey, "words": f"{reads * 1234} users"})
     return read.out
 
 
@@ -449,7 +455,7 @@ async def navigate(url: str, event, paused, dialogs: list[asyncio.Future]) -> No
             state["html"], state["url"] = fetch(url), url
         except OSError:
             state["html"], state["url"] = "", "chrome-error://chromewebdata/"
-        state["scroll"] = 0.0
+        state["scroll"], state["reads"] = 0.0, 0
         for src in re.findall(r'<iframe[^>]*src="([^"]+)"', state["html"]):
             await paused(urllib.parse.urljoin(url, src), "Document", "f2")
         # A page's alert('...') holds its load till the dialog is answered, as Chrome's does.

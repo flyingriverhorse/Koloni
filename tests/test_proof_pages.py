@@ -510,28 +510,66 @@ async def test_the_read_is_bounded_and_one_not_answered_is_said(tmp_path, monkey
 
 @pytest.mark.anyio
 async def test_a_page_still_changing_is_not_judged_and_one_with_no_root_is_said(tmp_path):
-    # (V1: two reads a width - one more image with no alt at each: neither failed nor passed, said;
-    # a page whose script took its root away was a silent pass)
+    # (V1: two reads a width - a failing rule's finding the same in both fails; one more image
+    # with no alt at each read, or one only from the second read on, is not judged, said; a grey
+    # count going up - a note's words that move - keeps no failure from failing; a page whose
+    # script took its root away was a silent pass)
     rows = await looked(
         tmp_path,
         grows="<p data-a11y-grows>Drawn as its data comes</p>",
-        rootless="<p data-a11y-no-root>Hi</p>",
+        late="<p data-a11y-late>Drawn a moment later</p>",
+        ticks="<img src='x.png'><button></button><p data-a11y-ticks>Users</p>",
     )
+    changed = "accessibility not judged at {} px for what changed after it loaded - {}"
     assert rows == [
         ("ui", "passed", f"grows.html: no console errors at {ALL} px"),
+        ("ui", "note", "grows.html: " + changed.format(ALL, "images without alt text")),
+        ("ui", "passed", f"late.html: no console errors at {ALL} px"),
+        ("ui", "note", "late.html: " + changed.format(ALL, "images without alt text")),
+        ("ui", "passed", f"ticks.html: no console errors at {ALL} px"),
+        ("ui", "failed", f"ticks.html: 1 images without alt text at {ALL} px - x.png"),
+        (
+            "ui",
+            "failed",
+            f"ticks.html: 1 buttons, links or fields with no name at {ALL} px - button",
+        ),
         (
             "ui",
             "note",
-            f"grows.html: accessibility not judged at {ALL} px - the page changed after it loaded",
+            f"ticks.html: 1 texts below the contrast they need at {ALL} px - “2468 users” 2.32:1 "
+            "(needs 4.5:1)",
         ),
+    ]
+    (tmp_path / "r").mkdir()
+    rows = await looked(tmp_path / "r", rootless="<p data-a11y-no-root>Hi</p>")
+    assert rows == [
         ("ui", "passed", f"rootless.html: no console errors at {ALL} px"),
         ("ui", "note", f"rootless.html: accessibility not read at {ALL} px - the page has no root"),
     ]
 
 
+def test_two_reads_judge_what_stands_in_both():
+    # (the review's: a failure in one read only - either - is said not judged, by its rule; one
+    # the same in both stands, whatever the notes did; a second read not answered is not read)
+    alt, name = (1, ("x.png",), 1), (1, ("button",), 1)
+    grey = (1, ("“1 users” 2.32:1 (needs 4.5:1)",), 1)
+    first = {"alt": alt, "name": name, "contrast": grey}
+    second = {"alt": alt, "contrast": (1, ("“9 users” 2.32:1 (needs 4.5:1)",), 1)}
+    assert proof_kinds._settled(first, second) == {
+        "alt": alt,
+        "contrast": second["contrast"],
+        "changed": (1, ("controls with no name",), 0),
+    }
+    assert proof_kinds._settled({}, {"focus": name, "hidden": proof_kinds._ONCE}) == {
+        "changed": (1, ("the page hidden whole", "controls one tabs to inside aria-hidden"), 0)
+    }
+    assert proof_kinds._settled(first, first) == first
+    assert proof_kinds._findings(None) == {"unread": proof_kinds._ONCE}
+
+
 @pytest.mark.anyio
 async def test_a_page_that_crashes_its_tab_is_said_and_the_next_is_read(tmp_path):
-    # (a page nested some 1,700 deep crashed Chrome's tab: every later call waited its 30 s - the
+    # (a page nested some 1,600 deep crashed Chrome's tab: every later call waited its 30 s - the
     # turn's later pages "not checked" too, 70 s; now said at once, the next read in a new browser)
     ws = Workspace(str(tmp_path))
     names = pages(
@@ -556,7 +594,7 @@ browser.A11Y_STYLES, browser.A11Y_LISTED = 50, 5
 read = json.loads(sys.stdin.read())
 started = time.perf_counter()
 found = proof_kinds._findings(read)
-failed, noted = proof_kinds._access_rows("p.html", {375: read, 768: None})
+failed, noted = proof_kinds._access_rows("p.html", {375: found, 768: proof_kinds._findings(None)})
 print(json.dumps({
     "found": {k: [n, len(named), of, max(map(len, named), default=0)]
               for k, (n, named, of) in found.items()},
@@ -1171,7 +1209,14 @@ FIFTH = {
     "css_name": (
         "",
         "<style>.m::before{content:'Menu'}.n::after{content:attr(data-label)}</style>"
-        "<button class='m'></button><button class='n' data-label='Next'></button>",
+        "<button class='m'></button><button class='n' data-label='Next'></button>"
+        "<button><span class='m'></span></button>",
+    ),
+    # (a ::before not drawn names nothing; nor one of an element hidden in it)
+    "css_hidden": (
+        "",
+        "<style>.h::before{content:'Hidden';display:none}.m::before{content:'Menu'}</style>"
+        "<button class='h'></button><button><span class='m' hidden></span></button>",
     ),
     "icon_font": ("", "<style>.i::before{content:'\\f101'}</style><button class='i'></button>"),
     "label_img": (
@@ -1191,6 +1236,7 @@ FIFTH = {
 }
 FIFTH_KINDS = {
     "css_name": [],
+    "css_hidden": ["name"],
     "icon_font": ["name"],
     "label_img": [],
     "empty_link": ["name"],
@@ -1239,7 +1285,7 @@ async def test_the_real_chrome_reads_the_second_sessions_pages(tmp_path, monkeyp
 
 # V1 (CL-365): what a page does after it loads, read by the real Chrome as a turn's check reads it
 # - AGAIN as it is, SETTLE longer on a CI runner (its page's timer against ours) - a page nested
-# past the read, and one nested so deep Chrome's tab crashes on it (measured: some 1,700 deep on
+# past the read, and one nested so deep Chrome's tab crashes on it (measured: some 1,600 deep on
 # Windows; each page builds it with a loop of its own: a few hundred bytes). In a child process
 # with a time limit.
 LATE = """
@@ -1257,7 +1303,7 @@ async def main():
         one = browser.Browser(root / "b", "pages")
         await one.start(browser.find_browser(), ws, set())
         return one
-    groups = [["late", "grows", "rootless"], ["nested"]]
+    groups = [["late", "grows", "rootless"], ["countup", "clock", "plainclock"], ["nested"]]
     if sys.platform == "win32":  # (the depth Chrome's tab crashes at is measured here alone)
         groups.append(["deep", "after"])
     said = {}
@@ -1307,9 +1353,29 @@ def test_the_real_chrome_reads_a_page_once_it_settles_and_goes_on_after_a_crash(
             for name, n in (("nested", 1200), ("deep", 20000))
         },
         after=a11y(img),
+        # (the review's: a grey count going up, a clock over a gradient, a plain clock - each
+        # moving beside an image with no alt and a button with no name: those fail, as in the
+        # still page they were made "not judged" for a note's words that moved)
+        countup=a11y(
+            f"{img}<button></button><p><span id='n' style='color:#aaa'>0</span> users</p><script>"
+            "const s=performance.now();const t=setInterval(()=>{const v=Math.min(1,"
+            "(performance.now()-s)/3000);document.getElementById('n').textContent="
+            "Math.round(v*12345);if(v>=1)clearInterval(t)},30)</script>"
+        ),
+        **{
+            name: a11y(
+                f"{img}<button></button><p id='c'{style}>x</p><script>setInterval(()=>{{"
+                "document.getElementById('c').textContent=new Date().toISOString()},50)</script>"
+            )
+            for name, style in (
+                ("clock", " style='background:linear-gradient(#003,#036);color:#fff'"),
+                ("plainclock", ""),
+            )
+        },
     )
     done = subprocess.run(
-        [sys.executable, "-c", LATE, str(tmp_path), str(scaled(SETTLE))],
+        # (the page's timer is 100 ms: a CI runner's settle longer, not without end)
+        [sys.executable, "-c", LATE, str(tmp_path), str(min(scaled(SETTLE), 2.0))],
         cwd=Path(__file__).resolve().parent.parent,
         capture_output=True,
         text=True,
@@ -1321,10 +1387,18 @@ def test_the_real_chrome_reads_a_page_once_it_settles_and_goes_on_after_a_crash(
     assert said["late grows rootless"] == [
         f"late.html: no console errors at {ALL} px",
         f"grows.html: no console errors at {ALL} px",
-        f"grows.html: accessibility not judged at {ALL} px - the page changed after it loaded",
+        f"grows.html: accessibility not judged at {ALL} px for what changed after it loaded - "
+        "images without alt text",
         f"rootless.html: no console errors at {ALL} px",
         f"rootless.html: accessibility not read at {ALL} px - the page has no root",
     ], said
+    for name in ("countup", "clock", "plainclock"):
+        lines = [one for one in said["countup clock plainclock"] if one.startswith(name + ".")]
+        assert lines[1:3] == [
+            f"{name}.html: 1 images without alt text at {ALL} px - dot.png",
+            f"{name}.html: 1 buttons, links or fields with no name at {ALL} px - button",
+        ], said
+        assert not any("not judged" in one for one in lines), said
     # (the image with no alt 1,200 deep is past what is read: said in part, never passed)
     assert said["nested"] == [
         f"nested.html: no console errors at {ALL} px",
