@@ -205,9 +205,29 @@ _NODE_SETTINGS = {
 }
 # W7: npx and `npm exec` run a name the local package's `bin` gives first (measured, npm 11.9:
 # installed into its cache and run from there, never node_modules/.bin), yarn and pnpm a script of
-# its own - so an agent's `package.json` in the folder or above stops the rule; a line that runs a
-# script by its name (`npm run x`, `npm test`) runs the project's code by design and is not so.
+# its own, `npm install` every workspace's lifecycle scripts (W7d), and npm reads any `*.npmrc` it
+# is pointed at (W7c) - so an agent's write of any package.json or runner setting in the project
+# (`_NODE_EVERYWHERE`; outside node_modules, which counts up the tree) stops the rule. A line of
+# npm's or pnpm's that runs a script by its name (`npm run x`, `npm test`) runs the project's code
+# by design and is not so - yarn's and bun's `run` run a bin too, npx's `test` is a package.
 _SCRIPT_VERBS = frozenset({"run", "run-script", "test", "t", "tst", "start", "stop", "restart"})
+_NODE_EVERYWHERE = frozenset(
+    {"package.json", ".yarn", ".pnpmfile.cjs", "pnpm-workspace.yaml", "bunfig.toml"}
+)
+
+
+def _node_setting(rel: str) -> str | None:
+    """W7c, W7d: the package.json or runner setting (`.npmrc` / `x.npmrc`, `.yarnrc*`, `.yarn/`,
+    `_NODE_EVERYWHERE`) `rel` (from the root) is or is in, outside node_modules; None: none."""
+    parts = PurePosixPath(rel).parts
+    if any(part.casefold() == "node_modules" for part in parts):
+        return None
+    for at, part in enumerate(part.casefold() for part in parts):
+        if part in _NODE_EVERYWHERE or part.endswith(".npmrc") or part.startswith(".yarnrc"):
+            return PurePosixPath(*parts[: at + 1]).as_posix()
+    return None
+
+
 _PY_RUNNERS = frozenset({"uv", "uvx", "poetry", "pipenv", "pdm", "hatch"})
 # ...and uv, poetry, pipenv, pdm, hatch resolve `[project.scripts]` and build the project to run
 # in it: an agent's `pyproject.toml` (or `setup.py`) there stops theirs - but a test run's.
@@ -232,6 +252,7 @@ class _Reach(NamedTuple):
     reads_cwd: bool = False
     reads_path: bool = False
     startup_only: bool = False
+    node_settings: bool = False  # (`_node_setting`: any in the project)
 
 
 def _python_module(words: list[str]) -> tuple[str, str] | None:
@@ -264,9 +285,11 @@ def _runner_places(words: list[str], cwd: str) -> _Reach | None:
     name = _program(words[0]) if words else ""
     above = [PurePosixPath(cwd), *PurePosixPath(cwd).parents]
     if name in _NODE_RUNNERS:
+        script = name in ("npm", "pnpm") and words[1:2] and words[1] in _SCRIPT_VERBS
         names = ("node_modules", *_NODE_SETTINGS.get(name, (".npmrc",)))
-        names += () if words[1:2] and words[1] in _SCRIPT_VERBS else ("package.json",)
-        return _Reach([str(folder / one) for folder in above for one in names])
+        return _Reach(
+            [str(folder / one) for folder in above for one in names], node_settings=not script
+        )
     python = next((at for at, word in enumerate(words) if _PYTHON.fullmatch(_program(word))), None)
     module = _python_module(words[python:]) if python is not None else None
     if name not in _PY_RUNNERS and module is None:
@@ -349,7 +372,11 @@ def _planted(factory, cid: str, root: Path, command: str, cwd: str) -> str | Non
         path = in_copy and reach.reads_path  # (a copy's PYTHONPATH)
         looked = [
             one.lower()
-            for one in [*named, *((*proof_style.MODULE_ENDINGS, "__init__") if own or path else ())]
+            for one in [
+                *named,
+                *((*proof_style.MODULE_ENDINGS, "__init__") if own or path else ()),
+                *((*_NODE_EVERYWHERE, "npmrc", ".yarnrc") if reach.node_settings else ()),
+            ]
         ]
         found = session.execute(
             select(FileChange.path, FileChange.after_sha)
@@ -376,9 +403,13 @@ def _planted(factory, cid: str, root: Path, command: str, cwd: str) -> str | Non
             found = proof_style.wrote_program(root, cwd, program, [rel])
         else:
             found = proof_style.planted_in(root, places, anywhere, rel)
-        return found or next(
-            (one for entry, only in imported if (one := proof_style.shadows(entry, rel, only))),
-            None,
+        return (
+            found
+            or next(
+                (one for entry, only in imported if (one := proof_style.shadows(entry, rel, only))),
+                None,
+            )
+            or (_node_setting(rel) if reach.node_settings else None)
         )
 
     held = proof_style.still_written(root, [one for one in newest.items() if plants(one[0])])

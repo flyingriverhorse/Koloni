@@ -1013,7 +1013,7 @@ def test_a_triggers_leave_does_not_run_a_program_an_agent_wrote(
     [
         ("npx tsc --noEmit", TSC, "node_modules"),  # (the second session's Q9b)
         ("npm exec tsc -- --noEmit", "node_modules/typescript/bin/tsc", "node_modules"),
-        ("yarn tsc --noEmit", "node_modules/typescript/bin/tsc", "node_modules"),
+        ("yarn run tsc --noEmit", "node_modules/typescript/bin/tsc", "node_modules"),
         ("uv run ruff check .", RUFF, ".venv"),
         ("python -m mypy .", "mypy.py", "mypy.py"),  # (`-m` reads its folder's own first)
         # (the last look's probe: any module the tool imports - the standard one shadowed)
@@ -1021,7 +1021,7 @@ def test_a_triggers_leave_does_not_run_a_program_an_agent_wrote(
         ("python3.12 -m ruff check .", "click/__init__.py", "click"),
         (f"{RUFF.replace('ruff', 'python')} -m ruff check .", "subprocess.py", "subprocess.py"),
         ("bun x tsc --noEmit", "node_modules/typescript/bin/tsc", "node_modules"),
-        ("yarn tsc --noEmit", ".yarnrc.yml", ".yarnrc.yml"),  # (its `yarnPath` runs)
+        ("yarn run tsc --noEmit", ".yarnrc.yml", ".yarnrc.yml"),  # (its `yarnPath` runs)
         ("corepack pnpm exec tsc --noEmit", TSC, "node_modules"),
         (
             "node node_modules/typescript/bin/tsc --noEmit",
@@ -1138,6 +1138,61 @@ def test_a_rule_for_npm_exec_never_runs_it_in_another_package(
 
 
 @pytest.mark.no_po
+@pytest.mark.parametrize(
+    ("line", "rule", "written", "asked"),
+    [
+        # (W7d: `npm install` runs every workspace's lifecycle scripts)
+        ("npm install", "npm install", "sub096/package.json", "sub096/package.json"),
+        # (a package.json anywhere - not the folder's or one above it - stops `npx tsc`)
+        ("npx tsc --noEmit", "npx tsc", "other096/package.json", "other096/package.json"),
+        ("npx tsc --noEmit", "npx tsc", "other096/evil096.npmrc", "other096/evil096.npmrc"),
+        ("npx tsc --noEmit", "npx tsc", "other096/.yarnrc.yml", "other096/.yarnrc.yml"),
+        # (a script by its name under its own rule: the project's code, by design)
+        ("npm test", "npm test", "sub096/package.json", None),
+        ("npx tsc --noEmit", "npx tsc", "other096/notes.md", None),
+    ],
+)
+def test_a_node_runners_rule_stops_at_a_manifest_an_agent_wrote_anywhere(  # noqa: PLR0913
+    make_client, wait_run, project_dir, line, rule, written, asked
+):
+    """W7d (measured): an `npm install` rule ran the postinstall an agent wrote into a workspace's
+    package.json; so does any package.json or runner setting in the project stop a node runner's
+    rule while it holds what the agent wrote."""
+    from tests.test_agent_commands import cmd
+
+    _monorepo(project_dir)
+    executor = ScriptedExecutor([PASS, PASS, PASS])
+    planted = (
+        '{"name": "sub096", "scripts": {"postinstall": "node evil096.js"}}\n'
+        if written.endswith(".json")
+        else "PLANTED\n"
+    )
+    client, _model = make_client(
+        [write(written, planted, "w1"), text("done"), cmd(line, "k1"), text("asked")],
+        executor=executor,
+    )
+    cid, run_id = begin(client, project_dir, mode="auto_edit", check_command="python check.py")
+    wait_run(client, cid, run_id)
+    made = client.post(
+        f"/api/conversations/{cid}/allowed-commands", json={"prefix": rule}, headers=OWN
+    )
+    assert made.status_code in (200, 201), made.text
+    second = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()
+    if asked is None:
+        snap = wait_run(client, cid, second["run"]["id"])
+        (ran,) = [one for one in snap["commands"] if one["command"] == line]
+        assert ran["status"] == "exited", snap["commands"]
+        return
+    snap = wait_status(client, cid, "waiting_approval")
+    (card,) = [one for one in snap["commands"] if one["command"] == line]
+    assert card["status"] == "proposed" and card["suggested_prefix"] == "", snap["commands"]
+    assert card["danger"] == proof_style_planted(asked)
+    assert line not in [one for one, _cwd in executor.started]
+    client.post(f"/api/commands/{card['id']}/reject")
+    wait_run(client, cid, second["run"]["id"])
+
+
+@pytest.mark.no_po
 def test_a_triggers_leave_never_runs_npm_exec_in_another_package(
     make_client, wait_run, project_dir
 ):
@@ -1178,11 +1233,12 @@ def test_a_package_runner_finds_its_program_up_the_tree_or_anywhere_it_cannot_pl
     assert found(tmp_path, reach.places, (), ".yarn/releases/yarn-4.cjs") == ".yarn"
     reach = _runner_places(["pnpm", "exec", "tsc"], "web")  # (its hooks run code)
     assert found(tmp_path, reach.places, (), ".pnpmfile.cjs") == ".pnpmfile.cjs"
-    # (W7: the package's own manifest - but where a script is run by its name, by design)
-    assert found(tmp_path, reach.places, (), "web/package.json") == "web/package.json"
-    for words in (["npm", "test"], ["npm", "run", "build"], ["yarn", "run", "x"]):
-        assert "package.json" not in _runner_places(words, ".").places, words
-    assert "package.json" in _runner_places(["npx.ps1", "tsc"], ".").places  # (W8)
+    # (W7: any manifest or setting of the project's - but where npm or pnpm runs a script by its
+    # name, by design; yarn's and bun's `run` run a bin too, npx's `test` is a package)
+    for words in (["npm", "test"], ["npm", "run", "build"], ["pnpm", "start"]):
+        assert not _runner_places(words, ".").node_settings, words
+    for words in (["yarn", "run", "x"], ["bun", "run", "x"], ["npx", "test"], ["npx.ps1", "tsc"]):
+        assert _runner_places(words, ".").node_settings, words
     assert "pyproject.toml" in _runner_places(["poetry", "run", "ruff"], ".").places
     assert "pyproject.toml" not in _runner_places(["uv", "run", "pytest"], ".").places
     assert _runner_places(["pytest", "-q"], ".") is None

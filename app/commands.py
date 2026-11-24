@@ -794,11 +794,49 @@ _SHELL_LINE = re.compile(
 )
 
 
+# W7c: a node runner's own options past its rule. npm reads its settings from any of them -
+# `--globalconfig=x` a file of them (`node-options=--require x`), `--shell=`, `--node-gyp=`,
+# `--editor=` a program -, so a rule covers only these, which change what it prints, where it
+# fetches from or that it runs less:
+_HARMLESS_RUNNER_OPTIONS = frozenset(
+    {
+        *("--silent", "-s", "--quiet", "-q", "--loglevel"),  # (how much it prints)
+        *("--color", "--no-color"),  # (its colours)
+        *("--offline", "--prefer-offline"),  # (its cache alone, no network)
+        "--no",  # (npx / npm exec: installs nothing missing)
+        *("--no-audit", "--no-fund"),  # (sends for no report)
+        "--ignore-scripts",  # (runs no package's scripts)
+        *("--frozen-lockfile", "--immutable"),  # (changes no lockfile)
+    }
+)
+# ...npm reads its own up to `--`, anywhere; pnpm, yarn and bun theirs up to the verb that hands
+# the rest on (a bin's, a script's); npx, pnpx and bunx theirs before the package only.
+_HAND_ON = frozenset({"exec", "dlx", "x", "run", "run-script"})
+
+
+def _runner_options_past(words: list[str], extra: list[str]) -> bool:
+    """W7c: whether a node runner's line (`corepack` before one too) gives past its rule
+    (`extra`, up to `--`) an option of the runner's own not in `_HARMLESS_RUNNER_OPTIONS` - its
+    value a word of its own (`--loglevel silent`) or after `=`."""
+    words = words[1:] if words and _program(words[0]) == "corepack" else words
+    program = _program(words[0]) if words else ""
+    if program not in ("npm", "pnpm", "yarn", "bun") or (
+        program != "npm" and words[1:2] and words[1] in _HAND_ON
+    ):
+        return False
+    own = extra[: extra.index("--")] if "--" in extra else extra
+    return any(
+        word.startswith("-") and word.split("=")[0] not in _HARMLESS_RUNNER_OPTIONS for word in own
+    )
+
+
 def _past_the_rule(words: list[str], extra: list[str]) -> bool:
     """Whether a line's words past a rule (`extra`, up to a `--`: past it they are a script's)
     give an option `_PAST_A_RULE` lists for a program the line names (`python -m pytest`, `uv run
     pytest`: pytest's too) - by `_option_given`; `_PAST_A_RULE_OUT`'s one leading out - or hand a
-    shell a line (`_SHELL_LINE`)."""
+    shell a line (`_SHELL_LINE`); or a node runner's option no rule covers (W7c)."""
+    if _runner_options_past(words, extra):
+        return True
     named = {_program(word) for word in words}
     given = [
         (option, _SHORT_VALUES.get(program))
