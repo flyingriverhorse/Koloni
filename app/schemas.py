@@ -97,6 +97,8 @@ SpawnApproval = Literal["auto", "always", "never"]
 # The most a room's budget can be set to: a number, not a way round having one.
 MAX_ROOM_POSTS, MAX_ROOM_TOKENS, MAX_ROOM_MINUTES = 1000, 100_000_000, 24 * 60
 MAX_CHAT_TEAMS = 6
+# 0.1.8: a project's longest command, in minutes - the most the user may raise it to.
+LONGEST_COMMAND = (10, 60)
 
 
 class ChatTeamIn(BaseModel):
@@ -213,6 +215,8 @@ class ProjectOut(Out):
     max_agents: int | None
     # K-devam-butce: the steps a stopped agent gets on top when told to go on with none left.
     continue_steps: int
+    # 0.1.8: the longest a command (KOLONİ's own test runs too) may take, in minutes.
+    longest_command: int
     # What this calendar month's turns may cost, in the prices' currency; None: no budget.
     monthly_budget: float | None
     # K-evrim: the command whose last line of output scores a candidate (0-100); None: none.
@@ -334,6 +338,10 @@ class ProjectPatch(BaseModel):
     max_agents: int | None = Field(default=None, gt=0, le=1000, strict=True)
     # Left out: kept as it is. A whole number from 1 to 200.
     continue_steps: int | None = Field(default=None, ge=1, le=200, strict=True)
+    # Left out: kept as it is. Minutes, 10 to 60 (the user, 24 Nov: at most an hour).
+    longest_command: int | None = Field(
+        default=None, ge=LONGEST_COMMAND[0], le=LONGEST_COMMAND[1], strict=True
+    )
     # The same: null takes it away. A number as such: not `true`, not "5".
     monthly_budget: float | None = Field(
         default=None, gt=0, le=2**53, allow_inf_nan=False, strict=True

@@ -352,6 +352,7 @@ from app.commands import (
     hide_keys,
     installs,
     is_allowed,
+    plain,
     rules_here,
     search_reason,
     sends_canary,
@@ -425,9 +426,9 @@ from app.team import Entry, closed_to_agents, only_in_project, quoted, would_run
 from app.tools import (
     BACKLOG_TOOLS,
     BROWSER_TOOLS,
-    MAX_TIMEOUT,
     MAX_WHY_CHARS,
     READ_TOOLS,
+    SERVING_TOOLS,
     WEB_SCHEMAS,
     WRITE_TOOLS,
     AlreadyApplied,
@@ -685,7 +686,12 @@ def _kept_framed(ws: Workspace, name: str, args: dict, output: str) -> str:
 
 # B-360: a project's file is whoever wrote it - a cloned repository's, a downloaded one's - so
 # what read_file and search return is looked at as a web page is (only what they return).
-FILE_WHERE = {"read_file": "a file it read", "search": "a search of the files"}
+FILE_WHERE = {
+    "read_file": "a file it read",
+    "search": "a search of the files",
+    # (0.1.8: what a server printed holds what any request to it carried)
+    "command_output": "a running command's output",
+}
 IN_A_JOB = (
     "the changes are kept in the copy for the user, who takes them in when back; "
     "the job's other agents work in the same copy"
@@ -933,8 +939,8 @@ THEIRS_KEPT = (
     "are not {name}'s doing."
 )
 # The project's check command, run in the copy on what is about to be taken: as long as
-# any command may run, and this much of the end of what it wrote goes on the card.
-CHECK_SECONDS = MAX_TIMEOUT
+# any command may run (`CommandRunner.longest`), and this much of the end of what it wrote goes
+# on the card.
 CHECK_TAIL = 4000
 CHECK_LEFT = "what it changed in the copy itself could not be put back: {files}"
 CHECK_NOT_ALLOWED = "the trigger of this turn does not let this command run: not checked"
@@ -5131,7 +5137,7 @@ class AgentRunner(
         it writes of the project's standing files unnamed is put back (`_own_command_looked`).
         `once`: as `commands.run`'s (the measure's yes, for its run). `cwd`: the folder it runs
         in, from the root (a part's tests, `ProofMixin`); `seconds`: its time limit (None: the
-        check's, CHECK_SECONDS); `where`: as `commands.run`'s, given the run's arguments, which it
+        project's longest); `where`: as `commands.run`'s, given the run's arguments, which it
         may change (its time limit) - awaited once it may start; `env`: what its environment gets
         besides (S6: KOLONİ's test runs, their processes). `over` (S6, KOLONİ's test runs):
         whether its turn is over for it by its end (it went on after the answer) - what it wrote
@@ -5169,7 +5175,7 @@ class AgentRunner(
         ran = False
         args = {
             "command": command,
-            "timeout_seconds": seconds or CHECK_SECONDS,
+            "timeout_seconds": seconds or self.commands.longest(ctx.cid),
             "cwd": cwd,
             **({"keep_running": True} if keep_running else {}),
         }  # (S5b: a dev server)
@@ -6033,7 +6039,8 @@ class AgentRunner(
             # (A failed one too: what the page said - a dialog, an address - ends its error.)
             else ("web", BROWSER_WHERE[request.name], output)
             if request.name in BROWSER_WHERE
-            else ("web", FILE_WHERE[request.name], output)
+            # (a server's colours off: a code between two words of a phrase hid it)
+            else ("web", FILE_WHERE[request.name], plain(output))
             if request.name in FILE_WHERE
             else ("agent", AGENT_WHERE[request.name], output)
             if request.name in AGENT_WHERE
@@ -6190,7 +6197,7 @@ class AgentRunner(
         owner = None if review else self._works_in(ctx)
         made = self._copies.get(owner) if owner else None
         linked = self._copy_linked(ctx, owner)
-        planned = plan_command(ws, args)
+        planned = plan_command(ws, args, self.commands.longest(cid))
         at = "" if planned.cwd_rel == "." else f" in {planned.cwd_rel}"
         if kept := self._keeps_out(
             ctx, command=planned.command, cwd=planned.cwd_rel, what=f"run {planned.command}{at}"
@@ -6444,6 +6451,8 @@ class AgentRunner(
         """`_tool_call`, its part 4."""
         if request.name == "recall_output":
             status, output = "succeeded", self._recall_output(ctx, args)
+        elif request.name in SERVING_TOOLS:
+            status, output = "succeeded", await self._serving_call(ctx, request.name, args)
         elif request.name in BROWSER_TOOLS:
             status, output = "succeeded", await self._browser(ctx, ws, call_id, request.name, args)
         elif request.name in WEB_SCHEMAS:

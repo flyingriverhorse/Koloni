@@ -101,6 +101,9 @@ class Project(Base):
     # K-devam-butce: the steps a stopped agent gets on top when it is told to go on with none
     # left - by the user's Continue on its card, or the Lead's call at Full auto.
     continue_steps: Mapped[int] = mapped_column(Integer, default=25, server_default="25")
+    # 0.1.8: the longest an agent's command, or one of KOLONİ's own test runs, may take here, in
+    # minutes (10 to 60): their time limit's ceiling (`command_runner.longest_seconds`).
+    longest_command: Mapped[int] = mapped_column(Integer, default=10, server_default="10")
     # What this calendar month's turns may cost at the user's prices, in their currency
     # (`app.api.usage.month_spend`). None: no budget.
     monthly_budget: Mapped[float | None] = mapped_column(Float, default=None)

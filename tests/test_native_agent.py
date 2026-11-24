@@ -251,6 +251,7 @@ def test_codex_reaches_other_agents_and_the_user_through_koloni(native_app, wait
         "change_task",
         "assess_task",
         "offer_away",
+        "propose_trigger",  # (0.1.8; notify only where the project sends notifications)
         "post_note",
         "read_notes",
         "remember",

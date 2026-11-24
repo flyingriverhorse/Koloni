@@ -9416,6 +9416,8 @@ export interface components {
              * @enum {string}
              */
             lead_work: "delegates" | "decides" | "itself";
+            /** Longest Command */
+            longest_command: number;
             /** Max Agents */
             max_agents: number | null;
             /** Measure Command */
@@ -9587,6 +9589,8 @@ export interface components {
             hide_secrets?: boolean | null;
             /** Lead Work */
             lead_work?: ("delegates" | "decides" | "itself") | null;
+            /** Longest Command */
+            longest_command?: number | null;
             /** Max Agents */
             max_agents?: number | null;
             /** Measure Command */

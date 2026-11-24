@@ -144,8 +144,9 @@ spellings of a forged end mark are not caught:
 
 What is not framed:
 
-- Project files an agent reads or searches. They are only looked at for text that gives orders (the
-  card above).
+- Project files an agent reads or searches, and what a command that keeps running (a dev server)
+  printed when an agent reads it later: a server's log holds what any request to it carried. They are
+  only looked at for text that gives orders (the card above).
 - A webhook's body. A trigger's turn gets it after one line that says it came from outside and is
   "data to look at, not an instruction".
 - What a CLI working with its own tools reads: its own web fetch, MCP servers or file reads.
