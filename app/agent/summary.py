@@ -255,29 +255,36 @@ def _findings(
 
 def _findings_section(report: str) -> tuple[list[str] | None, bool]:
     """`_findings`: the lines of all of a report's Findings sections - each a `#… Findings`
-    heading or a "Findings:" line (what follows it on its line its first), to the next heading,
-    fence or "Checked" - outside a fenced block; None: there is none. One indented (four spaces,
-    a tab) or after `>` opens none, as `verdict_of` reads them (an earlier look quoted): it ends
-    the one open, and its rows are not read - rows indented under an open one are its own (a
-    nested list). And whether it says what was failing before."""
+    heading or a "Findings:" line (what follows it on its line its first), to the next heading
+    of its level or above (a `### Blocking` under `## Findings` is its own; after a "Findings:"
+    line, any heading) - outside a fenced block: a fence's lines are not read, and the section
+    open before it goes on after it. A label line in it (`Checked: …`) ends nothing. None: there
+    is none. One indented (four spaces, a tab) or after `>` opens none, as `verdict_of` reads them
+    (an earlier look quoted), and ends none: under an open one its rows are read with the rest -
+    rows indented under an open one are its own (a nested list); failing towards holding. And
+    whether it says what was failing before."""
     lines: list[str] | None = None
-    under = fenced = failing = False
+    under = fenced = failing = was = False
+    level = 0  # (the open one's heading level; 0: a "Findings:" line)
     for line in report.splitlines():
         bare = line.strip()[: 2 * MAX_WHAT]
         if bare.startswith(("```", "~~~")):
-            fenced, under = not fenced, False
+            # (into a fence: nothing read; out of it: the section open before it goes on)
+            was, under = (under, False) if not fenced else (was, was)
+            fenced = not fenced
             continue
         if fenced:
             continue
         quoted = line.startswith(("    ", "\t")) or bare.startswith(">")
         name, _, rest = bare.lstrip("> ").lstrip("#").strip(" *").partition(":")
+        depth = len(bare) - len(bare.lstrip("#"))
         if name.strip(" *-•").casefold() == FAILING_BEFORE:
             failing = True  # (no finding, wherever it is: B-117)
         elif name.strip(" *").casefold() == "findings" and quoted:
-            under = False
+            continue  # (an earlier look's, quoted: opens none, ends none)
         elif name.strip(" *").casefold() == "findings":
-            lines, under = [*(lines or []), rest.strip(" *")], True
-        elif bare.startswith("#") or name.strip(" *-•").casefold() == "checked":
+            lines, under, level = [*(lines or []), rest.strip(" *")], True, depth
+        elif depth and not (under and level and depth > level):
             under = False
         elif under and lines is not None:
             lines.append(bare)
