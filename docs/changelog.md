@@ -6,6 +6,10 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ## [Unreleased]
 
+### Added
+
+- **CLIs**: GitHub Copilot CLI run **Native** goes on in its own session from the topic's previous turn, as Claude Code on its own sign-in does: it is sent only what is new, with this turn's tools, permissions and KOLONİ's tools given again, and compacts the session itself - its record says when, with the size before and after. A new topic, another model, folder or permission level starts a new session; where Copilot cannot go on in its session it starts a new one sent the whole chat, and its record says so once. Its tokens and AI credits are counted per turn, not as the session's growing total. A session is not gone on in once it holds **Summarise a long context at (%)** of 100,000 tokens - Copilot's dearer price step begins there; a smaller window on its role lowers that, a larger one does not lift it - or did not say its size: the next turn starts anew from the history KOLONİ keeps and summarises, and the record says so. Its context is measured against the window its session says (272,000 for gpt-6-luna, at most 100,000) instead of the catalogue's, and its details show how full it is while it works. Each session's home is kept under `runtime/cli-homes/copilot-sessions/`, never your own `~/.copilot`, and removed with a new session, when you move to another topic, with its chat or project, and at KOLONİ's start where no agent goes on in it ([docs](models/setup-cli.md#going-on-from-the-last-turn)).
+
 ### Fixed
 
 - **Chat**: Code style and types reads a `tsconfig.json`'s files through what it extends, up to 8 deep: one that names none - itself or by a base's `files: []` - is said "not checked", never passed; one that extends a file outside the project or not there is said too, and a tsconfig with a byte-order mark or a `//` comment ended by a lone carriage return is read as tsc reads it ([docs](use/checked.md)).

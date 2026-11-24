@@ -62,10 +62,24 @@ only an agent that works with KOLONİ's tools runs.
 
 ## Going on from the last turn
 
-Only Claude Code, run **Native** with **Sign-in: Its own for KOLONİ**, goes on in its own session from one
-turn to the next: it is sent only what is new, and compacts that session itself. It goes on only from the
-same topic's previous turn: **New topic** starts a new session ([Topics](../memory.md#topics)). Every other CLI lead
-starts each turn anew and is sent the whole chat. KOLONİ compacts that, as it does for an API model, past
+Claude Code, run **Native** with **Sign-in: Its own for KOLONİ**, and GitHub Copilot CLI, run **Native**, go
+on in their own session from one turn to the next: each is sent only what is new, and compacts that session
+itself. They go on only from the same topic's previous turn, run with the same model, folder, permission level
+and setup: **New topic** starts a new session ([Topics](../memory.md#topics)). Copilot's session is kept in a
+folder of its own under KOLONİ's runtime ([Data and privacy](../security/privacy.md#where-your-data-is));
+where Copilot cannot go on in it (the session is gone, or Copilot is older than 1.0.114's protocol), it starts
+a new one sent the whole chat, and the agent's record says so once. When Copilot compacts its session, its
+record says so too, with the size before and after: from then on what it knows of the earlier turns is its
+own summary, so a brief should say again what matters. Its tokens and AI credits are counted per turn, not as
+the session's growing total. A Copilot session costs more past its models' price step (100,000 tokens of prompt;
+one 553,000-token message cost 34.6 AI credits in a measurement), so KOLONİ does not let one grow that far: once
+it holds **Summarise a long context at (%)** of 100,000 tokens - or of the window set on its role, or with none
+set there of Copilot's own window, where that is smaller: a larger window on the role does not lift the bound - or
+did not say its size, the next turn starts a new
+session sent the chat as KOLONİ keeps it, which KOLONİ summarises - and the agent's record says so. The same holds
+in a trigger's topic. While it works, the agent's details show how full Copilot says its session is; once a
+Native CLI's turn is over no fill is shown, since its tokens in are its turn's model calls added up. Every other
+CLI lead starts each turn anew and is sent the whole chat. KOLONİ compacts that, as it does for an API model, past
 **Summarise a long context at (%)** of the window set on its role, or with none set there, of the window the
 catalogue has for its model (Claude Code's, Codex's and Copilot's models; none for Qoder's or agy's, where only
 **Compact now** compacts it). Against a catalogued window this is seldom reached: what is measured is the chat
@@ -89,8 +103,10 @@ KOLONİ knows such a refusal only by the CLI's own error, never by words its mod
 CLI's wordings are known: one seen in a live refusal ("Request exceeds the model's prompt budget …", CLI 1.0.107),
 the others taken from its package and not yet seen live. That refusal gave Copilot's own limit for gpt-6-luna on
 the default context tier as 272,000 tokens of prompt; KOLONİ's catalogue has a larger window for that model
-(1,050,000), so with no window on the role nothing is summarised before Copilot refuses - set the role's window
-to what your tier takes. Claude Code and Qoder report a
+(1,050,000). Run **Native**, Copilot says its session's own window as it works (272,000 for gpt-6-luna,
+872,000 for claude-haiku-5.5, measured): the agent keeps that one, at most 100,000 (its price step), from its
+first turn, where its role sets none, and it is what the agent's context is measured against; a kept session is
+held to 100,000 whatever the role's window. Run as a session, set the role's window to what your tier takes. Claude Code and Qoder report a
 failed turn in a text that can be their model's words, so theirs is not recognised yet, and the other CLIs' own
 wordings are not known. Where the failure says nothing of a summary, use **Compact now** and send the message
 again.

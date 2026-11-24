@@ -534,7 +534,9 @@ def test_qoder_keeps_no_session_while_its_resuming_is_off(fake, tmp_path):
     assert "--no-session-persistence" in fake.starts()[-1]
 
 
-def test_codex_copilot_and_agy_go_on_in_no_session():
-    # (Codex's app-server and Copilot's headless resume are not measured; agy's never is.)
+def test_codex_copilot_and_agy_go_on_in_no_session(tmp_path):
+    # (Codex's app-server keeps its threads `ephemeral`; agy's is never measured. Copilot goes on
+    # only where given a folder of KOLONİ's for its sessions: test_copilot_resume.)
     for cli in (CodexNativeClient(), CopilotNativeClient(), AgyClient()):
         assert not cli.resumes
+    assert CopilotNativeClient(sessions=tmp_path).resumes

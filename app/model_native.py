@@ -20,6 +20,7 @@ import shutil
 import sys
 import tempfile
 import time
+import uuid
 from collections.abc import Awaitable, Callable, Iterator
 from dataclasses import replace
 from pathlib import Path, PureWindowsPath
@@ -65,6 +66,7 @@ from app.model_session import (
     build_session_prompt,
     copilot_counts,
     copilot_error,
+    copilot_since,
     why_picked,
 )
 from app.raw import feed
@@ -738,6 +740,9 @@ class CodexNativeClient(CliStepClient):
     rules = NATIVE_RULES
     # B-301: why the run stops where a command of its own comes though it has no shell.
     no_shell_ran = NO_SHELL_RAN
+    # The most its kept session may hold before KOLONİ goes on in it no more (Copilot's: its
+    # price step); None: no bound but its window's (`AgentRunner._kept_mark`).
+    session_cap: int | None = None
 
     @property
     def resumes(self) -> bool:
@@ -935,19 +940,16 @@ class CodexNativeClient(CliStepClient):
         # 27 / 93-C3: Claude Code (and Qoder, once its `resumes` is on) goes on in the session its
         # last turn left only where started under all the same now (`_under`): resuming carries
         # the conversation, never the rights - those are this run's own line, hook and
-        # settings, as for a new one.
-        # shortcut: Codex and Copilot go on in no session, each turn is sent the whole
-        # conversation (KOLONİ compacts it: `AgentRunner._idle_after`). Resume was measured on
-        # `codex exec resume` and `copilot -p --resume` (cli-surdurme-olcum.md), not on the
-        # app-server's `thread/resume` (its threads are `ephemeral`; whether it takes this run's
-        # approvalPolicy / sandbox; its token total is the thread's, which would count earlier
-        # turns again) nor headless `session.resume` (its COPILOT_HOME, where the session is,
-        # goes with each turn's workdir; whether availableTools / requestPermission / sandbox
-        # are given anew). Measure those and resume them. Nor does any CLI as a session or step
-        # by step (`ClaudeSessionClient`, the default mode).
+        # settings, as for a new one. Copilot too (0.1.8), in the home its session is kept in,
+        # its session.resume given all session.create is (`CopilotNativeClient._converse`).
+        # shortcut: Codex goes on in no session, each turn is sent the whole conversation
+        # (KOLONİ compacts it: `AgentRunner._idle_after`): its app-server's `thread/resume` is
+        # measured (cli-surdurme-olcum.md), but its threads are `ephemeral` here and its own home
+        # needs its Windows sandbox set up first. Nor does any CLI as a session or step by step
+        # (`ClaudeSessionClient`, the default mode).
         under = (
             self._under(model_id, root, withheld, linked, also, level)
-            if keep and isinstance(self, ClaudeNativeClient) and self.resumes
+            if keep and isinstance(self, ClaudeNativeClient | CopilotNativeClient) and self.resumes
             else None
         )
         resume = (
@@ -983,7 +985,9 @@ class CodexNativeClient(CliStepClient):
             arguments = await asyncio.to_thread(
                 self._native_arguments, Path(root), bridge_config, withheld, linked, also
             )
-            if under:  # (27: kept, in KOLONİ's own sign-in folder, where its next turn resumes it)
+            # (27: kept, in KOLONİ's own sign-in folder, where its next turn resumes it; Copilot's
+            # in a home of its own, `CopilotNativeClient._kept_turn`)
+            if under and not conversing:
                 arguments.remove("--no-session-persistence")
             # (Not with the user's own setup, which goes as it is: their commands are on.)
             if (
@@ -1057,6 +1061,32 @@ class CodexNativeClient(CliStepClient):
             prompt = f"{rules}\n\n{WHERE.format(root=root)}\n\n" + json.dumps(
                 document, ensure_ascii=False
             )
+            # Where it goes on in its session: only what came since its last answer there, with
+            # its rules and instructions as they stand now (they say this run's leave) - the rest
+            # is in its session.
+            new = since_its_last_word(messages) if resume else []
+            told = (
+                f"{rules}\n\n{RESUMED}\n\n{WHERE.format(root=root)}\n\n"
+                + json.dumps(
+                    {"instructions": instructions, "conversation": conversation(new)},
+                    ensure_ascii=False,
+                )
+                if new
+                else ""
+            )
+            where = workdir
+
+            async def anew() -> None:
+                """A new tool server for it, where it starts anew after its session could not go
+                on: the one before may have served its bridge (its file gone, its key taken)."""
+                nonlocal server
+                await server.close()
+                server = ToolServer(tools or [], call_tool)
+                if on_end:
+                    on_end(server._end)
+                await server.start()
+                bridge_file(server, where)
+
             if conversing:
                 # Codex's turn takes the prompt, and each picture as it is (slice 85c).
                 copies = await asyncio.to_thread(image_copies, messages, workdir) if codex else []
@@ -1068,24 +1098,39 @@ class CodexNativeClient(CliStepClient):
                     if codex
                     else prompt
                 )
-                return await self._converse(
-                    argv,
-                    shim,
-                    given,
-                    Path(root),
-                    server,
-                    on_text,
-                    on_item,
-                    env,
-                    call_tool,
-                    also,
-                    effort,
-                    bridge_config,
-                    denied,
-                    on_live,
-                    read_only="read_only" in withheld,
-                    no_shell=_no_shell(withheld),
-                )
+
+                def conversed(
+                    sent: object,
+                    home: Path | None = None,
+                    resumed: str | None = None,
+                    heard_by: OnItem | None = None,
+                ) -> Awaitable[SessionResult]:
+                    return self._converse(
+                        argv,
+                        shim,
+                        sent,
+                        Path(root),
+                        server,
+                        on_text,
+                        heard_by or on_item,
+                        {**env, "COPILOT_HOME": str(home)} if home else env,
+                        call_tool,
+                        also,
+                        effort,
+                        bridge_config,
+                        denied,
+                        on_live,
+                        read_only="read_only" in withheld,
+                        no_shell=_no_shell(withheld),
+                        resume=resumed,
+                    )
+
+                if isinstance(self, CopilotNativeClient) and under:
+                    return await self._kept_turn(
+                        conversed, anew, given, told, resume, session, under, on_item
+                    )
+                # (A session no turn goes on in: none is said, its home goes with `workdir`.)
+                return replace(await conversed(given), session=None)
             if isinstance(self, ClaudeNativeClient):  # over its control protocol (slice 89b)
 
                 def with_session(result: SessionResult) -> SessionResult:
@@ -1101,15 +1146,8 @@ class CodexNativeClient(CliStepClient):
                         else None,
                     )
 
-                new = since_its_last_word(messages) if resume else []
                 off = self._plugins_off
                 if new:
-                    # Only what came since its last answer there, with its rules and instructions
-                    # as they stand now (they say this run's leave): the rest is in its session.
-                    told = f"{rules}\n\n{RESUMED}\n\n{WHERE.format(root=root)}\n\n" + json.dumps(
-                        {"instructions": instructions, "conversation": conversation(new)},
-                        ensure_ascii=False,
-                    )
                     acted = False  # (what was said above - a skill not given - is not its doing)
                     try:
                         return with_session(
@@ -1144,14 +1182,7 @@ class CodexNativeClient(CliStepClient):
                             or (self.NO_SESSION and not self.NO_SESSION.search(str(exc)))
                         ):
                             raise
-                    # A new tool server for it: the one before may have served its bridge (its
-                    # file gone, its key taken).
-                    await server.close()
-                    server = ToolServer(tools or [], call_tool)
-                    if on_end:
-                        on_end(server._end)
-                    await server.start()
-                    bridge_file(server, workdir)
+                    await anew()
                 content = (
                     await asyncio.to_thread(claude_content, prompt, messages) if claude else prompt
                 )  # (no picture is sent to Qoder: IMAGE_CLIS)
@@ -1375,6 +1406,7 @@ class CodexNativeClient(CliStepClient):
         on_live: OnLive | None = None,
         read_only: bool = False,
         no_shell: bool = False,
+        resume: str | None = None,  # (Copilot's session: a thread of Codex's goes on in none)
     ) -> SessionResult:
         """Codex's app-server for one turn, started and ended as `_work` starts and ends
         `codex exec`: a thread that asks before every command and patch ("untrusted"; in its
@@ -2169,18 +2201,51 @@ corrected since - recall it again before you rely on it."""
 # What a session's id may be to go on a command line or name a file (a uuid as Claude Code
 # gives it): anything else, a planted `-...` say, is no session.
 SESSION_ID = re.compile(r"[0-9A-Za-z][0-9A-Za-z-]{7,63}")
+# Where a kept Copilot session's home is (`CopilotNativeClient._sessions`): in `cli-homes`, so that
+# its transcript is a secret by name (`commands.SECRET_NAMES`) and kept from Copilot's sandbox
+# (`cards.sandbox_denied`); one folder per session, named so (`_new_home`).
+# shortcut: that Copilot itself still writes its session there while its sandbox denies `cli-homes`
+# to its commands is read off its SDK (the sandbox is its commands'), not measured; check it on a
+# live Native turn with the sandbox on.
+COPILOT_SESSIONS = "copilot-sessions"
+COPILOT_HOME = re.compile(r"[0-9a-f]{32}")
+
+
+def copilot_home(session: dict, homes: Path) -> Path | None:
+    """A kept Copilot session's home where it really is one KOLONİ made: right inside `homes`
+    (this runtime's `cli-homes/copilot-sessions`) once resolved, by a name KOLONİ gives; None for
+    anything else (Claude Code's session, a row restored from elsewhere)."""
+    home = Path(str(session.get("home"))).resolve()
+    return home if home.parent == homes.resolve() and COPILOT_HOME.fullmatch(home.name) else None
+
+
+def sweep_copilot_homes(runtime_root: Path, kept: list) -> None:
+    """At KOLONİ's start: each Copilot session's home (`copilot_home`) that no agent's record
+    names (`kept`: their `cli_session`s) is removed - one a turn left as KOLONİ was closed in its
+    middle, its session taken off its agent's record (`AgentRunner._cli_session`) or new."""
+    homes = runtime_root / "cli-homes" / COPILOT_SESSIONS  # (limits.CLI_HOMES: it imports this)
+    if not homes.is_dir():
+        return
+    named = {home for one in kept if isinstance(one, dict) and (home := copilot_home(one, homes))}
+    for home in homes.iterdir():
+        if COPILOT_HOME.fullmatch(home.name) and home.resolve() not in named:
+            shutil.rmtree(home, ignore_errors=True)
 
 
 def forget_session(session: dict, runtime_root: Path) -> None:
     """A kept session's transcript gone (27): one that will not be resumed, or whose
     conversation is deleted. Only in a sign-in folder of KOLONİ's: one right inside this
-    runtime's `cli-homes` once resolved (`limits.cli_home`; as a provider's folder is deleted).
+    runtime's `cli-homes` once resolved (`limits.cli_home`; as a provider's folder is deleted) -
+    or a Copilot session's own home there, all of it (`copilot_home`).
     shortcut: where Claude Code keeps a session (`projects/<folder>/<id>.jsonl`, and
     `file-history/<id>`) is read off its folder layout, not measured; anything else it keeps
     of one stays. Measure live and add them."""
+    homes = (runtime_root / "cli-homes").resolve()  # (limits.CLI_HOMES: limits imports this)
+    if own := copilot_home(session, homes / COPILOT_SESSIONS):
+        shutil.rmtree(own, ignore_errors=True)
+        return
     home = Path(str(session.get("home"))).resolve()
     number = str(session.get("id"))
-    homes = (runtime_root / "cli-homes").resolve()  # (limits.CLI_HOMES: limits imports this)
     if home.parent != homes or not SESSION_ID.fullmatch(number):
         return
     for transcript in home.glob(f"projects/*/{number}.jsonl"):
@@ -3800,6 +3865,93 @@ NO_SANDBOX = (
 )
 # KOLONİ's answers to a permission request: this once, never for the session or for good.
 APPROVE_ONCE = {"kind": "approve-once"}
+# The most a kept Copilot session may hold before it is not gone on in (`session_cap`): the
+# price step of its models (models.list's maxPromptTokens, 100,000 for claude-haiku-5.5 whose
+# session window is 872,000) - one 553,000-token message cost 34.6 AI credits (23 Nov 2026).
+COPILOT_SESSION_CAP = 100_000
+# Said on the agent's record where its session is kept no longer for its size (`AgentRunner`).
+SESSION_FULL = (
+    "Copilot's session holds {used:,} tokens, {at}% or more of {window:,}: it is not gone on in. "
+    "The topic's next turn starts a new session, sent the topic's history as KOLONİ keeps it - "
+    "summarised by KOLONİ past that share"
+)
+SESSION_UNSIZED = (
+    "Copilot did not say how large its session is: it is not gone on in. The topic's next turn "
+    "starts a new session, sent the topic's history as KOLONİ keeps it"
+)
+# Said once on the agent's record where its kept session could not go on (`_kept_turn`).
+SESSION_ANEW = (
+    "Copilot could not go on in its session of the earlier turns ({why}): it was started in a new "
+    "session, sent the whole conversation"
+)
+
+
+class NotResumed(OwnStop):
+    """Copilot did not go on in the session it was asked to (`_converse`): it refused
+    session.resume, or speaks a protocol older than 4 - before it was sent anything."""
+
+
+def _copilot_line(tool: str, text: str, failed: bool = False) -> dict:
+    """A line on the agent's record of what Copilot or its session did, in KOLONİ's words (its
+    sandbox, a session started anew, one it compacted)."""
+    return {
+        "type": "mcp_tool_call",
+        "server": "copilot",
+        "tool": tool,
+        "arguments": {},
+        "status": "failed" if failed else "completed",
+        **({"error": {"message": text}} if failed else {}),
+        "result": {"content": [{"type": "text", "text": text}]},
+    }
+
+
+def _compacted(data: dict, hide: Callable[[str], str]) -> dict:
+    """Copilot's word that it compacted its session (`session.compaction_complete`) as a line on
+    the agent's record: from then on what it knows of the earlier turns is its own summary.
+    shortcut: its fields (success, error, pre- and postCompactionTokens) are read off the SDK's
+    event types, not seen live - only the event's name is (cli-surdurme-olcum.md); check them on
+    a live compaction."""
+    if data.get("success") is False:
+        why = _brief(hide(str(data.get("error") or "no reason given")))
+        return _copilot_line("compaction", f"Copilot could not compact its session: {why}", True)
+    before, after = (
+        count_of(data.get("preCompactionTokens")),
+        count_of(data.get("postCompactionTokens")),
+    )
+    sizes = f" ({before:,} -> {after:,} tokens)" if before is not None and after is not None else ""
+    return _copilot_line(
+        "compaction",
+        f"Copilot compacted its session{sizes}: what it knows of the earlier turns is its own "
+        "summary now",
+    )
+
+
+def _sized(data: dict, kind: object, size: dict[str, int | None]) -> int | None:
+    """How large its session is, from one of its events (`_converse`'s `size`), and the window it
+    says it is held to (None: not said). Measured live on 1.0.114 (24 Nov 2026): usage_info, sent
+    at each model call and never kept in its home, says {tokenLimit: 272000, currentTokens: 7306,
+    systemTokens, conversationTokens, toolDefinitionsTokens, messagesLength, isInitial} - its
+    window (272,000 for gpt-6-luna, 872,000 for claude-haiku-5.5; not models.list's
+    maxPromptTokens, a price step's, nor the catalogue's model window) and its size now. Where it
+    says none, its last model call's input (assistant.usage)."""
+    if kind == "session.usage_info":
+        size["info"] = count_of(data.get("currentTokens"))
+        return count_of(data.get("tokenLimit"))
+    # (inputTokens holds its cache read and write: 7,129 = 2,757 + 4,369 + 3, live 24 Nov 2026)
+    size["call"] = count_of(data.get("inputTokens"))
+    return None
+
+
+def _without(on_item: OnItem, line: dict) -> OnItem:
+    """`on_item` that leaves out one line said already (`_kept_turn`: its sandbox's, once)."""
+
+    async def told(phase: str, item: dict) -> None:
+        if item != line:
+            await on_item(phase, item)
+
+    return told
+
+
 # (Review) A command that may change what a later one in Copilot's one shell session means: where
 # it is (`commands._CLIMBS`: cd, sl, Push-Location...), an environment or path, a function or an
 # alias, a module, an activate script, a line dot-sourced, any script run (it may define a
@@ -4179,6 +4331,7 @@ class CopilotNativeClient(CodexNativeClient):
     label = "GitHub Copilot CLI"
     asks = True
     looks_by_running = False  # it has a view tool of its own
+    session_cap = COPILOT_SESSION_CAP
     own_copy = False  # not measured in a copy: it works in the project
     # Read-only (B-301) it is given only its view tool; its commands have no read-only
     # sandbox here, so a role that runs them is not had read-only.
@@ -4212,9 +4365,15 @@ class CopilotNativeClient(CodexNativeClient):
         options=None,
         context=None,
         routing=None,
+        sessions: Path | None = None,
+        provider: str | None = None,
         **more,
     ):
         super().__init__(executable, model, timeout, **more)
+        # Where its kept sessions' homes are (`resumes`): this runtime's `cli-homes/` +
+        # COPILOT_SESSIONS; None: none is kept, each turn's home is an empty one removed after it.
+        # `provider`: whose they are (its id): another provider's turn never goes on in one.
+        self._sessions, self._provider = sessions, provider
         # The session client knows how Copilot is started and what it is told about
         # the model server; natively only its tools differ.
         self._session = CopilotSessionClient(
@@ -4233,6 +4392,120 @@ class CopilotNativeClient(CodexNativeClient):
 
     def talker(self) -> CliStepClient:
         return self._session  # in a discussion: KOLONİ's reading tools only
+
+    @property
+    def resumes(self) -> bool:
+        """0.1.8: whether its session is kept for the agent's next turn in the topic to go on in -
+        where it is given a folder of KOLONİ's for them (`Providers._build`). Measured on 1.0.114
+        (cli-surdurme-olcum.md): session.resume in a new process remembers, takes this turn's
+        tools, leave and MCP server anew, and its session is in its COPILOT_HOME alone.
+        shortcut: measured on GitHub's plan; on a model server of the user's own not."""
+        return self._sessions is not None
+
+    def _under(
+        self,
+        model_id: str,
+        root: str,
+        withheld: tuple[str, ...],
+        linked: tuple[str, ...],
+        also: tuple[str, ...],
+        level: str | None,
+    ) -> str:
+        """What its session is started under (as `ClaudeNativeClient._under`): where its model
+        comes from, the model and its tier, the folder it works in, its permission level and
+        what is withheld - another of any starts a new session; and the provider it is of.
+        shortcut: going on in another workingDirectory (a new copy) is not measured, so it never
+        does. Nor is its sign-in: another token on the same provider goes on in the session,
+        which is in KOLONİ's home, not the account's."""
+        session = self._session
+        return hashlib.sha256(
+            json.dumps(
+                [
+                    "copilot",
+                    self._provider,
+                    session._base_url,
+                    self._model,
+                    model_id,
+                    session._routing,
+                    session._context,
+                    root,
+                    sorted(withheld),
+                    list(linked),
+                    list(also),
+                    level,
+                ]
+            ).encode()
+        ).hexdigest()
+
+    async def _kept_turn(
+        self,
+        conversed: Callable[
+            [object, Path | None, str | None, OnItem | None], Awaitable[SessionResult]
+        ],
+        anew: Callable[[], Awaitable[None]],
+        given: object,
+        told: str,
+        resume: str | None,
+        kept: dict | None,
+        under: str,
+        on_item: OnItem,
+    ) -> SessionResult:
+        """`run_native`'s turn where its session is kept: gone on in, in the home it is kept in,
+        sent `told` (what came since its last answer) - else, or where it cannot go on there
+        (`NotResumed`: said once on the agent's record), a new session in a new home, sent the
+        whole conversation (`given`). A home it was not kept in goes (`_keep`); one made for a
+        turn that failed too. A kept home keeps the spelling it was kept by: another would not be
+        told from it (`AgentRunner._forget_unkept`), and its own session forgotten."""
+        valid = copilot_home(kept or {}, self._sessions) if self._sessions and told else None
+        heard_by = None  # (the run's own; once its sandbox's line is said, all but that)
+        if kept and resume and valid:
+            home = Path(str(kept["home"]))
+            try:
+                if not valid.is_dir():  # (removed by hand, or not in a backup restored)
+                    raise NotResumed("its home is gone")
+                heard_by = _without(on_item, _copilot_line("sandbox", NO_SANDBOX))
+                result = await conversed(told, home, resume, None)
+                return self._keep(result, under, home, kept.get("spent") or {})
+            except NotResumed as exc:
+                await on_item("completed", _copilot_line("session", SESSION_ANEW.format(why=exc)))
+                await anew()
+        home = self._new_home()
+        try:
+            return self._keep(await conversed(given, home, None, heard_by), under, home, None)
+        except BaseException:
+            shutil.rmtree(home, ignore_errors=True)
+            raise
+
+    def _new_home(self) -> Path:
+        """An empty home for a new session of its, kept (`_kept_turn`): none of the user's
+        Copilot set-up, nor another session's."""
+        # (One a turn KOLONİ was closed in the middle of leaves goes at its next start:
+        # `sweep_copilot_homes`.)
+        assert self._sessions is not None  # (`resumes`)
+        home = self._sessions / uuid.uuid4().hex
+        home.mkdir(parents=True)
+        return home.resolve()  # (kept by this one spelling from now on)
+
+    def _keep(
+        self, result: SessionResult, under: str, home: Path, spent: dict | None
+    ) -> SessionResult:
+        """A kept session's turn: its own counts (`copilot_since`: `spent` is what its session had
+        spent before it, None for a new one), and its session - in `home`, with what it has spent
+        in all - for the topic's next turn. One that names no session (protocol 3) leaves its
+        home to go."""
+        if not (result.session and SESSION_ID.fullmatch(str(result.session.get("id")))):
+            shutil.rmtree(home, ignore_errors=True)
+            return replace(result, session=None)
+        counted, totals = copilot_since(result, spent)
+        return replace(
+            counted,
+            session={
+                "id": result.session["id"],
+                "under": under,
+                "home": str(home),
+                "spent": totals,
+            },
+        )
 
     async def _status(self) -> dict:
         """Its own `status.get` ({version, protocolVersion}) as KOLONİ runs it, started as a run
@@ -4265,9 +4538,9 @@ class CopilotNativeClient(CodexNativeClient):
         return self._session._hide(text)
 
     def _native_env(self, workdir: Path) -> dict[str, str]:
-        # shortcut: Copilot keeps its session state in its home (session.create's
-        # workspacePath, `session-state`): here KOLONİ's empty one, removed after the turn,
-        # never read; keep it in KOLONİ with a SessionFsProvider (slice 89q).
+        # Copilot keeps its session state in its home (session.create's workspacePath,
+        # `session-state`): KOLONİ's empty one, removed after the turn - or, where its session is
+        # kept, that session's own home (`_kept_turn`), never read by KOLONİ.
         return self._session._session_env(workdir)
 
     def _native_arguments(
@@ -4464,6 +4737,7 @@ class CopilotNativeClient(CodexNativeClient):
         on_live: OnLive | None = None,  # (never called: its session.send while busy waits, 89d)
         read_only: bool = False,
         no_shell: bool = False,  # (read-only its shell is not among availableTools at all)
+        resume: str | None = None,
     ) -> SessionResult:
         """Copilot headless for one turn, started and ended as Codex's app-server is
         (`CodexNativeClient._converse`): one session that asks before it acts
@@ -4472,7 +4746,9 @@ class CopilotNativeClient(CodexNativeClient):
         cannot be started asking first - its start, ping or session refused, another
         protocol, or no answer - is stopped, never run with leave for everything instead.
         `denied`: its commands run in its sandbox, kept from these, where this machine
-        has one (slice 105)."""
+        has one (slice 105). `resume`: the kept session it goes on in (`_kept_turn`), given all
+        session.create would be; NotResumed where it does not. Its result names its session at
+        protocol 4 (where it can be gone on in), and the window it says it is held to."""
         try:
             process, job = await self._start(argv, shim, root, env)
         except OSError as exc:
@@ -4501,6 +4777,10 @@ class CopilotNativeClient(CodexNativeClient):
         reported: str | None = None  # the model it says it is using
         picked_why: str | None = None  # why Copilot's auto picked it, where it said so
         usage: dict | None = None  # its last session.usage_checkpoint
+        window: int | None = None  # the window its session says it is held to
+        # How large its session is: its usage_info's last word, else its last model call's.
+        size: dict[str, int | None] = {"info": None, "call": None}
+        not_resumed: str | None = None  # why it did not go on in the session `resume` names
         failure: str | None = None
         unasked: str | None = None  # why it could not be started asking first
         broke: BaseException | None = None  # what answering a request of its own ended in
@@ -4591,7 +4871,7 @@ class CopilotNativeClient(CodexNativeClient):
                     return
 
         async def read() -> None:  # noqa: C901
-            nonlocal heard, reported, usage, failure, idle, broke, picked_why
+            nonlocal heard, reported, usage, failure, idle, broke, picked_why, window
             try:
                 while (message := await _framed(stdout)) is not None:
                     heard = time.monotonic()
@@ -4652,21 +4932,36 @@ class CopilotNativeClient(CodexNativeClient):
                     # shortcut: another session's events are dropped, unread; none is
                     # expected while its task and agent tools are left out (COPILOT_TOOLS).
                     # Read them if those tools are ever given.
-                    if method != "session.event" or (
-                        session and params.get("sessionId") != session
+                    # shortcut: and a resumed one's only from its prompt on - whether
+                    # session.resume replays its earlier events is not measured; none of them is
+                    # this turn's.
+                    if (
+                        method != "session.event"
+                        or (session and params.get("sessionId") != session)
+                        or (resume and not sent)
                     ):
                         continue
                     event = _dict(params.get("event"))
                     feed("stdout", json.dumps(event, ensure_ascii=False), (server.key,))
                     kind = event.get("type")
                     if kind == "session.usage_checkpoint":
-                        # Measured on 1.0.103 `-p` (5 Nov 2026): the session's total so far
-                        # (a resumed one counted on), so the last one stands, never summed; a
-                        # session here is one turn's.
-                        # shortcut: that headless sends it at all, and before session.idle, is
-                        # not measured, nor on a model server of the user's own; with none
-                        # its tokens stay unknown. Check live on a native Copilot turn.
+                        # Measured on 1.0.103 `-p` (5 Nov 2026) and headless on 1.0.114 (23 Nov):
+                        # the session's total so far, a resumed one counted on - so the last one
+                        # stands, never summed; a kept session's turn is that less what it had
+                        # spent before (`_keep`).
+                        # shortcut: on a model server of the user's own not measured; with none
+                        # its tokens stay unknown.
                         usage = _dict(event.get("data"))
+                        continue
+                    if kind in ("session.usage_info", "assistant.usage"):
+                        window = _sized(_dict(event.get("data")), kind, size) or window
+                        filled = _filled(size["info"] or size["call"], window)
+                        if filled:  # (89j: how full it is, while it works)
+                            await on_item("live", filled)
+                        continue
+                    if kind == "session.compaction_complete":  # (said on the agent's record)
+                        compacted = _compacted(_dict(event.get("data")), self._hide)
+                        records.put_nowait(("item.completed", compacted))
                         continue
                     if kind == "permission.requested":
                         data = _dict(event.get("data"))
@@ -4788,8 +5083,24 @@ class CopilotNativeClient(CodexNativeClient):
                 else (f"its version {heredocs.version} is not measured with KOLONİ")
             )
 
+        async def going_on(given: dict, protocol: object) -> tuple[dict, str | None]:
+            """session.resume of the session `resume` names, given all session.create would be;
+            why it did not go on in that one (None: it did).
+            Measured on 1.0.114: it takes all session.create does, this turn's own tools, leave and
+            KOLONİ's MCP server among them; at protocol 4 only. And live through this client (24
+            Nov 2026): the same id and home went on, it remembered, and no event of earlier turns
+            came again. shortcut: that its sandbox is applied anew is the SDK's, not measured; any
+            refusal starts anew (`_kept_turn`)."""
+            if not hooked:
+                return {}, f"protocol {protocol} goes on in no session"
+            made, no = await ask("session.resume", {**given, "sessionId": resume})
+            said = made.get("sessionId")
+            if no is None and isinstance(said, str) and said != resume:
+                no = "it went on in another session than the one asked"
+            return made, no
+
         async def talk() -> None:
-            nonlocal unasked, started, failure, session, sent, hooked
+            nonlocal unasked, started, failure, session, sent, hooked, not_resumed
             reading = asyncio.ensure_future(read())
             try:
                 pong, no = await ask("ping", {})
@@ -4837,10 +5148,15 @@ class CopilotNativeClient(CodexNativeClient):
                         # Protocol 4: KOLONİ's preToolUse hook asks of every tool of its own.
                         **({"hooks": True} if hooked else {}),
                     }
-                    made, no = await ask("session.create", _grouped(flat) if hooked else flat)
-                    session = (
-                        made.get("sessionId") if isinstance(made.get("sessionId"), str) else None
-                    )
+                    given = _grouped(flat) if hooked else flat
+                    if resume is None:
+                        made, no = await ask("session.create", given)
+                    else:
+                        made, not_resumed = await going_on(given, protocol)
+                        if not_resumed is not None:
+                            return
+                    said = made.get("sessionId")
+                    session = said if isinstance(said, str) else resume
                     no = no or (None if session else "it named no session")
                 if no is not None:
                     if not reading.done():  # (one that ended says so below)
@@ -4908,8 +5224,16 @@ class CopilotNativeClient(CodexNativeClient):
             with contextlib.suppress(Exception):
                 complaint = await asyncio.wait_for(asyncio.shield(stderr), 2)
             stderr.cancel()
-        return await self._session_result(
+        if not_resumed is not None and broke is None and not server.ended:
+            raise NotResumed(not_resumed)
+        result = await self._session_result(
             broke, server, unasked, failure, idle, complaint, process, reported, usage, picked_why
+        )
+        return replace(
+            result,
+            session={"id": session} if hooked and session else None,
+            context_window=window,
+            context_used=size["info"] if size["info"] is not None else size["call"],
         )
 
     async def _sandbox(
@@ -4957,17 +5281,7 @@ class CopilotNativeClient(CodexNativeClient):
                 }
             }
         else:
-            await on_item(
-                "completed",
-                {
-                    "type": "mcp_tool_call",
-                    "server": "copilot",
-                    "tool": "sandbox",
-                    "arguments": {},
-                    "status": "completed",
-                    "result": {"content": [{"type": "text", "text": NO_SANDBOX}]},
-                },
-            )
+            await on_item("completed", _copilot_line("sandbox", NO_SANDBOX))
         return sandbox
 
     async def _session_result(

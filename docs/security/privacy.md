@@ -14,6 +14,7 @@ Everything KOLONİ keeps is under `runtime/` in its folder, or under `KOLONI_RUN
 | `attachments/`, `skills/` | Files you attached, and KOLONİ's copies of skills. |
 | `copies/` | Sub-agents' working copies. |
 | `cli-homes/<provider id>/` | The sign-in folder of a Claude Code or Codex provider set to **Sign-in: Its own for KOLONİ**: its login and its settings. Claude Code run **Native** keeps its sessions there (each one's `projects/…/<session>.jsonl` and `file-history/<session>`), for a topic's next turn to go on in ([Topics](../memory.md#topics)). A session no turn will go on in is removed; the last one of each topic stays until its chat is deleted. |
+| `cli-homes/copilot-sessions/<id>/` | The home (`COPILOT_HOME`) of a GitHub Copilot session run **Native**, one folder per session: Copilot's own record of it (`session-state/`), kept for the topic's next turn to go on in ([Topics](../memory.md#topics)). Removed when a turn starts a new session instead, when the session grows past its bound (see [Going on from the last turn](../models/setup-cli.md#going-on-from-the-last-turn)), when a turn of yours starts in another topic (**New topic**, or back in an older one; a trigger's topic keeps its own), with its chat or project, and at KOLONİ's start for one no agent goes on in (left by a turn KOLONİ was closed in). An agent's command that names it is asked about at every level, as one naming a sign-in folder. |
 | `server-homes/` | Empty homes for Claude Code or Codex run on your own model server, so that none of your own sign-in or settings is used. They are not removed. |
 | `agy-home/` | agy's home for one run, removed after it and at each start. |
 
@@ -21,10 +22,12 @@ If `runtime/` is inside a git repository, working copies go to `%LOCALAPPDATA%\K
 Windows, or `~/.local/share/KOLONI/copies` elsewhere. MCP servers start in KOLONİ's own folder in your
 cache (`%LOCALAPPDATA%\KOLONI\mcp` on Windows).
 
-GitHub Copilot is started each turn with an empty home of its own (`COPILOT_HOME`): `home` in a
-`koloni-cli-…` folder in the system's temp folder, removed when its run ends. Nothing of your own
-`~/.copilot` is used, and nothing of its session is kept; on GitHub's plan it signs in with the token
-you gave the provider, or else your own `gh` login.
+GitHub Copilot never uses your own `~/.copilot`. Run **Native**, a new session starts in an empty home
+of its own under `cli-homes/copilot-sessions/` (above), kept while its topic goes on. Run as a session -
+and in a discussion, where a Native Copilot speaks as a session - its home is an empty `home` in a
+`koloni-cli-…` folder in the system's temp folder (`koloni-limits-…`
+for KOLONİ's own short questions: its version, what is left of your plan), removed when its run ends. On
+GitHub's plan it signs in with the token you gave the provider, or else your own `gh` login.
 
 KOLONİ's own files in a project are under `.koloni/`: rules, settings, recipes and Knowledge.
 
@@ -64,7 +67,7 @@ Only these, and each only when you set it up or an agent is allowed to:
 - **Chats**: archive them first, then delete them from the archive. "This cannot be undone in KOLONİ."
   Their messages, their agents' work and their usage go too, and the Claude Code sessions their agents
   kept under `cli-homes/` (each one's transcript and file history; anything else Claude Code keeps of a
-  session stays).
+  session stays), and their Copilot sessions' homes under `cli-homes/copilot-sessions/`, whole.
 - **Providers, triggers, roles, skills, MCP servers, teams, recipes, knowledge** and **To-do tasks** can
   each be deleted on their page. A provider's sign-in folder under `cli-homes/` goes with it, its login
   and kept sessions with it.
