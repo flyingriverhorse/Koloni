@@ -186,7 +186,9 @@ def test_koloni_s_own_checkout_in_a_project_is_never_opened_by_any_name(project_
     for one in named:
         with pytest.raises(WorkspaceError, match="is never opened: it is KOLONİ's own"):
             ws.resolve(one)
-        with pytest.raises(ToolError, match="never opened"):
+        # (Windows: a name ending in a dot is not written at all, before any other look)
+        dot = sys.platform == "win32" and one.split("/")[0].endswith(".")
+        with pytest.raises(ToolError, match="ends in a dot or a space" if dot else "never opened"):
             plan_write(ws, "write_file", {"path": one, "content": "pwn\n"})
     with pytest.raises(ToolError, match="never opened"):
         plan_write(ws, "edit_file", {"path": named[0], "old_string": "ours", "new_string": "pwn"})
