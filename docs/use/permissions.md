@@ -129,7 +129,12 @@ environment KOLONİ cannot always place, an agent's write in any `.venv`, `venv`
 `pyproject.toml` or `setup.py` in the folder or above (they run its `[project.scripts]` and build
 the project first) - but not for a test run (`uv run pytest`). Their rule names what they run
 (`poetry run ruff`, `uv run python -m ruff`), never the tool alone; and npm's PowerShell shims are
-npm's own (`npx.ps1 tsc` is `npx tsc`). `python -m x` (any Python: `python3.12`, `pythonw`, one
+npm's own (`npx.ps1 tsc` is `npx tsc`). A runner's line sent to another package or folder of a
+monorepo - npm's and npx's `-w` / `--workspace` / `--workspaces` / `--ws` / `--prefix` / `-C`,
+pnpm's `--filter` / `-F` / `-r` / `--dir` / `-C` / `-w`, yarn's `workspace x` / `workspaces
+foreach` / `--cwd`, bun's `--filter` / `--cwd` - runs that package's own `bin` and scripts, which
+the folder's checks do not read: no rule covers it, none is offered, and a trigger's turn does not
+run it. Nor does a rule for `npm exec tsc` cover `npm exec tsc -c x` (`--call`: a shell line). `python -m x` (any Python: `python3.12`, `pythonw`, one
 named by its path) also imports what its folder holds before the standard library and the tool's
 own - so an agent's `.py` file, or package `__init__.py`, there stops its rule too, unless it runs
 with `-I` or `-P` (or `PYTHONSAFEPATH`); `python -m pytest` is the exception, since its tests
