@@ -721,6 +721,7 @@ export function App() {
       onFill={useApp.getState().fillFromCatalogue}
       onFillNew={useApp.getState().fillNewFromCatalogue}
       onAvailability={useApp.getState().availability}
+      onOffers={useApp.getState().readOffers}
       onFacts={useApp.getState().modelFacts}
       onSuggest={useApp.getState().suggest}
       onUpdateCatalogue={useApp.getState().updateCatalogue}

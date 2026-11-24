@@ -9,6 +9,7 @@ export const ROUTINGS: Record<'auto' | 'fusion', [Routing, string][]> = {
     ['efficiency', 'Efficiency'],
     ['balance', 'Balance'],
     ['intelligence', 'Intelligence'],
+    ['fast', 'Fast'],
   ],
   fusion: [
     ['standard', 'Standard'],
@@ -21,6 +22,39 @@ export const ROUTINGS: Record<'auto' | 'fusion', [Routing, string][]> = {
 export const ROUTING_WHY: Record<'auto' | 'fusion', string> = {
   auto: 'How Copilot’s auto picks the model for each request. Default: Copilot’s own.',
   fusion: 'Fusion High and Max run each turn on several models and keep one: they cost more than auto.',
+}
+
+/** A routing as its select offers it; `off`: why the account does not offer it now (null: it does). */
+export interface RoutingChoice {
+  value: Routing
+  label: string
+  off: string | null
+}
+
+/** What an option the account does not offer says after its name; the account's own words are its title. */
+export const NOT_ON_PLAN = 'not on your plan'
+
+/**
+ * The routings a row's select offers. Once Copilot's account was asked (`provider.offers`): only its own tiers, by
+ * its own names (Standard is balance), one it has off dimmed with its why, and the row's own one that it does not list
+ * kept, dimmed. Before it was asked: every routing the package knows.
+ */
+export function routingChoices(
+  provider: Provider | null | undefined,
+  routed: 'auto' | 'fusion',
+  current?: Routing | null,
+): RoutingChoice[] {
+  const known = new Map(ROUTINGS[routed])
+  const tiers = provider?.offers?.tiers ?? []
+  if (tiers.length === 0) return ROUTINGS[routed].map(([value, label]) => ({ value, label, off: null }))
+  // Auto's by their ids; Fusion's by the routing each takes (its `fusion`: Standard is balance's).
+  const choices = tiers.flatMap(t => {
+    const value = (routed === 'auto' ? t.type === 'auto' && t.id : t.fusion) as Routing | false | null | undefined
+    return value && known.has(value) ? [{ value, label: t.name, off: t.enabled ? null : (t.why ?? NOT_ON_PLAN) }] : []
+  })
+  if (current && !choices.some(c => c.value === current))
+    choices.push({ value: current, label: known.get(current) ?? current, off: NOT_ON_PLAN })
+  return choices
 }
 
 /** The routings a model takes: Copilot's auto or fusion on your GitHub account; null for any other. */

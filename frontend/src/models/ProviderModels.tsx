@@ -1,4 +1,5 @@
 import { Plus } from '@phosphor-icons/react'
+import { useState } from 'react'
 import { errorText } from '../api/client'
 import type { Availability, CatalogueFill, Provider, Usage } from '../api/types'
 import { GUIDE } from '../shell/guide'
@@ -69,6 +70,8 @@ export function ProviderModels({
   setToast,
 }: Props) {
   const marks = new Map(avail?.models.map(m => [m.name, m]) ?? [])
+  // Why a fill proposed no more than it did (a Copilot account that lists no models, or one not added yet).
+  const [fillNote, setFillNote] = useState<string | null>(null)
   const setRow = (index: number, change: Partial<GuideRow>) =>
     rows.map((row, at) => (at === index ? { ...row, ...change } : row))
   // What 30 days of the record say of a model of this provider; null where that is not known.
@@ -251,6 +254,9 @@ export function ProviderModels({
             onClick={() =>
               void run(async () => {
                 const offer = await propose()
+                setFillNote(offer.note ?? null)
+                // Copilot not added yet: its account is asked once it is, and nothing is proposed before.
+                if (offer.note && !provider) return
                 // Nothing beyond what was typed: there is no catalogue for it.
                 // shortcut: a list that already holds every catalogued model reads as none
                 // too; let the answer say whether there is a catalogue if that ever matters.
@@ -291,6 +297,11 @@ export function ProviderModels({
           here, besides the default model. A model with no tier is only ever picked by name.
         </Hint>
       </div>
+      {fillNote && (
+        <span role="note" className="muted provider-note">
+          {fillNote}
+        </span>
+      )}
       {noCatalogue === draft && (
         <span className="muted provider-note">
           No catalogue for this address; the models will be listed once it is added.

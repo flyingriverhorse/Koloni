@@ -62,8 +62,16 @@ export const NO_PLAN = 'a model server does not say what is left of a plan'
 
 const clock = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 
-/** An API's window as its last answer's headers said it (slice 73): "requests 48/50 left this minute, resets 12:03". */
+/** What a counter of none says: Copilot's premium requests on a plan with none (0 of 0, 24 Nov 2026). */
+export const NONE_ON_PLAN = 'none on your plan'
+
+/**
+ * An API's window as its last answer's headers said it (slice 73): "requests 48/50 left this minute, resets 12:03";
+ * and Copilot's counters, as its getQuota said them: "chat requests 200/200 left now", "premium requests: none on
+ * your plan".
+ */
 function apiWindow(w: Window, again: string): string {
+  if (w.limit === 0) return `${w.name}: ${NONE_ON_PLAN}`
   const minute = w.minutes === 1
   if (w.stale || typeof w.remaining !== 'number')
     return `${w.name}: ${typeof w.limit === 'number' ? `${w.limit}${minute ? ' a minute' : ''}` : 'how many are left was not said'}${w.stale ? `, stale — ${again}` : ''}`
