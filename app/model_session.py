@@ -256,6 +256,7 @@ class ToolServer:
         # Calls are answered one at a time, in the order they arrive.
         self._turn = asyncio.Lock()
         self.in_flight = 0  # calls being run or waiting their turn
+        self.at_work: list[str] = []  # (their tools' names)
         self.last_reply = time.monotonic()
 
     async def start(self) -> None:
@@ -294,9 +295,11 @@ class ToolServer:
         writing = asyncio.Lock()
 
         async def send(message: dict) -> None:
-            async with writing:
-                writer.write(json.dumps(message).encode("utf-8") + b"\n")
-                await writer.drain()
+            # (A CLI gone while its call ran - Codex L2, waited for past its turn - hears nothing.)
+            with contextlib.suppress(ConnectionError):
+                async with writing:
+                    writer.write(json.dumps(message).encode("utf-8") + b"\n")
+                    await writer.drain()
 
         async def answer(request: dict) -> None:
             request_id = request.get("id")
@@ -376,6 +379,7 @@ class ToolServer:
         if name not in {tool["name"] for tool in self.describe()}:
             return _tool_text(f"error: {name} is not one of the tools offered here", failed=True)
         self.in_flight += 1
+        self.at_work.append(str(name))
         try:
             # Sub-agents asked for at once work at once; everything else takes its turn.
             together = name in TOGETHER
@@ -401,6 +405,7 @@ class ToolServer:
             return said
         finally:
             self.in_flight -= 1
+            self.at_work.remove(str(name))
             self.last_reply = time.monotonic()
 
 

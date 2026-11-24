@@ -238,7 +238,8 @@ def test_a_session_it_does_not_have_starts_anew_once_said_on_its_record(copilot,
     seen = copilot.record()
     assert "create" in seen and "fix the greeting" in seen["prompt"] and "tests" in seen["prompt"]
     (line,) = said(items, "session")
-    assert line.startswith(SESSION_ANEW.split("(")[0]) and "Session not found" in line
+    anew = SESSION_ANEW.format(label="GitHub Copilot CLI", why="x").split("(")[0]
+    assert line.startswith(anew) and "Session not found" in line
     # A new session in a new home, counted whole (none of the refused one's spent).
     assert result.session["home"] != kept["home"] and result.input_tokens == 80
     assert result.session["spent"]["input_tokens"] == 80
@@ -510,7 +511,8 @@ def test_a_session_past_its_bound_is_not_gone_on_in_and_its_record_says_why(chat
 def test_a_session_whose_size_was_not_said_is_not_gone_on_in(chat):
     snap = chat("now the tests", usage_info=[], call_usage={})
     assert leads(chat)[-1].cli_session is None and homes_of(chat) == []
-    assert SESSION_UNSIZED in [c["result"] for c in snap["tool_calls"]]
+    unsized = SESSION_UNSIZED.format(label="GitHub Copilot CLI")
+    assert unsized in [c["result"] for c in snap["tool_calls"]]
 
 
 def test_where_it_says_no_size_its_last_calls_input_is_its_size_cache_and_all(copilot, tmp_path):

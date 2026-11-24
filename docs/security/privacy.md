@@ -13,7 +13,7 @@ Everything KOLONİ keeps is under `runtime/` in its folder, or under `KOLONI_RUN
 | `logs/koloni.log` | KOLONİ's log. It rotates at 10 MB and keeps five old files. |
 | `attachments/`, `skills/` | Files you attached, and KOLONİ's copies of skills. |
 | `copies/` | Sub-agents' working copies. |
-| `cli-homes/<provider id>/` | The sign-in folder of a Claude Code or Codex provider set to **Sign-in: Its own for KOLONİ**: its login and its settings. Claude Code run **Native** keeps its sessions there (each one's `projects/…/<session>.jsonl` and `file-history/<session>`), for a topic's next turn to go on in ([Topics](../memory.md#topics)). A session no turn will go on in is removed; the last one of each topic stays until its chat is deleted. |
+| `cli-homes/<provider id>/` | The sign-in folder of a Claude Code or Codex provider set to **Sign-in: Its own for KOLONİ**: its login and its settings. Claude Code run **Native** keeps its sessions there (each one's `projects/…/<session>.jsonl` and `file-history/<session>`), for a topic's next turn to go on in ([Topics](../memory.md#topics)). A session no turn will go on in is removed; the last one of each topic stays until its chat is deleted. Codex run **Native** keeps its threads there too (each one's `sessions/…/rollout-…-<thread>.jsonl`, Codex's own record of it): one no turn will go on in is removed - when a turn starts a new thread instead, when the thread grows past its bound or Codex compacted it (see [Codex](../models/setup-cli.md#codex)), when its turn failed or was stopped, when a turn of yours starts in another topic, with its chat or project, and at KOLONİ's start for one no agent goes on in. Codex's own index of its threads in that folder is not read or cleared. |
 | `cli-homes/copilot-sessions/<id>/` | The home (`COPILOT_HOME`) of a GitHub Copilot session run **Native**, one folder per session: Copilot's own record of it (`session-state/`), kept for the topic's next turn to go on in ([Topics](../memory.md#topics)). Removed when a turn starts a new session instead, when the session grows past its bound (see [Going on from the last turn](../models/setup-cli.md#going-on-from-the-last-turn)), when a turn of yours starts in another topic (**New topic**, or back in an older one; a trigger's topic keeps its own), with its chat or project, and at KOLONİ's start for one no agent goes on in (left by a turn KOLONİ was closed in). An agent's command that names it is asked about at every level, as one naming a sign-in folder. |
 | `server-homes/` | Empty homes for Claude Code or Codex run on your own model server, so that none of your own sign-in or settings is used. They are not removed. |
 | `agy-home/` | agy's home for one run, removed after it and at each start. |
@@ -67,7 +67,8 @@ Only these, and each only when you set it up or an agent is allowed to:
 - **Chats**: archive them first, then delete them from the archive. "This cannot be undone in KOLONİ."
   Their messages, their agents' work and their usage go too, and the Claude Code sessions their agents
   kept under `cli-homes/` (each one's transcript and file history; anything else Claude Code keeps of a
-  session stays), and their Copilot sessions' homes under `cli-homes/copilot-sessions/`, whole.
+  session stays), their Codex threads' records there, and their Copilot sessions' homes under
+  `cli-homes/copilot-sessions/`, whole.
 - **Providers, triggers, roles, skills, MCP servers, teams, recipes, knowledge** and **To-do tasks** can
   each be deleted on their page. A provider's sign-in folder under `cli-homes/` goes with it, its login
   and kept sessions with it.

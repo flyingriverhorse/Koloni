@@ -62,9 +62,9 @@ only an agent that works with KOLONİ's tools runs.
 
 ## Going on from the last turn
 
-Claude Code, run **Native** with **Sign-in: Its own for KOLONİ**, and GitHub Copilot CLI, run **Native**, go
-on in their own session from one turn to the next: each is sent only what is new, and compacts that session
-itself. They go on only from the same topic's previous turn, run with the same model, folder, permission level
+Claude Code and Codex, run **Native** with **Sign-in: Its own for KOLONİ**, and GitHub Copilot CLI, run
+**Native**, go on in their own session from one turn to the next: each is sent only what is new, and compacts
+that session itself (Codex's: see [Codex](#codex)). They go on only from the same topic's previous turn, run with the same model, folder, permission level
 and setup: **New topic** starts a new session ([Topics](../memory.md#topics)). Copilot's session is kept in a
 folder of its own under KOLONİ's runtime ([Data and privacy](../security/privacy.md#where-your-data-is));
 where Copilot cannot go on in it (the session is gone, or Copilot is older than 1.0.114's protocol), it starts
@@ -132,10 +132,54 @@ and is not moved.
 **Sign-in** offers **My own** (the sign-in in your home folder) or **Its own for KOLONİ**: a sign-in
 folder for this provider alone, so that several accounts can run side by side. For its own, save the
 provider, then the window gives the command to log in to it in your own terminal. "KOLONİ never sees the
-token."
+token." Run **Native**, a provider on its own sign-in goes on in its session (Claude Code's) or thread (Codex's)
+from a topic's previous turn; on yours, the default, each turn starts anew and is sent the whole chat.
 
 Claude Code and Codex can also **Use a model server of your own instead (optional)**: a **Model server
 address** on this machine or your network.
+
+## Codex
+
+**Going on in its thread (only with Sign-in: Its own for KOLONİ).** **Sign-in: My own** stays the default and
+needs no sign-in of KOLONİ's: Codex runs Native as before, each turn a new thread that is not written to disk and
+is sent the whole chat. A Codex provider set to **Its own for KOLONİ** and run **Native** goes on in its own thread
+from the topic's previous turn, as Claude Code does: each turn starts a new `codex app-server` that resumes the
+thread with this turn's folder, permission level and sandbox given again, and is sent only what came since its
+last answer. The thread is kept by Codex itself in the provider's sign-in folder,
+`runtime/cli-homes/<provider id>/sessions/…/rollout-…-<thread>.jsonl` - never in your own `~/.codex` ([Data and
+privacy](../security/privacy.md#where-your-data-is)). Choosing it means a login of its own: on the **Models**
+page set the provider's **Sign-in** to **Its own for KOLONİ**, save, press **Log in to Codex for this provider**
+and run the command it gives in your own terminal (it sets `CODEX_HOME` to that folder and runs `codex login`),
+finish the login in your browser, then press **Check again**: the provider shows "signed in" once Codex's own
+`codex login status` says so. KOLONİ never sees the token. Until it is logged in, that provider does not run.
+
+**Not yet tried with a real Codex.** Going on in a thread is built on measurements of Codex 0.164 (a thread resumed
+in a new app-server remembers) and tested with a stand-in only. On Codex 0.164 a new, empty KOLONİ folder also
+answered **read-only** when asked for its workspace-write sandbox (a turn is then refused before Codex acts), so a
+role that writes or runs commands might not run on such a provider until this is measured on a newer Codex.
+
+- A new topic, another model, folder, permission level or what the role may do (its sandbox's mode with it)
+  starts a new thread. Where Codex cannot go on in the kept one (it is gone, or Codex refuses), it starts a new
+  thread sent the whole chat, and the agent's record says so once.
+- Its tokens are counted per turn: Codex reports its thread's running total, and a turn counts the difference.
+- KOLONİ does not let a thread grow until Codex compacts it by itself, since Codex's summary is not readable:
+  once it holds **Summarise a long context at (%)** of 166,000 tokens (about 124,500 by default), or of the
+  window set on its role where that is smaller, the next turn starts a new thread sent the chat as KOLONİ keeps
+  it, which KOLONİ summarises - and the agent's record says so. 166,000 is the largest size a Codex thread was
+  measured to reach without compacting itself (on a 258,400-token window); where Codex compacts by itself is not
+  measured yet. When Codex does compact its thread, the agent's record says so, and the next turn starts a new
+  thread the same way.
+- The thread of another topic is removed when a turn of yours starts in another topic, with its chat or
+  project, and at KOLONİ's start for one no agent goes on in; so is one whose turn failed or was stopped,
+  and one that is not gone on in.
+
+**A call still running when Codex answers.** Codex has been seen to give its final answer, and end its turn,
+while one of KOLONİ's tools it called was still at work (a 120-second command, "It is still running"). The
+turn then waits for that call to end by its own limit - a command's time limit, a sub-agent's run - and
+Codex's answer ends with a line saying so: what the call comes to is on its record, not in the answer.
+**Stop** ends the wait, and the call with it, at once. A question to you that is still open (ask_user,
+a folder or a secret asked for) is not waited for: nobody would read its card once the turn is over, so it
+closes with the turn, as before. Why Codex answered early is not known yet.
 
 ## GitHub Copilot CLI
 

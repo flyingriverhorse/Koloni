@@ -458,11 +458,11 @@ class NativeMixin:
         usage: SessionResult,
     ) -> dict:
         """27: what its session is kept with for the topic's next turn (`_session_mark`); {}: none
-        is. 0.1.8: a CLI whose session costs more past a size (`session_cap`: Copilot's price step)
-        keeps none at Summarise a long context at (%) of its role's window, else of its own - at
-        most that size either way - nor one whose size it did not say - said on its record; its
-        next turn starts anew, sent the history KOLONİ keeps and compacts (To-do design, "Oturum
-        boyu sınırı")."""
+        is. 0.1.8: a CLI whose session costs more past a size (`session_cap`: Copilot's price step;
+        Codex's, before it compacts with a summary KOLONİ cannot read) keeps none at Summarise a
+        long context at (%) of its role's window, else of its own - at most that size either way -
+        nor one whose size it did not say - said on its record; its next turn starts anew, sent
+        the history KOLONİ keeps and compacts (To-do design, "Oturum boyu sınırı")."""
         if not usage.session:
             return {}
         if cap := model.session_cap:
@@ -473,9 +473,9 @@ class NativeMixin:
                 share = compact_at(session)
             if used is None or used >= window * share / 100:
                 said = (
-                    SESSION_FULL.format(used=used, at=share, window=window)
+                    SESSION_FULL.format(label=model.label, used=used, at=share, window=window)
                     if used is not None
-                    else SESSION_UNSIZED
+                    else SESSION_UNSIZED.format(label=model.label)
                 )
                 self._note(ctx, transcript, f"{model.command}__session", {}, "succeeded", said)
                 return {}
@@ -496,11 +496,12 @@ class NativeMixin:
                     forget_session(one, self.settings.runtime_root)
 
     def _forget_other_topics(self: "AgentRunner", run: Run) -> None:
-        """0.1.8: Copilot's sessions kept in the chat's other topics gone - their homes, and their
-        agents' word of them - as a turn the user started works in this one: a session goes on
-        only within its topic (`topics.previous_lead`), and none is left to pile up once the user
-        moved on (New topic, or back in an older one). Not a trigger's topic's: its turns are its
-        own. Claude Code's stay, as before (in its sign-in folder, gone with the chat)."""
+        """0.1.8: Copilot's sessions and Codex's threads kept in the chat's other topics gone -
+        their homes or rollout files, and their agents' word of them - as a turn the user started
+        works in this one: a session goes on only within its topic (`topics.previous_lead`), and
+        none is left to pile up once the user moved on (New topic, or back in an older one). Not a
+        trigger's topic's: its turns are its own. Claude Code's stay, as before (in its sign-in
+        folder, gone with the chat)."""
         if run.unattended or run.topic_id is None:
             return
         homes = self.settings.runtime_root / CLI_HOMES / COPILOT_SESSIONS
@@ -525,7 +526,10 @@ class NativeMixin:
                     Agent.cli_session.is_not(None),
                 )
             ):
-                if agent.cli_session and copilot_home(agent.cli_session, homes):
+                if agent.cli_session and (
+                    copilot_home(agent.cli_session, homes)
+                    or agent.cli_session.get("cli") == "codex"
+                ):
                     gone.append(agent.cli_session)
                     agent.cli_session = None
             session.commit()
