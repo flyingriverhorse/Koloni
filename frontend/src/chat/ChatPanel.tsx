@@ -36,6 +36,7 @@ import { ChatTodoQueue } from './TodoQueue'
 import type { Second } from './Compare'
 import { Composer, type ComposerTopic } from './Composer'
 import { MessageList, type RequestHandlers } from './MessageList'
+import { ChatStoryStrip } from './StoryStrip'
 import { toFront } from '../shell/move'
 import { testsRun } from '../shell/sections/afterChangeWords'
 import { FilesWindow } from '../views/FilesWindow'
@@ -652,6 +653,7 @@ export function ChatPanel() {
       <div className="chat-body" hidden={!open}>
         <WidthEdge open={open} />
         <ChatTabs tab={tab} handoffs={handoffs} notes={notes} count={count} onHide={toggle} />
+        <ChatStoryStrip conv={conv} tab={tab} />
         {/* The tab's own content scrolls in what the tabs and the message box leave (base.css .chat-pane). */}
         {/* (B-142: its tabs' panel, by name, for a screen reader) */}
         <div className="chat-pane" role="tabpanel" id="chat-tabpanel" aria-labelledby={tabId(tab)}>

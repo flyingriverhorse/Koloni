@@ -20,7 +20,8 @@ export type TreeRow =
   | { kind: 'section'; title: 'Without a story' }
 
 const RANK: Record<BacklogTask['priority'], number> = { high: 0, normal: 1, low: 2 }
-const inOrder = (tasks: BacklogTask[]) =>
+/** Tasks in the To-do list's order: by priority, then by their place. */
+export const inOrder = (tasks: BacklogTask[]) =>
   [...tasks].sort((a, b) => RANK[a.priority] - RANK[b.priority] || a.position - b.position)
 const byPosition = <T extends { position: number }>(rows: T[]) => [...rows].sort((a, b) => a.position - b.position)
 

@@ -4,16 +4,14 @@ and what the user decides. The API and the agents' tools both go through here.""
 import contextlib
 import json
 import logging
-import os
 import re
 from collections.abc import Callable
 
 from sqlalchemy import and_, case, literal_column, or_, select
 from sqlalchemy.orm import Session
 
-from app import copies, earlier, observer, raw, stories, topics
+from app import copies, earlier, observer, stories, topics
 from app.api.usage import over_budget
-from app.commands import OutputMask, secret_values
 from app.db.models import (
     Agent,
     AwayRun,
@@ -255,11 +253,13 @@ def first_message(
     night: bool = False,
     story: Story | None = None,
     place: tuple[int, int] | None = None,
+    notes: str = "",
 ) -> str:
     """What a task's first turn is told: the task as it stands on the To-do list, its title
     first (a new chat is named by it), who wrote it, and - of a story - which story and which of
     its tasks this is (`place`: i of n); for a job a night while the user is away starts
-    (`night`, slice 106), that they are."""
+    (`night`, slice 106), that they are. `notes`: what it carries of its story
+    (`stories.brief`)."""
     po = task.po or {}
     by = (
         (
@@ -283,6 +283,7 @@ def first_message(
         parts.append(f"Detail:\n{task.detail}")
     if task.criteria:
         parts.append(f"Done when:\n{task.criteria}")
+    parts += [notes] if notes else []
     parts.append(AWAY_JOB if night else SAY_NOT_FINISHED)
     return "\n\n".join(parts)
 
@@ -348,12 +349,12 @@ def start(
     if shape is not None:
         shape(conversation)
     session.flush()
-    content = first_message(task, night)
+    content = first_message(task, night, notes=stories.brief(session, task, project.pass_env, True))
     # Named by the task, whole (K-backlog-sohbet): the chat list marks it as the To-do list's.
     conversation.title = topics.one_line(task.title) or conversation.title
     task.status, task.conversation_id = "doing", conversation.id
     # (A new conversation is a new start: its fix round is still to have.)
-    set_flow(task, fix=None, fixed=None, stuck=None)
+    set_flow(task, fix=None, fixed=None, stuck=None, held=None)
     say(session, conversation, content, bus, start_run, task_id=task.id)
     bus.emit(conversation.id, None, "conversation.updated", conversation_out(conversation))
     return conversation.id
@@ -548,17 +549,26 @@ def _start_in_chat(
 ) -> None:
     """`task`'s turn in `chat`: its fix round where one is due, else its brief - in the topic
     `stories.topic_for` gives it. Committed and started (`say`)."""
-    topic, _made = stories.topic_for(session, chat.id, task)  # (`say` tells of it)
+    topic, made = stories.topic_for(session, chat.id, task)  # (`say` tells of it)
     why = (task.flow or {}).get("fix")
     if why:
-        content = FIX.format(why=why.rstrip("."))  # (FIX puts its own dot)
+        content = fix_message(session, task, why)
         set_flow(task, fix=None, fixed=True)
     else:
         story, place = story_place(session, task)
-        content = first_message(task, story=story, place=place)
+        pass_env = session.get_one(Project, task.project_id).pass_env
+        notes = stories.brief(session, task, pass_env, first=made)
+        content = first_message(task, story=story, place=place, notes=notes)
         task.status = "doing"
-        set_flow(task, place=None, fixed=None)
+        set_flow(task, place=None, fixed=None, held=None)
     say(session, chat, content, bus, start_run, topic_id=topic.id, task_id=task.id)
+
+
+def fix_message(session: Session, task: BacklogTask, why: str) -> str:
+    """What a task's one fix round is told: why it is not finished (FIX puts its own dot) - and,
+    for a task of a story, its notebook as it stands now (`stories.brief`)."""
+    notes = stories.brief(session, task, session.get_one(Project, task.project_id).pass_env)
+    return FIX.format(why=why.rstrip(".")) + (f"\n\n{notes}" if notes else "")
 
 
 def _queued_chats(session: Session, project_id: str) -> list[str]:
@@ -724,8 +734,8 @@ def fix_again(session: Session, task: BacklogTask) -> None:
 
 def unqueue(session: Session, task: BacklogTask) -> None:
     """Out of its chat's queue, back on the To-do list: still linked to the chat where it had a
-    turn there, else to none."""
-    set_flow(task, place=None)
+    turn there, else to none - no longer held (`turn_ended`): it is not gone on with."""
+    set_flow(task, place=None, held=None)
     if session.scalar(select(Run.id).where(Run.task_id == task.id).limit(1)) is None:
         task.conversation_id = None
 
@@ -820,6 +830,8 @@ def turn_ended(session: Session, run: Run, status: str) -> list[str]:
             set_flow(task, fix=why)  # (still doing: its fix round comes next)
         else:
             task.status = "review" if status == "completed" else "todo"
+        if task.story_id:
+            stories.turn_notes(session, run, task, last_word(session, run))
     if task.away_run_id is not None or not (stopped or limited):
         return [task.id]
     if stopped and held(session):  # (Stop everything: it starts again first, at Resume)
@@ -827,6 +839,7 @@ def turn_ended(session: Session, run: Run, status: str) -> list[str]:
             waiting = [one for one in chat_queue(session, run.conversation_id) if one is not task]
             for at, one in enumerate([task, *waiting], 1):
                 set_flow(one, place=at)
+            set_flow(task, held=True)  # (held, not judged: it goes on in its topic, `topic_for`)
         return [task.id]
     why = (
         f"the turn of {quoted(task.title)} {HOW.get(status, 'was stopped')}"
@@ -935,9 +948,7 @@ def drafted(said: str) -> dict:
         tasks = [task for each in _list_of(title and one.get("tasks")) if (task := _task_of(each))]
         if not tasks:
             continue
-        notes = [
-            note for each in _list_of(one.get("notes")) if (note := _cut(each, stories.NOTE_MOST))
-        ]
+        notes = [note for each in _list_of(one.get("notes")) if (note := stories.cut_note(each))]
         shaped.append(
             {"title": title, "notes": notes[: stories.NOTEBOOK_MOST], "tasks": tasks[:room]}
         )
@@ -996,7 +1007,10 @@ def add_tree(session: Session, project_id: str, tree: dict, created_by: str) -> 
             else stories.add_story(session, project_id, one["title"].strip(), goal_id, created_by)
         )
         if one.get("notes"):
-            stories.add_notes(story, one["notes"], HIVE_KEEPER)
+            notes = [("decision", note) for note in one["notes"]]
+            stories.add_notes(
+                story, notes, HIVE_KEEPER, session.get_one(Project, project_id).pass_env
+            )
         story_ids.append(story.id)
         for fields in one["tasks"]:
             put(fields, story.id)
@@ -1030,8 +1044,8 @@ PROPOSE = (
 def po_asked(session: Session, run: Run) -> bool:
     """Whether the Scout is asked about a turn that ended: not a room's or a
     discussion's, and one that did something - a file changed, a command, a step that failed,
-    or work handed to a sub-agent. (The caller rules out the rest: a task's own turn, a plan,
-    a side of a comparison.)"""
+    or work handed to a sub-agent. (The caller rules out the rest: a plan, a side of a
+    comparison.)"""
 
     def has(model, *where) -> bool:
         return (
@@ -1049,25 +1063,16 @@ def po_asked(session: Session, run: Run) -> bool:
     )
 
 
-def _masked(text: str, pass_env: str | None) -> str:
-    """With the secrets KOLONİ knows hidden, and what the project passes its commands
-    (`Project.pass_env`) too, whatever their names."""
-    passed = [
-        os.environ[name.strip()]
-        for name in (pass_env or "").split(",")
-        if len(os.environ.get(name.strip(), "")) >= raw.MIN_SECRET
-    ]
-    return raw.hidden(OutputMask([*secret_values(os.environ), *passed]).hide(text))
-
-
 def po_record(
     session: Session, run_id: str, turn: str, pass_env: str | None = None
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     """The turn as the Scout is given it - as the summariser is (`turn`), and the steps
-    that failed with the first line they said - and the words a proposal may come from: the
-    agents' own and the tools' (not the user's message nor KOLONİ's labels). Both masked."""
+    that failed with the first line they said - the words a proposal may come from: the
+    agents' own and the tools' (not the user's message nor KOLONİ's labels), and of those the
+    failed steps' lines - a proposal from them is a bug (`proposed`). All masked."""
     lines = [turn]
     sources = [words for agent, _at, words in earlier.said_in(session, run_id) if agent]
+    failed: list[str] = []
     for name, result in session.execute(
         select(ToolCall.name, ToolCall.result)
         .where(ToolCall.run_id == run_id, ToolCall.status == "failed")
@@ -1078,8 +1083,13 @@ def po_record(
         lines.append(
             f"A step that failed: {name}" + (f": {quoted(first[0][:MAX_WHY])}" if first else "")
         )
-        sources += [first[0][:MAX_WHY]] if first else []
-    return _masked("\n".join(lines), pass_env), _masked("\n".join(sources), pass_env)
+        failed += [first[0][:MAX_WHY]] if first else []
+    sources += failed
+    return (
+        stories.masked("\n".join(lines), pass_env),
+        stories.masked("\n".join(sources), pass_env),
+        stories.masked("\n".join(failed), pass_env),
+    )
 
 
 def propose_question(record: str, titles: list[str], turned_down: list[str]) -> str:
@@ -1122,9 +1132,11 @@ def proposed(
     turned_down: list[str] | None = None,
     run_id: str = "",
     po: dict | None = None,
+    failed: str = "",
 ) -> list[dict]:
-    """The tasks of the Scout's answer to add, each with `why`, the words it came from:
-    at most PROPOSE_MOST. One whose words are not an agent's or a tool's in the turn
+    """The tasks of the Scout's answer to add, each with `why`, the words it came from - a
+    bug where those are words of a step that failed (`failed`), else a task, whatever the
+    answer says: at most PROPOSE_MOST. One whose words are not an agent's or a tool's in the turn
     (`sources`, markdown's marks aside), or that looks like a task of `titles` (open), of
     `turned_down` or one before it (`alike`), is dropped, and why said in the log
     (`dropped`) - and on `po`, with why an answer proposed nothing. An answer that is no list
@@ -1144,7 +1156,7 @@ def proposed(
     if not listed:
         log.info("run %s: the Scout's answer lists no task", run_id)
         po["note"] = "its answer listed no task"
-    seen = _plain(sources)
+    seen, broke = _plain(sources), _plain(failed)
     found: list[dict] = []
     drops = 0
 
@@ -1180,7 +1192,9 @@ def proposed(
         if like:
             drop(task["title"], f"{like[0]} {like[1][:80]!r}")
             continue
-        found.append({**task, "why": why})
+        found.append(
+            {**task, "kind": "bug" if broke and _plain(why) in broke else "task", "why": why}
+        )
         if len(found) == PROPOSE_MOST:
             break
     if drops > PROPOSE_MOST * 3:

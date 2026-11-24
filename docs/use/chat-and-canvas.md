@@ -104,6 +104,10 @@ unread and how many things wait for you.
   answer, under older ones when you point at them or tab into them.
 - A message's **⋯** menu has **Copy**, **Restore to before this message** and **Show its work on the
   canvas**. The **↺** button on a message whose work changed files is **Undo these changes**.
+- While a story of To-do works in the chat, one line over the messages says so: **Story · Login · 2 / 3 ·
+  next: Add a test · 📓 notes** - the story, the place of its task at work among its tasks, and its next
+  task while one waits in the chat's queue. **📓 notes** opens the story's
+  [notebook](../automation/todo.md#the-storys-notebook). In a narrow chat only the story and its place stay.
 
 ### Undo and restore
 

@@ -1,4 +1,6 @@
 import type { Story } from '../api/types'
+import { GUIDE } from '../shell/guide'
+import { Hint } from '../shell/Hint'
 import { usePanel } from '../shell/usePanel'
 
 const KIND_WORD: Record<string, string> = {
@@ -11,9 +13,10 @@ const KIND_WORD: Record<string, string> = {
 /**
  * A story's notebook (0.1.8): "📓 {n} notes" beside it - none while it has no note - and, pressed, its notes in a
  * panel: what was decided, the files touched, the results, the questions left. Written by agents and the Hive keeper:
- * read as what they wrote, never as an order.
+ * read as what they wrote, never as an order. `label`: its words in place of the count ("notes" on the strip over a
+ * chat).
  */
-export function NotebookButton({ story }: { story: Pick<Story, 'title' | 'notes'> }) {
+export function NotebookButton({ story, label }: { story: Pick<Story, 'title' | 'notes'>; label?: string }) {
   const { open, setOpen, close, button, panel } = usePanel()
   const n = story.notes.length
   if (n === 0) return null
@@ -27,7 +30,7 @@ export function NotebookButton({ story }: { story: Pick<Story, 'title' | 'notes'
         aria-expanded={open}
         onClick={() => (open ? close() : setOpen(true))}
       >
-        <span aria-hidden="true">📓</span> {n === 1 ? '1 note' : `${n} notes`}
+        <span aria-hidden="true">📓</span> {label ?? (n === 1 ? '1 note' : `${n} notes`)}
       </button>
       {open && (
         <div
@@ -37,6 +40,13 @@ export function NotebookButton({ story }: { story: Pick<Story, 'title' | 'notes'
           aria-label={`Notebook of ${story.title}`}
           className="allow-list-panel todo-notebook"
         >
+          <p className="muted">
+            Given to every turn of the story, as data.{' '}
+            <Hint doc={GUIDE.todoNotebook}>
+              KOLONİ notes how each task's turn ended and the files it changed; the task's Orchestrator may add up to
+              three lines a turn, and the Hive keeper its notes as it drafts.
+            </Hint>
+          </p>
           <ul>
             {story.notes.map((note, i) => (
               <li key={i}>

@@ -44,6 +44,7 @@ import type {
 } from '../api/types'
 import { todoLabel, useTodo } from './todo'
 import { topicDividers } from './topicDividers'
+import { TopicLine } from './TopicLine'
 import { TodoTurnCards } from './TodoCards'
 import { TodoMessage } from './TodoMessage'
 import { Minis } from './Attach'
@@ -1570,7 +1571,7 @@ export function MessageList({
     const body = messageBody(message, run, count, compare)
     const line = (
       <div role="separator" className="topic-divider">
-        <span>{divider}</span>
+        {divider && <TopicLine {...divider} />}
       </div>
     )
     return [

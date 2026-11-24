@@ -1850,8 +1850,9 @@ class BacklogTask(Base):
     proposed_in: Mapped[str | None] = mapped_column(String(32), default=None)
     # How it stands in its chat's queue (`app.backlog.go_on`): {"after": the ids of the tasks
     # it waits for (the user's), "place": its place in the queue, "fix": why its fix round is
-    # due, "fixed": it had it, "stuck": why it is blocked}. Replaced whole (`backlog.set_flow`):
-    # a JSON field changed in place is not seen.
+    # due, "fixed": it had it, "stuck": why it is blocked, "held": Stop everything cut its turn -
+    # it goes on in its topic, `stories.topic_for`}. Replaced whole (`backlog.set_flow`): a JSON
+    # field changed in place is not seen.
     flow: Mapped[dict | None] = mapped_column(JSON, default=None)
     # Proposed by the Scout at a turn's end (`AgentRunner._propose_tasks`): {"chat": the
     # conversation, "why": the words of the turn's record it came from, "lead": "add" | "no" -
