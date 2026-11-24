@@ -97,10 +97,9 @@ def _words(command: str) -> list[str]:
 def _program(word: str) -> str:
     """`C:\\x\\Python.EXE` and `.venv/Scripts/python` both name the program `python`."""
     name = re.split(r"[\\/]", word.strip("'\""))[-1].lower()
-    # (`npm.cmd ci` is npm's: a shim's name is the program's)
-    # shortcut: a bare `cat.cmd a.py` reads as cat; PowerShell and bash find a bare name on PATH
-    # only, but cmd.exe looks in cwd first - judge a bare .cmd/.bat as the folder's own if a CLI
-    # is seen to run its commands through cmd.exe.
+    # (`npm.cmd ci` is npm's: a shim's name is the program's. A bare `cat.cmd a.py` reads as cat:
+    # PowerShell and sh find a bare name on PATH only, and so does cmd.exe where KOLONİ runs it -
+    # `host.command_env` sets NoDefaultCurrentDirectoryInExePath, W1)
     return name.removesuffix(".exe").removesuffix(".cmd").removesuffix(".bat")
 
 

@@ -25,7 +25,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from app.commands import held_back
-from app.executors.host import SUSPENDED, _job_for
+from app.executors.host import SUSPENDED, _job_for, no_cwd_search
 from app.executors.winjob import Job
 from app.model_client import (
     ModelInfo,
@@ -727,7 +727,9 @@ class CliStepClient:
         (`pass_env`: `Project.pass_env`).
         shortcut: what it is given (its own sign-in's key) its commands can still read through
         the CLI's /proc/<pid>/environ on Linux - KOLONİ's own is closed (`main.not_dumpable`);
-        start the CLI non-dumpable too if a key is seen to leak so."""
+        start the CLI non-dumpable too if a key is seen to leak so. W1: a shim started in the
+        work's folder (`claude.cmd`), and the CLI's own commands, find a bare `node` on PATH alone,
+        never one an agent wrote there (`host.no_cwd_search`)."""
         held = (
             set()
             if self.logins is None
@@ -738,11 +740,13 @@ class CliStepClient:
                 and not (self.command == "claude" and name.upper() in CLAUDE_SETTINGS)
             }
         )
-        return {
-            k: v
-            for k, v in os.environ.items()
-            if not k.upper().startswith("KOLONI_") and k not in held
-        }
+        return no_cwd_search(
+            {
+                k: v
+                for k, v in os.environ.items()
+                if not k.upper().startswith("KOLONI_") and k not in held
+            }
+        )
 
     async def _start(
         self, argv: list[str], shim: bool, workdir: Path, extra_env: dict[str, str] | None = None

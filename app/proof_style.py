@@ -12,10 +12,14 @@ import os
 import re
 import shutil
 import sys
+import time
+from collections import Counter
 from collections.abc import Iterable, Mapping
 from pathlib import Path, PurePosixPath
 from typing import NamedTuple
 
+from app import proof
+from app.commands import _program
 from app.proof import Row, row
 from app.proof_kinds import _json
 from app.workspace import WorkspaceError, sha256_text
@@ -54,6 +58,7 @@ BY_THEIRS = (
 )
 DECLINED = "declined on its card this turn"
 WROTE_IT = "this turn wrote in {folder}: no install of the project's"
+WROTE_BARE = "this turn wrote {name} in the folder it runs in"
 OUTSIDE = "its program is not in the project ({program})"
 NEEDS_LEAVE = "{tool}: not checked - it needs your leave once ({why})"
 NO_FILES = "tsc: not checked - its tsconfig names no files (references)"
@@ -61,6 +66,10 @@ COMPOSITE = "tsc: not checked - its tsconfig is composite: tsc would write its b
 NO_TSCONFIG = "tsc: not checked - its tsconfig.json could not be read"
 PAST = "past the {seconds} s of Code style and types"
 NO_ANSWER = "Code style not checked: the Orchestrator's answer is not on record"
+NOT_JUDGED = "{tool}: {n} problems not judged - too large to compare in time: {paths}"
+CHECKED_NONE = "{tool}: not checked - it found none of the turn's files to check ({said})"
+IGNORED = "{tool}: {n} of the turn's files not checked - its settings leave them out"
+SETTINGS_CHANGED = "{tool}'s settings changed this turn ({path}) - the check runs by them"
 
 
 class Run(NamedTuple):
@@ -261,29 +270,60 @@ def planted(work: Path, project: Path, run: Run, written: Iterable[str]) -> str 
     """B1: why `run`'s program is not run - None: it may be. Its real place is in neither the
     work's folder nor the project (a link leading out: a copy's `node_modules` and `.venv` are
     links into the project, so both are its places); or a file the turn wrote (`written`, from the
-    root) is that program, or in the folder it is installed in (`node_modules`, `.venv` - what a
-    `.cmd` shim runs is there too): a program planted by the turn, whatever case its folder was
-    written in (Windows' and macOS's file systems ignore it) and through any link. By real paths,
-    casefolded on every system. A program on PATH (ruff's) is no file of the project's.
+    root) is that program, or in the folder it is installed in (`wrote_program`): a program
+    planted by the turn, whatever case its folder was written in (Windows' and macOS's file
+    systems ignore it) and through any link; or (W1) a `node.cmd`, a `python.exe` - a name a shim
+    runs bare - in the folder it runs in. By real paths, casefolded on every system. A program on
+    PATH (ruff's) is no file of the project's.
     shortcut: what the turn wrote on record only - a file a command made unrecorded is not seen;
     `proof.unrecorded` says a turn had such a command."""
+    written = list(written)
+    here = _real(work / run.cwd)
+    for rel in written:
+        stem, ext = os.path.splitext(PurePosixPath(rel).name.casefold())
+        if stem in _BARE and ext in RUNNABLE and _real((work / rel).parent) == here:
+            return WROTE_BARE.format(name=PurePosixPath(rel).name)
     program = run.command.split()[0]
     if "/" not in program:
         return None
-    cwd = work / run.cwd
-    real, install = _real(cwd / program), _real(cwd / program.split("/")[0])
-    if not any(_within(real, _real(root)) for root in (work, project)):
+    if not any(_within(_real(work / run.cwd / program), _real(root)) for root in (work, project)):
         return OUTSIDE.format(program=program)
-    for rel in written:
-        mine = _real(work / rel)
-        if mine == real or _within(mine, install):
-            folder = PurePosixPath(run.cwd, program.split("/")[0]).as_posix()
-            return WROTE_IT.format(folder=folder.removeprefix("./"))
-    return None
+    place = wrote_program(work, run.cwd, program, written)
+    return WROTE_IT.format(folder=place) if place else None
 
 
 # The folders a tool's program is installed in: an agent's write under one is a program planted.
-INSTALLS = ("node_modules", ".venv")
+INSTALLS = ("node_modules", ".venv", "site-packages")
+# W1: the names a program's shim runs bare (npm's `.cmd` runs `node`) - cmd.exe looked for them
+# in the folder it runs in first (`host.no_cwd_search` stops that where KOLONİ starts it) -, and
+# the endings Windows runs a file by (PATHEXT's, and none).
+_BARE = ("node", "python", "python3", "pythonw", "py")
+RUNNABLE = (
+    *("", ".exe", ".cmd", ".bat", ".com", ".ps1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh"),
+    ".msc",
+)
+
+
+def wrote_program(work: Path, cwd: str, program: str, written: Iterable[str]) -> str | None:
+    """B1, W2: where a file of `written` (from the work's root) plants `program`, named by its path
+    and run in `cwd` - said from the root: the install folder it is in (the first of its folders
+    named in INSTALLS: what its `.cmd` shim runs is there too), else the program itself, written
+    as it is named or as a file Windows runs by that name (`check.cmd` for `check`). None: no
+    such write. By real paths, casefolded, through any link."""
+    parts = PurePosixPath(program.replace("\\", "/")).parts
+    at = next((n for n, part in enumerate(parts) if part.casefold() in INSTALLS), None)
+    named = PurePosixPath(*(parts if at is None else parts[: at + 1]))
+    real, place = _real(work / cwd / str(named)), PurePosixPath(cwd, named)
+    for rel in written:
+        mine = _real(work / rel)
+        stem, ext = os.path.splitext(mine)
+        if (
+            _within(mine, real)
+            if at is not None
+            else mine == real or (stem == real and ext in RUNNABLE)
+        ):
+            return place.as_posix()
+    return None
 
 
 def still_written(work: Path, records: Iterable[tuple[str, str]]) -> list[str]:
@@ -306,13 +346,36 @@ def _on_path(tool: str) -> bool:
     return shutil.which(tool) is not None
 
 
+# A check line's commands, and the words before a tool's own in one: a runner of the project's
+# installs (`uv run ruff`, `npx tsc`, `python -m mypy`), its options, a variable set for it.
+_COMMANDS = re.compile(r"&&|\|\||[;|\n]")
+_RUNNERS = frozenset(
+    {"uv", "uvx", "run", "npx", "bunx", "pnpx", "pnpm", "yarn", "npm", "exec", "poetry", "pdm"}
+    | {"hatch", "pipenv", "python", "python3", "py", "-m", "--", "&"}
+)
+_ASKS_ONLY = frozenset({"--version", "-V", "--help", "-h"})
+_NOT_CHECK = frozenset({"format", "rule", "config", "linter", "clean", "version", "help"})
+
+
 def runs_tool(line: str, tool: str) -> bool:
     """Whether a check line of the project's (its CI's, its check command) does what this tool's
-    run does - `ruff format --check` is not `ruff check`."""
-    words = line.split()
-    if tool == "ruff":
-        return "ruff" in words and "format" not in words
-    return any(word == tool or word.endswith(f"/{tool}") for word in words)
+    run does: the tool as a command's program, after a runner (`uv run`, `npx`, `python -m`) -
+    never a word of another's (`pip install ruff`, `pytest -k mypy`), nor its `--version`;
+    `ruff format --check` is not `ruff check`. Unsure: no - KOLONİ then runs its own."""
+    return any(_runs(command.split(), tool) for command in _COMMANDS.split(line))
+
+
+def _runs(words: list[str], tool: str) -> bool:
+    at = 0
+    while at < len(words) and _program(words[at]) != tool:
+        if not (words[at] in _RUNNERS or words[at].startswith("-") or "=" in words[at]):
+            return False
+        at += 1
+    rest = words[at + 1 :]
+    if at == len(words) or _ASKS_ONLY & {*rest} or (tool in ("eslint", "tsc") and "-v" in rest):
+        return False
+    first = next((word for word in rest if not word.startswith("-")), None)
+    return tool != "ruff" or (first is not None and first not in _NOT_CHECK)
 
 
 # --- what a tool said ----------------------------------------------------------------------------
@@ -325,6 +388,8 @@ _COLON = re.compile(r"^(?P<path>[^\n]+?):(?P<line>\d+):(?:\d+:)?\s+(?P<said>\S.*
 _TSC = re.compile(r"^(?P<path>[^\n(]+?)\((?P<line>\d+),\d+\):\s+(?P<said>\S.*)$")
 _ESLINT = re.compile(r"^\s+(?P<line>\d+):\d+\s+(?P<said>\S.*)$")
 _RUFF = re.compile(r"^(?P<code>[A-Z]+\d+)\s+(?:\[\*\]\s+)?(?P<message>.+)$")
+# (W3: a file it cannot parse - `invalid-syntax:` now, `SyntaxError:` before ruff 0.6)
+_RUFF_SYNTAX = re.compile(r"^(?:invalid-syntax|SyntaxError):\s*(?P<message>\S.*)$")
 _MYPY = re.compile(r"^error:\s+(?P<message>\S.*)$")
 _MYPY_CODE = re.compile(r"[\w-]+")
 _TS = re.compile(r"^(?P<level>error|warning)\s+(?P<code>TS\d+):\s+(?P<message>.+)$")
@@ -346,8 +411,10 @@ def _said(tool: str, said: str) -> tuple[str, bool] | None:
     """A tool's words on one problem, as said here ("ruff F401 - ..."), and whether it is an
     error; None: not a problem's line (a note of mypy's, a summary)."""
     if tool == "ruff":
-        found = _RUFF.match(said)
-        return (f"ruff {found['code']} - {found['message']}", True) if found else None
+        if found := _RUFF.match(said):
+            return f"ruff {found['code']} - {found['message']}", True
+        found = _RUFF_SYNTAX.match(said)
+        return (f"ruff invalid-syntax - {found['message']}", True) if found else None
     if tool == "mypy":
         found = _MYPY.match(said)
         return _mypy(found["message"]) if found else None
@@ -415,20 +482,57 @@ def problems(tool: str, output: str, root: Path, cwd: str) -> list[Problem]:
     return found
 
 
+class Changed:
+    """The lines the turn added or changed in each file it changed (`proof.changed_lines`), each
+    file's worked out once and only when asked - for a file a tool said a problem in (W4: a
+    large file's diff is long work) - while `until` (`time.monotonic`'s) is not past. None: not
+    judged, too large to compare in time."""
+
+    def __init__(self, texts: Mapping[str, tuple[str, str]], until: float) -> None:
+        self.texts, self.until = texts, until
+        self._lines: dict[str, frozenset[int] | None] = {}
+
+    def get(self, path: str, default: Iterable[int] = ()) -> Iterable[int] | None:
+        if path not in self.texts:
+            return default
+        if path not in self._lines:
+            said = proof.changed_lines(*self.texts[path]) if time.monotonic() < self.until else None
+            self._lines[path] = None if said is None else frozenset(said)
+        return self._lines[path]
+
+
+# ruff's word that it found nothing to check (its settings left the files out: `force-exclude`)
+_NONE_FOUND = re.compile(r"^warning: (No Python files found[^\n]*)", re.M)
+
+
 def rows_of(
-    run: Run, code: int | None, output: str, root: Path, added: Mapping[str, Iterable[int]]
+    run: Run,
+    code: int | None,
+    output: str,
+    root: Path,
+    added: Changed | Mapping[str, Iterable[int] | None],
 ) -> list[Row]:
     """A run's lines: each error on a line the turn added or changed in a file it changed is
     failed (at most MOST_FAILED, the rest counted); its warnings there one note, what is on other
-    lines another; none, a pass. An exit with nothing read from its output is said, never
-    failed."""
-    found = problems(run.tool, output, root, run.cwd)
+    lines another, what is in a file too large to compare (`Changed`) another; none, a pass. An
+    exit with nothing read from its output is said, never failed; nor is a run that checked none
+    of the files (W5) a pass."""
     if code is None:
         return [row(STYLE, "note", UNREAD.format(tool=run.tool, why="it did not end"))]
+    if none := _NONE_FOUND.search(_COLOUR.sub("", output)[: MOST_LINE * 8]):
+        said = _one_line(CHECKED_NONE.format(tool=run.tool, said=none[1]))
+        return [row(STYLE, "note", said)]
+    found = problems(run.tool, output, root, run.cwd)
+    ignored = sum(one.said.startswith("eslint - File ignored") for one in found)
+    found = [one for one in found if not one.said.startswith("eslint - File ignored")]
     if code != 0 and not found:
         return [row(STYLE, "note", UNREAD.format(tool=run.tool, why=f"exit {code}"))]
-    lines = {path: set(numbers) for path, numbers in added.items()}
-    ours = [one for one in found if one.line in lines.get(one.path, ())]
+    ours, unjudged = [], Counter[str]()
+    for one in found:
+        if (lines := added.get(one.path, ())) is None:
+            unjudged[one.path] += 1
+        elif one.line in lines:
+            ours.append(one)
     mine = [one for one in ours if one.error]
     rows = [
         row(STYLE, "failed", _one_line(f"{one.path}:{one.line}: {one.said}"))
@@ -438,6 +542,68 @@ def rows_of(
         rows.append(row(STYLE, "note", MORE.format(tool=run.tool, n=len(mine) - MOST_FAILED)))
     if warned := len(ours) - len(mine):
         rows.append(row(STYLE, "note", WARNED.format(tool=run.tool, n=warned)))
-    if elsewhere := len(found) - len(ours):
+    if elsewhere := len(found) - len(ours) - sum(unjudged.values()):
         rows.append(row(STYLE, "note", ELSEWHERE.format(tool=run.tool, n=elsewhere)))
+    if unjudged:
+        paths = ", ".join(sorted(unjudged))
+        said = NOT_JUDGED.format(tool=run.tool, n=sum(unjudged.values()), paths=paths)
+        rows.append(row(STYLE, "note", _one_line(said)))
+    if ignored:
+        rows.append(row(STYLE, "note", IGNORED.format(tool=run.tool, n=ignored)))
     return rows or [row(STYLE, "passed", CLEAN.format(tool=run.tool, n=len(run.files)))]
+
+
+# W5: a tool's settings files - one the turn changed where the run is or above it (or above a
+# file it checks) changes what it checks: said beside what it found. In a file other tools
+# share, its own part: pyproject's [tool.ruff] and [tool.ruff.*] tables, setup.cfg's [mypy].
+# shortcut: by its tables' lines - a dotted key outside them (`tool.ruff.x = 1` under [tool])
+# is not seen; read the TOML if such a key is met.
+_SETTINGS = {
+    "ruff": ("ruff.toml", ".ruff.toml", "pyproject.toml"),
+    "mypy": ("mypy.ini", ".mypy.ini", "pyproject.toml", "setup.cfg"),
+    "eslint": (*_ESLINT_CONFIGS, "package.json"),
+    "tsc": ("tsconfig.json", "jsconfig.json"),
+}
+_PART = {"pyproject.toml": "tool.{tool}", "setup.cfg": "{tool}", "package.json": "eslintConfig"}
+
+
+def settings_changed(
+    run: Run, texts: Mapping[str, tuple[str, str]], gone: Iterable[str] = ()
+) -> str | None:
+    """W5: the note that `run`'s tool's settings changed this turn (`texts`: each file the turn
+    changed, its first before and last after; `gone`: those it deleted) - None: they did not."""
+    places = [PurePosixPath(run.cwd), *(PurePosixPath(one).parent for one in run.files)]
+    places = [PurePosixPath(place.as_posix().casefold()) for place in places]
+    for path in sorted({*texts, *gone}):
+        named = PurePosixPath(path.casefold())
+        if not (
+            named.name in _SETTINGS[run.tool]
+            or run.tool == "tsc"
+            and named.name.startswith("tsconfig.")
+            and named.suffix == ".json"
+        ):
+            continue
+        if not any(named.parent == place or named.parent in place.parents for place in places):
+            continue
+        part = _PART.get(named.name, "").format(tool=run.tool)
+        if part and path in texts and _part(texts[path][0], part) == _part(texts[path][1], part):
+            continue
+        return SETTINGS_CHANGED.format(tool=run.tool, path=path)
+    return None
+
+
+def _part(text: str, name: str) -> list[str]:
+    """The lines of `text`'s [name] and [name.*] tables, [name-*] sections (INI: `[mypy-x.*]`) -
+    or, in JSON, every line where `name` is a key's (package.json's `eslintConfig`: all of it
+    from there on, its end unread)."""
+    out, inside = [], False
+    for line in text.splitlines():
+        head = line.strip()
+        if head.startswith("["):
+            title = head.lstrip("[").split("]")[0].strip()
+            inside = title == name or title.startswith((f"{name}.", f"{name}-"))
+        elif f'"{name}"' in head:
+            inside = True
+        if inside:
+            out.append(line)
+    return out

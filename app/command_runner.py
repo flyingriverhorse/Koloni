@@ -6,13 +6,13 @@ import os
 import re
 import time
 from collections.abc import Awaitable, Callable, Mapping
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
-from sqlalchemy import func, select
+from sqlalchemy import func, literal_column, select, true
 from sqlalchemy.exc import IntegrityError
 
-from app import project_map
+from app import ledger, project_map, proof, proof_style
 from app.cards import card_reason
 from app.commands import ANSI as _ANSI
 from app.commands import (
@@ -32,7 +32,17 @@ from app.commands import (
     standing_asked,
     with_cwd,
 )
-from app.db.models import Agent, AllowedCommand, Command, Conversation, Project, Run, ToolCall, now
+from app.db.models import (
+    Agent,
+    AllowedCommand,
+    Command,
+    Conversation,
+    FileChange,
+    Project,
+    Run,
+    ToolCall,
+    now,
+)
 from app.executors.base import Executor, StartError
 from app.serialize import allowed_command_out, command_event, command_out
 from app.tools import ToolError, plan_command
@@ -165,6 +175,46 @@ def _lapsed(disposable: dict | None, free: bool) -> bool:
 def _noted(disposable: dict | None, unasked: bool) -> dict | None:
     """What of a command goes on its record as disposable (`schemas.DisposableOut`)."""
     return None if disposable is None else {"what": disposable["what"], "unasked": unasked}
+
+
+PLANTED = "an agent wrote its program ({place}): no rule covers a program an agent wrote"
+
+
+def _planted(session, project_id: str, root: Path, command: str, cwd: str) -> str | None:
+    """W2: why `command` asks where a rule (or the level) would cover it - an Always rule matches
+    by its text, in any folder: its program, named by its path, is one an agent wrote on record -
+    any turn's, as it still stands in `root` (`proof_style.still_written`) -, or is in the install
+    folder such a write is in (`proof_style.wrote_program`). None: no such write.
+    shortcut: the program alone - a script an interpreter is given (`node x.js`) is not judged
+    so; judge it too if a rule of one is seen to run one an agent wrote."""
+    words = command.split()
+    words = words[1:] if words[:1] in (["&"], ["."]) else words  # (PowerShell's call)
+    program = words[0].strip("'\"") if words else ""
+    parts = PurePosixPath(program.replace("\\", "/")).parts
+    if not parts or ("/" not in program and "\\" not in program):
+        return None
+    named = next(
+        (part for part in parts if part.casefold() in proof_style.INSTALLS),
+        parts[-1].split(".")[0],
+    ).lower()
+    found = session.execute(
+        select(FileChange.path, FileChange.after_sha)
+        .join(Run, Run.id == FileChange.run_id)
+        .join(Conversation, Conversation.id == Run.conversation_id)
+        .where(
+            Conversation.project_id == project_id,
+            FileChange.status.in_((*ledger.KEPT, proof.MERGED)),
+            # (SQLite lowers ASCII alone: another name is looked for in every path)
+            func.lower(FileChange.path).contains(named, autoescape=True)
+            if named.isascii()
+            else true(),
+        )
+        .order_by(FileChange.created_at, literal_column("file_changes.rowid"))
+    ).all()
+    newest = {path: digest for path, digest in found}
+    held = proof_style.still_written(root, newest.items())
+    place = proof_style.wrote_program(root, cwd, program, held)
+    return PLANTED.format(place=place) if place else None
 
 
 HELD_BACK = (
@@ -332,6 +382,21 @@ class CommandRunner:
             # (Judged with its cwd, `with_cwd`: `cwd=.koloni/tmp` and `.. ` reach out of it.)
             judged = with_cwd(planned.command, planned.cwd_rel)
             free = _free(ask, disposable, conversation.permission_mode, project.disposable_deletes)
+            covered = (
+                is_allowed(planned.command, prefixes)
+                or reads
+                or own
+                or free
+                or planned.command in (once or ())
+            )
+            # W2: never a program an agent wrote, by a rule or a yes given before - on its card.
+            planted = (
+                _planted(session, project.id, ws.root, planned.command, planned.cwd_rel)
+                if ask and covered and conversation.permission_mode != "full_auto"
+                else None
+            )
+            if planted and asked is not None and not asked.why_asked:
+                asked.why_asked = planted
             asks = ask and (
                 always
                 or names_secret(judged)
@@ -342,16 +407,7 @@ class CommandRunner:
                 or _lapsed(disposable, free)
                 or (
                     conversation.permission_mode != "full_auto"
-                    and (
-                        planned.keep_running
-                        or not (
-                            is_allowed(planned.command, prefixes)
-                            or reads
-                            or own
-                            or free
-                            or planned.command in (once or ())
-                        )
-                    )
+                    and (planned.keep_running or not covered or bool(planted))
                 )
             )
             # The place is fixed now: changing the project setting while this command

@@ -73,6 +73,30 @@ def test_the_whole_suite_says_the_share_of_the_changed_lines_run(
     assert not list((project_dir / ".koloni" / "tmp").glob("coverage-*"))  # (read, then gone)
 
 
+def test_a_file_too_large_to_compare_is_said_never_counted(
+    make_client, wait_run, project_dir, monkeypatch
+):
+    # W4: its lines are compared in bounded time - one past it is left out of the share, said
+    from app import proof
+
+    real = proof.changed_lines
+    monkeypatch.setattr(
+        proof, "changed_lines", lambda a, b: None if b == "big = 1\n" else real(a, b)
+    )
+    with_cov(project_dir)
+    executor = Measuring([PASS], {"a.py": ([1, 2], [3]), "big.py": ([], [1])})
+    client, _model = make_client(
+        [write("a.py", THREE), write("big.py", "big = 1\n", "w2"), text("done")],
+        executor=executor,
+    )
+    cid, run_id = begin(client, project_dir, check_command=PYTEST)
+    rows = texts(wait_run(client, cid, run_id))
+    assert rows[1:] == [
+        coverage_mixin.MEASURED.format(p=67, tool="pytest-cov"),
+        coverage_mixin.NOT_COUNTED.format(paths="big.py"),
+    ], rows
+
+
 def test_no_tool_no_row_and_no_flags(make_client, wait_run, project_dir):
     executor = ScriptedExecutor([PASS])
     client, _model = make_client([write("a.py", THREE), text("done")], executor=executor)

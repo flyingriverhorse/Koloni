@@ -276,3 +276,20 @@ async def test_objects_left_on_the_pipeline_are_printed_as_text(tmp_path):
     # a command that ends in a top-level `return` leaves the block early and still exits 0
     output, code = await run("echo hi; return", tmp_path)
     assert code == 0 and output.strip() == "hi"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="cmd.exe's search of the folder it runs in")
+async def test_a_shim_s_bare_node_is_not_the_one_written_in_the_folder(tmp_path, monkeypatch):
+    # W1: an npm .cmd shim calls a bare `node` through cmd.exe, which looked in its folder first
+    monkeypatch.delenv("NoDefaultCurrentDirectoryInExePath", raising=False)
+    (tmp_path / "node.cmd").write_text("@echo planted> planted.txt\n", encoding="utf-8")
+    (tmp_path / "bin").mkdir()
+    (tmp_path / "bin" / "tool.cmd").write_text("@node --version\n", encoding="utf-8")
+    output, _code = await run("& .\\bin\\tool.cmd", tmp_path)
+    assert not (tmp_path / "planted.txt").exists(), output
+    monkeypatch.setenv("NODEFAULTCURRENTDIRECTORYINEXEPATH", "0")  # (the user's: one spelling)
+    env = host.command_env()
+    assert [k for k in env if k.upper() == "NODEFAULTCURRENTDIRECTORYINEXEPATH"] == [
+        "NoDefaultCurrentDirectoryInExePath"
+    ]
+    assert env["NoDefaultCurrentDirectoryInExePath"] == "1"

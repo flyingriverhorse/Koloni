@@ -2,12 +2,14 @@
 project's test command(s), the turn's changes on record, whether a test run on record stands for
 this turn's, and the rows of the Checked section KOLONİ writes under the answer (`ProofMixin`)."""
 
+import bisect
 import difflib
 import fnmatch
 import hashlib
 import json
 import os
 import re
+from collections import Counter
 from collections.abc import Collection, Iterable
 from datetime import datetime
 from pathlib import Path, PurePosixPath
@@ -278,33 +280,104 @@ def before_of(session: Session, run_id: str) -> dict[str, str | None]:
 
 def added_lines(
     session: Session, run_id: str, lead_id: str, sharing: Collection[str] = ()
-) -> dict[str, list[int]]:
+) -> dict[str, list[int] | None]:
     """S9: the lines the turn added (or rewrote) in each in-project file, by their number in
-    the file as it now is - from its first before to its last after on record."""
+    the file as it now is - from its first before to its last after on record. None: a file
+    too large to compare (`changed_lines`), counted by none."""
+    out: dict[str, list[int] | None] = {}
+    for path, (before, after) in turn_texts(session, run_id, lead_id, sharing).items():
+        if (lines := changed_lines(before, after)) is None or lines:
+            out[path] = lines
+    return out
+
+
+def turn_texts(
+    session: Session, run_id: str, lead_id: str, sharing: Collection[str] = ()
+) -> dict[str, tuple[str, str]]:
+    """Each in-project file the turn kept a change of, as (its first before, its last after)
+    on record - what `changed_lines` compares, for the files it is wanted for alone (W4)."""
     here = {lead_id, *sharing}
-    out: dict[str, list[int]] = {}
+    out: dict[str, tuple[str, str]] = {}
     for path, made in _kept(session, run_id).items():
         last = made[-1]
         if not (last.status in ("applied", MERGED) or last.agent_id in here) or (
             last.kind == "delete"
         ):
             continue
-        if lines := changed_lines(made[0].before_content or "", last.after_content or ""):
-            out[path] = lines
+        out[path] = (made[0].before_content or "", last.after_content or "")
     return out
 
 
-def changed_lines(before: str, after: str) -> list[int]:
+# W4: difflib alone (autojunk off) grew past the square of a file's lines - 1 000 repeated lines
+# 1.8 s, a 21 000-line file with every 40th line changed 127 s (measured). Lines found once on
+# each side anchor it first (patience); difflib compares only what lies between, at most
+# MOST_COMPARED line pairs in all (about 2 s at worst), and the whole scans at most
+# COMPARE_STEPS lines.
+MOST_COMPARED = 1_000_000
+COMPARE_STEPS = 2_000_000
+
+
+def changed_lines(before: str, after: str) -> list[int] | None:
     """The numbers of the lines `after` added or rewrote, counted as the tools count them
-    (`_lines`)."""
-    return [
-        number + 1
-        for tag, _a, _b, start, end in difflib.SequenceMatcher(
-            None, _lines(before), _lines(after), autojunk=False
-        ).get_opcodes()
-        if tag in ("replace", "insert")
-        for number in range(start, end)
-    ]
+    (`_lines`); None: too large to compare in the time it may take - never "nothing changed"."""
+    a, b = _lines(before), _lines(after)
+    out: list[int] = []
+    steps, compared, stack = 0, 0, [(0, len(a), 0, len(b))]
+    while stack:
+        alo, ahi, blo, bhi = stack.pop()
+        while alo < ahi and blo < bhi and a[alo] == b[blo]:
+            alo, blo = alo + 1, blo + 1
+        while alo < ahi and blo < bhi and a[ahi - 1] == b[bhi - 1]:
+            ahi, bhi = ahi - 1, bhi - 1
+        steps += (ahi - alo) + (bhi - blo)
+        if steps > COMPARE_STEPS:
+            return None
+        if blo == bhi or alo == ahi:  # (only taken out, or only added)
+            out.extend(range(blo + 1, bhi + 1))
+            continue
+        if anchors := _anchors(a, alo, ahi, b, blo, bhi):
+            for (i, j), (k, m) in zip(
+                [(alo - 1, blo - 1), *anchors], [*anchors, (ahi, bhi)], strict=True
+            ):
+                stack.append((i + 1, k, j + 1, m))
+            continue
+        compared += (ahi - alo) * (bhi - blo)
+        if compared > MOST_COMPARED:
+            return None
+        matcher = difflib.SequenceMatcher(None, a[alo:ahi], b[blo:bhi], autojunk=False)
+        out += [
+            blo + number + 1
+            for tag, _a, _b, start, end in matcher.get_opcodes()
+            if tag in ("replace", "insert")
+            for number in range(start, end)
+        ]
+    return sorted(out)
+
+
+def _anchors(
+    a: list[str], alo: int, ahi: int, b: list[str], blo: int, bhi: int
+) -> list[tuple[int, int]]:
+    """The lines once in a[alo:ahi] and once in b[blo:bhi], the longest run of them in the same
+    order on both sides (patience sorting), as (index in a, index in b)."""
+    once_a, once_b = Counter(a[alo:ahi]), Counter(b[blo:bhi])
+    where_b = {b[j]: j for j in range(blo, bhi) if once_b[b[j]] == 1}
+    pairs = [(i, where_b[a[i]]) for i in range(alo, ahi) if once_a[a[i]] == 1 and a[i] in where_b]
+    tails: list[int] = []
+    tops: list[int] = []
+    back: list[int | None] = []
+    for k, (_i, j) in enumerate(pairs):
+        at = bisect.bisect_left(tails, j)
+        back.append(tops[at - 1] if at else None)
+        if at == len(tails):
+            tails.append(j)
+            tops.append(k)
+        else:
+            tails[at], tops[at] = j, k
+    found, k = [], tops[-1] if tops else None
+    while k is not None:
+        found.append(pairs[k])
+        k = back[k]
+    return found[::-1]
 
 
 def _lines(text: str) -> list[str]:
