@@ -90,6 +90,9 @@ import type {
   RecipeDraft,
   BacklogDraft,
   Recipes,
+  Goal,
+  Story,
+  TodoTree,
 } from '../api/types'
 import type { RoleValues } from '../agents/AgentsPage'
 import type { RoleChange } from '../agents/RolePanel'
@@ -235,7 +238,20 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   backlogError: string | null
   /** Its switch, read with it; null until then. */
   backlogAuto: BacklogAuto | null
+  /** 0.1.8: its stories and goals, read with it; null until then. */
+  stories: Story[] | null
+  goals: Goal[] | null
   loadBacklog(): Promise<void>
+  /** A goal or a story of the open project added, changed or deleted (what was under it stays); each throws ApiError. */
+  addGoal(title: string): Promise<Goal>
+  changeGoal(goalId: string, change: { title?: string; position?: number }): Promise<void>
+  deleteGoal(goalId: string): Promise<void>
+  addStory(title: string, goalId?: string | null): Promise<Story>
+  changeStory(
+    storyId: string,
+    change: { title?: string; goal_id?: string | null; position?: number; closed?: boolean },
+  ): Promise<void>
+  deleteStory(storyId: string): Promise<void>
   /** Turn on or off the backlog running by itself (off drops what Run the backlog queued). Throws ApiError. */
   setBacklogAuto(on: boolean): Promise<void>
   /** The level and model the chats the backlog opens from now start with (B-350). Throws ApiError. */
@@ -751,6 +767,8 @@ export const useApp = create<AppStore>()((set, get) => {
       backlog: null,
       backlogError: null,
       backlogAuto: null,
+      stories: null,
+      goals: null,
       away: null,
       triggers: null,
       triggersError: null,
@@ -1168,6 +1186,8 @@ export const useApp = create<AppStore>()((set, get) => {
     backlog: null,
     backlogError: null,
     backlogAuto: null,
+    stories: null,
+    goals: null,
 
     async loadBacklog() {
       const { projectId } = get()
@@ -1175,11 +1195,13 @@ export const useApp = create<AppStore>()((set, get) => {
       // Only the latest reading counts, as with the memory.
       const mine = ++backlogReads
       try {
-        const [backlog, backlogAuto] = await Promise.all([
+        const [backlog, backlogAuto, tree] = await Promise.all([
           api.get<BacklogTask[]>('/projects/' + projectId + '/backlog'),
           api.get<BacklogAuto>('/projects/' + projectId + '/backlog/auto' + inChat(get())),
+          api.get<TodoTree>('/projects/' + projectId + '/stories'),
         ])
-        if (mine === backlogReads) set({ backlog, backlogAuto, backlogError: null })
+        if (mine === backlogReads)
+          set({ backlog, backlogAuto, stories: tree.stories, goals: tree.goals, backlogError: null })
       } catch (err) {
         if (mine === backlogReads) set({ backlogError: errorText(err) })
       }
@@ -1195,6 +1217,38 @@ export const useApp = create<AppStore>()((set, get) => {
       const saving = api.put<BacklogAuto>('/projects/' + get().projectId + '/backlog/choice', choice)
       backlogChoice = saving.catch(() => {}) // (its error is said beside the choice)
       set({ backlogAuto: await saving })
+    },
+
+    async addGoal(title) {
+      const goal = await api.post<Goal>('/projects/' + get().projectId + '/goals', { title })
+      await get().loadBacklog()
+      return goal
+    },
+
+    async changeGoal(goalId, change) {
+      await api.patch('/goals/' + goalId, change)
+      await get().loadBacklog()
+    },
+
+    async deleteGoal(goalId) {
+      await api.delete('/goals/' + goalId)
+      await get().loadBacklog()
+    },
+
+    async addStory(title, goalId = null) {
+      const story = await api.post<Story>('/projects/' + get().projectId + '/stories', { title, goal_id: goalId })
+      await get().loadBacklog()
+      return story
+    },
+
+    async changeStory(storyId, change) {
+      await api.patch('/stories/' + storyId, change)
+      await get().loadBacklog()
+    },
+
+    async deleteStory(storyId) {
+      await api.delete('/stories/' + storyId)
+      await get().loadBacklog()
     },
 
     async addTask(task) {

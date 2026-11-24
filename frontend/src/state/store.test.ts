@@ -1402,7 +1402,35 @@ test('what an event of the open chat has the page read again, in the order it as
   expect(await on('backlog.changed')).toEqual([
     'GET /api/projects/p/backlog',
     'GET /api/projects/p/backlog/auto?conversation_id=a',
+    'GET /api/projects/p/stories',
     ...rest,
+  ])
+})
+
+test('0.1.8: the stories and goals are read with the backlog, and each change of one reads them again', async () => {
+  const asked: string[] = []
+  vi.mocked(fetch).mockImplementation(async (url, init) => {
+    asked.push(`${init?.method ?? 'GET'} ${String(url)}${init?.body ? ` ${String(init.body)}` : ''}`)
+    const tree = { goals: [{ id: 'g' }], stories: [{ id: 's' }] }
+    const read = (init?.method ?? 'GET') === 'GET' && String(url).endsWith('/stories')
+    return new Response(JSON.stringify(read ? tree : { id: 'new' }), { status: 200 })
+  })
+  useApp.setState({ projectId: 'p', conv: null })
+  await useApp.getState().loadBacklog()
+  expect(useApp.getState().stories).toEqual([{ id: 's' }])
+  expect(useApp.getState().goals).toEqual([{ id: 'g' }])
+  asked.length = 0
+  expect(await useApp.getState().addStory('Login', 'g')).toEqual({ id: 'new' })
+  await useApp.getState().changeStory('s', { goal_id: null })
+  await useApp.getState().deleteGoal('g')
+  const reads = ['GET /api/projects/p/backlog', 'GET /api/projects/p/backlog/auto', 'GET /api/projects/p/stories']
+  expect(asked).toEqual([
+    `POST /api/projects/p/stories ${JSON.stringify({ title: 'Login', goal_id: 'g' })}`,
+    ...reads,
+    `PATCH /api/stories/s ${JSON.stringify({ goal_id: null })}`,
+    ...reads,
+    'DELETE /api/goals/g',
+    ...reads,
   ])
 })
 

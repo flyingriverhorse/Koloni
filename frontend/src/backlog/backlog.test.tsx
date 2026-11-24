@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import userEvent from '@testing-library/user-event'
 import { expect, test, vi } from 'vitest'
-import type { Away, AwayJob, BacklogAuto, BacklogTask, Board, Provider } from '../api/types'
+import type { Away, AwayJob, BacklogAuto, BacklogTask, Board, Goal, Provider, Story } from '../api/types'
 import { waitingTotal } from '../board/waiting'
 import { BacklogPage, HIVE_KEEPER_DOES, PLAN_ASK, WaitRow } from './BacklogPage'
 
@@ -49,6 +49,9 @@ const page = () => ({
   onRun: vi.fn(async () => {}),
   onOpen: vi.fn(),
 })
+
+/** The form a task is added in (the bar's Hive keeper button opens it too). */
+const addForm = () => within(screen.getByRole('form', { name: 'Add a task' }))
 
 /** A task's ⋯, opened: its menu. */
 async function more(title: string) {
@@ -608,9 +611,9 @@ test('the note is written as tasks once there is text: each changed, added by yo
       onPlan={vi.fn(async () => {})}
     />,
   )
-  expect(screen.queryByRole('button', { name: 'Write it with the Hive keeper' })).toBeNull()
+  expect(addForm().queryByRole('button', { name: 'Write it with the Hive keeper' })).toBeNull()
   await userEvent.type(screen.getByLabelText('Title'), 'login mobilde bozuk')
-  const write = screen.getByRole('button', { name: 'Write it with the Hive keeper' })
+  const write = addForm().getByRole('button', { name: 'Write it with the Hive keeper' })
   // Who writes them and what it costs, in sight - never behind a ⓘ.
   expect(write).toHaveAccessibleDescription(
     `${HIVE_KEEPER_DOES} Cloud (mini) writes them: one request you pay for. Nothing is saved until you add it.`,
@@ -665,7 +668,7 @@ test('with no model to ask the button says why; Plan it in a chat asks for the H
     />,
   )
   await userEvent.type(screen.getByLabelText('Title'), 'şifre sıfırlama lazım')
-  const write = screen.getByRole('button', { name: 'Write it with the Hive keeper' })
+  const write = addForm().getByRole('button', { name: 'Write it with the Hive keeper' })
   expect(write).toBeDisabled()
   expect(write).toHaveAccessibleDescription(`${HIVE_KEEPER_DOES} ${why}`)
   await userEvent.click(screen.getByRole('button', { name: 'Plan it in a chat' }))
@@ -682,7 +685,7 @@ test('while Add all runs, the drafts are held: none is changed and added twice',
   }))
   render(<BacklogPage {...props} backlog={[]} providers={[paid]} auto={drafter()} onDraft={onDraft} />)
   await userEvent.type(screen.getByLabelText('Title'), 'a note')
-  await userEvent.click(screen.getByRole('button', { name: 'Write it with the Hive keeper' }))
+  await userEvent.click(addForm().getByRole('button', { name: 'Write it with the Hive keeper' }))
   const drafts = await screen.findByRole('region', { name: 'Drafted tasks' })
   await userEvent.click(within(drafts).getByRole('button', { name: 'Add all' }))
   expect(within(drafts).getByLabelText('Title')).toBeDisabled()
@@ -776,7 +779,7 @@ test('who writes the drafts is said by what is known: a model named for it, the 
     <BacklogPage {...props} backlog={[]} providers={[paid]} auto={drafter({ model_id: 'big' })} onDraft={vi.fn()} />,
   )
   await userEvent.type(screen.getByLabelText('Title'), 'x')
-  const write = () => screen.getByRole('button', { name: 'Write it with the Hive keeper' })
+  const write = () => addForm().getByRole('button', { name: 'Write it with the Hive keeper' })
   expect(write()).toHaveAccessibleDescription(
     `${HIVE_KEEPER_DOES} Cloud (big) writes them: one request you pay for. Nothing is saved until you add it.`,
   )
@@ -803,7 +806,7 @@ test('who writes the drafts is said by what is known: a model named for it, the 
   expect(write()).toBeDisabled()
   // with no way to draft, neither the button nor its line
   rerender(<BacklogPage {...props} backlog={[]} providers={[paid]} auto={drafter()} onPlan={vi.fn(async () => {})} />)
-  expect(screen.queryByRole('button', { name: 'Write it with the Hive keeper' })).toBeNull()
+  expect(addForm().queryByRole('button', { name: 'Write it with the Hive keeper' })).toBeNull()
   expect(document.getElementById('draft-who')).toBeNull()
   expect(screen.getByRole('button', { name: 'Plan it in a chat' })).toBeEnabled()
 })
@@ -822,9 +825,137 @@ test('while the drafts are written the button says so, and neither it nor Plan i
     />,
   )
   await userEvent.type(screen.getByLabelText('Title'), 'x')
-  await userEvent.click(screen.getByRole('button', { name: 'Write it with the Hive keeper' }))
+  await userEvent.click(addForm().getByRole('button', { name: 'Write it with the Hive keeper' }))
   expect(await screen.findByRole('button', { name: 'Writing…' })).toBeDisabled()
   expect(screen.getByRole('button', { name: 'Writing…' })).toHaveAttribute('aria-describedby', 'draft-who')
   expect(screen.getByRole('button', { name: 'Plan it in a chat' })).toBeDisabled()
   expect(screen.getByRole('button', { name: 'Add task' })).toBeEnabled()
+})
+
+// 0.1.8: To-do as a tree - goals, their stories, tasks and bugs, the tasks of no story; the filters; a task's story and type.
+const note = (text: string) => ({ kind: 'decision', text, by: 'Orchestrator', at: '2026-11-24T10:00:00Z' })
+const STORIES: Story[] = [
+  {
+    id: 's1',
+    goal_id: 'g1',
+    title: 'Şifre sıfırlama',
+    position: 0,
+    state: 'running',
+    notes: ['a', 'b', 'c', 'd'].map(note),
+    created_by: 'user',
+    closed_at: null,
+  },
+  {
+    id: 's2',
+    goal_id: 'g1',
+    title: 'Login düzelt',
+    position: 1,
+    state: 'done',
+    notes: [],
+    created_by: 'user',
+    closed_at: '2026-11-24T09:00:00Z',
+  },
+]
+const GOALS: Goal[] = [
+  {
+    id: 'g1',
+    title: 'Kullanıcı girişi sağlam olsun',
+    position: 0,
+    created_by: 'user',
+    stories_done: 1,
+    stories_all: 2,
+  },
+]
+const TREE_TASKS = [
+  task({ id: 't1', title: 'E-posta gönderimi', story_id: 's1', status: 'doing', conversation_id: 'c1' }),
+  task({ id: 't2', title: 'Mobilde buton kayık', story_id: 's2', kind: 'bug', status: 'done', position: 1 }),
+  task({ id: 't3', title: 'Footer’daki yıl yanlış', position: 2 }),
+]
+
+test('the tree: a goal with its stories done, a story’s notes, state and chat, a bug, the tasks of no story; the filters', async () => {
+  const props = page()
+  render(<BacklogPage {...props} backlog={TREE_TASKS} stories={STORIES} goals={GOALS} chats={{ c1: 'Auth work' }} />)
+  const tree = screen.getByRole('list', { name: 'Tasks' })
+  const goal = within(tree).getByRole('listitem', { name: 'Kullanıcı girişi sağlam olsun' })
+  expect(goal).toHaveTextContent('Goal')
+  expect(goal).toHaveTextContent('1 / 2 stories')
+  expect(within(goal).getByRole('progressbar')).toHaveAttribute('aria-valuenow', '1')
+  const running = within(tree).getByRole('listitem', { name: 'Şifre sıfırlama' })
+  expect(within(running).getByRole('button', { name: '4 notes' })).toBeVisible()
+  expect(running).toHaveTextContent('● running')
+  expect(running).toHaveTextContent('in “Auth work”')
+  expect(within(tree).getByRole('listitem', { name: 'Login düzelt' })).toHaveTextContent('✓ done')
+  expect(within(within(tree).getByRole('listitem', { name: 'Mobilde buton kayık' })).getByText('bug')).toHaveClass(
+    'tag-del',
+  )
+  expect(within(tree).getByText('Without a story')).toBeVisible()
+  // The notebook, opened: what is in it, as written.
+  await userEvent.click(within(running).getByRole('button', { name: '4 notes' }))
+  expect(screen.getByRole('dialog', { name: 'Notebook of Şifre sıfırlama' })).toHaveTextContent('Decision a')
+  await userEvent.keyboard('{Escape}')
+  // Done: only the done task, under its story and goal.
+  await userEvent.click(screen.getByRole('button', { name: 'Done', pressed: false }))
+  expect(
+    within(tree)
+      .getAllByRole('listitem')
+      .map(row => row.getAttribute('aria-labelledby') && row.querySelector('strong')?.textContent),
+  ).toEqual(['Kullanıcı girişi sağlam olsun', 'Login düzelt', 'Mobilde buton kayık'])
+})
+
+test('a story’s tick ticks its open tasks; ⋯ Goal moves it to another goal or a new one', async () => {
+  const props = page()
+  const tree = {
+    onGoal: vi.fn(async () => {}),
+    onDeleteGoal: vi.fn(async () => {}),
+    onStory: vi.fn(async () => {}),
+    onDeleteStory: vi.fn(async () => {}),
+    onNewGoal: vi.fn(async (title: string) => ({ ...GOALS[0], id: 'g2', title })),
+    onNewStory: vi.fn(async (title: string) => ({ ...STORIES[0], id: 's9', title })),
+  }
+  const backlog = [
+    task({ title: 'one', story_id: 's1' }),
+    task({ title: 'two', story_id: 's1', status: 'done', position: 1 }),
+  ]
+  render(<BacklogPage {...props} backlog={backlog} stories={STORIES} goals={GOALS} tree={tree} />)
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Tick the story Şifre sıfırlama' }))
+  expect(screen.getByRole('checkbox', { name: 'Tick one' })).toBeChecked()
+  expect(screen.getByRole('checkbox', { name: 'Tick two' })).toBeDisabled() // (done: nothing to do in a chat)
+  await userEvent.click(screen.getByRole('button', { name: 'Şifre sıfırlama: more' }))
+  expect(
+    within(screen.getByRole('menu'))
+      .getAllByRole('menuitem')
+      .map(item => item.textContent),
+  ).toEqual(['Rename', 'Goal', 'Delete'])
+  await userEvent.click(screen.getByRole('menuitem', { name: 'Goal' }))
+  await userEvent.selectOptions(screen.getByLabelText('Goal of Şifre sıfırlama'), 'New goal…')
+  await userEvent.type(screen.getByLabelText('Rename “”'), 'Sign-in{Enter}')
+  expect(tree.onNewGoal).toHaveBeenCalledWith('Sign-in')
+  expect(tree.onStory).toHaveBeenCalledWith('s1', { goal_id: 'g2' })
+})
+
+test('Edit gives a task its story and its type; a new story is made by its title', async () => {
+  const props = page()
+  const onNewStory = vi.fn(async (title: string) => ({ ...STORIES[0], id: 's9', title }))
+  const tree = {
+    onGoal: vi.fn(),
+    onDeleteGoal: vi.fn(),
+    onStory: vi.fn(),
+    onDeleteStory: vi.fn(),
+    onNewGoal: vi.fn(),
+    onNewStory,
+  }
+  render(<BacklogPage {...props} backlog={[task({ title: 'lone' })]} stories={STORIES} goals={GOALS} tree={tree} />)
+  await userEvent.click(within(await more('lone')).getByRole('menuitem', { name: 'Edit' }))
+  const form = screen.getByRole('form', { name: 'Edit lone' })
+  await userEvent.selectOptions(within(form).getByLabelText('Story'), 'Login düzelt')
+  await userEvent.selectOptions(within(form).getByLabelText('Type'), 'bug')
+  await userEvent.click(within(form).getByRole('button', { name: 'Save' }))
+  expect(props.onChange).toHaveBeenLastCalledWith('lone', expect.objectContaining({ story_id: 's2', kind: 'bug' }))
+  await userEvent.click(within(await more('lone')).getByRole('menuitem', { name: 'Edit' }))
+  const again = screen.getByRole('form', { name: 'Edit lone' })
+  await userEvent.selectOptions(within(again).getByLabelText('Story'), 'New story…')
+  await userEvent.type(within(again).getByLabelText('New story’s title'), 'Footer{Enter}')
+  expect(onNewStory).toHaveBeenCalledWith('Footer')
+  await userEvent.click(within(again).getByRole('button', { name: 'Save' }))
+  expect(props.onChange).toHaveBeenLastCalledWith('lone', expect.objectContaining({ story_id: 's9' }))
 })
