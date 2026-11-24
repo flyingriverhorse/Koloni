@@ -3386,7 +3386,8 @@ export interface paths {
         /**
          * Fill From Catalogue
          * @description A team guide proposed from the catalogue and the provider's own list; nothing is
-         *     saved: the user looks it over and saves it. The user's, from the app's own page.
+         *     saved: the user looks it over and saves it. The user's, from the app's own page. Copilot's
+         *     account is asked first where that is due: only what it offers is proposed.
          */
         post: operations["fill_from_catalogue_api_providers__provider_id__fill_from_catalogue_post"];
         delete?: never;
@@ -3504,6 +3505,28 @@ export interface paths {
         get: operations["provider_models_api_providers__provider_id__models_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/providers/{provider_id}/offers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Provider Offers
+         * @description What a Copilot account offers, as the Models page and the chat's model panel open: asked
+         *     (`models.list` and `account.getQuota`, no model turn) where that is due, the provider's rows
+         *     switched by it; the provider as it then is. Any other provider is answered as it is.
+         */
+        post: operations["provider_offers_api_providers__provider_id__offers_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5834,13 +5857,16 @@ export interface components {
         };
         /**
          * CatalogueFillOut
-         * @description A team guide proposed from the catalogue, not saved; how many did not fit.
+         * @description A team guide proposed from the catalogue, not saved; how many did not fit, and why
+         *     nothing more could be proposed where that is so (a Copilot account that lists no models).
          */
         CatalogueFillOut: {
             /** Left Out */
             left_out: number;
             /** Models */
             models: components["schemas"]["ProviderModel"][];
+            /** Note */
+            note?: string | null;
         };
         /** CatalogueFreshIn */
         CatalogueFreshIn: {
@@ -6584,6 +6610,16 @@ export interface components {
             deleted: string[];
             /** Refused */
             refused: components["schemas"]["NotDeleted"][];
+        };
+        /**
+         * CopilotOffers
+         * @description What a Copilot account offered when last asked: its models' ids and Auto's tiers.
+         */
+        CopilotOffers: {
+            /** Models */
+            models: string[];
+            /** Tiers */
+            tiers: components["schemas"]["OfferedTier"][];
         };
         /**
          * CopyCountOut
@@ -8587,6 +8623,27 @@ export interface components {
              */
             status: "waiting" | "added" | "discarded";
         };
+        /**
+         * OfferedTier
+         * @description One of Auto's tiers as Copilot's `models.list` said it of the account (`copilot_offers`).
+         */
+        OfferedTier: {
+            /** Enabled */
+            enabled: boolean;
+            /** Fusion */
+            fusion?: string | null;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "auto" | "fusion";
+            /** Why */
+            why?: string | null;
+        };
         /** OpenIn */
         OpenIn: {
             /** Code */
@@ -9448,7 +9505,7 @@ export interface components {
             /** Off Why */
             off_why?: string | null;
             /** Routing */
-            routing?: ("efficiency" | "balance" | "intelligence" | "standard" | "high" | "max") | null;
+            routing?: ("efficiency" | "balance" | "intelligence" | "fast" | "standard" | "high" | "max") | null;
             /** Tier */
             tier?: ("fast" | "balanced" | "strongest") | null;
         };
@@ -9517,6 +9574,7 @@ export interface components {
             } | null;
             /** Note */
             note: string | null;
+            offers?: components["schemas"]["CopilotOffers"] | null;
             /** Only Listed */
             only_listed: boolean;
             /** Options */
@@ -18402,6 +18460,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProviderModelsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    provider_offers_api_providers__provider_id__offers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderOut"];
                 };
             };
             /** @description Validation Error */

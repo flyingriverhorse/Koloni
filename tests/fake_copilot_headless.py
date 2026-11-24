@@ -12,7 +12,8 @@ gave to a permission request ("answers"). Asked `status.get`, at any point, it s
 "updated" if it names one (the package Copilot updated itself to in the user's home, not the one
 KOLONİ runs), else its "version". Its ping and `status.get` say the plan's "protocol" (default 3;
 "handshake": "version" makes only the ping say 2). Asked `models.list`, at any point, it answers the plan's
-"models" (none: []). Given no "koloni" MCP server in session.create, it opens no bridge. A
+"models" (none: []) and its "auto" (Auto's tiers, as 1.0.114 said them on 24 Nov 2026: test_copilot_offers.MEASURED_AUTO;
+none: no "auto"), "models_error" refusing it, "models_hang" never answering it. Given no "koloni" MCP server in session.create, it opens no bridge. A
 shell step's "{cwd}" in its output is the folder it works in. Asked `account.getQuota`, at any point, it answers
 the plan's "quota" ("quota_hang": never); asked `auth.getStatus`, signed in by gh unless "signed_in" is false; asked
 `sandbox.getHostSupport`, the plan's "sandbox" (a shell step's "sandboxed": it ran in it). Its session
@@ -138,7 +139,13 @@ def send(message: dict) -> None:
 def heard() -> dict:
     while (told := framed()).get("method") in ("account.getQuota", "status.get", "models.list"):
         if told["method"] == "models.list":
-            send({"id": told["id"], "result": {"models": plan.get("models", [])}})
+            record["models_asked"] = True
+            save()
+            if "models_error" in plan:
+                send({"id": told["id"], "error": {"code": -32603, "message": plan["models_error"]}})
+            elif not plan.get("models_hang"):
+                auto = {"auto": plan["auto"]} if "auto" in plan else {}
+                send({"id": told["id"], "result": {"models": plan.get("models", []), **auto}})
             continue
         if told["method"] == "status.get":  # (its package's version: 1.0.67's app.js, `Vbo`)
             if plan.get("status_error"):

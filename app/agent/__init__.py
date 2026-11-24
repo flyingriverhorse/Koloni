@@ -9319,7 +9319,7 @@ class AgentRunner(
                     if (
                         woken.is_set()
                         or provider is not None
-                        and at_limit(self.providers.limits.last(provider))
+                        and at_limit(self.providers.limits.last(provider), child.model_name)
                     ):
                         return None
             if child.agent_id in self._halted:

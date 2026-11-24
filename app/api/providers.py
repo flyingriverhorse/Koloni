@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from app import catalog, limits, models_dev
 from app.api.deps import get_session, require_origin, require_own_origin
 from app.config import REPO_ROOT, THIS_MACHINE
+from app.copilot_offers import offered_names
 from app.db.models import Agent, Conversation, Flag, OwnRequest, Price, Project, Provider, Role, now
 from app.limits import CLI_HOMES, PROVIDER_ID, account, cli_home, of_session
 from app.model_cli import HOMES
@@ -72,6 +73,15 @@ catalogue_router = APIRouter(prefix="/api/catalog", tags=["providers"])
 session_router = APIRouter(prefix="/api/limits", tags=["providers"])
 
 MAX_NAME = 60
+# A Copilot account that lists no model by name (24 Nov 2026: premium at 0), as a fill says it.
+NONE_LISTED = (
+    "Your Copilot account lists no models by name now: only what it offers is proposed, and "
+    "each other model is switched off until Copilot lists it again."
+)
+ADD_FIRST = (
+    "Add it first: KOLONİ then asks your Copilot account which models it offers, and proposes "
+    "only those."
+)
 # A provider's limits (slice 81c): set from its window's Limits tab only.
 LIMITS = ("plan", "step_down_at", "day_limit", "month_limit")
 
@@ -628,6 +638,37 @@ def make_default(provider_id: str, session: Session = Depends(get_session)):
     return provider
 
 
+def _offers(provider: Provider) -> dict | None:
+    """What a Copilot account on GitHub's plan offered when last asked (`Limits._offered`);
+    None: not asked yet, or another provider."""
+    return provider.offers if provider.kind == "copilot_cli" and not provider.base_url else None
+
+
+async def read_offers(request: Request, session: Session, provider: Provider) -> None:
+    """Copilot's account asked what it offers and what is left of its plan (`Limits.refresh`)
+    where that is due - at most once in ten minutes - and waited for: the provider's row as
+    that left it. Not due, nothing is asked."""
+    reading = request.app.state.providers.limits.refresh(provider)
+    if reading is not None:
+        await asyncio.shield(reading)
+        session.refresh(provider)
+
+
+@router.post(
+    "/{provider_id}/offers", response_model=ProviderOut, dependencies=[Depends(require_origin)]
+)
+async def provider_offers(
+    provider_id: str, request: Request, session: Session = Depends(get_session)
+):
+    """What a Copilot account offers, as the Models page and the chat's model panel open: asked
+    (`models.list` and `account.getQuota`, no model turn) where that is due, the provider's rows
+    switched by it; the provider as it then is. Any other provider is answered as it is."""
+    provider = _provider(session, provider_id)
+    if provider.kind == "copilot_cli":
+        await read_offers(request, session, provider)
+    return provider
+
+
 @router.get("/{provider_id}/models", response_model=ProviderModelsOut)
 async def provider_models(
     provider_id: str, request: Request, session: Session = Depends(get_session)
@@ -645,6 +686,8 @@ async def provider_models(
         )
     ]
     listed, note, advice = await _own_list(provider, request.app.state.providers)
+    if _offers(provider) is not None:  # (only what its account offers: not the catalogue's)
+        known = [name for name in known if name in listed]
     # (Not one the user switched off: nobody may pick it.)
     off = {m["name"] for m in provider.models or [] if m.get("enabled") is False}
     return ProviderModelsOut(
@@ -665,6 +708,9 @@ def fill_new_from_catalogue(body: CatalogueFillIn, request: Request):
     list from yet (its own list comes once it is added). Nothing is saved."""
     if body.kind not in KINDS:
         raise HTTPException(422, f"unknown kind: {body.kind}")
+    if body.kind == "copilot_cli" and not body.base_url:
+        # Its account is asked once it is added: GitHub's whole catalogue is not the account's.
+        return CatalogueFillOut(models=body.models, left_out=0, note=ADD_FIRST)
     copy = _copy(request)
     models, left_out = catalog.fill(
         catalog.catalogue_of(body.kind, _address(body.kind, body.base_url), copy),
@@ -684,21 +730,24 @@ async def fill_from_catalogue(
     provider_id: str, request: Request, session: Session = Depends(get_session)
 ):
     """A team guide proposed from the catalogue and the provider's own list; nothing is
-    saved: the user looks it over and saves it. The user's, from the app's own page."""
-    models, left_out = await _fill(_provider(session, provider_id), request)
-    return CatalogueFillOut(models=models, left_out=left_out)
+    saved: the user looks it over and saves it. The user's, from the app's own page. Copilot's
+    account is asked first where that is due: only what it offers is proposed."""
+    provider = _provider(session, provider_id)
+    if provider.kind == "copilot_cli":
+        await read_offers(request, session, provider)
+    models, left_out = await _fill(provider, request)
+    offers = _offers(provider)
+    note = NONE_LISTED if offers is not None and not offers["models"] else None
+    return CatalogueFillOut(models=models, left_out=left_out, note=note)
 
 
 async def _fill(provider: Provider, request: Request) -> tuple[list[dict], int]:
     listed, _ = await _listed_by(provider, request.app.state.providers)
     copy = _copy(request)
-    return catalog.fill(
-        catalog.catalogue_of(provider.kind, provider.base_url, copy),
-        provider.models or [],
-        listed or [],
-        copy,
-        provider.name,
-    )
+    key, saved = catalog.catalogue_of(provider.kind, provider.base_url, copy), provider.models or []
+    if listed == []:  # (its account's own list, read and empty: nothing is added)
+        return catalog.fill(key, saved, [], copy, provider.name)[0][: len(saved)], 0
+    return catalog.fill(key, saved, listed or [], copy, provider.name)
 
 
 # Paid by the plan, not the token: ticked for agents when the tiers are filled (design §3b),
@@ -902,6 +951,8 @@ async def _listed_by(provider: Provider, providers) -> tuple[list[str] | None, s
     if provider.kind == "claude_cli" and not provider.base_url:
         return None, None
     listed, note, advice = await _own_list(provider, providers)
+    if _offers(provider) is not None:
+        return listed, None  # its account's own list: read, though it may be empty
     if note and provider.api_key:  # whatever the provider's error said, never the key
         note = note.replace(provider.api_key, "[key]")
     return listed or None, None if advice else note  # an empty list is no list read
@@ -975,6 +1026,9 @@ async def _own_list(provider: Provider, providers) -> tuple[list[str], str | Non
             listed = []
         if listed:
             return listed, None, False
+    if (offers := _offers(provider)) is not None:
+        # What its account offered when last asked (`read_offers`), auto and fusion among them.
+        return offered_names(offers), None if offers["models"] else NONE_LISTED, False
     if provider.kind == "copilot_cli":
         return (
             [],

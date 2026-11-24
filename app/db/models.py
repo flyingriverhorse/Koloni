@@ -1310,6 +1310,9 @@ class Provider(Base):
     # What KOLONİ learned sending a model an attachment (slice 85b): {model: {"image": true,
     # "video": false}} - taken, or refused. Not in `models`: the page saves those rows whole.
     tried_inputs: Mapped[dict | None] = mapped_column(JSON, default=None)
+    # Copilot on GitHub's plan: what its account offered when last asked (`app.copilot_offers`,
+    # `Limits._offered`) - {"models": [...], "tiers": [...]}. None: not asked yet.
+    offers: Mapped[dict | None] = mapped_column(JSON, default=None)
     # Never run with a model outside `models`, nor with none at all.
     only_listed: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # Switched off: nobody uses it (`app.providers.allowed`); its key and settings stay. A

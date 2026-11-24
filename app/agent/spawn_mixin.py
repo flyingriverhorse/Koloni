@@ -3153,6 +3153,7 @@ class SpawnMixin:
                         own.provider,
                         self.providers.limits.last(own.provider),
                         never_ran_is_room=True,
+                        model=own.model_id,
                     )
                     is None
                     or over_month(session, project_of(session, conversation))

@@ -895,11 +895,15 @@ def _finds(said: dict, key: str) -> bool:
 
 
 # Copilot's routings of its own models, as its 1.0.114 package types them: Auto's tier
-# (`AutoTier`; its integrator-only `fast` left out) and Fusion's (`FusionTier`: several models
-# try each turn and one is kept; High and Max cost more). Each by its model's name, sent as its
-# flag to a session and as session.create's `capi` field natively - never both of them.
+# (`AutoTier`) and Fusion's (`FusionTier`: several models try each turn and one is kept; High
+# and Max cost more). Each by its model's name, sent as its flag to a session and as
+# session.create's `capi` field natively - never both of them. Which the user's account offers
+# is its own `models.list`'s (`app.copilot_offers`): on 24 Nov 2026 only balance and fast.
+# shortcut: `fast` is offered by the account (models.list, enabled, not in its picker) and was
+# given to a native run that went well, but that session.create took it as such (not as the
+# default) is not measured; check `session.model.getCurrent` once on a run with it.
 ROUTINGS = {
-    "auto": ("efficiency", "balance", "intelligence"),
+    "auto": ("efficiency", "balance", "intelligence", "fast"),
     "fusion": ("standard", "high", "max"),
 }
 ROUTE_FLAGS = {"auto": ("--auto-tier", "autoTier"), "fusion": ("--fusion-tier", "fusionTier")}

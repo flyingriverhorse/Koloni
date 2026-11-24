@@ -124,8 +124,9 @@ def test_agys_groups_are_its_windows_each_a_week():
     assert "unknown" in app.limits.of_agy({"status": "SUCCESS"}, NOW)
 
 
-def test_copilots_premium_requests_are_its_one_window_and_the_unlimited_are_passed_over():
+def test_copilots_premium_requests_are_a_window_and_the_unlimited_are_passed_over():
     shown = app.limits.of_copilot(COPILOT_QUOTA, NOW)
+    # (Its chat requests were unlimited then: no window. A limited one is: test_copilot_offers.)
     assert shown["windows"] == [
         {
             "name": "premium requests",
@@ -133,6 +134,8 @@ def test_copilots_premium_requests_are_its_one_window_and_the_unlimited_are_pass
             "used_percent": 90.2,
             "resets_at": RESETS + timedelta(days=1),
             "stale": False,
+            "limit": 300,
+            "remaining": 29,
         }
     ]
     assert "someone" not in json.dumps(shown, default=str)
