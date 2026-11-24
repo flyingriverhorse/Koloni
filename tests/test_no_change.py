@@ -8,7 +8,7 @@ import json
 import pytest
 
 from app import ledger
-from app.db.models import Agent, Command, FileChange, Merge, ToolCall
+from app.db.models import Agent, Command, FileChange, Merge, ShownFile, ToolCall
 from tests.test_chat_flow import text
 from tests.test_ledger_tests import factory  # noqa: F401 (a fixture)
 from tests.test_spawn import begin, call, spawn, step
@@ -81,7 +81,7 @@ def change(s, path, status="applied", agent="t"):
     s.commit()
 
 
-def ran(s, command, status="exited"):
+def ran(s, command, status="exited", origin="koloni"):
     s.add(
         Command(
             run_id="r",
@@ -93,13 +93,14 @@ def ran(s, command, status="exited"):
             exit_code=0,
             output="",
             timeout_seconds=60,
+            origin=origin,
         )
     )
     s.commit()
 
 
-def wrote(s, path, status="succeeded"):
-    """A write call on record, as a CLI's write to a secret file is noted: no change row."""
+def called(s, path, status="succeeded", name="write_file", origin="koloni"):
+    """A call on record - a CLI's write to a secret file is noted so, with no change row."""
     s.add(
         ToolCall(
             run_id="r",
@@ -107,11 +108,17 @@ def wrote(s, path, status="succeeded"):
             message_id="m",
             seq=0,
             provider_call_id="p",
-            name="write_file",
+            name=name,
             arguments=json.dumps({"path": path}),
             status=status,
+            origin=origin,
         )
     )
+    s.commit()
+
+
+def shown(s, path):
+    s.add(ShownFile(conversation_id="c", agent_id="t", path=path))
     s.commit()
 
 
@@ -121,9 +128,21 @@ def test_nothing_on_record_reads_and_test_runs_change_nothing(factory):  # noqa:
         ran(s, "pytest -q")
         ran(s, "cat hello.py")
         ran(s, "python gen.py", status="rejected")  # (asked, never run)
+        # (a CLI's own command - Codex reads so - is looked after: what it changed is on record)
+        ran(s, "sed -n '1,200p' math_ops.py", origin="cli")
+        ran(s, 'bash -lc "nl -ba a.py | sed -n 1,40p"', origin="cli")
         change(s, ".koloni/tmp/notes.md")  # (its scratch: none, as in `did`)
-        wrote(s, ".koloni/tmp/notes.md")
-        wrote(s, "a.py", status="failed")
+        called(s, ".koloni/tmp/notes.md")
+        called(s, "a.py", status="failed")
+        called(s, "a.py", name="claude__Read", origin="cli")  # (a CLI's own tool: looked after)
+        called(s, "a.py", status="failed", name="github__create_file")
+        # (a change that never reached a file: still asked, turned down on its card, a conflict,
+        # a write that failed, one never made)
+        for status in ("proposed", "rejected", "conflict", "failed", "discarded"):
+            change(s, "a.py", status=status)
+        called(s, "./docs/plan.png", name="show")  # (a file shown, not made)
+        shown(s, "docs/plan.png")
+        shown(s, ".koloni/tmp/images/shot.png")
         assert ledger.changed_nothing(s, "t")
 
 
@@ -132,10 +151,13 @@ def test_nothing_on_record_reads_and_test_runs_change_nothing(factory):  # noqa:
     [
         lambda s: change(s, "a.py"),
         lambda s: change(s, "a.py", status="in_copy"),
-        lambda s: change(s, "a.py", status="rejected"),  # (made, then turned down)
+        lambda s: change(s, "a.py", status="reverted"),  # (taken in, then undone)
         lambda s: ran(s, "python gen.py"),  # (may have written off the record)
         lambda s: ran(s, "sed -i s/a/b/ a.py"),
-        lambda s: wrote(s, ".env"),  # (a secret file: on record by its call alone)
+        lambda s: called(s, ".env"),  # (a secret file: on record by its call alone)
+        lambda s: called(s, "docs/flow.drawio", name="diagram_image"),  # (its picture beside it)
+        lambda s: called(s, "x", name="github__create_file"),  # (an MCP tool: no look follows)
+        lambda s: shown(s, "out/report.docx"),  # (made by a command, shown as its output)
         lambda s: (
             s.add(Merge(run_id="r", agent_id="t", files=[{"path": "a.py", "kind": "modify"}])),
             s.commit(),
@@ -156,11 +178,18 @@ def test_a_change_by_an_agent_it_opened_is_its_too(factory):  # noqa: F811
         assert not ledger.changed_nothing(s, "t")
 
 
-def test_a_go_on_counts_the_earlier_turns_it_goes_on_from(factory):  # noqa: F811
-    # (told to go on, it may report what its earlier turn did: that is no claim of nothing)
+@pytest.mark.parametrize(("earlier", "marked"), [("completed", True), ("failed", False)])
+def test_a_go_on_counts_its_earlier_turn_only_where_that_did_not_finish(
+    factory,  # noqa: F811
+    earlier,
+    marked,
+):
+    # (a go-on after a finished turn is new work: its earlier change is no change of this one;
+    # after a stopped or failed one it goes on with that work)
     with factory() as s:
-        s.add(Agent(id="g", run_id="r", role_name="Tester", tools=[], continues_id="t"))
+        s.get_one(Agent, "t").status = earlier
+        s.add(Agent(id="g", run_id="r", role_name="Coder", tools=[], continues_id="t"))
         s.commit()
         assert ledger.changed_nothing(s, "g")
         change(s, "a.py")
-        assert not ledger.changed_nothing(s, "g")
+        assert ledger.changed_nothing(s, "g") is marked

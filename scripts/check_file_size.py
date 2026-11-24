@@ -1,6 +1,8 @@
 """Fails when a source file grows past LIMIT lines (the user, 24 Nov: "a 1500-line limit per file").
 
-  python scripts/check_file_size.py
+  python scripts/check_file_size.py           check
+  python scripts/check_file_size.py --update  lower the list's counts to the files' own, take off
+                                              those at the limit or under, or gone - then check
 
 Reads the `.py`, `.ts` and `.tsx` files under app/, frontend/src/, scripts/ and tests/ that git
 tracks or would (gitignored ones are skipped, and generated ones: `GENERATED`). Fails (exit 1) on:
@@ -9,11 +11,13 @@ tracks or would (gitignored ones are skipped, and generated ones: `GENERATED`). 
 - an allowed file now at LIMIT or under, or gone: take it off the list.
 The list records each file that was over the limit when the check came in, with its line count
 then; it only gets shorter. An allowed file that shrank is said with its new count, to lower its
-line by hand (no failure). Standard library only.
+line with --update (no failure); --update never raises a count, nor adds a file. Standard library
+only.
 """
 
 from __future__ import annotations
 
+import argparse
 import subprocess
 import sys
 from pathlib import Path
@@ -50,15 +54,35 @@ def sources(root: Path) -> list[str]:
     )
 
 
+def _entry(line: str, at: int) -> tuple[str, int] | None:
+    """A line of the allow-list: `<lines> <path>`, or None for a blank line or a comment (one
+    that starts with `#`; a path may hold one). ValueError, saying the line, where it is neither."""
+    said = line.strip()
+    if not said or said.startswith("#"):
+        return None
+    count, _, path = said.partition(" ")
+    if not count.isdigit() or not path.strip():
+        raise ValueError(f"{ALLOW.name} line {at}: not `<lines> <path>`: {said!r}")
+    return path.strip(), int(count)
+
+
 def read_allow(text: str) -> dict[str, int]:
-    """The allow-list: `<lines> <path>` a line; `#` starts a comment."""
-    allowed = {}
-    for line in text.splitlines():
-        line = line.split("#", 1)[0].strip()
-        if line:
-            count, path = line.split(maxsplit=1)
-            allowed[path] = int(count)
-    return allowed
+    """The allow-list, by path (`_entry`)."""
+    entries = (_entry(line, at) for at, line in enumerate(text.splitlines(), 1))
+    return dict(entry for entry in entries if entry is not None)
+
+
+def updated(text: str, counts: dict[str, int]) -> str:
+    """The allow-list with each count lowered to its file's own, and the files at LIMIT or under,
+    or gone, taken off - never a count raised, nor a file added; its comments kept."""
+    kept = []
+    for at, line in enumerate(text.splitlines(), 1):
+        entry = _entry(line, at)
+        if entry is None:
+            kept.append(line)
+        elif counts.get(entry[0], 0) > LIMIT:
+            kept.append(f"{min(entry[1], counts[entry[0]])} {entry[0]}")
+    return "\n".join(kept) + "\n"
 
 
 def check(counts: dict[str, int], allowed: dict[str, int]) -> tuple[list[str], list[str]]:
@@ -77,7 +101,7 @@ def check(counts: dict[str, int], allowed: dict[str, int]) -> tuple[list[str], l
                 "than raise its count"
             )
         elif count < was:
-            notes.append(f"{path}: {count} lines, down from {was} - lower its line in {ALLOW.name}")
+            notes.append(f"{path}: {count} lines, down from {was} - run it with --update")
     errors += [
         f"{path}: gone - take it off {ALLOW.name}"
         for path in sorted(allowed.keys() - counts.keys())
@@ -85,9 +109,20 @@ def check(counts: dict[str, int], allowed: dict[str, int]) -> tuple[list[str], l
     return errors, notes
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--update", action="store_true", help="lower the list; never raise it")
+    update = parser.parse_args(argv).update
     counts = {path: lines(ROOT / path) for path in sources(ROOT)}
-    errors, notes = check(counts, read_allow(ALLOW.read_text(encoding="utf-8")))
+    text = ALLOW.read_text(encoding="utf-8")
+    try:
+        if update:
+            text = updated(text, counts)
+            ALLOW.write_text(text, encoding="utf-8", newline="\n")
+        errors, notes = check(counts, read_allow(text))
+    except ValueError as exc:
+        print(f"error: {exc}")
+        return 1
     for note in notes:
         print(f"note: {note}")
     for error in errors:

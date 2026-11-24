@@ -49,9 +49,11 @@ the limit. Split it; don't raise the limit.
 
 The files that were already over it when the check came in are listed in `scripts/file_size_allow.txt`,
 each with its line count then (`10612 app/agent/__init__.py`). The list only shrinks: a listed file fails
-when it grows past its count, and when it drops to 1,500 lines or under - take its line off. A listed file
-that shrank is a note with its new count: lower its line by hand. Moving or renaming a listed file makes it
-look new: change its path in the list.
+when it grows past its count, and when it drops to 1,500 lines or under or is gone - take its line off. A
+listed file that shrank is a note with its new count. `scripts/check_file_size.py --update` lowers each
+count to its file's own and takes off the files at the limit or under, or gone, then checks; it never
+raises a count nor adds a file. Moving or renaming a listed file makes it look new: change its path in the
+list by hand.
 
 ## End-to-end tests
 

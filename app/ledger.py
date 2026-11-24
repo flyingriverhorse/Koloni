@@ -18,7 +18,7 @@ from sqlalchemy import literal_column, select, true
 from sqlalchemy.orm import Session
 
 from app.commands import RECALL_HINT, OutputMask, only_reads, plain, recallable, secret_values
-from app.db.models import Agent, Command, FileChange, Merge, Project, ToolCall
+from app.db.models import Agent, Command, FileChange, Merge, Project, ShownFile, ToolCall
 from app.finish_tests import command_of, did_not_start
 from app.workspace import in_scratch, unified_diff
 
@@ -1171,41 +1171,45 @@ NO_CHANGE = (
 )
 
 
+# A change row that never reached a file: still asked, turned down on its card, refused for a
+# conflict, a write that failed, one never made (a copy's left out is said by its `left_out`).
+NOT_WRITTEN = ("proposed", "rejected", "conflict", "failed", "discarded")
 # The calls a file change is on record by where no change row is: a CLI's write to a secret file,
-# or to one KOLONİ may not read, is noted only so (`AgentRunner._record_found`).
-WRITTEN = ("write_file", "edit_file", "delete_file")
+# or to one KOLONİ may not read, is noted only so (`AgentRunner._record_found`); diagram_image
+# writes its picture beside the diagram it names.
+WRITTEN = ("write_file", "edit_file", "delete_file", "diagram_image")
 
 
 def changed_nothing(session: Session, agent_id: str) -> bool:
-    """L1: whether KOLONİ's record holds no file change by an agent and those it opened, nor by
-    the earlier turns it goes on from (`continues_id`: what it reports may be theirs) - no change
-    of any status (one turned down was still made), no write call that succeeded, none kept for
-    Take in, and no command that may have changed files off the record (`proof.may_write`: `sed
-    -i`, a script). Its scratch's are none, as in `did`.
+    """L1: whether KOLONİ's record holds no file change by an agent and those it opened - and by
+    the earlier turn it goes on from where that one did not finish (stopped, failed, at its step
+    limit: it goes on with that work; a go-on after a finished turn is new work). None of: a change
+    row that reached a file, a write call that succeeded, a file a command made that is shown
+    (`_record_made`), one kept for Take in, a call of an MCP server's tool (no look follows it),
+    or a command of KOLONİ's that may have changed files off the record (`proof.may_write`: `sed
+    -i`, a script; a CLI's own are looked after, `_observe_command`). Its scratch's are none, as in
+    `did`.
     shortcut: a CLI's write the record misses is not seen here (a hook missed, `model_agy`'s
     "unhooked" stops the run); count its copy's files too if one is seen said as no change."""
-    at: str | None = agent_id
+    at = session.get(Agent, agent_id)
     while at is not None:
-        run_id, ids = _family(session, at)
-        if _changed(session, run_id, ids):
+        run_id, ids = _family(session, at.id)
+        if _changed(session, run_id, ids) or _called(session, run_id, ids):
             return False
-        at = session.get_one(Agent, at).continues_id
+        earlier = session.get(Agent, at.continues_id) if at.continues_id else None
+        at = earlier if earlier is not None and earlier.status != "completed" else None
     return True
 
 
 def _changed(session: Session, run_id: str, ids: Collection[str]) -> bool:
-    """`changed_nothing`'s look at one turn of these agents."""
+    """`changed_nothing`'s look at one turn of these agents: its records of files and commands."""
     from app.proof import may_write  # (here: proof imports this module)
 
     paths = session.scalars(
-        select(FileChange.path).where(FileChange.run_id == run_id, FileChange.agent_id.in_(ids))
-    )
-    written = session.scalars(
-        select(ToolCall.arguments).where(
-            ToolCall.run_id == run_id,
-            ToolCall.agent_id.in_(ids),
-            ToolCall.name.in_(WRITTEN),
-            ToolCall.status == "succeeded",
+        select(FileChange.path).where(
+            FileChange.run_id == run_id,
+            FileChange.agent_id.in_(ids),
+            FileChange.status.not_in(NOT_WRITTEN),
         )
     )
     held = session.scalars(
@@ -1213,15 +1217,39 @@ def _changed(session: Session, run_id: str, ids: Collection[str]) -> bool:
     )
     lines = session.scalars(
         select(Command.command).where(
-            Command.run_id == run_id, Command.agent_id.in_(ids), Command.status.in_(STARTED)
+            Command.run_id == run_id,
+            Command.agent_id.in_(ids),
+            Command.status.in_(STARTED),
+            Command.origin != "cli",
         )
     )
     return (
         any(not in_scratch(path) for path in paths)
-        or any(not in_scratch(argument(one, "path") or "") for one in written)
         or any(held)
         or any(may_write(line) for line in lines)
     )
+
+
+def _called(session: Session, run_id: str, ids: Collection[str]) -> bool:
+    """`changed_nothing`'s look at one turn of these agents: its calls - a write that succeeded,
+    an MCP server's tool (`<server>__<tool>`, KOLONİ's), and the files shown that no `show` of
+    theirs named (a command's made file, `_record_made`)."""
+    calls = session.execute(
+        select(ToolCall.name, ToolCall.arguments, ToolCall.origin).where(
+            ToolCall.run_id == run_id, ToolCall.agent_id.in_(ids), ToolCall.status == "succeeded"
+        )
+    ).all()
+    shown = {_plain_path(argument(one, "path")) for name, one, _ in calls if name == "show"}
+    made = session.scalars(select(ShownFile.path).where(ShownFile.agent_id.in_(ids)))
+    return any(
+        (name in WRITTEN and not in_scratch(argument(one, "path") or ""))
+        or (origin == "koloni" and "__" in name)
+        for name, one, origin in calls
+    ) or any(not in_scratch(path) and _plain_path(path) not in shown for path in made)
+
+
+def _plain_path(path: str | None) -> str:
+    return (path or "").replace("\\", "/").removeprefix("./")
 
 
 def _last_test(last: Command, since: bool) -> str:
