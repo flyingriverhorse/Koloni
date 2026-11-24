@@ -573,3 +573,44 @@ def test_a_runs_window_waits_no_longer_than_its_wait_and_lets_go_of_the_lock_it_
         asyncio.run(go())
     finally:
         copies.remove(runtime, "window")
+
+
+def test_code_styles_window_waits_no_longer_than_its_time_and_says_the_copy_busy(tmp_path):
+    # (k-code-style beside k-onceki-017: the style run's window in a copy - its lock taken before
+    # the app-wide slot, waited for no longer than what is left of its time; past it the copy is
+    # said busy, never an error out of the gate; held, it is let go after the block)
+    import asyncio
+
+    from app import copies
+    from app.agent.kinds_mixin import KindsMixin
+    from app.agent.proof_mixin import ProofMixin
+    from app.agent.review_mixin import COPY_BUSY
+
+    project, runtime = tmp_path / "proj", tmp_path / "rt"
+    project.mkdir()
+    runtime.mkdir()
+    copy = copies.make(project, runtime, "style")
+
+    class Runner:
+        _copy_locks: dict = {}
+        _copy_lock = ProofMixin._copy_lock
+        _copy_window = KindsMixin._copy_window
+
+    runner = Runner()
+
+    async def go():
+        held = runner._copy_lock(copy)
+        await held.acquire()  # (a look's command in the copy)
+        async with runner._copy_window(copy, 0.05) as busy:
+            assert busy == COPY_BUSY
+        held.release()
+        async with runner._copy_window(copy, 5) as busy:
+            assert busy is None and held.locked()
+        assert not held.locked()
+        async with runner._copy_window(None, 0) as busy:  # (in the project: nothing to hold)
+            assert busy is None
+
+    try:
+        asyncio.run(go())
+    finally:
+        copies.remove(runtime, "style")
