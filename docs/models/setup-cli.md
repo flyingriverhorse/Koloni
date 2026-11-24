@@ -137,6 +137,14 @@ token."
 Claude Code and Codex can also **Use a model server of your own instead (optional)**: a **Model server
 address** on this machine or your network.
 
+## Codex
+
+**A call still running when Codex answers.** Codex has been seen to give its final answer, and end its turn,
+while one of KOLONİ's tools it called was still at work (a 120-second command, "It is still running"). The
+turn then waits for that call to end by its own limit - a command's time limit, a question's answer, a
+sub-agent's run - and a line under Codex's answer says so: what the call came to is on its record, not in the
+answer. **Stop** ends the wait, and the call with it, at once. Why Codex answered early is not known yet.
+
 ## GitHub Copilot CLI
 
 - **API key**: leave it empty to use your own GitHub sign-in (`gh`), or give a fine-grained GitHub token

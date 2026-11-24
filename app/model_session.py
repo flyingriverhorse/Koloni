@@ -294,9 +294,11 @@ class ToolServer:
         writing = asyncio.Lock()
 
         async def send(message: dict) -> None:
-            async with writing:
-                writer.write(json.dumps(message).encode("utf-8") + b"\n")
-                await writer.drain()
+            # (A CLI gone while its call ran - Codex L2, waited for past its turn - hears nothing.)
+            with contextlib.suppress(ConnectionError):
+                async with writing:
+                    writer.write(json.dumps(message).encode("utf-8") + b"\n")
+                    await writer.drain()
 
         async def answer(request: dict) -> None:
             request_id = request.get("id")

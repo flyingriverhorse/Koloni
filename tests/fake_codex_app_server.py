@@ -73,6 +73,8 @@ def native() -> None:  # noqa: C901
         {"mcp": {"server": "s", "tool": "t", ...}}       a call to one of its own MCP servers
         {"web": "query"}                                 a web search
         {"koloni": "ask_user", "args": {...}}            a call to KOLONİ's MCP server, for real
+                                                         ("pending": its answer never waited
+                                                         for - it goes on, Codex L2)
         {"request": "item/tool/requestUserInput", "params": {...}}  another request of its own
         {"pause": s} / {"hang": true} / {"exit": 3, "stderr": ".."} / {"error": "message"}
         {"await_steer": true}                            it waits for a turn/steer ("steers")
@@ -174,8 +176,9 @@ def native() -> None:  # noqa: C901
         value = next(a[len(wanted) :] for a in argv if a.startswith(wanted))
         return tomllib.loads(f"v = {value}")["v"]  # Codex reads these as TOML values
 
-    def koloni(method: str, params: dict) -> dict:
-        """Talk to KOLONİ's tool server the way Codex would: through the bridge it was given."""
+    def koloni(method: str, params: dict, wait: bool = True) -> dict:
+        """Talk to KOLONİ's tool server the way Codex would: through the bridge it was given.
+        Not `wait`: the call is sent and its answer never read (Codex L2)."""
         nonlocal bridge
         if bridge is None:
             bridge = subprocess.Popen(
@@ -194,6 +197,8 @@ def native() -> None:  # noqa: C901
             ).encode()
         )
         bridge.stdin.flush()
+        if not wait:
+            return {}
         line = bridge.stdout.readline()
         if not line:
             record["cut_off"] = True
@@ -491,8 +496,12 @@ def native() -> None:  # noqa: C901
                 rejected(body)
                 continue
             answer = koloni(
-                "tools/call", {"name": action["koloni"], "arguments": action.get("args", {})}
+                "tools/call",
+                {"name": action["koloni"], "arguments": action.get("args", {})},
+                wait=not action.get("pending"),
             )
+            if action.get("pending"):  # (L2: its MCP item begun and never ended; it goes on)
+                continue
             record["results"].append(answer.get("result", answer))
             save()
             item("completed", {**body, "status": "completed", "result": answer.get("result")})

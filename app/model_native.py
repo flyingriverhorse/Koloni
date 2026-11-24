@@ -166,6 +166,20 @@ CALL_SECONDS = 660.0
 NEVER_STARTED = "never started: nothing came of it {seconds:g} seconds after it was allowed"
 RAN_TOO_LONG = "ended by KOLONİ: still at work after {seconds:g} seconds"
 TOOL_WAIT_SECONDS = 24 * 60 * 60
+# Codex L2 (live, 24 Nov 2026, as a session): its turn completed while a call of KOLONİ's tools was
+# still running - its MCP item begun, never ended, then its final answer ("It is still running")
+# and turn/completed. KOLONİ then ended the turn and with it the call: its command killed at 29 of
+# 120 seconds, the call "interrupted", the turn Done. Now the turn waits for such a call (each ends
+# by its own bound: a command at its time limit, a question when the user answers or stops, a
+# sub-agent with its own run) - Stop ends the wait - and says so after Codex's answer: its call is
+# not ended under it, and nothing of it is left running past its turn unowned.
+# shortcut: why Codex answered before its call ended is not known (its MCP time limit here is a
+# day: `tool_timeout_sec`); nor whether it sends notifications/cancelled for such a call, which
+# ends it all the same (`model_session._given_up`). Read a live turn's lines when one comes again.
+CALLS_OUTLIVED = (
+    "KOLONİ: {label} ended its turn before a call of KOLONİ's tools had finished; the turn waited "
+    "for that call to end - what it came to is on the record, not in the answer above."
+)
 # 93-B6: a report that did not keep to its schema is asked for once more, with what was
 # wrong - the schema itself is not written out again (it is on its command line).
 REPORT_AGAIN = (
@@ -1752,6 +1766,13 @@ class CodexNativeClient(CliStepClient):
             stderr.cancel()
         if commentary and not spoke:
             await on_text(commentary)
+        # Codex L2: a call of KOLONİ's still running when its turn completed is waited for.
+        waited = usage is not None and broke is None and not server.ended and server.in_flight > 0
+        while waited and server.in_flight > 0 and not server.ended:
+            await asyncio.sleep(0.1)
+        if waited and not server.ended:
+            outlived = CALLS_OUTLIVED.format(label=self.label)
+            await on_text(("\n\n" if spoke or commentary else "") + outlived)
         return await self._turn_outcome(broke, server, unasked, usage, failure, complaint, process)
 
     def _unwanted(self, item: dict, no_shell: bool) -> str | None:
