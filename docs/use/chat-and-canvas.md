@@ -211,4 +211,11 @@ An agent can start a dev server that keeps running, on this machine only, and sh
 three run in a chat. They are listed under **Previews** in the Workspace; a preview has **Reload**,
 **Open in browser** and **Stop**.
 
+While one runs, an agent that may run commands can read what it printed since ("the server gives a
+500: read its log"), in a later turn too, and the last output of one that has ended. It can stop only
+a server it started itself, and waits until it has ended (to start it again, say); one another agent
+or an earlier turn started is yours to stop here. Neither is offered in a turn nobody watches. What it
+reads is hidden as any command's output is (secrets), and text in it that tries to give orders shows
+the **Text tried to give orders** card: a server's log holds what any request to it carried.
+
 See [Working copies and Take in](workspace.md).

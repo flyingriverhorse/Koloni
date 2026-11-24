@@ -1,6 +1,6 @@
 """Agents talking to each other: message_agent and its delivery (into a CLI's turn too), what
 an agent may reach and who its team is, offers and hand-ons of notes and files, report_git,
-and the shared notebook (post_note / read_notes) - `TalkMixin`.
+command_output / stop_command, and the shared notebook (post_note / read_notes) - `TalkMixin`.
 """
 
 import asyncio
@@ -51,6 +51,7 @@ from app.tools import (
     ATTACHMENTS_PROPERTY,
     ATTACHMENTS_UNREAD,
     CAN,
+    COMMAND_OUTPUT_SCHEMA,
     FOLDER_PROPERTY,
     FOLLOW_SCHEMAS,
     MAX_MESSAGE_CHARS,
@@ -59,6 +60,7 @@ from app.tools import (
     RECALL_OUTPUT_SCHEMA,
     REPORT_GIT_SCHEMA,
     ROOM_SCHEMAS,
+    STOP_COMMAND_SCHEMA,
     ToolError,
     earlier_line,
     offer_schema,
@@ -157,6 +159,49 @@ class TalkMixin:
             "Noted. The user sees it on the project's git map, and KOLONİ compares it "
             "with git at the end of the turn."
         )
+
+    def _serving_not(self: "AgentRunner", ctx: Ctx) -> str | None:
+        """Why command_output and stop_command are not this agent's (None: they are, while a
+        command keeps running in its chat): only one that may run commands, at its own work, in a
+        turn the user watches - where keep_running itself runs. By its role's tools, not by what
+        it is offered: a CLI with tools of its own runs commands with them, not with KOLONİ's."""
+        if "run_command" not in ctx.tools or ctx.agent_id in self._read_only_agents:
+            return f"not to the {ctx.role} role"
+        if ctx.answering:
+            return "not while answering a message"
+        if (
+            not self._watched(ctx.run_id)
+            or ctx.run_id in self._away_jobs
+            or ctx.run_id in self._backlog_turns
+        ):
+            return "not in a turn nobody watches"
+        return None
+
+    def _serving_offered(self: "AgentRunner", ctx: Ctx) -> list[dict]:
+        """0.1.8: command_output while a command keeps running in the chat, and stop_command
+        while one of them is the agent's own (`_serving_not`)."""
+        running = self.commands.serving_here(ctx.cid)
+        if not running or self._serving_not(ctx) is not None:
+            return []
+        mine = any(agent_id == ctx.agent_id for _id, agent_id, _line in running)
+        return [COMMAND_OUTPUT_SCHEMA, *([STOP_COMMAND_SCHEMA] if mine else [])]
+
+    async def _serving_call(self: "AgentRunner", ctx: Ctx, name: str, args: dict) -> str:
+        """command_output or stop_command, held to what `_serving_offered` offers - a CLI keeps
+        the tools it was given at its start, and a model may name one it was not given."""
+        if (why := self._serving_not(ctx)) is not None:
+            raise ToolError(f"{name} is not available: {why}")
+        command_id = args.get("id")
+        if not isinstance(command_id, str) or not command_id.strip():
+            raise ToolError("missing required argument: id")
+        if name == "stop_command":
+            return await self.commands.stop_own(ctx.cid, ctx.agent_id, command_id.strip())
+        since = args.get("since")
+        if since is not None and (
+            isinstance(since, bool) or not isinstance(since, int) or since < 0
+        ):
+            raise ToolError("argument since must be a whole number, 0 or more")
+        return self.commands.output_of(ctx.cid, command_id.strip(), since)
 
     def _offered(
         self: "AgentRunner", ctx: Ctx, tools, always: bool = False, show: bool = False
@@ -313,6 +358,7 @@ class TalkMixin:
             # At its own work, as show is; always, not only once something was cut: the tools
             # are the cache's first part.
             schemas = [*schemas, RECALL_OUTPUT_SCHEMA]
+        schemas += self._serving_offered(ctx)
         return (
             schemas
             + between

@@ -19,6 +19,8 @@ from app.cards import card_reason
 from app.commands import (
     _INTERPRETER,
     MAX_STORED_OUTPUT,
+    MODEL_HEAD,
+    MODEL_TAIL,
     PLANTED,
     OutputMask,
     _program,
@@ -60,6 +62,14 @@ DRAIN_GRACE_SECONDS = 2.0
 # How long killing a command may take before we stop waiting for it.
 KILL_SECONDS = 20.0
 TRUNCATED_NOTE = "\n[output truncated: more than 1 MiB]"
+# command_output (0.1.8): at most this much of a command that keeps running at a time - as much
+# as of a command's output the model is shown (`for_model`).
+OUTPUT_AT_MOST = MODEL_HEAD + MODEL_TAIL
+# stop_command: the one way round the command gate is to stop a command the agent started itself.
+NOT_YOURS = (
+    "command {id} was not started by you, and you stop only one you started: another agent's "
+    "or an earlier turn's is the user's to stop, under Preview"
+)
 # B-321: a refusal ends that one action, not the task - told "do not try another way" and
 # "stop and ask", Codex gave up the whole task over one part of one command.
 CARRY_ON = (
@@ -1004,7 +1014,8 @@ class CommandRunner:
         )
         return "succeeded", (
             f"keeps running as command {command_id}, {where}. The user sees its page under "
-            f"Preview and can stop it there. Its last lines:\n{for_model(last)}"
+            f"Preview and can stop it there; command_output reads what it prints later, and "
+            f"stop_command stops it. Its last lines:\n{for_model(last)}"
         )
 
     def stop(self, command_id: str) -> bool:
@@ -1014,6 +1025,86 @@ class CommandRunner:
             return False
         serving[1].cancel()
         return True
+
+    def serving_here(self, cid: str) -> list[tuple[str, str, str]]:
+        """The commands that keep running in a conversation now: (id, agent id, command line)."""
+        ids = [command_id for command_id, (at, _life) in self._serving.items() if at == cid]
+        if not ids:
+            return []
+        with self._factory() as session:
+            return [
+                (command_id, agent_id, line)
+                for command_id, agent_id, line in session.execute(
+                    select(Command.id, Command.agent_id, Command.command).where(Command.id.in_(ids))
+                )
+            ]
+
+    def _server(self, cid: str, command_id: str) -> Command:
+        """A command that keeps running (or did) in conversation `cid`, by its id - where it is
+        none, a ToolError that names the ones running there now."""
+        with self._factory() as session:
+            command = session.scalar(
+                select(Command)
+                .join(Run, Run.id == Command.run_id)
+                .where(
+                    Command.id == command_id,
+                    Run.conversation_id == cid,
+                    Command.keep_running.is_(True),
+                )
+            )
+            if command is not None:
+                session.expunge(command)
+                return command
+        running = "; ".join(f"{one} ({line})" for one, _agent, line in self.serving_here(cid))
+        raise ToolError(
+            f"no command that keeps running in this conversation has the id {command_id!r}: "
+            + (f"these run now - {running}" if running else "none runs now")
+        )
+
+    def output_of(self, cid: str, command_id: str, since: int | None) -> str:
+        """command_output: what a command that keeps running in `cid` printed - hidden as it was
+        kept (`_masks`), never the half line still held back - its newest OUTPUT_AT_MOST, or from
+        `since` on; of one that ended, its record's."""
+        command = self._server(cid, command_id)
+        live = self._live.get(command_id) if command_id in self._serving else None
+        text = live[1] if live is not None else command.output or ""
+        total = len(text)
+        start = max(0, total - OUTPUT_AT_MOST) if since is None else min(since, total)
+        shown = text[start : start + OUTPUT_AT_MOST]
+        end = start + len(shown)
+        if live is not None:
+            url = f", serving {command.preview_url}" if command.preview_url else ""
+            state = f"keeps running{url}"
+        else:
+            code = f", exit code {command.exit_code}" if command.exit_code is not None else ""
+            state = f"has ended ({command.status}{code})"
+        said = f"Command {command_id} ({command.command}) {state}. Characters {start}-{end} of "
+        said += f"{total} of its output"
+        if end < total:
+            said += f"; {total - end} more after them: call again with since={end}"
+        elif live is not None:
+            said += f"; for what it prints next, call again with since={end}"
+        if command.output_truncated or text.endswith(TRUNCATED_NOTE):
+            said += "; past 1 MiB its output is no longer kept"
+        return f"{said}:\n{shown}" if shown else f"{said}: nothing new."
+
+    async def stop_own(self, cid: str, agent_id: str, command_id: str) -> str:
+        """stop_command: a command that keeps running, stopped with what it started - only one
+        `agent_id` started itself (its card was its) - and waited for until it is on record ended,
+        so that it can be started again at once (its port free, MAX_SERVING not reached)."""
+        command = self._server(cid, command_id)
+        if command.agent_id != agent_id:
+            raise ToolError(NOT_YOURS.format(id=command_id))
+        serving = self._serving.get(command_id)
+        if serving is None:
+            raise ToolError(f"command {command_id} is not running: it has ended ({command.status})")
+        serving[1].cancel()
+        await asyncio.wait({serving[1]}, timeout=KILL_SECONDS + DRAIN_GRACE_SECONDS)
+        with self._factory() as session:
+            status = session.get_one(Command, command_id).status
+        if status == "running":
+            return f"Command {command_id} ({command.command}) is being stopped: not ended yet."
+        return f"Command {command_id} ({command.command}) is stopped ({status})."
 
     def stop_all(self, cid: str) -> None:
         """Stop every command of a conversation that keeps running, and turn down one still

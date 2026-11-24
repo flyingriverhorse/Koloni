@@ -40,6 +40,10 @@ are grouped like this. "Asks" means it waits for your card, as the chat's permis
 
 New skills, Ask for a folder and Propose triggers always go to a card too.
 
+A role with **Run commands** also gets two tools while a command keeps running in the chat (a dev
+server): one reads what it printed since, the other stops it - only one the agent started itself. See
+[Preview](../use/chat-and-canvas.md#preview).
+
 A role needs at least one tool. Tools from MCP servers and skills are given to roles on the Tools page;
 see [MCP servers](mcp.md) and [Skills](skills.md).
 
