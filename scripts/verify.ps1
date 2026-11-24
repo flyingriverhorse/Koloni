@@ -24,6 +24,7 @@ $env:VIRTUAL_ENV = (Resolve-Path .venv).Path
 # The 25 slowest tests are listed at the end: where the time goes, in every log.
 Step 'pytest' { & $py -m pytest -q -n auto --durations=25 }
 Step 'ruff'   { & $py -m ruff check app tests scripts alembic }
+Step 'file size' { & $py scripts/check_file_size.py }
 Step 'ty'     { & $py -m ty check app }
 if (-not $BackendOnly -and (Test-Path frontend/package.json)) {
   Set-Location frontend
