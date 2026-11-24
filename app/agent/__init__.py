@@ -54,11 +54,12 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import cast
 
-from sqlalchemy import Row, and_, func, literal_column, or_, select, update
+from sqlalchemy import and_, func, literal_column, or_, select, update
 from sqlalchemy.orm import Session
 
 from app import (
     away,
+    backlog,
     browser,
     copies,
     diagram,
@@ -80,6 +81,7 @@ from app import (
     raw,
     recipe_run,
     signs,
+    stories,
     team_requests,
     test_found,
     topics,
@@ -376,6 +378,7 @@ from app.db.models import (
     Room,
     RoomMember,
     Run,
+    Story,
     Team,
     ToolCall,
     lead_work_of,
@@ -974,6 +977,11 @@ BRANCH_KEPT = (
 )
 BRANCH_NOT_FINISHED = "it did not finish its work"
 BRANCH_UNWATCHED = "nobody is watching this turn to say yes to the merge"
+# 0.1.8: a story's tasks go on on its branch, one after another; it goes in at Close the story.
+STORY_BRANCH = "it is its story's branch: it goes in when the user closes the story"
+# ...where KOLONİ's check of it, at Close the story, did not pass: the branch waits, its last
+# task stuck with why (Fix it).
+STORY_RED = "the check {command} did not pass on the story's branch"
 NO_BRANCH = "{name} worked in a copy of the project, not on a branch: {why}. "
 BRANCH_THEIRS = (
     "not taken: the project has its own file there, which git leaves out - the "
@@ -1094,7 +1102,10 @@ class _LeadTurn:
     strongest: tuple[Entry, str] | None = field(init=False)
     model: ModelClient = field(init=False)
     unattended: bool = field(init=False)
-    on_branch: Row[tuple[str, str]] | None = field(init=False)
+    # 0.1.8: the git branch a To-do task's turn works on - its story's (`story_id`) or its own:
+    # the name and the id it is named by (`git.task_branch`).
+    on_branch: tuple[str, str] | None = field(init=False)
+    story_id: str | None = field(init=False)
     po: PoTurn | None = None
     # B-405: the sub-agents CLI openers did not wait for, stopped before its copies go (`_saved`).
     later: list[tuple] = field(default_factory=list)
@@ -1480,9 +1491,15 @@ class AgentRunner(
         self._on_branch: dict[str, str] = {}
         self._left_on: dict[str, dict] = {}
         self._no_branch: dict[str, str] = {}
-        # ... and run id -> its Lead, where the whole turn works in the Lead's branch copy (a
-        # backlog task started while another works: `backlog.chain`).
+        # ... and run id -> its Lead, where the whole turn works in the Lead's branch copy (a To-do
+        # task's turn, `_turn_on_branch`); run id -> its story, where that branch is the story's
+        # (kept at its end); run id -> the story it closes (`close_story`, no model's step), and
+        # what came of it - its branch went in, or why its check did not pass.
         self._branch_runs: dict[str, str] = {}
+        self._story_runs: dict[str, str] = {}
+        self._closes_story: dict[str, str] = {}
+        self._went_in: set[str] = set()
+        self._closed_red: dict[str, str] = {}
         self._merging_in: dict[str, asyncio.Lock] = {}
         # owner -> its project's key and what went into the project while its copy is being made
         # (`_into_copies`): brought into the copy once it is (`_working_copy`).
@@ -1890,26 +1907,7 @@ class AgentRunner(
         t = _LeadTurn()
         try:
             ctx, cid = self._lead_turn(run_id, t)
-            seen = (
-                await asyncio.to_thread(git.where, Path(t.root))
-                if (
-                    t.on_branch
-                    and t.root
-                    and not (
-                        t.planning
-                        or t.run_compare
-                        or t.job
-                        or t.unattended
-                        or only_in_project(t.model, t.lead_tools)
-                    )
-                )
-                else None
-            )
-            if seen and seen["branch"] and seen["head"]:
-                # Its whole turn - the Lead too - on a branch of its own, merged at its end. (Not
-                # where git cannot hold one: the task works in the project, as today.)
-                self._on_branch[ctx.agent_id] = git.task_branch(*t.on_branch)  # ty: ignore[not-iterable]
-                self._branch_runs[run_id] = ctx.agent_id
+            await self._turn_on_branch(run_id, t, ctx)
             if t.job:
                 self._away_jobs[run_id] = ctx.agent_id
                 self._arm_deadline(run_id, cid)
@@ -1927,6 +1925,8 @@ class AgentRunner(
                 and not (getattr(t.model, "asks", False) or getattr(t.model, "reads", False))
             ):
                 status, error = "failed", NO_PLAN_ON.format(provider=t.provider.name)
+            elif run_id in self._closes_story:
+                status, error = await self._close_story(ctx)
             else:
                 status, error = await self._attempt(ctx, again=_sends_again(t))
             # (B-405: before its copies go; a Stop meanwhile ends the turn as stopped.)
@@ -1934,6 +1934,7 @@ class AgentRunner(
             if stopped:
                 status = "interrupted" if self._closing else "cancelled"
             status, error = await self._lead_taken(run_id, cid, t, ctx, status, error)
+            self._story_closed(run_id)
             await self._lead_after(run_id, cid, t, ctx, status, error)
         except Exception as exc:
             # Even the record keeping failed. Close the run as best we can so the
@@ -2046,15 +2047,7 @@ class AgentRunner(
             self._forget_other_topics(run)  # (0.1.8: Copilot's and Codex's of other topics)
             lead_effort = conversation.lead_effort
             t.unattended = run.unattended
-            # K-dal-takim: a backlog task started while another works (`backlog.chain`).
-            t.on_branch = session.execute(
-                select(BacklogTask.title, BacklogTask.id)
-                .where(
-                    BacklogTask.conversation_id == cid,
-                    BacklogTask.flow["branch"].as_boolean().is_(True),
-                )
-                .limit(1)
-            ).first()
+            t.story_id, t.on_branch = self._branch_of(session, run)
         ctx = self._open_agent(
             run_id,
             cid,
@@ -2341,6 +2334,10 @@ class AgentRunner(
             del self._secret_asks[call_id]  # (no card of it is answered any more)
         self._sides.pop(run_id, None)
         self._branch_runs.pop(run_id, None)
+        self._story_runs.pop(run_id, None)
+        self._closes_story.pop(run_id, None)
+        self._went_in.discard(run_id)
+        self._closed_red.pop(run_id, None)
         self._saving.pop(run_id, None)
         self._away_jobs.pop(run_id, None)
         self._todo_turns.discard(run_id)
@@ -2615,6 +2612,100 @@ class AgentRunner(
                 "from_head": record.get("from_head"),
                 "not_taken": record.get("not_taken"),
             }
+
+    def _branch_of(self, session: Session, run: Run) -> tuple[str | None, tuple[str, str] | None]:
+        """0.1.8: the story a To-do task's turn (or Close the story's) works for, and the git
+        branch it works on (`_turn_on_branch`), named by its story's title and id - the task's
+        where it is of no story, or its story is gone. None: no task's - nor a night's job, whose
+        copy is its own."""
+        story_id = self._closes_story.get(run.id)
+        task = session.get(BacklogTask, run.task_id) if run.task_id and not story_id else None
+        if task is not None and task.away_run_id is not None:
+            return None, None
+        story = session.get(Story, story_id or (task.story_id if task else None) or "")
+        if story is not None:
+            return story.id, (story.title, story.id)
+        return None, (task.title, task.id) if task is not None else None
+
+    async def _turn_on_branch(self, run_id: str, t: _LeadTurn, ctx: Ctx) -> None:
+        """K-dal-takim, 0.1.8 (the user, 24 Nov): a To-do task's whole turn - the Lead too - works
+        on a git branch: its story's, kept from one task to the next (`_branch_again` from the
+        story's last Orchestrator on it) and merged when the user closes the story; a task of no
+        story's own, merged at its end as a team's branch is (`_merge_branch`). Not where git
+        cannot hold one (no git, HEAD on no branch, no commit), nor where the Orchestrator is a
+        CLI working in the project itself: the task works in the project, its agents held to
+        their claims as in any chat.
+        shortcut: the user's own message in a story's topic works in the project, not on its
+        branch; take it onto the branch if users expect the story's work there."""
+        closing = run_id in self._closes_story
+        if not (t.on_branch and t.root) or t.planning or t.run_compare or t.job or t.unattended:
+            return
+        if not closing and only_in_project(t.model, t.lead_tools):
+            return
+        seen = await asyncio.to_thread(git.where, Path(t.root))
+        if not (seen and seen["branch"] and seen["head"]):
+            return
+        self._on_branch[ctx.agent_id] = git.task_branch(*t.on_branch)
+        self._branch_runs[run_id] = ctx.agent_id
+        if t.story_id is None:
+            return
+        self._story_runs[run_id] = t.story_id
+        with self._factory() as session:
+            earlier = stories.branch_lead(session, t.story_id)
+        if earlier is not None:
+            self._branch_again(ctx, earlier)
+
+    def close_story(self, run_id: str, story_id: str) -> None:
+        """Close the story (`app.api.stories`): this turn, on the story's branch, runs no model -
+        its branch goes in by KOLONİ's check (`_close_story`)."""
+        self._closes_story[run_id] = story_id
+        self.start(run_id)
+
+    async def _close_story(self, ctx: Ctx) -> tuple[str, str | None]:
+        """Close the story's turn, in place of a model's: the story's branch opened in a worktree
+        (`_working_copy`, at the commit its last task left), for `_merge_branch` to check and
+        merge - or open a pull request (`finish_way`) - at the turn's end."""
+        await self._git_start(ctx)
+        copy = await self._working_copy(ctx, ctx.agent_id)
+        if copy is None or not copy.branch:
+            return "failed", "the story's branch could not be opened"
+        return "completed", None
+
+    def _story_closed(self, run_id: str) -> None:
+        """After Close the story's turn: its branch went in - the story is done - or its check did
+        not pass: its last task is stuck with why (Fix it goes on on the branch). Otherwise
+        (turned down, stopped) it stays as it was."""
+        story_id = self._closes_story.get(run_id)
+        if story_id is None:
+            return
+        with self._factory() as session:
+            story = session.get(Story, story_id)
+            if story is None:
+                return
+            if run_id in self._went_in:
+                story.closed_at = now()
+            elif (red := self._closed_red.get(run_id)) and (
+                last := stories.last_task(session, story_id)
+            ) is not None:
+                last.status = "blocked"
+                backlog.set_flow(last, stuck=red, fix=None)
+            session.commit()
+            project_id = story.project_id
+        announce(self._factory, self.bus, project_id, "backlog.changed")
+
+    async def _branch_kept(self, ctx: Ctx, copy: copies.Copy, look: dict, why: str) -> str:
+        """`_merge_branch`'s work left committed on its branch, unmerged - told to go on, the agent
+        goes on there (`_branch_again`), and so does its story's next turn: the commit it stopped
+        on goes on its record. What its opener is told."""
+        with self._factory() as session:
+            record = session.get_one(Agent, ctx.agent_id).copy or {}
+        if gone := await self._secret_branch_gone(ctx, copy, look):
+            return gone
+        # (The commit it stopped on: a go-on opens this branch only while it holds it.)
+        self._set_agent(
+            ctx.cid, ctx.agent_id, copy={**record, "tip": look["tip"] or record.get("tip")}
+        )
+        return BRANCH_KEPT.format(name=ctx.name, branch=copy.branch or "", why=why)
 
     def _drop_branch(self, copy: copies.Copy, force: bool = False) -> None:
         """K-dal-takim: a branch copy's folder is deleted - git's record of its worktree goes,
@@ -3747,34 +3838,40 @@ class AgentRunner(
             # Nothing to merge: the branch goes with its worktree - with what its agents
             # committed and took back, which nothing merged keeps.
             self._drop_copy(ctx.agent_id, "merged")
+            self._went_in.add(ctx.run_id)
             return ""
-        watched = self._watched(ctx.run_id)
-        if status != "completed" or not watched:
-            # (Told to go on, the agent goes on on this branch: `_branch_again`.)
-            with self._factory() as session:
-                record = session.get_one(Agent, ctx.agent_id).copy or {}
-            if gone := await self._secret_branch_gone(ctx, copy, look):
-                return gone
-            # (The commit it stopped on: a go-on opens this branch only while it holds it.)
-            self._set_agent(
-                ctx.cid, ctx.agent_id, copy={**record, "tip": look["tip"] or record.get("tip")}
-            )
-            return BRANCH_KEPT.format(
-                name=ctx.name,
-                branch=branch,
-                why=(BRANCH_NOT_FINISHED if status != "completed" else BRANCH_UNWATCHED),
-            )
+        watched, closing = self._watched(ctx.run_id), ctx.run_id in self._closes_story
+        kept = (
+            BRANCH_NOT_FINISHED
+            if status != "completed"
+            else BRANCH_UNWATCHED
+            if not watched
+            else STORY_BRANCH
+            if ctx.run_id in self._story_runs and not closing and not ctx.depth
+            else None
+        )
+        if kept:
+            return await self._branch_kept(ctx, copy, look, kept)
         with self._factory() as session:
             conversation = session.get_one(Conversation, ctx.cid)
             mode, project_id = conversation.permission_mode, conversation.project_id
-        owns, check = await self._own_check(ctx, copy)
-        if self._by_itself(ctx, owns, check, True, False, mode) and mode == "full_auto":
-            await self._check(ctx, copy, {}, check or {}, {}, None, owns)
+        # (At Close the story: the tests its tasks wrote on the branch - committed there by the
+        # turns before, none of them this turn's own change.)
+        owns, check = await self._own_check(ctx, copy, list(look["files"]) if closing else None)
+        # (Close the story is the user's word to run its check, at any level.)
+        if closing or self._by_itself(ctx, owns, check, True, False, mode) and mode == "full_auto":
+            await self._check(ctx, copy, {}, check or {}, {}, None, owns, leave=closing)
             if check:
                 check["checked"] = None  # (of the branch's commit, which does not move)
+        if closing and not _check_lets(check):
+            red = STORY_RED.format(command=quoted((check or {}).get("command") or ""))
+            self._closed_red[ctx.run_id] = red
+            return await self._branch_kept(ctx, copy, look, red)
         # (away, KOLONİ's guess not run: in as with no test, said - `_merge_check`)
         unrun = bool(check and owns and check["state"] == "not_run") and self._away_now(ctx)
-        decision = "approve" if mode == "full_auto" and (_check_lets(check) or unrun) else ""
+        decision = (
+            "approve" if (mode == "full_auto" or closing) and (_check_lets(check) or unrun) else ""
+        )
         merge_id, said, tried, failed = None, {}, False, None
         # (A pull request's branch pushed already, for a `gh pr create` that failed after it; and
         # git's config as the card last showed it.)
@@ -3930,6 +4027,7 @@ class AgentRunner(
                         self._into_copies(copy.project, look["files"], copy)
                         act = "merged"
             if act == "merged":  # (what is left needs no way in: a Stop lands after it)
+                self._went_in.add(ctx.run_id)
                 return await to_its_end(
                     self._branch_went_in(
                         ctx, copy, merge_id, files, check, state, said, look, said_line, sha
@@ -3956,6 +4054,7 @@ class AgentRunner(
                     # shortcut: its change records say "merged" - gone to a pull request, not
                     # into the project; give them a state of their own if users are misled.
                     self._drop_copy(ctx.agent_id, "merged")
+                    self._went_in.add(ctx.run_id)
                     return PR_OPENED.format(name=ctx.name, branch=branch, url=opened["url"])
             if act == "resolve":
                 ended()

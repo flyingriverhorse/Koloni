@@ -14,7 +14,7 @@ from types import SimpleNamespace
 import pytest
 
 import app.web
-from app import backlog, signs
+from app import signs
 from app.agent.limits_mixin import CIRCLING_WAIT
 from app.config import load_settings
 from app.main import create_app
@@ -407,7 +407,6 @@ def test_the_unattended_limits_are_settings_of_the_app(client):
 
 def todo_held(make_client, project_dir, monkeypatch, *script):
     """A To-do run of two tasks, its clock held: (client, clock, pid)."""
-    monkeypatch.setattr(backlog, "MAX_PARALLEL", 1)
     client, _model = make_client(list(script))
     clock = client.app.state.runner.call_later = HeldClock()
     pid, _ = backlog_setup(client, project_dir, "one", "two")
@@ -422,7 +421,7 @@ def first_run(client, pid):
 def test_a_todo_task_that_keeps_changing_files_has_no_hour_its_clock_starts_again(
     make_client, wait_run, project_dir, monkeypatch
 ):
-    from tests.test_backlog_symphony import full_auto
+    from tests.test_backlog_auto import full_auto
 
     writes = [
         step(call("write_file", {"path": f"part{i}.txt", "content": str(i)}, f"w{i}"))
@@ -475,7 +474,6 @@ class Silent(ScriptedModel):
 @pytest.fixture
 def silent_todo(settings_env, project_dir, monkeypatch):
     """A To-do run of two tasks on a Silent Lead, its clock held: (client, clock, pid)."""
-    monkeypatch.setattr(backlog, "MAX_PARALLEL", 1)
     opened = []
 
     def make(hangs):
@@ -540,7 +538,6 @@ def test_nothing_moving_for_its_minutes_blocks_the_task_and_the_next_one_runs(
     assert one["stuck"] == NO_PROGRESS.format(minutes=30)
     task_until(lambda: tasks(client, pid)["two"]["conversation_id"])
     assert worked(client, wait_run, pid, "two")["status"] == "review"
-    assert client.get(f"/api/projects/{pid}/backlog/auto").json()["on"] is True
 
 
 @pytest.mark.parametrize("what", ["command", "file", "agent"])

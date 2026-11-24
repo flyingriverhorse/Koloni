@@ -38,10 +38,14 @@ import type {
   Question,
   Role,
   Run,
+  Story,
   ToolCall,
   TriggerProposal,
   Usage,
 } from '../api/types'
+import { storyDivider, todoLabel, useTodo } from './todo'
+import { TodoTurnCards } from './TodoCards'
+import { TodoMessage } from './TodoMessage'
 import { Minis } from './Attach'
 import { linksIn } from './attachments'
 import { ChangeActions, type ChangeAction } from '../changes/ChangeActions'
@@ -956,7 +960,7 @@ function TriggerMessage({ message, run, onShow }: { message: Message; run?: Run;
 
 // Where the topic changes: a line before the first message of a turn whose topic is not
 // that of the turn before it. "New" only the first time the topic is seen.
-function topicDividers(state: ConvState, ordered: Message[], runs: Map<string, Run>) {
+function topicDividers(state: ConvState, ordered: Message[], runs: Map<string, Run>, stories: Story[]) {
   const dividers = new Map<string, string>()
   const met = new Set<string>()
   let [turnBefore, topicBefore]: [string | null, string | null | undefined] = [null, undefined]
@@ -964,8 +968,13 @@ function topicDividers(state: ConvState, ordered: Message[], runs: Map<string, R
     if (message.run_id === turnBefore) continue
     turnBefore = message.run_id
     const topic = state.topics.find(t => t.id === runs.get(message.run_id)?.topic_id)
-    if (topic && topicBefore !== undefined && topic.id !== topicBefore) {
-      dividers.set(message.id, `${met.has(topic.id) ? 'Continuing' : 'New topic'}: ${titleOf(state, topic)}`)
+    // (0.1.8: a story's topic says its story - over the chat's first turn too.)
+    const story = stories.find(one => one.id === topic?.story_id)
+    if (topic && (topicBefore !== undefined || story) && topic.id !== topicBefore) {
+      dividers.set(
+        message.id,
+        story ? storyDivider(story) : `${met.has(topic.id) ? 'Continuing' : 'New topic'}: ${titleOf(state, topic)}`,
+      )
     }
     if (topic) met.add(topic.id)
     topicBefore = topic?.id ?? null
@@ -1048,6 +1057,7 @@ export function MessageList({
   onShowTurn,
   onShowGit,
 }: Props) {
+  const { backlog, stories } = useTodo()
   const on: Handlers = {
     onOpenChange,
     onDecide,
@@ -1116,7 +1126,8 @@ export function MessageList({
     ).map(([m, count]) => [m.id, count]),
   )
 
-  const dividers = topicDividers(state, ordered, runs)
+  const dividers = topicDividers(state, ordered, runs, stories)
+  const todoOf = (run: Run | undefined) => (run?.task_id ? backlog.find(task => task.id === run.task_id) : undefined)
 
   // A comparison (slice 54): its message once, under the first side's turn, with the two side by side;
   // each side's answer is there, and what it did - with whatever waits for you - under its model's name.
@@ -1480,20 +1491,24 @@ export function MessageList({
     ]
   }
 
-  /** The user's message, with the comparison it started and the room it was the goal of. */
+  /** The user's message - a To-do task's own (0.1.8) as the task - with the comparison it started and the room it was the goal of. */
   const userBody = (message: Message, run: Run | undefined, compare: string | null) => (
     <>
-      <UserMessage
-        message={message}
-        run={run}
-        files={state.attachments.filter(one => one.message_id === message.id && !one.frame_of)}
-        saved={state.fileChanges.filter(
-          change => change.run_id === message.run_id && change.attachment_id && change.status === 'applied',
-        )}
-        changed={workOf(state, [message.run_id]).files > 0}
-        onRemove={() => onRemoveQueued(message.run_id)}
-        onShow={onShowTurn}
-      />
+      {todoOf(run) ? (
+        <TodoMessage task={todoOf(run)!} label={todoLabel(todoOf(run)!, backlog)} brief={message.content} />
+      ) : (
+        <UserMessage
+          message={message}
+          run={run}
+          files={state.attachments.filter(one => one.message_id === message.id && !one.frame_of)}
+          saved={state.fileChanges.filter(
+            change => change.run_id === message.run_id && change.attachment_id && change.status === 'applied',
+          )}
+          changed={workOf(state, [message.run_id]).files > 0}
+          onRemove={() => onRemoveQueued(message.run_id)}
+          onShow={onShowTurn}
+        />
+      )}
       {compare && loadCompare && decideCompare && (
         <CompareView
           compareId={compare}
@@ -1696,6 +1711,9 @@ export function MessageList({
       cards.push(['refused', <WouldHaveAsked key="refused" refused={refusedIn(state, run.id)} onAllow={onAllow} />])
     }
     if (notice) cards.push(['notice', <RunNotice key="notice" notice={notice} />])
+    // 0.1.8: a To-do task's Done?, Stuck or its story's Story done?, under its turn here.
+    if (run?.task_id)
+      cards.push(['todo', <TodoTurnCards key="todo" cid={state.conversation.id} runs={state.runs} runId={run.id} />])
     return cards.map(([key, node]) => ({ key, node, folds: false }))
   }
 

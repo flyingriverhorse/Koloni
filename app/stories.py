@@ -9,7 +9,7 @@ from sqlalchemy import case, func, literal_column, select
 from sqlalchemy.orm import Session
 
 from app import topics
-from app.db.models import BacklogTask, Goal, Run, Story, Topic, now
+from app.db.models import Agent, BacklogTask, Goal, Run, Story, Topic, now
 
 PRIORITIES = ("high", "normal", "low")
 # A story's notebook: each note at most NOTE_MOST characters, at most NOTEBOOK_MOST of them (the
@@ -262,6 +262,39 @@ def add_notes(story: Story, texts: Sequence[str], by: str, kind: str = "decision
     at = now().isoformat()
     added = [{"kind": kind, "text": text[:NOTE_MOST], "by": by, "at": at} for text in texts]
     story.notes = [*(story.notes or []), *added][-NOTEBOOK_MOST:]  # (replaced whole)
+
+
+def _story_runs(story_id: str):
+    return (
+        select(Run.id)
+        .join(BacklogTask, BacklogTask.id == Run.task_id)
+        .where(BacklogTask.story_id == story_id)
+    )
+
+
+def branch_lead(session: Session, story_id: str) -> str | None:
+    """The Orchestrator of the story's latest turn that left its work on a git branch (its
+    record's `on_branch`, or `left_on` where it could not open it again): the one the story's
+    next turn goes on from (`AgentRunner._branch_again`). None: the story has no branch yet."""
+    for agent_id, copy in session.execute(
+        select(Agent.id, Agent.copy)
+        .where(Agent.run_id.in_(_story_runs(story_id)), Agent.depth == 0)
+        .order_by(Agent.created_at.desc(), literal_column("agents.rowid").desc())
+    ):
+        if (copy or {}).get("on_branch") or (copy or {}).get("left_on"):
+            return agent_id
+    return None
+
+
+def last_task(session: Session, story_id: str) -> BacklogTask | None:
+    """The story's task whose turn ran last."""
+    return session.scalar(
+        select(BacklogTask)
+        .join(Run, Run.task_id == BacklogTask.id)
+        .where(BacklogTask.story_id == story_id)
+        .order_by(Run.created_at.desc(), literal_column("runs.rowid").desc())
+        .limit(1)
+    )
 
 
 def _last_topic(session: Session, cid: str, *where) -> Topic | None:

@@ -210,9 +210,7 @@ class AwayMixin:
         installs into the project's own (`installs`); "" for one that does none of these, or
         in a turn nobody watches (its trigger's leave decides). In a side of a comparison harm
         (a side is thrown away, a push is not) and such an install alone: it stays in the
-        project whichever side is chosen (K-54). In a backlog task's turn (K-r135) a night's,
-        in the project itself - and so also one that runs code written on its line
-        (`runs_inline`), but for the user's own test command (`project_map.own_test`).
+        project whichever side is chosen (K-54). (A To-do task's turn is its chat's, 0.1.8.)
         `plain` runs in `cwd` (run_command's), as `with_cwd` judges it. `scratch_of`: the
         folder the command runs in, where a delete only in its scratch is no harm to ask about
         in a watched turn (B-336, `scratch_delete_only`); None, not a copy's nor a CLI's own."""

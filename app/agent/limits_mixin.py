@@ -625,7 +625,7 @@ class LimitsMixin:
 
     def _todo_ceiling(self: "AgentRunner", run_id: str, hours: int) -> None:
         """`_arm_todo_deadline`'s hours are up: the turn stops - not one that waits for the
-        user's word (a To-do task's card waits for it, K-r135), as a night's job that waits is
+        user's word (a To-do task's card waits for it), as a night's job that waits is
         spared (`_deadline`): its ceiling is looked at again a minute later."""
         with self._factory() as session:
             waits = self._waits_for_user(session, run_id)

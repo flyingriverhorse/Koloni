@@ -32,6 +32,7 @@ import { ofChat } from '../ready/ready'
 import { useReady } from '../ready/useReady'
 import { nextTopic, titleOf } from '../topics/topics'
 import { AskCard } from './AskCard'
+import { ChatTodoQueue } from './TodoQueue'
 import type { Second } from './Compare'
 import { Composer, type ComposerTopic } from './Composer'
 import { MessageList, type RequestHandlers } from './MessageList'
@@ -659,6 +660,8 @@ export function ChatPanel() {
       </div>
       {/* The Orchestrator's question, just over the message box (0.1.5). */}
       <AskCard conv={conv} open={open} tab={tab} onAnswer={app.answerQuestion} />
+      {/* 0.1.8: the chat's To-do queue, over the box: what waits, and that your message goes first. */}
+      <ChatTodoQueue conv={conv} open={open} />
       {/* Open, under the chat; closed, the small box's one line - the same box, the same draft. */}
       <Composer
         compact={!open}

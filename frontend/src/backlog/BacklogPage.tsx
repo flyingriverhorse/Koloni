@@ -1,27 +1,22 @@
 import { DotsSixVertical } from '@phosphor-icons/react'
 import { Fragment, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { type SpawnDecision } from '../agents/SpawnApproval'
-import { LEAD_WORK } from '../shell/ProjectSettings'
 import { errorText } from '../api/client'
 import type {
   Away,
-  BacklogAuto,
-  BacklogChoice,
+  BacklogDrafter,
   BacklogDraft,
   BacklogTask,
   BacklogTaskChange,
   Goal,
   NewBacklogTask,
-  PermissionMode,
   Provider,
   Story,
   TodoTreeAdded,
   TodoTreeIn,
 } from '../api/types'
 import { useAsk } from '../memory/useAsk'
-import { type LoadModels, ModelNameInput, ProviderOptions } from '../models/ModelNameInput'
 import { paidOf, type Paid } from '../models/cards'
-import { runsOn } from '../models/ModelPicker'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
 import { usePanel } from '../shell/usePanel'
@@ -68,13 +63,9 @@ const placeOf = (task: BacklogTask) =>
 interface Props {
   backlog: BacklogTask[] | null
   error: string | null
-  /** Whether the backlog runs by itself, and why its run is paused or stopped; null until read. */
-  auto: BacklogAuto | null
-  onAuto: (on: boolean) => Promise<void>
-  /** The level and model the chats the backlog opens start with (B-350), and what to choose from. Throws ApiError. */
-  onChoice: (choice: BacklogChoice) => Promise<void>
+  /** Who "Write it with the Hive keeper" asks, or why nobody can; null until read. */
+  drafter?: BacklogDrafter | null
   providers: Provider[]
-  onModels?: LoadModels
   /** The project's night while you're away (slice 106): the one that runs, else its last. */
   away?: Away | null
   /** Each throws ApiError; the backlog is read again after it. */
@@ -88,8 +79,6 @@ interface Props {
   onChange: (taskId: string, change: BacklogTaskChange) => Promise<void>
   onDelete: (taskId: string) => Promise<void>
   onDecide: (taskId: string, decision: SpawnDecision) => Promise<void>
-  /** Run the backlog: every todo task is queued, and they start as there is room. Throws ApiError. */
-  onRun: () => Promise<void>
   /** Do in chat: the ticked tasks wait in this chat's queue (null: a new chat's), which opens. Throws ApiError. */
   onDoInChat?: (taskIds: string[], conversationId: string | null) => Promise<void>
   onOpen: (conversationId: string) => void
@@ -237,7 +226,7 @@ const COSTS: Record<Paid, string> = {
 type AddProps = Pick<Props, 'onAdd'> & StoryChoice
 
 /** Who writes the drafts and what that costs - or why nobody can, or that it is not read yet. */
-const whoWrites = (drafter: BacklogAuto['drafter'], asked: Provider | undefined) =>
+const whoWrites = (drafter: BacklogDrafter | null | undefined, asked: Provider | undefined) =>
   drafter?.why ??
   (asked
     ? `${asked.name} (${drafter?.model_id ?? asked.default_model ?? 'its default model'}) writes them: ${COSTS[paidOf(asked)]}. Nothing is saved until you add it.`
@@ -301,7 +290,7 @@ function AddTask({ onAdd, stories, onNewStory }: AddProps) {
 }
 
 type NoteProps = Pick<Props, 'onDraft' | 'onPlan' | 'onAddTree' | 'providers'> & {
-  drafter: BacklogAuto['drafter']
+  drafter: BacklogDrafter | null | undefined
   /** Its box shown; closed, a draft written stays under the bar until it is added or dropped. */
   open: boolean
   onClose: () => void
@@ -447,7 +436,7 @@ function runState(task: BacklogTask, listed: BacklogTask[]): string | null {
   if (task.status !== 'todo') return null
   const waits = waitsFor(task, listed)
   if (waits.length) return `waits for: ${waitWords(waits)}`
-  return task.queued ? 'queued' : null
+  return task.place != null ? 'queued in its chat' : null
 }
 
 /** A task's state at a glance, on the right of its row: its word, and the tag's colour. */
@@ -456,7 +445,7 @@ function stateTag(task: BacklogTask): [string, string] {
   if (task.status === 'doing') return task.waiting ? ['needs you', ' tag-warn'] : ['running', ' tag-accent']
   if (task.status === 'blocked') return [task.stuck ? 'stuck' : 'blocked', ' tag-del']
   if (task.status === 'done') return ['done', ' tag-ok']
-  return [task.status === 'todo' && task.queued ? 'queued' : STATUS_WORD[task.status], '']
+  return [task.status === 'todo' && task.place != null ? 'queued' : STATUS_WORD[task.status], '']
 }
 
 // Done, not "done?": work waiting for Take in is not in the project yet.
@@ -1110,180 +1099,16 @@ function TaskRow({ task, listed, above, below, dragged, onDrag, onChange, onDele
   )
 }
 
-/** The switch that has the backlog run by itself, its rules behind ⓘ. */
-function AutoSwitch({ auto, onAuto }: { auto: BacklogAuto; onAuto: Props['onAuto'] }) {
-  const { busy, error, ask } = useAsk()
-  return (
-    <>
-      {/* (Off stays possible: only turning it on is refused while no task can run.) */}
-      <label className="choice" htmlFor="backlog-auto" title={auto.cannot_run ?? undefined}>
-        <input
-          id="backlog-auto"
-          type="checkbox"
-          role="switch"
-          aria-describedby="backlog-auto-line backlog-rules"
-          checked={auto.on}
-          disabled={busy || (!auto.on && !!auto.cannot_run)}
-          onChange={e => void ask(() => onAuto(e.target.checked))}
-        />
-        Runs by itself
-      </label>
-      {/* (Beside the label, not in it: the switch's name stays its own.) */}
-      <Hint doc={GUIDE.todoRunning} id="backlog-auto-line">
-        {auto.on
-          ? 'On: todo tasks start by themselves when fewer than two are at work and no turn of yours is running.'
-          : 'Off: tasks start only from Run the backlog.'}
-      </Hint>
-      {error && (
-        <div role="alert" className="alert">
-          {error}
-        </div>
-      )}
-    </>
-  )
-}
-
-/** B-350: the level and the model the chats the backlog opens start with, kept for the project; as a chat's own. */
-function ChatChoice({
-  auto,
-  providers,
-  onChoice,
-  onModels,
-}: { auto: BacklogAuto } & Pick<Props, 'providers' | 'onChoice' | 'onModels'>) {
-  const { busy, error, ask } = useAsk()
-  const [model, setModel] = useState(auto.model_id ?? '')
-  const picked = providers.find(p => p.id === auto.provider_id)
-  const full = auto.permission_mode === 'full_auto'
-  const save = (change: Partial<BacklogChoice>) =>
-    void ask(() =>
-      onChoice({
-        permission_mode: auto.permission_mode,
-        provider_id: auto.provider_id,
-        model_id: auto.model_id,
-        lead_work: auto.lead_work,
-        ...change,
-      }),
-    )
-  return (
-    <>
-      <div className="memory-row">
-        <div className="field">
-          <label htmlFor="backlog-level">Its chats’ level</label>
-          <select
-            id="backlog-level"
-            className="input"
-            // (Its warning is beside Run settings, outside this panel: the Full auto tag's ⓘ.)
-            aria-describedby={full ? 'backlog-level-note' : undefined}
-            value={auto.permission_mode}
-            disabled={busy}
-            onChange={e => save({ permission_mode: e.target.value as PermissionMode })}
-          >
-            <option value="ask">Ask before changes</option>
-            <option value="auto_edit">Auto-edit files</option>
-            <option value="full_auto">Full auto</option>
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="backlog-lead-work">Who changes the files</label>
-          <select
-            id="backlog-lead-work"
-            className="input"
-            value={auto.lead_work}
-            disabled={busy}
-            title={LEAD_WORK.find(([value]) => value === auto.lead_work)?.[2]}
-            onChange={e => save({ lead_work: e.target.value as BacklogAuto['lead_work'] })}
-          >
-            {LEAD_WORK.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="backlog-provider">Provider</label>
-          <select
-            id="backlog-provider"
-            className="input"
-            value={auto.provider_id ?? ''}
-            disabled={busy}
-            onChange={e => {
-              setModel('')
-              save({ provider_id: e.target.value || null, model_id: null })
-            }}
-          >
-            <option value="">Default ({providers[0]?.name ?? 'none'})</option>
-            <ProviderOptions providers={providers} />
-          </select>
-        </div>
-        {auto.provider_id && (
-          // Kept as the field is left: not at each letter typed.
-          <div
-            className="field memory-grow"
-            onBlur={() => model.trim() !== (auto.model_id ?? '') && save({ model_id: model.trim() || null })}
-          >
-            <label htmlFor="backlog-model">Model name</label>
-            <ModelNameInput
-              id="backlog-model"
-              value={model}
-              // (The Anthropic API has no default of its own: with none set, a run is refused.)
-              placeholder={
-                runsOn(picked) ??
-                (picked?.kind === 'anthropic' ? 'Needed: this provider has no default model' : "The provider's default")
-              }
-              providerId={auto.provider_id}
-              loadModels={onModels}
-              onChange={setModel}
-            />
-            <span className="choice-note">A role with its own model keeps it.</span>
-          </div>
-        )}
-      </div>
-      {error && (
-        <div role="alert" className="alert">
-          {error}
-        </div>
-      )}
-    </>
-  )
-}
-
-/** How the run stands, beside Run the backlog: why it is paused or stopped, what it waits for, how many run, or whether it is on. */
-function runLine(auto: BacklogAuto | null, listed: BacklogTask[]) {
-  const working = listed.filter(task => task.status === 'doing').length
-  // (By itself it takes the todo tasks never worked on; Run the backlog queues them all.)
-  const queued = listed.filter(task => task.status === 'todo' && (task.queued || (auto?.on && !task.conversation_id)))
-  // B-349: nothing at work and every queued task waits, some for one in review: that is why.
-  const held =
-    working || !queued.every(task => waitsFor(task, listed).length)
-      ? []
-      : listed.filter(one => one.status === 'review' && queued.some(task => task.after.includes(one.id)))
-  return (
-    auto?.halt ??
-    (held.length
-      ? `Nothing running: waits for ${waitWords(held)}`
-      : working || queued.length
-        ? `Running ${working} of ${working + queued.length}`
-        : auto?.on
-          ? 'On, waiting: no new task is todo'
-          : 'Off')
-  )
-}
-
 /**
- * The project's backlog, kept like a Hive keeper would: what waits for your word on top, one row
- * each; your tasks in order (priority first, then the order you give); and "Run the backlog", which
- * starts the todo tasks - two at a time, each in a new conversation - and how the run stands.
+ * The project's To-do, kept like a Hive keeper would: what waits for your word on top, one row each; your goals,
+ * stories and tasks as a tree (priority first, then the order you give); ticked ones go to a chat's queue (Do in chat).
  */
 export function BacklogPage({
   backlog,
   error,
-  auto,
+  drafter,
   away,
   providers,
-  onAuto,
-  onChoice,
-  onModels,
   onAdd,
   onDraft,
   onPlan,
@@ -1291,7 +1116,6 @@ export function BacklogPage({
   onChange,
   onDelete,
   onDecide,
-  onRun,
   onDoInChat,
   onOpen,
   stories,
@@ -1300,64 +1124,10 @@ export function BacklogPage({
   projectId,
   tree = NO_TREE,
 }: Props) {
-  const { busy, error: workError, ask } = useAsk()
   const [dragged, setDragged] = useState<BacklogTask | null>(null)
-  const [settings, setSettings] = useState(false)
   const waits = waitsOf(backlog ?? [], onDecide, onChange)
   const listed = backlog?.filter(task => task.status !== 'proposed') ?? []
-  const todo = listed.some(task => task.status === 'todo')
-  const run = runLine(auto, listed)
   const view = useTreeView(listed, stories, goals, tree.onNewStory)
-
-  /** Its head: how the run stands, Runs by itself, Run settings, Full auto said, and Run the backlog. */
-  const head = () => (
-    <div className="conv-head">
-      <h2>To-do</h2>
-      <div className="memory-actions">
-        {/* Why Run the backlog is grey, said where it is seen. */}
-        <span id="backlog-next" className="muted">
-          {run}
-          {auto?.cannot_run && (
-            <>
-              {' · '}
-              <span className="backlog-warn">{auto.cannot_run}</span>
-            </>
-          )}
-        </span>
-        {auto && <AutoSwitch auto={auto} onAuto={onAuto} />}
-        {auto && (
-          <button
-            type="button"
-            className="btn btn-small"
-            aria-expanded={settings}
-            aria-controls="backlog-settings"
-            onClick={() => setSettings(!settings)}
-          >
-            Run settings <span aria-hidden="true">▾</span>
-          </button>
-        )}
-        {auto?.permission_mode === 'full_auto' && (
-          <span>
-            <span className="tag tag-warn">Full auto</span>{' '}
-            <Hint doc={GUIDE.todoRunSettings} id="backlog-level-note">
-              Full auto: its chats change files and run commands without asking. Commands that run other programs, and
-              anything it would ask you, still wait for you - it never answers for you.
-            </Hint>
-          </span>
-        )}
-        <button
-          type="button"
-          className="btn btn-primary"
-          aria-describedby="backlog-next"
-          title={auto?.cannot_run ?? undefined}
-          disabled={busy || !todo || !!auto?.cannot_run}
-          onClick={() => void ask(onRun)}
-        >
-          Run the backlog
-        </button>
-      </div>
-    </div>
-  )
 
   /** Your tasks: being read, none yet, or as a tree. */
   const tasks = () =>
@@ -1365,8 +1135,8 @@ export function BacklogPage({
       !error && <p className="muted">Reading the To-do list…</p>
     ) : view.empty ? (
       <p className="muted hive-empty">
-        No task yet. A task is work for later: type its title in “Add a task” above, and Run the backlog starts it in a
-        chat of its own.
+        No task yet. A task is work for later: type its title in “Add a task” above, tick it, and Do in chat gives it to
+        a chat.
       </p>
     ) : (
       <section className="memory-section" aria-label="Your tasks">
@@ -1405,38 +1175,32 @@ export function BacklogPage({
 
   return (
     <div className="memory-page">
-      {head()}
-      {auto && settings && (
-        <section id="backlog-settings" className="memory-side" aria-label="Run settings">
-          <p className="choice-note">
-            The To-do list’s chats only, instead of the project’s (Settings › This project).
-          </p>
-          <ChatChoice auto={auto} providers={providers} onChoice={onChoice} onModels={onModels} />
-        </section>
-      )}
+      <div className="conv-head">
+        <h2>To-do</h2>
+      </div>
       <div className="muted memory-hint">
-        Each task runs in its own chat; you decide when it is done.{' '}
-        <Hint doc={GUIDE.todoRunning}>
-          Run the backlog starts the todo tasks, two at a time, each in a new conversation where the Orchestrator hands
-          it to the right role. Its first message is the task’s title, detail and what makes it done. A task that waits
-          for others (⋯, Waits for) starts once they are done. When the work ends, the task shows “done?”: you decide
-          whether it is done; what needs your word still waits for it. With Runs by itself on, todo tasks start as there
-          is room. The Hive keeper and the Scout can propose tasks and changes; they wait here for your word. Going
-          away? Press ☾ Away on a chat’s status line: that chat finishes its turn, then the tasks you tick are worked
-          through, each in a copy of its own, until you are back.
+        Tick tasks and press Do in chat: they run in that chat, one by one; you decide when each is done.{' '}
+        <Hint doc={GUIDE.todoInChat}>
+          The ticked tasks wait in the chat’s queue, above its message box, and run there one by one - your own message
+          still goes first. Each story goes into a topic of its own, where its tasks go on in one session; a task of no
+          story gets a topic of its own. A task runs at its chat’s level, on its chat’s model, and asks on cards there.
+          A task that waits for others (⋯, Waits for) starts once they are done. When its work ends, the chat asks
+          “Done?”. The Hive keeper and the Scout can propose tasks and changes; they wait here for your word. Going
+          away? ☾ Away works through the tasks you tick, each in a copy of its own, until you are back.
         </Hint>
       </div>
       {/* What it runs and spends stays in sight, never behind an ⓘ. */}
       <div id="backlog-rules" className="muted memory-hint">
-        A task not finished gets one fix round; still not, it is stuck and the next goes on. A stop, a restart or a
-        limit pauses the run and says why. When a task’s work ends, a fast model, if you have one, writes the Scout’s
-        view of it - what of what makes it done looks met: one more request, and only an opinion. None is written for
-        work that failed, was stopped, only made a plan or went over its turn’s token limit.
+        A task not finished gets one fix round; still not, it is stuck and the next goes on. A stop, a restart or the
+        month’s budget stops the chat’s queue and says why there. When a task’s work ends, a fast model, if you have
+        one, writes the Scout’s view of it - what of what makes it done looks met: one more request, and only an
+        opinion. None is written for work that failed, was stopped, only made a plan or went over its turn’s token
+        limit.
       </div>
       {away && <AwayNight away={away} onOpen={onOpen} />}
-      {(error || workError) && (
+      {error && (
         <div role="alert" className="alert">
-          {error ? `The To-do list could not be read: ${error}` : workError}
+          The To-do list could not be read: {error}
         </div>
       )}
       <TodoHead
@@ -1447,7 +1211,7 @@ export function BacklogPage({
         onPlan={onPlan}
         onAddTree={onAddTree}
         providers={providers}
-        drafter={auto?.drafter}
+        drafter={drafter}
       />
       {waits.length > 0 && <Waiting waits={waits} onDecide={onDecide} onChange={onChange} onOpen={onOpen} />}
       <Declined backlog={backlog} onDecide={onDecide} />

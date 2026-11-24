@@ -16,10 +16,11 @@ from sqlalchemy.orm import Session
 from app import agent, backlog
 from app.agent import po_mixin
 from app.db.models import Agent, BacklogTask, Discussion, Project, Room, Run
-from app.team import Entry
+from app.team import Entry, quoted
 from tests.test_away_scenarios import ended as night_over
 from tests.test_away_scenarios import go_away, to_do
 from tests.test_backlog import setup
+from tests.test_backlog_auto import run_todo
 from tests.test_chat_flow import text
 from tests.test_spawn import call, step
 from tests.test_team import team  # noqa: F401  (a fixture)
@@ -392,7 +393,7 @@ def test_a_task_turn_is_assessed_and_gets_no_proposals(team, project_dir, ended)
     )
     tiered(team, client)
     pid, _ = setup(client, project_dir, "notes")
-    cid = client.post(f"/api/projects/{pid}/backlog/next").json()["conversation_id"]
+    cid = run_todo(client, pid)["conversation_id"]
     ended(client.get(f"/api/conversations/{cid}").json()["runs"][0]["id"])
     (asked,) = fast.calls  # the view of the task only
     assert asked[0]["content"] == backlog.ASSESS
@@ -435,21 +436,21 @@ def test_at_full_auto_the_lead_decides_each_and_the_user_can_undo_it(team, proje
     # the one said no to waits for nobody (it is under Decided for you); the one added waits for
     # the user's OK, counted on the rail as on the To-do page
     assert client.get("/api/board").json()["backlog_waiting"] == 1
-    # one the Lead added starts by nobody's word but the user's: not by Run the backlog...
-    refused = client.post(f"/api/projects/{pid}/backlog/next")
-    assert (refused.status_code, refused.json()["detail"]) == (
-        409,
-        "1 tasks wait for your OK on the To-do page",
+    # one the Lead added starts by nobody's word but the user's: not given to a chat until their OK
+    refused = client.post(
+        f"/api/projects/{pid}/backlog/do-in-chat", json={"task_ids": [added["id"]]}
     )
-    # ...nor by the list running by itself, until the user's OK
-    assert client.put(f"/api/projects/{pid}/backlog/auto", json={"on": True}).status_code == 200
+    assert (refused.status_code, refused.json()["detail"]) == (
+        422,
+        f"{quoted(added['title'])} waits for your OK on the To-do page",
+    )
     assert tasks(client, pid)[0]["conversation_id"] is None
     assert client.post(f"/api/backlog/{added['id']}/seen").json()["po"]["seen"] is True
+    run_todo(client, pid)
     chat = until(lambda: tasks(client, pid)[0]["conversation_id"])
     first = client.get(f"/api/conversations/{chat}").json()["messages"][0]["content"]
     assert "added by the Orchestrator at Full auto, then OK'd by you" in first
     # Change on a no adds it
-    assert client.put(f"/api/projects/{pid}/backlog/auto", json={"on": False}).status_code == 200
     assert (
         client.post(f"/api/backlog/{said_no['id']}/decide", json={"decision": "approve"}).json()[
             "status"
@@ -492,23 +493,6 @@ def test_a_proposal_that_reads_like_orders_is_never_added_by_the_lead(team, proj
     assert not any(asked[-1]["content"].startswith(backlog.DECIDE) for asked in default.calls)
     warned = client.get(f"/api/conversations/{cid}").json()["warnings"]
     assert [(w["rule"], w["where"]) for w in warned] == [("ignore_previous", po_mixin.WHERE)]
-
-
-def test_where_the_to_do_list_runs_by_itself_the_lead_adds_nothing(team, project_dir, ended):  # noqa: F811
-    # (a task added there would start: what came from agents' words starts by the user's word only)
-    client, default, _fast = team(
-        [FAILED, text(ANSWER)], [po(task("Add CLI help", "the CLI help text"))]
-    )
-    tiered(team, client)
-    client.headers["Origin"] = ORIGIN
-    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    assert client.put(f"/api/projects/{pid}/backlog/auto", json={"on": True}).status_code == 200
-    cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    client.patch(f"/api/conversations/{cid}", json={"permission_mode": "full_auto"})
-    ended(say(client, cid))
-    ((one),) = tasks(client, pid)
-    assert (one["status"], one["po"]["lead"], one["conversation_id"]) == ("proposed", None, None)
-    assert not any(asked[-1]["content"].startswith(backlog.DECIDE) for asked in default.calls)
 
 
 def test_a_nights_jobs_propose_and_nothing_is_added_for_the_user(team, project_dir, ended):  # noqa: F811

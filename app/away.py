@@ -582,9 +582,9 @@ _told_looked_at: set[str] = set()
 
 
 def _start(session: Session, away: AwayRun, task: BacklogTask, runner) -> None:
-    """A job in a new chat: as the chat gone from - its model, its level where the To-do page's
-    is not lower (the chat's rules hold tonight too; what nobody watching may do unasked is held
-    to, `AgentRunner._night_asks`) - with the teams the user picked there. Who changes the
+    """A job in a new chat: as the chat gone from - its model and its level (0.1.8: the chat's
+    rules hold tonight too; what nobody watching may do unasked is held to,
+    `AgentRunner._night_asks`) - with the teams the user picked there. Who changes the
     files and the rest of its sub-agent settings are the project's, as any chat's
     (`settings_of`, `lead_work_of`)."""
     job = next(job for job in away.jobs if job.get("task_id") == task.id)
@@ -597,8 +597,7 @@ def _start(session: Session, away: AwayRun, task: BacklogTask, runner) -> None:
     )
 
     def shape(chat: Conversation) -> None:
-        # (The lower of the chat gone from's level and the To-do page's, `backlog.start`'s.)
-        chat.permission_mode = min(chat.permission_mode, evening.permission_mode, key=LEVELS.index)
+        chat.permission_mode = evening.permission_mode
         chat.provider_id, chat.model_id = evening.provider_id, evening.model_id
         if team is not None:
             chat.teams_mode = "manual"

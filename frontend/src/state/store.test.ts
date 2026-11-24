@@ -1280,37 +1280,6 @@ test('a room that opens opens its window; one that opens while another is open c
   expect(useApp.getState().roomWindows).toEqual({})
 })
 
-test('Run the backlog waits for its choice being saved: a model name is saved as its field is left, by that click', async () => {
-  useApp.setState({ projectId: 'p' })
-  const read = vi.mocked(fetch).getMockImplementation()!
-  let saved = () => {}
-  const order: string[] = []
-  vi.mocked(fetch).mockImplementation(async (url, init) => {
-    const path = String(url)
-    if (path.endsWith('/backlog/choice')) {
-      await new Promise<void>(resolve => (saved = resolve))
-      order.push('choice')
-      return new Response(
-        JSON.stringify({ on: false, halt: null, permission_mode: 'ask', provider_id: 'x', model_id: 'm' }),
-        { status: 200 },
-      )
-    }
-    if (path.endsWith('/backlog/next')) order.push('next')
-    return read(url, init)
-  })
-  const choosing = useApp.getState().setBacklogChoice({ permission_mode: 'ask', provider_id: 'x', model_id: 'm' })
-  const running = useApp
-    .getState()
-    .runBacklog()
-    .catch(() => {})
-  await vi.advanceTimersByTimeAsync(0)
-  expect(order).toEqual([])
-  saved()
-  await choosing
-  await running
-  expect(order).toEqual(['choice', 'next'])
-})
-
 test('a slow read of the conversations list does not overwrite a later one', async () => {
   const answers: ((list: unknown[]) => void)[] = []
   vi.mocked(fetch).mockImplementation(
@@ -1388,6 +1357,8 @@ test('what an event of the open chat has the page read again, in the order it as
   // The board: a file changed hands, a turn stopped or went on, an agent started or began to wait - not what it says.
   expect(await on('claims.changed', { claims: [] })).toEqual(board)
   expect(await on('run.updated', started('r1', 'running'))).toEqual(board)
+  // (...not its tokens: an update of a turn whose status stays reads nothing.)
+  expect(await on('run.updated', { ...started('r1', 'running'), input_tokens: 9 })).toEqual([])
   expect(await on('run.finished', started('r1', 'completed'))).toEqual(board)
   expect(await on('agent.created', { ...worker, id: 'y', provider_name: null })).toEqual(board)
   expect(await on('agent.updated', { ...worker })).toEqual([])
@@ -1401,7 +1372,7 @@ test('what an event of the open chat has the page read again, in the order it as
   expect(await on('memory.changed')).toEqual(['GET /api/projects/p/memory'])
   expect(await on('backlog.changed')).toEqual([
     'GET /api/projects/p/backlog',
-    'GET /api/projects/p/backlog/auto?conversation_id=a',
+    'GET /api/projects/p/backlog/drafter?conversation_id=a',
     'GET /api/projects/p/stories',
     ...rest,
   ])
@@ -1423,7 +1394,7 @@ test('0.1.8: the stories and goals are read with the backlog, and each change of
   expect(await useApp.getState().addStory('Login', 'g')).toEqual({ id: 'new' })
   await useApp.getState().changeStory('s', { goal_id: null })
   await useApp.getState().deleteGoal('g')
-  const reads = ['GET /api/projects/p/backlog', 'GET /api/projects/p/backlog/auto', 'GET /api/projects/p/stories']
+  const reads = ['GET /api/projects/p/backlog', 'GET /api/projects/p/backlog/drafter', 'GET /api/projects/p/stories']
   expect(asked).toEqual([
     `POST /api/projects/p/stories ${JSON.stringify({ title: 'Login', goal_id: 'g' })}`,
     ...reads,

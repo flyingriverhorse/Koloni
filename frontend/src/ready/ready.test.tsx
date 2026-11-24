@@ -23,7 +23,6 @@ const task = (id: string, over: Partial<BacklogTask> = {}): BacklogTask => ({
   assessment: null,
   not_in: false,
   after: [],
-  queued: false,
   stuck: null,
   waiting: false,
   kind: 'task',

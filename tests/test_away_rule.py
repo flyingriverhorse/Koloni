@@ -14,7 +14,7 @@ from app.db.models import AwayRun, Conversation
 from tests.test_agent_writes import wait_status
 from tests.test_b397 import at_steps, looking
 from tests.test_backlog import setup
-from tests.test_backlog_auto import tasks, until
+from tests.test_backlog_auto import run_todo, tasks, until
 from tests.test_chat_flow import text
 from tests.test_lead_decides import (
     CODER,
@@ -61,7 +61,7 @@ def test_a_to_do_tasks_question_is_decided_after_the_projects_minutes(make_clien
         ).status_code
         == 200
     )
-    cid = client.post(f"/api/projects/{pid}/backlog/next").json()["conversation_id"]
+    cid = run_todo(client, pid)["conversation_id"]
     fire(client, until(lambda: lead_timers(clock, 600.0))[0])
     question = until_answered(client, cid)
     assert (question["answer"], question["lead_why"]) == ("by date", "The spec says newest first.")

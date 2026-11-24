@@ -427,17 +427,15 @@ class RecordMixin:
         self._unattended_over(run_id, status, error)
         self.bus.emit(cid, None, "conversation.updated", conversation_payload)
         self.bus.emit(cid, run_id, "run.finished", payload)
-        # The user's own message queued behind the turn goes first (`start_next`); then the
-        # backlog's next task where it works itself, a night's next job, and the chats' queues
-        # of To-do tasks (`backlog.go_on`: one waits while its chat is at work). None raises.
+        # The user's own message queued behind the turn goes first (`start_next`); then a
+        # night's next job, and the chats' queues of To-do tasks (`backlog.go_on`: one waits
+        # while its chat is at work). None raises.
         # Not after a side of a comparison: only the conversation's own turns move them.
         self.start_next(cid)
         if project_id is None:  # (a plain chat has none - and None would name every plain chat)
             return moved
         changed = job
         if not self._closing and not side:
-            with contextlib.suppress(Exception), self._factory() as session:
-                changed = backlog.chain(session, project_id, self.bus, self.start) or changed
             with contextlib.suppress(Exception), self._factory() as session:
                 changed = away.go_on(session, project_id, self) or changed
             with contextlib.suppress(Exception), self._factory() as session:

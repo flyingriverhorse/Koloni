@@ -18,7 +18,6 @@ const task = (title: string): BacklogTask => ({
   assessment: null,
   not_in: false,
   after: [],
-  queued: false,
   stuck: null,
   waiting: false,
   kind: 'task',

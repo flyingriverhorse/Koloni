@@ -131,8 +131,7 @@ export type BacklogTask = Schemas['BacklogTaskOut']
 export type NewBacklogTask = Schemas['BacklogTaskIn']
 export type BacklogTaskChange = Schemas['BacklogTaskPatch']
 /** Whether the backlog works itself, and why it last stopped by itself; and the level and model its chats start with. */
-export type BacklogAuto = Schemas['BacklogAutoOut']
-export type BacklogChoice = Schemas['BacklogChoiceIn']
+export type BacklogDrafter = Schemas['BacklogDrafter']
 /** A model's tasks from the user's note, saved nowhere, and who wrote them. */
 export type BacklogDraft = Schemas['BacklogDraftOut']
 /** 0.1.8: a goal holds stories, a story holds tasks and bugs; a story's state comes from its tasks. */

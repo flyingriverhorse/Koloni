@@ -4,14 +4,15 @@ delete them. Every change here is the user's own, from the app's own page
 open. A link never crosses projects; deleting a goal or a story keeps what was under it."""
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app import stories
+from app import backlog, stories
 from app.agent import announce
 from app.api.deps import get_session, require_own_origin
-from app.db.models import BacklogTask, Goal, Project, Story, now
+from app.db.models import Agent, BacklogTask, Conversation, Goal, Project, Run, Story, now
 from app.schemas import GoalIn, GoalOut, GoalPatch, StoryIn, StoryOut, StoryPatch, TodoTreeOut
+from app.team import quoted
 
 router = APIRouter(prefix="/api", tags=["backlog"])
 OWN = [Depends(require_own_origin)]
@@ -126,13 +127,49 @@ async def change_story(
         if goal_id is not None and not stories.of_project(session, Goal, story.project_id, goal_id):
             raise HTTPException(422, OTHER_GOAL)
         story.goal_id = goal_id
-    if changes.get("closed") is not None:
+    if changes.get("closed") and story.closed_at is None:
+        if not _close(request, session, story):  # (no branch waits: done at once)
+            story.closed_at = now()
+    elif changes.get("closed") is not None:
         story.closed_at = now() if changes["closed"] else None
     if changes.get("position") is not None:
         stories.renumber(session, Story, story.project_id, story, changes["position"])
     session.commit()
     _told(request, story.project_id)
     return _story_out(session, story)
+
+
+CLOSE_STORY = "Close the story {title}"
+CHAT_AT_WORK = "its chat is at work: close the story once that turn is over"
+
+
+def _close(request: Request, session: Session, story: Story) -> bool:
+    """Close the story, where its work waits on its git branch (`stories.branch_lead`): a turn of
+    the chat its last task ran in, in that topic, that runs no model - KOLONİ checks the branch and
+    merges it, or opens a pull request (the project's `finish_way`); the story is done once it
+    went in, and where the check did not pass its last task is stuck with why
+    (`AgentRunner._close_story`). Whether such a turn started; 409 while that chat is at work."""
+    lead = stories.branch_lead(session, story.id)
+    run = session.get(Run, session.get_one(Agent, lead).run_id) if lead else None
+    chat = session.get(Conversation, run.conversation_id) if run else None
+    if run is None or chat is None:
+        return False
+    if session.scalar(
+        select(Run.id)
+        .where(Run.conversation_id == chat.id, Run.status.not_in(backlog.ENDED))
+        .limit(1)
+    ):
+        raise HTTPException(409, CHAT_AT_WORK)
+    runner = request.app.state.runner
+    backlog.say(
+        session,
+        chat,
+        CLOSE_STORY.format(title=quoted(story.title)),
+        request.app.state.bus,
+        lambda run_id: runner.close_story(run_id, story.id),
+        topic_id=run.topic_id,
+    )
+    return True
 
 
 @router.delete("/stories/{story_id}", status_code=204, dependencies=OWN)

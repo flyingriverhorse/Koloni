@@ -958,14 +958,7 @@ def away_with(client, project_dir, wait_run, mode, rules=RULE, todo=None):
     from tests.test_away_scenarios import proposed_in
 
     pid, cid, run_id = begin(client, project_dir, "tidy up while I sleep", rules=rules, mode=mode)
-    assert (
-        client.put(
-            f"/api/projects/{pid}/backlog/choice",
-            json={"permission_mode": todo or mode},
-            headers=OWN,
-        ).status_code
-        == 200
-    )
+    client.todo_mode = todo or mode
     wait_run(client, cid, run_id)
     gone = client.post(
         f"/api/conversations/{cid}/away", json={"task_ids": proposed_in(client, cid)}, headers=OWN
@@ -1073,10 +1066,8 @@ def test_while_away_a_jobs_send_remote_push_or_instruction_file_keeps_its_card(
 
 
 @pytest.mark.no_po
-def test_while_away_a_job_runs_at_the_lower_of_the_chats_level_and_the_to_do_pages(
-    judging, wait_run, project_dir
-):
-    # (The review: a job took the chat's Full auto over the To-do page's Ask before changes.)
+def test_while_away_a_job_runs_at_the_level_of_the_chat_gone_from(judging, wait_run, project_dir):
+    # (0.1.8: no To-do page's level any more - a job runs at the chat's, here Ask before changes.)
     from tests.test_away_scenarios import ended, to_do
 
     client, _lead, judge, executor = judging(
@@ -1084,7 +1075,7 @@ def test_while_away_a_job_runs_at_the_lower_of_the_chats_level_and_the_to_do_pag
         [verdict_line("run", RULE)],
         [],
     )
-    pid, _night = away_with(client, project_dir, wait_run, "full_auto", todo="ask")
+    pid, _night = away_with(client, project_dir, wait_run, "ask")
     (job,) = ended(client, pid)["jobs"]
     chat = client.get(f"/api/conversations/{job['conversation_id']}").json()
     assert chat["conversation"]["permission_mode"] == "ask"

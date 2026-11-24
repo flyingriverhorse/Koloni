@@ -28,6 +28,32 @@ def setup(client, project_dir, *titles):
     ]
 
 
+def run_todo(client, pid, mode=None) -> dict:
+    """Each task to do - not one waiting for your OK, nor a night's - goes into a new chat of its
+    own and starts there (Do in chat); at `mode` where given, else at the level `full_auto` set
+    for the client. The first's task id and chat."""
+    mode = mode or getattr(client, "todo_mode", None)
+    first = {"task_id": None, "conversation_id": None}
+    for one in client.get(f"/api/projects/{pid}/backlog").json():
+        if one["status"] != "todo" or one["place"] is not None:
+            continue
+        cid = None
+        if mode:
+            cid = client.post(f"/api/projects/{pid}/conversations", headers=ORIGIN).json()["id"]
+            changed = client.patch(
+                f"/api/conversations/{cid}", json={"permission_mode": mode}, headers=ORIGIN
+            )
+            assert changed.status_code == 200, changed.text
+        answer = client.post(
+            f"/api/projects/{pid}/backlog/do-in-chat",
+            json={"task_ids": [one["id"]], "conversation_id": cid},
+            headers=ORIGIN,
+        )
+        if answer.status_code == 200 and first["task_id"] is None:
+            first = {"task_id": one["id"], "conversation_id": answer.json()["conversation_id"]}
+    return first
+
+
 def titles(client, pid):
     return [(t["title"], t["position"]) for t in client.get(f"/api/projects/{pid}/backlog").json()]
 
@@ -184,7 +210,7 @@ def test_work_opens_no_folder_a_task_names_and_says_who_wrote_it(
     agent(client, pid, "add_task", title="tidy", detail=f"Look in `{outside}` first.")
     (task,) = client.get(f"/api/projects/{pid}/backlog").json()
     client.post(f"/api/backlog/{task['id']}/decide", json={"decision": "approve"})
-    cid = client.post(f"/api/projects/{pid}/backlog/next").json()["conversation_id"]
+    cid = run_todo(client, pid)["conversation_id"]
     snap = client.get(f"/api/conversations/{cid}").json()
     assert snap["conversation"]["also_in"] == []
     assert snap["conversation"]["title"] == "tidy"  # its title comes first, on its own line
@@ -208,7 +234,7 @@ def test_a_tasks_chat_is_named_by_its_whole_title_and_listed_as_the_tasks(
     )
     pid, (tid,) = setup(client, project_dir, title)
     own = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    cid = client.post(f"/api/projects/{pid}/backlog/next").json()["conversation_id"]
+    cid = run_todo(client, pid)["conversation_id"]
     wait_run(client, cid, client.get(f"/api/conversations/{cid}").json()["runs"][0]["id"])
     listed = {c["id"]: c for c in client.get(f"/api/projects/{pid}/conversations").json()}
     assert listed[cid]["title"] == title  # not cut at a chat's 60 characters (K-backlog-sohbet)

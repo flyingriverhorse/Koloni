@@ -22,7 +22,7 @@ from app import catalog, limits, models_dev
 from app.api.deps import get_session, require_origin, require_own_origin
 from app.config import REPO_ROOT, THIS_MACHINE
 from app.copilot_offers import offered_names
-from app.db.models import Agent, Conversation, Flag, OwnRequest, Price, Project, Provider, Role, now
+from app.db.models import Agent, Conversation, Flag, OwnRequest, Price, Provider, Role, now
 from app.limits import CLI_HOMES, PROVIDER_ID, account, cli_home, of_session
 from app.model_cli import HOMES
 from app.model_client import UNREACHABLE, ModelUnavailable, OpenAICompatClient, OwnStop
@@ -611,11 +611,6 @@ def delete_provider(provider_id: str, request: Request, session: Session = Depen
             .where(table.provider_id == provider.id)
             .values(provider_id=None, model_id=None)
         )
-    session.execute(
-        update(Project)
-        .where(Project.backlog_provider_id == provider.id)
-        .values(backlog_provider_id=None, backlog_model_id=None)
-    )
     # And it is no longer one that may be picked for a role (a list of one becomes none).
     for role in session.scalars(select(Role)):
         picks = role.pick_from or []
