@@ -209,6 +209,12 @@ KOLONİ's own words, as they appear on screen.
 : A project's tasks, in your order. Agents, and the Scout after a turn, propose tasks; you
   decide.
 
+**Topic**
+: The turns of a chat that go on with one piece of work. The Orchestrator is sent its own topic's
+  turns, and the chat's other topics by name only; an agent of an earlier turn is gone on with only
+  inside its topic. **New topic**, under the message box, starts one with your next message. See
+  [Topics](../memory.md#topics).
+
 **Trigger**
 : Something that starts a turn by itself: the clock, a change to the project's files, or a request
   from outside (a webhook). Nobody watches such a turn, so it may do only what the trigger allows.
