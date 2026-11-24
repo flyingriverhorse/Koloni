@@ -37,8 +37,7 @@ LOOKED = "Looked for a test command once: asked {model}, which named {said}"
 NOT_TRIED = " - and {n} more not tried (not one plain test command in the project)"
 NO_TESTS_HERE = "No tests in this project: nothing KOLONİ found ran a test"
 NO_LOOK = (
-    "No test command: nothing was run - and no Fast-tier model to look for one (set one "
-    "in Settings › This project › Checks and git)"
+    f"No test command: nothing was run - and no Fast-tier model to look for one ({proof.SET_ONE})"
 )
 # S8: the project's CI lines, found and offered once; a workflow changed in this turn.
 CI_OFFERED = (
