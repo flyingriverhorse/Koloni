@@ -85,7 +85,7 @@ export function lineOf(row: Row): Line {
 }
 
 /** S5a: the kinds of work KOLONİ checks after a turn wrote them (`app.proof_kinds.KINDS`), each one line on the node. */
-const KINDS: Record<string, string> = { docs: 'documents', slides: 'slides', diagram: 'diagrams', data: 'data', config: 'config files', scripts: 'scripts' }
+const KINDS: Record<string, string> = { docs: 'documents', slides: 'slides', diagram: 'diagrams', data: 'data', config: 'config files', scripts: 'scripts', style: 'code style and types' }
 
 /** A kind's rows as one line, as a test run's: "documents · 2 ✓ · 1 ✗" - its files that passed and failed; "documents · not checked" where it was switched off. */
 function kindLine(kind: string, rows: Row[]): Line {

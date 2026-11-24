@@ -695,7 +695,7 @@ def product(client, project_dir, content="please check my greeting"):
 def test_a_team_that_has_to_work_the_lead_skips_is_asked_for_twice_then_named(
     make_client, wait_run, project_dir
 ):
-    # B-90 (live): Manual with Product picked, the Lead did the work itself; Product owner never opened.
+    # B-90 (live): Manual with Product picked, the Lead did the work itself; Hive keeper never opened.
     # (B-161: in Manual that is the Lead's choice - here Product has to work, picked by the Lead's own
     # pick_teams, unpatched.)
     # (Told, it works on again by itself - then, told a second time, only answers: that stands.)
@@ -778,8 +778,8 @@ def test_told_to_go_on_the_lead_goes_on_within_the_steps_it_had(
 def test_in_manual_a_team_whose_role_was_opened_ran(make_client, wait_run, project_dir):
     client, model = make_client(
         {
-            "Lead": [spawn("Product owner", "add the tasks"), text("added")],
-            "Product owner": [text("three tasks")],
+            "Lead": [spawn("Hive keeper", "add the tasks"), text("added")],
+            "Hive keeper": [text("three tasks")],
         }
     )
     cid, run_id = product(client, project_dir)

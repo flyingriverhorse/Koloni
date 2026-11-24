@@ -8,7 +8,7 @@ const LINES: [dash: string | undefined, colour: string, width: number, what: str
   [undefined, 'var(--border-strong)', 1.5, 'The work: to the Orchestrator, and in a team from its door, step by step - the line splits into a step’s agents and joins again after them; from the Orchestrator to a night’s jobs, and from a job that is done to the night’s report'],
   [DASH.spawn, 'var(--border-strong)', 1.5, 'Handed to a sub-agent'],
   [DASH.plan, 'var(--border-strong)', 1.5, 'From your message down to its plan, and from an approved plan down to the Orchestrator that carries it out'],
-  [DASH.po, 'var(--border-strong)', 1.5, 'From the Orchestrator down to the Assistant PO, asked once its turn ended for follow-up tasks on the To-do list'],
+  [DASH.po, 'var(--border-strong)', 1.5, 'From the Orchestrator down to the Scout, asked once its turn ended for follow-up tasks on the To-do list'],
   [DASH.talk, 'var(--member-line)', 1.5, 'A member’s line to its discussion or room: with no team, from the members under it round the right of their column and in at its side, with an arrow; between teams, from its frame to the lane'],
   [undefined, 'var(--accent)', 2, 'To a card: from a team’s frame, in its colour, to what it shared, noted and remembered at its top right; from the Orchestrator to Everyone’s card; from an agent to what it made (dotted: from an agent with no team to its card, or to a contract’s card from its request’s line)'],
   [DASH.handed, 'var(--accent)', 1.5, 'From a file you attached to the agent it was handed to (its dashes never move)'],

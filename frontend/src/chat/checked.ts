@@ -10,8 +10,12 @@ export const FIX_REVIEW = 'The Reviewer KOLONİ opened at the end of the last tu
 type Row = NonNullable<Message['checked']>[number]
 
 /** S11 (decision 18): what Fix it sends on a "Not taken in" row - the user's answer to its question, their own words; why it was held by the row's reason code (P: a look still holding it), never by its text. */
+const HELD_WHY: Partial<Record<NonNullable<Row['reason']>, string>> = {
+  on_hold: "a look of KOLONİ's still held it",
+  removed: 'fewer of its tests run, or more are skipped',
+}
 export const FIX_HELD = (question: string, reply: string, reason?: Row['reason']) =>
-  `The last turn's work was not taken in: ${reason === 'on_hold' ? "a look of KOLONİ's still held it" : 'its tests still fail'}. ${question} My answer: ${reply.trim()} Fix it.`
+  `The last turn's work was not taken in: ${(reason && HELD_WHY[reason]) || 'its tests still fail'}. ${question} My answer: ${reply.trim()} Fix it.`
 
 /**
  * S11: where a stronger model's rounds ended as no pass (its tests may pass), Fix it's words - the command and a fixed sentence by the row's
@@ -25,6 +29,7 @@ const NOT_DONE: Record<NonNullable<Row['reason']>, string> = {
   no_verdict: 'the tests gave no verdict after a round',
   still: 'it still fails after the rounds',
   on_hold: 'a look still held it',
+  removed: 'fewer tests ran, or more were skipped',
 }
 export const FIX_NOT_DONE = (command: string, reason: Row['reason']) => `${FIX_IT(command)} The stronger model's rounds were no pass: ${NOT_DONE[reason ?? 'still']}.`
 

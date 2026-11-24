@@ -46,6 +46,8 @@ FAILS = re.compile(
     r"|raises|traceback|başarısız\w*|hata\w*)",
     re.IGNORECASE,
 )
+# FINDINGS_PROMPT's own row echoed back, its placeholders unfilled: no finding.
+ECHOED = re.compile(r"\s*<what>\s*\|", re.IGNORECASE)
 # What a Findings section says when nothing was found, after its bullet and before a full stop.
 NO_FINDINGS = frozenset(
     {
@@ -227,30 +229,37 @@ def _handed_findings(
 def _findings(
     report: str, roles: list[str], agents: dict[str, str] | None = None
 ) -> list[dict] | None:
-    """What a check role's report says in its Findings section (`FINDINGS_PROMPT`), each
-    finding as {"what", "kind", "role", "blocking"}: [] where it says nothing was found
-    (NO_FINDINGS), None where it has no such section or no line of it is in the format. The
-    section is the last one outside a fenced block; it ends at the next heading or fence, and a line
-    on the heading itself is read like the rest. It is a model's text: each line is cut
-    before it is read, a kind not of FINDING_KINDS is "other", and a role is one of
-    `roles` (those that may be opened here), as spelled there, else None (`_role_named`: an
-    agent of `agents` names its role)."""
+    """What a check role's report says in its Findings sections (`FINDINGS_PROMPT`), each
+    finding as {"what", "kind", "role", "blocking"}: the rows in the format of all of them
+    (`_findings_section`); with none anywhere, [] where it says nothing was found (NO_FINDINGS
+    on a line of its own, or only what was failing before), else None - no such section, or no
+    line of it in the format. A "Findings: <summary>" line never takes a row away ("Findings: 1
+    blocking" above its rows, "Findings: see above" closing the report), nor does the prompt's
+    own row echoed (`<what>`). It is a model's text: each line is cut before it is read, a kind
+    not of FINDING_KINDS is "other", and a role is one of `roles` (those that may be opened
+    here), as spelled there, else None (`_role_named`: an agent of `agents` names its role)."""
     lines, failing = _findings_section(report)
     if lines is None:
         return None
-    said = [BULLET.sub("", line) for line in lines if line]
+    said = [
+        one for one in (BULLET.sub("", line) for line in lines if line) if not ECHOED.match(one)
+    ]
     kept = [line for line in said if _marked_before(line) is None]
     said, failing = kept, failing or len(kept) < len(said)
+    if (found := _findings_read(said, roles, agents)) is not None:
+        return found
     if not said and failing:
         return []  # (only what was failing before: nothing found)
-    if len(said) == 1 and said[0].rstrip(".!").casefold() in NO_FINDINGS:
-        return []
-    return _findings_read(said, roles, agents)
+    return [] if any(one.rstrip(".!").casefold() in NO_FINDINGS for one in said) else None
 
 
 def _findings_section(report: str) -> tuple[list[str] | None, bool]:
-    """`_findings`: the lines of a report's last Findings section outside a fenced block
-    (None: there is none), and whether it says what was failing before."""
+    """`_findings`: the lines of all of a report's Findings sections - each a `#… Findings`
+    heading or a "Findings:" line (what follows it on its line its first), to the next heading,
+    fence or "Checked" - outside a fenced block; None: there is none. One indented (four spaces,
+    a tab) or after `>` opens none, as `verdict_of` reads them (an earlier look quoted): it ends
+    the one open, and its rows are not read - rows indented under an open one are its own (a
+    nested list). And whether it says what was failing before."""
     lines: list[str] | None = None
     under = fenced = failing = False
     for line in report.splitlines():
@@ -260,11 +269,14 @@ def _findings_section(report: str) -> tuple[list[str] | None, bool]:
             continue
         if fenced:
             continue
-        name, _, rest = bare.lstrip("#").strip(" *").partition(":")
+        quoted = line.startswith(("    ", "\t")) or bare.startswith(">")
+        name, _, rest = bare.lstrip("> ").lstrip("#").strip(" *").partition(":")
         if name.strip(" *-•").casefold() == FAILING_BEFORE:
             failing = True  # (no finding, wherever it is: B-117)
+        elif name.strip(" *").casefold() == "findings" and quoted:
+            under = False
         elif name.strip(" *").casefold() == "findings":
-            lines, under = [rest.strip(" *")], True
+            lines, under = [*(lines or []), rest.strip(" *")], True
         elif bare.startswith("#") or name.strip(" *-•").casefold() == "checked":
             under = False
         elif under and lines is not None:
@@ -409,19 +421,26 @@ def _hand_on(findings: list[dict] | None) -> str:
     )
 
 
-def _carried(findings: list[dict], role: str, step: list[str] | None = None) -> str:
+def _carried(
+    findings: list[dict], role: str, step: list[str] | None = None, every: bool = False
+) -> str:
     """The blocking findings an agent of `role` is handed (`findings_from`), one line each,
     word for word: those for its role - and, the first role of a recipe's step (`step`, its
     roles casefolded in order), those for no role of it - or all of them where none is.
-    Suggestions stay the user's (B-192)."""
-    findings = _blocking(findings)
-    named = set(step) if step and step[0] == role.casefold() else None
-    mine = [
-        f
-        for f in findings
-        if (f["role"] or "").casefold() == role.casefold()
-        or (named is not None and (f["role"] or "").casefold() not in named)
-    ] or findings
+    Suggestions stay the user's (B-192) - but `every`: a step of the turn's recipe handing on
+    to the step its arrow goes to (CL-345), its findings for `role` or for no role, suggestions
+    too, and no others (none: "")."""
+    if every:
+        mine = [f for f in findings if (f["role"] or "").casefold() in ("", role.casefold())]
+    else:
+        findings = _blocking(findings)
+        named = set(step) if step and step[0] == role.casefold() else None
+        mine = [
+            f
+            for f in findings
+            if (f["role"] or "").casefold() == role.casefold()
+            or (named is not None and (f["role"] or "").casefold() not in named)
+        ] or findings
     return "\n".join(
         f"- {f['what']} | kind: {f['kind']} | role: {f['role'] or 'none'}" for f in mine
     )

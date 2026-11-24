@@ -19,11 +19,6 @@ KOLONİ's own words, as they appear on screen.
 : A button on a command's card. It keeps a rule for that chat, so the same kind of command runs
   without a card next time. See [Permission levels](../use/permissions.md).
 
-**Assistant PO**
-: After a turn that did something, one small model request with no tools that suggests at most three
-  follow-up tasks for the To-do list, each with the words it came from. On the canvas it is a small box
-  under the turn. See [Follow-up tasks](../automation/todo.md#follow-up-tasks).
-
 **Board**
 : A page with every chat of the project in three columns: at work, waiting for you, and done
   today.
@@ -72,6 +67,11 @@ KOLONİ's own words, as they appear on screen.
 **Fact**
 : A short piece of memory that you approved or wrote, usually pointing to lines of a file. It is
   given to an agent whose task names its subject.
+
+**Hive keeper**
+: The built-in role that keeps the To-do list: it turns a goal into tasks, each with what makes it
+  done, and puts them in order. **Write it with the Hive keeper** on the To-do page asks for its way of
+  writing tasks. See [To-do](../automation/todo.md).
 
 **Journal**
 : The notes in a project's memory: what agents wrote while they worked. Agents find notes only
@@ -163,6 +163,13 @@ KOLONİ's own words, as they appear on screen.
 : Two to six agents working on one goal at the same time, in one working copy. They share the work
   out first, and each file has one holder. You open one with **Work together…** under **More**.
 
+**Scout**
+: The built-in role that keeps watch on the To-do list: it splits vague tasks, asks what is
+  missing, flags duplicates, stale and blocked tasks, and checks finished tasks against what makes
+  them done. After a turn that did something, KOLONİ also makes one small model request with no
+  tools in its name, which suggests at most three follow-up tasks, each with the words it came
+  from; on the canvas that is a small box under the turn. See [Follow-up tasks](../automation/todo.md#follow-up-tasks).
+
 **Skill**
 : A folder with a `SKILL.md` and its files, in the form Claude Code reads. You add skills on the
   Tools page and give them to roles.
@@ -199,8 +206,14 @@ KOLONİ's own words, as they appear on screen.
   the Models page. A model with no tier is never picked by itself.
 
 **To-do**
-: A project's tasks, in your order. Agents, and the Assistant PO after a turn, propose tasks; you
+: A project's tasks, in your order. Agents, and the Scout after a turn, propose tasks; you
   decide.
+
+**Topic**
+: The turns of a chat that go on with one piece of work. The Orchestrator is sent its own topic's
+  turns, and the chat's other topics by name only; an agent of an earlier turn is gone on with only
+  inside its topic. **New topic**, under the message box, starts one with your next message. See
+  [Topics](../memory.md#topics).
 
 **Trigger**
 : Something that starts a turn by itself: the clock, a change to the project's files, or a request

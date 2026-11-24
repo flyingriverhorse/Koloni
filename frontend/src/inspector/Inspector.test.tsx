@@ -421,13 +421,13 @@ test('Open window opens the agent’s window, closes the panel and hands the win
   expect(screen.getByRole('region', { name: 'Agent window' })).toHaveFocus()
 })
 
-test('the Assistant PO’s node opens what came of its request and why each one was dropped, in plain words', () => {
+test('the Scout’s node opens what came of its request and why each one was dropped, in plain words', () => {
   const po = {
     provider_name: 'Fast', model_id: 'gpt-6-luna', heard: true, input_tokens: 3000, output_tokens: null, proposed: 1, dropped_more: 0,
     dropped: [{ title: 'Rotate the keys', why: 'its source (30 characters) is not words said in the turn' }, { title: 'Docs', why: "like the open task 'Write the docs'" }],
   }
   render(<Inspector state={convState({ runs: [run('r', 'completed', { po })] })} selectedId="po:r" onClose={() => {}} />)
-  expect(screen.getByText('Assistant PO')).toBeInTheDocument()
+  expect(screen.getByText('Scout')).toBeInTheDocument()
   expect(screen.getByText('Fast · gpt-6-luna · 3k tokens + –')).toBeInTheDocument()
   expect(screen.getByText('1 proposed · 2 dropped')).toBeInTheDocument()
   expect(screen.getByText('Rotate the keys:').parentElement).toHaveTextContent('Rotate the keys: its source (30 characters) is not words said in the turn')

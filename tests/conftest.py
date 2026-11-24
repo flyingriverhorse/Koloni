@@ -163,9 +163,9 @@ def lead_writes_before_slice_48(request):
         event.remove(made, "init", off)
 
 
-# The Assistant PO asks the fast tier after a turn that did something, on by default (6 Nov). A
+# The Scout asks the fast tier after a turn that did something, on by default (6 Nov). A
 # test marked `no_po` counts the model calls or the clients made for something else, where the
-# PO's own request - made where it may be - is one more: there a new project starts with it off.
+# Scout's own request - made where it may be - is one more: there a new project starts with it off.
 @pytest.fixture(autouse=True)
 def no_po_where_calls_are_counted(request):
     if request.node.get_closest_marker("no_po") is None:
@@ -208,7 +208,11 @@ REVIEW_ON = {
 }
 # S7: a failing run is run again alone and on the old code, and a pass is held to the last green
 # state - in a test, runs of the scripted executor more. On only where tested.
-BEFORE_ON = {"test_proof_before_scenarios", "test_before_gates_scenarios"}
+BEFORE_ON = {
+    "test_proof_before_scenarios",
+    "test_before_gates_scenarios",
+    "test_proof_drop_scenarios",
+}
 # S2: a turn that changed code and no test is asked once for one at its end - in a test, a step of
 # the scripted Lead more in every such turn; its rows too. On only where tested.
 ASK_ON = {
@@ -226,6 +230,7 @@ KINDS_ON = {
     "test_proof_pages",
     "test_proof_config",
     "test_proof_scripts",
+    "test_proof_style",
 }
 # S5b: a turn that wrote a page or a component is looked at in KOLONİ's own browser - in a test, a
 # browser started (a real one where no stand-in is named) and rows. On only where tested.

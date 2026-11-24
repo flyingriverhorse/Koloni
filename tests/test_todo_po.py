@@ -1,5 +1,5 @@
 """To-do proposals after a turn (the user, 6-7 Nov; tasarim/specs/2026-11-07-todo-onerileri.md):
-the Assistant PO's one tool-less request after a turn that did something, once the turn has let go
+the Scout's one tool-less request after a turn that did something, once the turn has let go
 of everything; what of its answer is added; at Full auto in a watched turn the Lead's word on each,
 and what a task the Lead added may do before the user's OK."""
 
@@ -56,7 +56,7 @@ def until(check, seconds=10.0):
 
 @pytest.fixture
 def ended(monkeypatch):
-    """Waits for a turn - or `count` of them - to be over, with what follows it after: the PO's
+    """Waits for a turn - or `count` of them - to be over, with what follows it after: the Scout's
     request, which runs once the turn has let go of everything."""
     over: dict[str, object] = {}
     real = agent.AgentRunner.execute
@@ -102,7 +102,7 @@ def tasks(client, pid):
 
 
 def po_of(client, cid, run_id):
-    """The Assistant PO's request after the turn, as the canvas reads it (`Run.po`)."""
+    """The Scout's request after the turn, as the canvas reads it (`Run.po`)."""
     runs = client.get(f"/api/conversations/{cid}").json()["runs"]
     return next(run for run in runs if run["id"] == run_id)["po"]
 
@@ -370,7 +370,7 @@ def test_the_request_waits_for_nothing_of_the_turn(team, project_dir, ended, gat
     )
     tiered(team, client)
     pid, cid, run_id = start(client, project_dir)
-    gate.wait_partial()  # the PO's request is out...
+    gate.wait_partial()  # the Scout's request is out...
     assert idle[0].is_set()  # ...and the compaction was not held for it
     nxt = say(client, cid, "and now?")
     until(
@@ -467,7 +467,7 @@ def test_a_task_the_lead_added_and_the_user_never_saw_says_so_to_its_chat():
         po={"chat": "c", "why": "w", "lead": "add", "lead_why": "y"},
     )
     assert (
-        "proposed by the Assistant PO and added by the Orchestrator at Full auto, not seen by you"
+        "proposed by the Scout and added by the Orchestrator at Full auto, not seen by you"
         in backlog.first_message(added)
     )
     assert "approved by you" in backlog.first_message(
@@ -646,7 +646,7 @@ def test_markdown_marks_aside_the_source_still_has_to_be_said_and_each_drop_is_l
     assert "'A CHANGELOG.md entry' dropped: like another of the answer 'Changelog'" in logged
     assert "'Release notes' dropped: turned down before, as 'Write release notes'" in logged
     assert "answer (14 characters) proposes nothing" in logged
-    assert "run r-1: the Assistant PO's answer lists no task" in logged
+    assert "run r-1: the Scout's answer lists no task" in logged
     assert logged.count("run r-2: To-do proposal '' dropped: it has no title") == 9  # (at most)
     assert "run r-2: and 6 more To-do proposals dropped" in logged
 

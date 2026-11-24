@@ -805,6 +805,16 @@ def opened(state: dict, agent_id: str, role: str) -> dict:
     return entry
 
 
+def feeds(state: dict, agent_id: str) -> bool:
+    """Whether `agent_id` worked at a part with an arrow on to the part that runs now - the
+    recipe's handoff (Reproduce it → Fix it). A loop back is no arrow: a review's findings go
+    back by their own way. (`passes`: where each agent worked, `opened`.)
+    shortcut: plain arrows only - a fork's way (`x+`) is not followed, so a step past one hands on
+    its blocking findings alone (B-192); follow `ways` if a handoff over a fork is missed."""
+    parts = {one["part"] for one in state.get("passes", []) if agent_id in one["agents"]}
+    return any(a.from_ in parts and a.to == state["at"] for a in graph_of(state).arrows)
+
+
 def at_work(state: dict) -> list[dict]:
     """Its part's entries, less an agent the user declined (kept, marked `gone`: a card put in
     its call is still heard)."""

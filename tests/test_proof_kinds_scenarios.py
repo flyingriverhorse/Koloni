@@ -11,7 +11,7 @@ from tests.test_agent_writes import write
 from tests.test_chat_flow import text
 from tests.test_proof_end_scenarios import PASS, begin, checked, failing, texts
 
-pytestmark = pytest.mark.no_po  # (the PO's own request would take a scripted step)
+pytestmark = pytest.mark.no_po  # (the Scout's own request would take a scripted step)
 
 NUDGE = KINDS_TO_FIX.split(":")[0]  # "Not the end yet"
 GOOD = "# Readme\n\nSee [the guide](docs/guide.md).\n"

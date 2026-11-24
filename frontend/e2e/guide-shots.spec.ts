@@ -143,15 +143,15 @@ test('the Models, Settings › This project and Knowledge pages', async ({ page 
   await picture(page, 'knowledge')
 })
 
-test('the To-do page with the Product owner’s draft', async ({ page }) => {
+test('the To-do page with the Hive keeper’s draft', async ({ page }) => {
   await openFreshConversation(page)
   await rail(page, 'To-do').click()
   const form = page.getByRole('form', { name: 'Add a task' })
   await form.getByLabel('Title').fill('the login page breaks on mobile, and we need a password reset')
-  await form.getByRole('button', { name: 'Write it with the Product owner' }).click()
+  await form.getByRole('button', { name: 'Write it with the Hive keeper' }).click()
   const drafts = page.getByRole('region', { name: 'Drafted tasks' })
   await expect(drafts.getByRole('group', { name: 'Draft 2' }).getByLabel('Title')).toHaveValue('Add a password reset')
-  await form.getByRole('button', { name: 'Write it with the Product owner' }).scrollIntoViewIfNeeded()
+  await form.getByRole('button', { name: 'Write it with the Hive keeper' }).scrollIntoViewIfNeeded()
   await page.mouse.wheel(0, 300)
   await picture(page, 'todo-draft')
 })

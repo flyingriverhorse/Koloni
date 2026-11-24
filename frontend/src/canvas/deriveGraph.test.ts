@@ -571,7 +571,7 @@ test('an approved plan has one line of its own down to the Lead of its work turn
   expect(approved(graph(['p']).edges)).toEqual([])
 })
 
-test('the user’s (7 Nov): the Assistant PO is a node under the turn’s Lead, on its own dashed line, only where it was asked', () => {
+test('the user’s (7 Nov): the Scout is a node under the turn’s Lead, on its own dashed line, only where it was asked', () => {
   const po = { provider_name: 'Fast', model_id: 'gpt-6-luna', heard: true, input_tokens: 3000, output_tokens: 100, proposed: 2, dropped: [{ title: 'Docs', why: 'like the open task' }], dropped_more: 0 }
   const graph = (asked: typeof po | null) =>
     deriveGraph(convState({ runs: [run('r', 'completed', { po: asked })], agents: [agent('r')], messages: [userMessage('r', 'x')] }))

@@ -1,7 +1,7 @@
 import { ChatsCircle, FileText, Lightbulb, ListChecks, Robot, TerminalWindow, User, UsersThree, Wrench, X } from '@phosphor-icons/react'
 import { loopOf } from '../canvas/checksLoop'
 import { checksNode, stripOf } from '../canvas/checksNode'
-import { poSaid, poTokens } from '../canvas/deriveGraph'
+import { poSaid, poTokens, SCOUT_DOES } from '../canvas/deriveGraph'
 import { ChecksPanel } from './ChecksPanel'
 import { discussionLine, nameIn } from '../discussion/discussionText'
 import { type ReactNode, useEffect, useRef } from 'react'
@@ -83,14 +83,15 @@ function Header({
   )
 }
 
-/** The Assistant PO's node (`po:<turn>`): what came of its request, and why each one dropped was dropped - never its answer. */
+/** The Scout's node (`po:<turn>`): what came of its request, and why each one dropped was dropped - never its answer. */
 function poPanel(state: ConvState | null, kind: string | undefined, refId: string | undefined, onClose: () => void): ReactNode {
   const po = kind === 'po' ? state?.runs.find(r => r.id === refId)?.po : null
   if (!po) return null
   return (
     <>
-      <Header icon={<Lightbulb size={16} />} title="Assistant PO" sub={[po.provider_name, po.model_id ?? 'model not known', poTokens(po)].filter(Boolean).join(' · ')} onClose={onClose} />
+      <Header icon={<Lightbulb size={16} />} title="Scout" sub={[po.provider_name, po.model_id ?? 'model not known', poTokens(po)].filter(Boolean).join(' · ')} onClose={onClose} />
       <div className="insp-body">
+        <p className="muted">{SCOUT_DOES}</p>
         <p>{[poSaid(po), po.note].filter(Boolean).join(': ')}</p>
         <div className="kicker">Dropped, and why</div>
         {po.dropped.length === 0 && <p className="muted">None.</p>}

@@ -12,7 +12,7 @@ import { StatusLabel } from '../shell/StatusLabel'
 import { AwayReport } from '../backlog/Away'
 import { doneSaid } from '../backlog/awayText'
 import { useApp } from '../state/store'
-import { type AgentData, type AttachmentData, type AwayData, type AwayJobData, type DiscussionData, type GroupData, type PlanData, type PoData, poSaid, poTokens, type ReadyData, type RequestData, type RoomData, type RoundData, type TeamData, statusWords } from './deriveGraph'
+import { type AgentData, type AttachmentData, type AwayData, type AwayJobData, type DiscussionData, type GroupData, type PlanData, type PoData, poSaid, poTokens, SCOUT_DOES, type ReadyData, type RequestData, type RoomData, type RoundData, type TeamData, statusWords } from './deriveGraph'
 import { runClock } from '../chat/checked'
 import type { Loop, LoopCard } from './checksLoop'
 import { type ChecksData, toolOf } from './checksNode'
@@ -45,6 +45,8 @@ const hiddenIf = (unused: Unused | undefined, side: 'in' | 'out') => (unused ===
 interface CardProps {
   icon: ReactNode
   title: string
+  /** Its title's hover, where the title alone does not say what the box is (the Scout). */
+  tip?: string
   label?: string
   tone?: Tone
   selected?: boolean
@@ -52,14 +54,14 @@ interface CardProps {
   children: ReactNode
 }
 
-function Card({ icon, title, label, tone = 'idle', selected, unused, children }: CardProps) {
+function Card({ icon, title, tip, label, tone = 'idle', selected, unused, children }: CardProps) {
   return (
     <div className={`node node-${tone}${selected ? ' node-selected' : ''}`}>
       <Handle type="target" position={Position.Left} isConnectable={false} className={hiddenIf(unused, 'in')} />
       <div className="node-head">
         <span className="node-icon">{icon}</span>
         {/* (Whole on hover where the card's width cuts it: "Ended: nothin…" is how a discussion ended.) */}
-        <span className="node-title" title={title}>{title}</span>
+        <span className="node-title" title={tip ?? title}>{title}</span>
         {label && <span className="node-label mono" title={label}>{label}</span>}
       </div>
       <div className="node-body">{children}</div>
@@ -210,12 +212,12 @@ export function PlanNode({ data, selected }: NodeProps<Node<PlanData & Record<st
   )
 }
 
-/** The Assistant PO asked once the turn ended (the user's, 7 Nov): what came of it, what it spent, the way to the To-do list. A click opens why each one dropped was dropped. */
+/** The Scout asked once the turn ended (the user's, 7 Nov): what came of it, what it spent, the way to the To-do list. A click opens why each one dropped was dropped. */
 export function PoNode({ data, selected }: NodeProps<Node<PoData & Record<string, unknown>>>) {
   const { openTodo } = useContext(NodeActions)
   return (
     // (Its line comes straight down into its top.)
-    <Card icon={<Lightbulb size={13} />} title="Assistant PO" label={data.model_id ?? 'model not known'} selected={selected} unused="both">
+    <Card icon={<Lightbulb size={13} />} title="Scout" tip={SCOUT_DOES} label={data.model_id ?? 'model not known'} selected={selected} unused="both">
       <div className="node-line" style={data.heard ? undefined : { color: 'var(--warn)' }}>
         {poSaid(data)}
       </div>

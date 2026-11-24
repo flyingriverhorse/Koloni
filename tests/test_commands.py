@@ -542,7 +542,7 @@ def test_a_git_rule_never_covers_a_merge_strategy_from_path(command, rule, cover
         ("npx eslint src", "npx eslint", True),
         ("uv run pytest -q", "uv run pytest", True),
         ("uv run pytest -W error", "uv run pytest", True),
-        ("npx eslint -c cfg src", "npx eslint", True),
+        ("npx eslint -c cfg src", "npx eslint", False),  # (0.1.7: eslint's own -c, another config)
         ("git log -p", "git log", True),
         ("git switch -c x", "git switch", True),
         ("python -m pytest -p evilmod", "python -m pytest -p evilmod", True),

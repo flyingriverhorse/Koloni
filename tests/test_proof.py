@@ -638,7 +638,7 @@ def test_a_stream_nowhere_or_a_plain_test_run_writes_nothing(line):
 def test_a_test_file_a_command_deleted_is_counted_and_another_file_is_put_back(
     tmp_path, monkeypatch
 ):
-    from tests.test_take_in_scenarios import repository
+    from tests.test_take_in_scenarios import git, repository
 
     (tmp_path / "gitconfig").write_text("")
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "gitconfig"))
@@ -648,11 +648,18 @@ def test_a_test_file_a_command_deleted_is_counted_and_another_file_is_put_back(
     for name in ("a.py", "b.py", "test_b.py", "c.py"):
         (folder / name).write_text("1\n")
     repository(folder)
-    # (CL-329 G: a tracked test deleted - no time to read - is counted; another file is not)
+    # (CL-329 G: a tracked test deleted - no time to read - is counted; another file deleted by
+    # hand, before the turn as like as not, is not)
     (folder / "test_b.py").unlink()
     (folder / "c.py").unlink()
     assert proof.touched_since(folder, now(), set()) == ["test_b.py"]
     assert proof.touched_since(folder, now(), {"test_b.py"}) == []
+    # (...but one whose deletion was committed since the turn began - no "D" in git's list
+    # then - is touched: `git rm c.py && git commit`)
+    head = git(folder, "rev-parse", "HEAD")
+    git(folder, "add", "-A")
+    git(folder, "commit", "-qm", "gone")
+    assert proof.touched_since(folder, now(), set(), head) == ["c.py", "test_b.py"]
 
 
 @pytest.mark.skipif(__import__("shutil").which("git") is None, reason="git is not installed")

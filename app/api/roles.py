@@ -713,7 +713,7 @@ def delete_role(role_id: str, request: Request, session: Session = Depends(get_s
 @router.post("/{role_id}/reset", response_model=RoleOut, dependencies=[Depends(require_own_origin)])
 def reset_role(role_id: str, request: Request, session: Session = Depends(get_session)):
     role = _role(session, role_id)
-    spec = BUILTIN_ROLES.get(role.name)
+    spec = BUILTIN_ROLES.get(roles.builtin_name(role))
     if not role.builtin or spec is None:
         raise HTTPException(409, "only built-in roles can be reset")
     own_if_limited(request, role)

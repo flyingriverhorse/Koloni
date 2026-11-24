@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import select
 
-from app import copies, proof_before
+from app import copies, proof, proof_before
 from app.agent import before_mixin
 from app.db.models import Memory
 from tests import test_proof_ci_scenarios as ci_scenarios
@@ -33,6 +33,16 @@ def failing(*ids):
 
 def passing(n=4, skipped=0):
     return Script([f"{n} passed" + (f", {skipped} skipped" if skipped else "") + " in 0.1s\n"])
+
+
+def listing(ids, skipped=0, total=None):
+    """A passing pytest run that lists its passes by id (as `-v` does): R reads them - `total`
+    passed in all (its ids' number unless said)."""
+    lines = "".join(f"{one} PASSED\n" for one in ids)
+    n = len(ids) if total is None else total
+    return Script(
+        [lines + f"{n} passed" + (f", {skipped} skipped" if skipped else "") + " in 0.1s\n"]
+    )
 
 
 def rows_of(snap, run_id):
@@ -192,7 +202,7 @@ def test_the_last_green_state_holds_a_drop_in_tests_and_a_rise_in_skipped(
         [
             write("a.py", "x = 1\n"),
             text("done"),
-            write("a.py", "x = 2\n", "w2"),
+            write("pytest.ini", "[pytest]\n", "w2"),
             text("done"),
             text("I left it so"),
         ],
@@ -220,7 +230,7 @@ def test_a_drop_the_answer_says_why_is_the_new_green_state(make_client, wait_run
         [
             write("a.py", "x = 1\n"),
             text("done"),
-            write("a.py", "x = 2\n", "w2"),
+            write("pytest.ini", "[pytest]\n", "w2"),
             text("I removed the obsolete test of the old parser"),
         ],
         executor=executor,
@@ -255,7 +265,7 @@ def test_an_excuse_that_names_no_test_hides_nothing(make_client, wait_run, proje
         [
             write("a.py", "x = 1\n"),
             text("done"),
-            write("a.py", "x = 2\n", "w2"),
+            write("pytest.ini", "[pytest]\n", "w2"),
             text("Removed a stray debug print."),
             text("left as it is"),
         ],
@@ -267,6 +277,8 @@ def test_an_excuse_that_names_no_test_hides_nothing(make_client, wait_run, proje
     rows = rows_of(wait_run(client, cid, posted["run"]["id"]), posted["run"]["id"])
     assert "Tests went from 4 to 1 (3 removed)" in rows and "Skipped rose from 0 to 3" in rows, rows
     assert "in a sentence that names the tests" in told(model, 4)
+    # (R: no test fails - fewer ran, more skipped: said so at the end, not "Still failing")
+    assert proof.STILL_FEWER.format(most=1) in rows, rows
     assert green_ran(client) == 4
 
 
@@ -277,7 +289,7 @@ def test_a_rise_in_skipped_needs_skip_named(make_client, wait_run, project_dir):
         [
             write("a.py", "x = 1\n"),
             text("done"),
-            write("a.py", "x = 2\n", "w2"),
+            write("pytest.ini", "[pytest]\n", "w2"),
             text("I removed the obsolete test of the old parser"),
             text("left as it is"),
         ],
@@ -631,3 +643,167 @@ def test_a_ci_check_failing_only_where_the_turn_did_not_change_is_no_round(
         assert executor.started[2][1] != str(project_dir)  # (on the old code: a copy)
     else:
         assert note not in rows and len(model.calls) == 6, rows  # (one round)
+
+
+def test_tests_deleted_outside_koloni_are_no_turns_drop(make_client, wait_run, project_dir):
+    # (R, CL-345: 4 green; a test file deleted by hand before the next turn, which changes app
+    # code only - 3 run: not its change. Said, nothing sent back, the green state moves to 3.
+    # Before: "Tests went from 48 to 45" sent back twice, the work not taken in. Third round: by
+    # test id - the one missing lives in a file the turn did not touch.)
+    (project_dir / "tests").mkdir()
+    (project_dir / "tests" / "test_old.py").write_text("def test_old(): pass\n", encoding="utf-8")
+    four = ["tests/test_old.py::test_old", *(f"tests/test_a.py::test_{n}" for n in range(3))]
+    executor = ScriptedExecutor([listing(four), listing(four[1:])])
+    client, model = make_client(
+        [write("a.py", "x = 1\n"), text("done"), write("a.py", "x = 2\n", "w2"), text("done")],
+        executor=executor,
+    )
+    cid, run_id = begin(client, project_dir, check_command=PYTEST)
+    wait_run(client, cid, run_id)
+    (project_dir / "tests" / "test_old.py").unlink()  # (by hand, outside any turn)
+    posted = client.post(f"/api/conversations/{cid}/messages", json={"content": "more"}).json()
+    snap = wait_run(client, cid, posted["run"]["id"])
+    rows = [
+        (r["text"], r["state"])
+        for m in snap["messages"]
+        if m["role"] == "checked" and m["run_id"] == posted["run"]["id"]
+        for r in m["checked"]
+    ]
+    said = before_mixin.NOT_OURS.format(said="Tests went from 4 to 3 (1 removed)")
+    assert (said, "note") in rows and not any(state == "failed" for _t, state in rows), rows
+    assert len(model.calls) == 4 and green_ran(client) == 3  # (nothing sent back)
+
+
+CALC_TESTS = "def test_one():\n    pass\n\n\ndef test_two():\n    pass\n"
+# (the 48 a first turn's run lists: test_calc.py's two, test_old.py's three, 43 more)
+GREEN = [
+    "tests/test_calc.py::test_one",
+    "tests/test_calc.py::test_two",
+    *(f"tests/test_old.py::test_{n}" for n in "abc"),
+    *(f"tests/test_more.py::test_{n}" for n in range(43)),
+]
+
+
+def second_turn(
+    make_client,
+    wait_run,
+    project_dir,
+    edited,
+    counts,
+    by_hand=None,
+    ids=None,
+    path="tests/test_calc.py",
+    total=None,
+):
+    """Green at a first turn's run (48); `by_hand` done to the project between the turns; then a
+    turn by a recipe at Full auto - its one step, Fix it (Coder), writes tests/test_calc.py as
+    `edited` (it was CALC_TESTS) and fixes calc.py; KOLONİ's checks run in its copy, `counts`
+    passing. Its Checked rows, whether the work went in, and the scripted model."""
+    from tests.test_chat_teams_scenarios import OWN, teams_of
+    from tests.test_recipe_run_scenarios import made
+    from tests.test_recipes_scenarios import graph
+    from tests.test_recipes_scenarios import step as part
+    from tests.test_spawn import spawn
+
+    (project_dir / "tests").mkdir(exist_ok=True)
+    (project_dir / "tests" / "test_calc.py").write_text(CALC_TESTS, encoding="utf-8")
+    (project_dir / "tests" / "test_old.py").write_text("def test_a():\n    pass\n", "utf-8")
+    client, model = make_client(
+        {
+            "Lead": [
+                write("a.py", "x = 1\n"),  # (no related test: the whole suite now - green)
+                text("done"),
+                spawn("Coder", "fix it", "c1"),
+                *[text(f"done {i}") for i in range(4)],
+            ],
+            "Coder": [
+                write(path, edited, "w2"),
+                write("calc.py", "x = 2\n", "w3"),
+                text("fixed, and a test for it"),
+            ],
+            "Coder 2": [text("nothing to change")],
+        },
+        executor=ScriptedExecutor(
+            [listing(GREEN), *[listing(ids, total=total)] * 8]
+            if ids is not None
+            else [passing(48), *[passing(*counts)] * 8]
+        ),
+    )
+    cid, run_id = begin(client, project_dir, check_command=PYTEST, fix_rounds=1)
+    wait_run(client, cid, run_id)
+    if by_hand:
+        by_hand()
+    recipe = made(
+        client,
+        "Just fix it",
+        {
+            **graph([part("fix", "Fix it", {"role": "Coder"})], [("start", "fix"), ("fix", "end")]),
+            "checks": {"tests": True, "review": False},
+        },
+    )
+    web = teams_of(client)["Web app"]
+    patched = client.patch(
+        f"/api/conversations/{cid}",
+        json={
+            "spawn_approval": "never",
+            "teams_mode": "manual",
+            "teams": [{"team_id": web["id"], "recipe_id": recipe["id"]}],
+        },
+        headers=OWN,
+    )
+    assert patched.status_code == 200, patched.text
+    second = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "fix"}, headers=OWN
+    ).json()["run"]["id"]
+    snap = wait_run(client, cid, second)
+    rows = [
+        (r["text"], r["state"])
+        for m in snap["messages"]
+        if m["role"] == "checked" and m["run_id"] == second
+        for r in m["checked"]
+    ]
+    taken = project_dir / "calc.py"
+    return rows, taken.exists() and taken.read_text(encoding="utf-8") == "x = 2\n", model
+
+
+def test_a_turn_that_adds_a_test_to_a_file_takes_on_tests_deleted_by_hand_in_0_1_7(
+    make_client, wait_run, project_dir
+):
+    # (R, the live shape: 48 green, test_old.py's 3 tests deleted by hand, the turn adds a test to
+    # test_calc.py and fixes the code - 46 run. Every test missing lives in a file it did not
+    # touch - but it touched a test file: conservative in 0.1.7, the drop is its own (the ids
+    # collected at the turn's start tell the two apart in 0.1.8))
+    rows, taken, _model = second_turn(
+        make_client,
+        wait_run,
+        project_dir,
+        CALC_TESTS + "\n\ndef test_three():\n    pass\n",
+        (46,),
+        by_hand=lambda: (project_dir / "tests" / "test_old.py").unlink(),
+        ids=[one for one in GREEN if "test_old" not in one] + ["tests/test_calc.py::test_three"],
+    )
+    assert ("Tests went from 48 to 46 (2 removed)", "failed") in rows and not taken, rows
+    assert before_mixin.NOT_OURS.format(said="Tests went from 48 to 46 (2 removed)") not in [
+        text for text, _state in rows
+    ], rows
+
+
+@pytest.mark.parametrize(
+    ("edited", "counts", "said"),
+    [
+        ("def test_one():\n    pass\n", (47,), "Tests went from 48 to 47 (1 removed)"),
+        (
+            CALC_TESTS.replace("def test_two", "@pytest.mark.skip\ndef test_two"),
+            (48, 1),
+            "Skipped rose from 0 to 1",
+        ),
+    ],
+    ids=["a_test_removed", "a_skip_added"],
+)
+def test_a_turn_that_takes_a_test_away_or_skips_one_is_still_sent_back(
+    make_client, wait_run, project_dir, edited, counts, said
+):
+    rows, taken, _model = second_turn(make_client, wait_run, project_dir, edited, counts)
+    assert (said, "failed") in rows, rows
+    assert any(text.startswith("Sent back to fix") for text, _st in rows), rows
+    assert not taken, rows

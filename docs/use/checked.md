@@ -314,18 +314,45 @@ Before a failure goes back, KOLONİ tells what is not this turn's:
 
 ### The last green state
 
-When a whole suite passes, KOLONİ keeps what it counted - the tests that ran and the skipped ones
-- as the project's last green state. A later pass with fewer tests, or more skipped ones, is a
+When a whole suite passes, KOLONİ keeps what it counted - the tests that ran and the skipped
+ones - as the project's last green state. A later pass with fewer tests, or more skipped ones, is a
 failure unless the Orchestrator's answer says why - in one sentence that says it removed, deleted,
 dropped or skipped them and names the tests (test, tests, skip, xfail; for more skipped ones, skip
 or xfail): "Tests went from 214 to 210 (4 removed)", "Skipped rose from 3 to 9" - sent back like a
 failing test. Said why, it is still shown, as a note quoting that sentence - "Tests went from 4 to
 3 (1 removed) - the answer says why: “I removed the obsolete test of the old parser”" - and the
-new counts are the green state from then on. Where the
-green run listed its passes (pytest with `-v`, jest's and vitest's files), KOLONİ keeps those
-names too (at most 5 000): a test that passed then and fails now is named, "Regression: `test`
-passed at the last green run and fails now" - never one added since. Where it listed none, the
-counts are kept and a failing test in a file the turn did not add is named "… (by file)".
+new counts are the green state from then on. Fewer tests are put down to something outside the
+turn only where KOLONİ can show it, test by test: the green run listed each of its passes by name
+and this run does too (pytest with `-v`; jest and vitest list files, not tests, so theirs never
+add up), and every test missing now lives in a file the turn did not touch in any way - nor did
+any of these happen:
+
+- a command of the turn that may write files ran, in the project or in a recipe's copy (a script,
+  `sed -i`, `git rm … && git commit`, `git mv` - a test run alone writes nothing);
+- it changed what decides which tests run (a `conftest.py`, `pytest.ini`, `pyproject.toml`,
+  `setup.cfg`, `tox.ini`, `package.json`, a Makefile, a Vitest, Jest or Cypress config or setup, a
+  Python file in a tests folder not named as a test, the script the test command runs);
+- it touched a test file at all - changed, made, deleted or renamed one, or anything in a tests
+  folder (a new spec's `.only` switches the others off, wherever they are; a test added to a file
+  is the turn's too, with tests deleted by hand elsewhere);
+- a change on KOLONİ's record since that green run took lines out of a test file.
+
+Then it is said and not sent back, "Tests went from 48 to 45 (3 removed) - not this turn's
+change", and the new counts are the green state: tests deleted by hand, a pull, another branch
+checked out. Anything less sure is the turn's, as a turn's own removal always is: a test file it
+touched in any way, a runner that lists no names, names that do not add up to the drop; more
+skipped tests are the turn's too (no runner here lists what it skipped by name). Not seen: a test
+generated from data the turn changed elsewhere - a parametrize list built from the app's data, a
+flag a `skipif` reads - lives in a file it did not touch, and its drop reads as outside. A whole
+suite that goes on after the answer is held to the green run too: a drop of the turn's is said on
+its Checked as failed, and the green state stays where it was. Where the rounds end with no test
+failing but fewer run, or more skipped, the line says so: "Still fewer tests, or more skipped,
+after 2 fix rounds: you decide (Fix it)"; work in a copy is then not taken in, "Not taken in:
+fewer of its tests run, or more are skipped, after its fix rounds". Where the green run listed its
+passes, KOLONİ keeps those names (at most 5 000): a test that passed then and fails now is named,
+"Regression: `test` passed at the last green run and fails now" - never one added since. Where it
+listed none, the counts are kept and a failing test in a file the turn did not add is named "…
+(by file)".
 
 ### A bug fix
 
@@ -427,12 +454,33 @@ They come after the tests and before the review. A turn that wrote only such fil
 
 | Kind | Checked | Said, not failed |
 |---|---|---|
+| Code style and types (`.py`, `.js`, `.ts`, `.tsx`, `.vue` …) | a problem the project's own ruff, eslint, tsc or mypy finds on a line the turn added or changed, in a file it changed ("app/x.py:12: ruff F401 - `os` imported but unused") | the problems on lines the turn did not change, counted; eslint's and tsc's warnings on its lines, counted; a tool set up but not installed here; one the project's own check ran this turn (its CI lines, its test command); a tsconfig that names no files (a solution's `references`) or is composite - tsc is not run on it |
 | Documents (`.md`, `.docx`, `.txt`, `.rst`) | a relative link or image that leads to no file (a site's page name, `guide` for `guide.md`, counts as found; a link in code does not count); a Word file that does not open | an anchor not found, a heading that skips a level, two top headings, a link out of the project, the sections you listed in your message (`- results`, `1. costs`) that no heading names, "Spelling: not checked" |
 | Diagrams (`.drawio`, `.svg`, `.mmd`, `.puml`) | a draw.io file (a compressed page too) or an SVG that does not parse; an edge that points at nothing; PlantUML without `@startuml` … `@enduml` (or `@startmindmap` … `@endmindmap` and the like) | labelled shapes on one box, shapes not connected where the page has edges, a Mermaid type KOLONİ does not know, "drawn: not checked" for Mermaid |
 | Data (`.csv`, `.tsv`, `.ipynb`) | rows with another number of fields than the header; a notebook that does not parse, or a cell that ends in an error | cells not run 1, 2, 3 … in order; "not re-run: KOLONİ does not run notebooks"; Parquet and Excel are not read |
 | Scripts (`.sh`, `.bash`, `.ps1`, `.psm1`) | a script that does not parse, with its shell's first complaint and line ("build.sh:4: does not parse - syntax error near unexpected token `fi'") - read by `bash -n` or PowerShell's own parser, never run | no bash or no PowerShell here; a secret file, one over 1 MB, more than 20 a turn: not read |
 | Slides (`.pptx`) | a file that does not open; a slide with no text and no picture | the slides and how many have notes; "overflow and contrast: not checked"; `.odp` and `.key` are not read |
 | Config (`.json`, `.yaml`, `.yml`, `.toml`) | a file that does not parse, with its parser's first complaint and line ("package.json:3: does not parse - Expecting property name enclosed in double quotes") - `NaN` or `Infinity` in a `.json` too, which npm's reader and `JSON.parse` break on; a `package.json` that is no object, or whose `name`, `version` or a script is no string; a `pyproject.toml` whose `[project]` has no name or whose `[tool.…]` is no table; a GitHub workflow (`.github/workflows/*.yml`) with no `on:` or no jobs, or a job with neither `runs-on` nor `uses`, or with no list of steps; a Compose file (`compose.yaml`, `docker-compose*.yml`) whose `services` is no mapping | a secret file (`.env.json`, `secrets.yaml`) is never read, nor one whose name often holds a secret (`credentials.json`, `token.json`, `kubeconfig…`, `client_secret….json`); a file nested over 100 deep (a TOML key of over 100 dotted parts too), a YAML or TOML file over 256 KB, YAML past 1 MB in all in a turn, or YAML with aliases is not read; a YAML tag KOLONİ does not know (`!!python/name:`, `!reset`) is read as the value under it; JSON with comments and trailing commas passes where its tool reads them (`tsconfig.json`, `.vscode/*.json`; a comment after the last comma too), never a `package.json`; a key twice in a `.json` passes (JavaScript reads the last); a value a YAML tag cannot read (`!!int "x"`) is not checked, and never said back |
+
+**Code style and types** runs the project's own tools - only where the project sets one up and
+has it installed here, never a download: ruff (`[tool.ruff]`, `ruff.toml`; the project's `.venv`,
+else one on PATH) and mypy (`[tool.mypy]`, `mypy.ini`; the `.venv`'s) on the changed `.py` files,
+eslint (its config and `node_modules/.bin/eslint`) on the changed scripts, and tsc
+(`tsconfig.json` and `node_modules/.bin/tsc`) on its project - eslint and tsc from the nearest
+folder up from a file that has them. Running one runs the project's code (an `eslint.config.js`
+is JavaScript), so it goes as the project's test command goes: at Full auto it runs; at Ask and
+Auto-edit it waits on a card - your yes covers that very line in that folder for the rest of
+the turn, and **Always** keeps that line (the program and its options, never the bare program:
+a line that adds another config, a plugin folder or a report elsewhere asks again); while you are
+away, or in a turn a trigger started without its leave for that line, it is not run and its line
+says "needs your leave once". A program the turn wrote itself - in the folder a tool is installed
+in (`node_modules`, `.venv`), in any case of its name, or through a link - is never run, nor one
+whose real place is outside the project. It waits for KOLONİ's test-run slot (Settings › The
+app), so a type check never runs beside the whole test suite. tsc is told not to build
+incrementally and mypy to keep its cache in the folder (`.mypy_cache`). In a
+recipe's copy it runs there, and what it writes (a cache, a report) is put back - never taken
+in. At most 50 files a run, 2 minutes for them all, its wait for the slot too. Where the project
+sets none of them up, nothing at all is said of it.
 
 A deck, Word file or other file a command made (a script that writes a `.pptx`) is checked too,
 when the turn has a change on record. A checked problem goes back to the Orchestrator as a fix
@@ -453,13 +501,20 @@ adds whether it parses. KOLONİ reads it as its shell would and runs nothing of 
 `.bash` file with `bash -n` (on Windows Git's bash, never WSL's), a `.ps1` or `.psm1` file with
 PowerShell's own parser - the script's text given on its input, never in a command line, the
 shell started with none of your variables in an empty folder of its own, 10 s (bash) or 20 s
-(PowerShell) at most, then stopped with all it started. bash reads with `extglob` on. A `using
-assembly`, `using module` or `#requires` statement that names modules or assemblies is left out
-before PowerShell reads it, so nothing is looked up or loaded; a script that would still make
-its parser look one up - a `using` it cannot take out (a comment between its words, a line
-continued with a backtick, any `using` but `using namespace`, an English "using" in a comment
-too), an `Import-DscResource` - is not read: "not checked: it loads a module or an assembly".
-A type of a module left out is said, not failed. With Windows PowerShell 5.1 alone (no
+(PowerShell) at most, then stopped with all it started; its folder is removed after it. bash
+reads with `extglob` on. A `.sh` whose first line names another shell or language (`#!/bin/zsh`,
+`#!/usr/bin/env fish`, `python3`) is not bash's to read: "not checked: its first line says it is
+a zsh script" - one with no such line, or `sh`, `bash` or `dash`, is. What bash only warns of
+(a here-document ended by the file's end) is said as a note, never as a failure; where bash
+also fails, its error is said. A `using assembly`, `using module` or `#requires` statement that
+names modules or assemblies is left out before PowerShell reads it, so nothing is looked up or
+loaded; a script that would still make its parser look one up - a `using` it cannot take out (a
+comment between its words, a line continued with a backtick, any `using` but `using namespace`,
+an English "using" in a comment or a string too), an `Import-DscResource` - is not read: "not
+checked: it may load a module or an assembly (it names `using` or Import-DscResource)". KOLONİ
+looks at the whole text for these, none of it taken for a comment or a string first: only
+PowerShell's own parser knows where those end, and it is the very reader that would look the
+module up. A type of a module left out is said, not failed. With Windows PowerShell 5.1 alone (no
 PowerShell 7 here), a `Configuration` or PowerShell 7's own syntax (`??`, `&&`) is "not checked:
 it needs PowerShell 7". A `.sh` with Windows line endings (CR LF) is read as Git's bash reads it,
 and said: bash on Linux will not run it as it is. Where this machine has no bash or no
@@ -623,7 +678,13 @@ also what does not fit in the diff the Reviewer is shown.
   change - until MERGE with the tests passing, or the **Fix rounds** are spent. Then the section
   lists the findings and says "Still on hold after 2 fix rounds: you decide (Fix it)"; **Fix it**
   sends a new message asking for them to be fixed, and the Orchestrator is handed the findings
-  as data, never as your words.
+  as data, never as your words. The findings are the rows of all its **Findings** sections - a
+  `## Findings` heading or a "Findings:" line, each to the next heading. A "Findings:" line that
+  sums up - "Findings: 1 blocking" above the rows, "Findings: see above, nothing blocking."
+  closing the report - takes no row away; "Findings: none" says it found nothing where no
+  section has a row. A section quoted from an earlier look (indented four spaces, or after `>`)
+  is not read - rows nested under a section of its own are - and neither is the instruction's
+  own row echoed back (`<what> | kind: <kind>`).
 - Each look is an agent's work on its model: on the canvas, in its window and in Usage. In the
   chat its step reads "KOLONİ's look: Reviewer", not as one of the Orchestrator's. KOLONİ's looks
   - a review, a look again, the live try's Tester, a stronger model's diagnosis and fix - use none
@@ -891,8 +952,12 @@ the Orchestrator's window, whose record holds the runs.
 | ✗ Stopped after round 4: `why` - you decide (Fix it) | Until it passes, the rounds stopped short of a pass: no progress in two rounds, at most 20 rounds, the turn's token limit or the project's monthly budget. ("Still on hold after round 4: …" where a review's hold stood.) |
 | – `model`'s rounds stopped: no progress in two rounds | Until it passes, a stronger model's round left the same tests failing. |
 | – Sent back to fix: 1 of 2 rounds | How many times the Orchestrator was sent back this turn, of the project's Fix rounds; "(tests fail; 1 blocking finding)" after it where a review sent one back. |
+| ✗ Still failing after 1 fix rounds: you decide (Fix it) | The Fix rounds were spent with a test still failing - or the Orchestrator answered a round without changing anything, which ends its turn there. |
+| ✗ Still fewer tests, or more skipped, after 1 fix rounds: you decide (Fix it) | As above, where no test fails but fewer ran, or more were skipped, than at the last green run. |
+| – Tests went from 48 to 45 (3 removed) - not this turn's change | Fewer tests, or more skipped, than at the last green run, where nothing of the turn's could take them away (deleted by hand, a pull, a branch): said, the new counts the green state. |
 | ✓ Review: Reviewer (`provider · model`) - MERGE, no findings | The Reviewer looked over the whole change and let it stand ("after 1 round" where it held it first). |
 | ✗ Review: Reviewer (`provider · model`) - HOLD, 2 findings, 1 blocking | It held the change; each finding follows as "Blocking: …" or "Suggestion: …". |
+| ✗ Review: Security reviewer (`provider · model`) - 1 blocking finding, though its verdict said MERGE | A blocking finding holds the change, whatever its verdict word says. |
 | – Review: … in the part it saw (3000 of 15000 characters; not shown: …) | The diff was cut: what it said is of that part only, never a pass. |
 | – Review gave no findings section: not counted | Its report had no findings section: nothing was sent back. |
 | – Review gave no verdict: not counted (`role`, `provider · model`) | Its report had no verdict line KOLONİ could read: nothing was sent back. |

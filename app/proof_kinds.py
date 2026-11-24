@@ -18,6 +18,7 @@ import base64
 import csv
 import io
 import json
+import logging
 import math
 import os
 import posixpath
@@ -43,13 +44,16 @@ import yaml
 import yaml.reader
 
 from app import browser, ci_commands
-from app.executors.host import _pwsh
+from app.executors.host import SUSPENDED, _pwsh
+from app.executors.winjob import Job, resume
 from app.proof import Row, row
 from app.workspace import Outside, Workspace, WorkspaceError, secret_in_project, secret_named
 
+log = logging.getLogger(__name__)
+
 # The kinds a project switches (`Project.check_kinds`) checked with no browser, each as Settings
 # says it; and S5b's pages (`check_pages`, "ui"), which need KOLONİ's own browser.
-KINDS = ("docs", "slides", "diagram", "data", "config", "scripts")
+KINDS = ("docs", "slides", "diagram", "data", "config", "scripts", "style")
 UI = "ui"
 WRITTEN = (*KINDS, UI)
 SHOWN = {
@@ -59,6 +63,7 @@ SHOWN = {
     "data": "data",
     "config": "config files",
     "scripts": "scripts",
+    "style": "code style and types",
     UI: "pages",
 }
 KINDS_TO_FIX = (
@@ -1131,10 +1136,19 @@ MOST_SCRIPT = 2**20  # bytes of a script
 BASH_SECONDS, POWERSHELL_SECONDS = 10, 20
 MOST_HEARD = 64 * 1024  # of what a shell prints, each stream - the rest read and dropped
 SCRIPTS_MORE = "Scripts not checked: {named} - at most {most} a turn"
-LOADS = "it loads a module or an assembly"
+LOADS = "it may load a module or an assembly (it names `using` or Import-DscResource)"
 CRLF = "{path}: Windows line endings (CR LF) - bash on Linux will not run it as it is"
 NEEDS_7 = "it needs PowerShell 7"
 TYPE_UNREAD = "it uses a type of a module KOLONİ does not load"
+# U1: a `.sh` whose first line names another shell or language is not bash's to read (zsh, fish,
+# python ...): said. bash -n reads one with no such line, or sh, bash or dash - a POSIX sh script
+# parses in bash too, so `--posix` is not asked for.
+OTHER_SHELL = "its first line says it is a {name} script"
+# (a Windows path may hold spaces: to its `.exe`, else the line's end - `…\bin\bash -e`)
+_SHEBANG = re.compile(r"(?i)#![ \t]*([a-z]:[\\/].*?(?:\.exe(?=[ \t]|$)|$)|\S+)[ \t]*(.*)")
+_BASH_READS = frozenset({"sh", "bash", "dash"})
+# U2: what bash -n says with exit code 0 (a here-document ended by the file's end) is a warning.
+BASH_WARNS = "{at}: bash warns - {message}"
 # What a shell is started with: none of the user's variables (a BASH_ENV, say: `bash -n` does not
 # run its file - measured, Git's bash 5.2 - and it is not given one), and C, so that its
 # complaint says "line N:" as read here; in an empty folder of its own, deleted after - nothing
@@ -1152,7 +1166,10 @@ _BASH_SAID = re.compile(r": line (\d+): (.+)")
 # reads it; then a text with a `using` left in it anywhere (a comment between its words, a
 # backtick's next line, a space of another kind) but `using namespace`, or an
 # `Import-DscResource`, is not given to it at all (`LOADS`). Fail closed: an English "using" in a
-# comment leaves a script unread, never a lookup made.
+# comment or a string leaves a script unread, never a lookup made - the whole text is looked at,
+# none of it taken for a comment or a string first: no tokenizer of KOLONİ's is PowerShell's (one
+# was tried - 0.1.7's review: a `#` comment PowerShell ends at U+2028 hid an Import-DscResource
+# that pwsh 7 then looked up), and PowerShell's own tokenizer is its parser.
 _LINES = re.compile(r"\r\n|\r|\n")
 _RESOLVED = re.compile(
     r"(?i)(?:^|(?<=;))[ \t]*"
@@ -1229,13 +1246,30 @@ def _feed(pipe, data: bytes) -> None:
         pipe.close()
 
 
+def _jobbed(process: subprocess.Popen) -> Job | None:
+    """A shell started suspended, in a job of its own (Windows): it runs from here on, and all it
+    starts ends with the job - never left holding its folder. None: no job (POSIX: its group)."""
+    if sys.platform != "win32":
+        return None
+    handle = int(getattr(process, "_handle"))  # noqa: B009
+    try:
+        return Job.for_process(handle)
+    finally:
+        if not resume(handle):
+            with suppress(OSError):
+                process.kill()  # (never left suspended: it is seen to end instead)
+
+
 def _read_by(argv: list[str], text: str, seconds: int) -> tuple[int, str, str]:
     """`argv` given `text` on stdin, in an empty folder of its own, with no more than `_KEPT` of
     this machine's variables: its exit code and what it printed (each at most MOST_HEARD). A run
-    past `seconds` - the whole tree killed - or one that cannot start, is said (not checked)."""
+    past `seconds` - the whole tree killed - or one that cannot start, is said (not checked).
+    What it left running ends with it, and its folder is gone after it (six were left in %TEMP%:
+    a child of the shell's held one as its own, and its removal failed unsaid)."""
     env = {k: v for k, v in os.environ.items() if k.upper() in _KEPT}
     out, err = bytearray(), bytearray()
-    with tempfile.TemporaryDirectory(prefix="koloni-script-", ignore_cleanup_errors=True) as cwd:
+    cwd = tempfile.mkdtemp(prefix="koloni-script-")
+    try:
         try:
             process = subprocess.Popen(  # noqa: S603 (an argument list: nothing of the file is in it)
                 argv,
@@ -1244,11 +1278,13 @@ def _read_by(argv: list[str], text: str, seconds: int) -> tuple[int, str, str]:
                 stderr=subprocess.PIPE,
                 cwd=cwd,
                 env={**env, "LC_ALL": "C", "LANG": "C"},
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                | SUSPENDED.get("creationflags", 0),
                 start_new_session=sys.platform != "win32",
             )
         except OSError as exc:
             raise WorkspaceError(f"its shell did not start ({type(exc).__name__})") from None
+        job = _jobbed(process)
         threads = [
             threading.Thread(target=_feed, args=(process.stdin, text.encode("utf-8")), daemon=True),
             threading.Thread(target=_drain, args=(process.stdout, out), daemon=True),
@@ -1262,12 +1298,31 @@ def _read_by(argv: list[str], text: str, seconds: int) -> tuple[int, str, str]:
             _kill_tree(process)
             raise WorkspaceError(f"reading it took over {seconds} s") from None
         finally:
-            if sys.platform != "win32":  # (what it left behind, in its own group, goes with it)
-                with suppress(ProcessLookupError, PermissionError):
-                    os.killpg(process.pid, signal.SIGKILL)
+            _ended(process, job)
             for one in threads:
                 one.join(2)  # (a pipe a grandchild still holds: not waited for longer)
         return process.returncode, out.decode("utf-8", "replace"), err.decode("utf-8", "replace")
+    finally:
+        _gone(cwd)
+
+
+def _ended(process: subprocess.Popen, job: Job | None) -> None:
+    """What the shell left running ends with it: its job (Windows), its group (POSIX)."""
+    if job is not None:
+        job.terminate()
+    elif sys.platform != "win32":
+        with suppress(ProcessLookupError, PermissionError):
+            os.killpg(process.pid, signal.SIGKILL)
+
+
+def _gone(folder: str) -> None:
+    """A read's folder removed - again for a moment while what was ended lets go of it."""
+    for _ in range(40):
+        shutil.rmtree(folder, ignore_errors=True)
+        if not os.path.exists(folder):
+            return
+        threading.Event().wait(0.05)
+    log.warning("a script read's folder %s could not be removed", folder)
 
 
 def _unresolved(text: str) -> tuple[str, bool]:
@@ -1314,7 +1369,24 @@ def _powershell_said(shell: list[str], text: str) -> list[tuple[object, object]]
     return [(one.get("line"), one.get("message")) for one in found]
 
 
-def _bash_said(shell: list[str], text: str) -> list[tuple[object, object]]:
+def _shell_named(text: str) -> str | None:
+    """U1: the shell or language a script's first line names (`#!/bin/zsh`, `#!/usr/bin/env -S
+    fish -l`), by its program's name; None: no such line."""
+    first = _SHEBANG.match(text.split("\n", 1)[0].rstrip("\r"))
+    if first is None:
+        return None
+    words = [first[1], *first[2].split()]
+    last = re.split(r"[\\/]", words[0])[-1].split()
+    name = (last[0] if last else "").casefold().removesuffix(".exe")
+    if name == "env":  # (its first word that is no option nor a variable)
+        after = [one for one in words[1:] if one[:1] != "-" and "=" not in one]
+        name = re.split(r"[\\/]", after[0])[-1].casefold() if after else name
+    return name[:40] or None  # (a path that names no program: bash reads it)
+
+
+def _bash_said(shell: list[str], text: str) -> tuple[list[tuple[object, object]], object]:
+    """What `bash -n` says of a script: its complaints and their lines where it fails - and what
+    it warns of where it does not (exit 0: U2), else None."""
     # (extglob on: `@(a|b)` and `!(x)` are a script's own after its `shopt -s extglob`)
     code, _out, err = _read_by(
         [*shell, "--norc", "--noprofile", "-O", "extglob", "-n"], text, BASH_SECONDS
@@ -1325,9 +1397,14 @@ def _bash_said(shell: list[str], text: str) -> list[tuple[object, object]]:
     found: list[tuple[object, object]] = [
         (int(m[1]), m[2]) for one in lines if (m := _BASH_SAID.search(one))
     ]
-    if code and not found:
-        found = [(None, next((one for one in lines if one.strip()), "a syntax error"))]
-    return found
+    if not code:
+        return [], next(iter(found), None)
+    # (a warning beside an error - a here-document the error left open: the error is said)
+    found = [one for one in found if not str(one[1]).startswith("warning:")]
+    if not found:
+        said = (one for one in lines if one.strip() and "warning:" not in one)
+        found = [(None, next(said, "a syntax error"))]
+    return found, None
 
 
 def _script(data: bytes, rel: str) -> list[Row]:
@@ -1339,14 +1416,35 @@ def _script(data: bytes, rel: str) -> list[Row]:
     shell = _powershell() if powershell else _bash()
     if shell is None:
         raise WorkspaceError("no PowerShell here" if powershell else "no bash here")
+    if not powershell and (name := _shell_named(text)) is not None and name not in _BASH_READS:
+        raise WorkspaceError(OTHER_SHELL.format(name=name))
     # (A CR LF script is read as Git's bash on Windows reads it - the CR taken - and said.)
     crlf = [] if powershell or "\r" not in text else [row("scripts", "note", CRLF.format(path=rel))]
-    found = (_powershell_said if powershell else _bash_said)(shell, _LINES.sub("\n", text))
+    found, warned = (
+        (_powershell_said(shell, _LINES.sub("\n", text)), None)
+        if powershell
+        else _bash_said(shell, _LINES.sub("\n", text))
+    )
     if not found:
-        return [row("scripts", "passed", f"{rel}: parses"), *crlf]
+        return [row("scripts", "passed", f"{rel}: parses"), *_warned(rel, warned), *crlf]
     line, message = found[0]
     at = f"{rel}:{line}" if isinstance(line, int) else rel
     return [row("scripts", "failed", f"{at}: {NO_PARSE}{_key(message)}"), *crlf]
+
+
+def _warned(rel: str, warned: object) -> list[Row]:
+    """U2: what bash warned of, a script that parses - a note, never a failure."""
+    if not isinstance(warned, tuple):
+        return []
+    line, message = warned
+    at = f"{rel}:{line}" if isinstance(line, int) else rel
+    return [
+        row(
+            "scripts",
+            "note",
+            BASH_WARNS.format(at=at, message=_key(str(message).removeprefix("warning: "))),
+        )
+    ]
 
 
 def check_scripts(

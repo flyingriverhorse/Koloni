@@ -245,11 +245,11 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   changeTask(taskId: string, change: BacklogTaskChange): Promise<void>
   deleteTask(taskId: string): Promise<void>
   decideTask(taskId: string, decision: 'approve' | 'reject'): Promise<void>
-  /** OK to the Orchestrator's word on a proposal of the Assistant PO's at Full auto: it leaves "Decided for you". Throws ApiError. */
+  /** OK to the Orchestrator's word on a proposal of the Scout's at Full auto: it leaves "Decided for you". Throws ApiError. */
   seenTask(taskId: string): Promise<void>
   /** Run the backlog: every todo task is queued, and they start as there is room, each in a new conversation. Throws ApiError. */
   runBacklog(): Promise<void>
-  /** What the user typed, written as tasks by a model asked once ("Write it with the Product owner"); nothing is saved. Throws ApiError. */
+  /** What the user typed, written as tasks by a model asked once ("Write it with the Hive keeper"); nothing is saved. Throws ApiError. */
   draftTasks(text: string): Promise<BacklogDraft>
   /** The open project's ☾ Away (slice 106): the one that runs, else its last; null: none, or not read yet. */
   away: Away | null

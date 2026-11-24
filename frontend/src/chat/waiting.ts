@@ -94,7 +94,7 @@ export function waitingOf(conv: ConvState): Waiting[] {
 export const decidedOf = (conv: ConvState): Question[] =>
   conv.questions.filter(q => q.status === 'answered' && q.lead_why != null && q.seen_at == null)
 
-/** The Assistant PO's proposals of this chat the Orchestrator decided at Full auto, not yet OK'd: one added and still on the
+/** The Scout's proposals of this chat the Orchestrator decided at Full auto, not yet OK'd: one added and still on the
  *  list, or one said no to and still proposed (the user's own word since takes it off).
  *  shortcut: shown in the chat's Decided for you only - the pill's "decided" count, Ready's Told you and the canvas count
  *  `decidedOf` alone; count these there too if one is missed. */

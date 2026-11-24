@@ -354,7 +354,7 @@ function nextStep(all, tools = [], model = '') {
   if (/You are the [^\n]* sub-agent\./.test(String(messages[0].content)) && /, rc$/.test(String(messages[1]?.content))) return say('Done.')
   // Asked to draw the user's sentence as a recipe (slice 84a): its JSON, in a code block as models often answer.
   if (String(messages[0].content).startsWith('You are asked one thing: to draw a recipe')) return say(`Here it is:\n\`\`\`json\n${JSON.stringify(RECIPE84)}\n\`\`\``)
-  // The To-do page's "Write it with the Product owner" (6 Nov): the note as two tasks.
+  // The To-do page's "Write it with the Hive keeper" (6 Nov): the note as two tasks.
   if (String(messages[0].content).startsWith("You are asked one thing: to write the user's note as To-do tasks")) return say(JSON.stringify(TASKS_PO))
   // Asked to write an expert's guide from what it read (K-uzman): a short one, from its file.
   if (String(messages[0].content).startsWith('You are asked one thing: to write a short guide')) {
@@ -646,7 +646,7 @@ function nextStep(all, tools = [], model = '') {
     // Coder - which is offered to the lead as an agent of an earlier turn, and only then.
     if (/ask a coder/i.test(last.content)) return toolCall('c52', 'spawn_agent', { role: 'Coder', task: 'Add farewell.py that says bye' })
     // "Plan it in a chat" (6 Nov): the Lead hears the To-do page's first message.
-    if (/Have the Product owner break this into To-do tasks: /.test(last.content)) return say('I will ask the Product owner for tasks.')
+    if (/Have the Hive keeper break this into To-do tasks: /.test(last.content)) return say('I will ask the Hive keeper for tasks.')
     // Slice 84b-2: a chat team's small recipe - one step, the Coder's - then Ready for you.
     const recipe84 = /build it by the recipe, 84b2 (\w+)/i.exec(last.content)
     if (recipe84) return toolCall('c84b2', 'spawn_agent', { role: 'Coder', task: `Write recipe84-${recipe84[1]}.txt` })

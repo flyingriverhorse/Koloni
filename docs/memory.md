@@ -155,6 +155,45 @@ yet. Nothing is sent when a note or fact is written.
 tick other projects. Their records are found by **Search deeper** and **Recall**, but never given
 to an agent at its start.
 
+## Topics
+
+Memory is what a project keeps from one chat to the next. Inside a chat, what an agent remembers of
+the turns before is its **topic**: the turns that go on with one piece of work.
+
+- A chat's first message starts its first topic, named after the message's first line. Each message
+  after it goes on with the topic you were last in. Rename a topic from **Recent** (top bar): the list
+  names the topic on screen, with a pencil.
+- **New topic**, under the message box, makes your next message start a new one; press it again to go
+  on instead. Its tooltip says which topic the next message goes on with. In the chat a line marks
+  where the topic changes: "New topic: …", or "Continuing: …" back in one seen before.
+- A trigger's turns are a topic of their own. A message you send while one of them is on screen still
+  goes on with your own topic; **Write into … instead** sends it into the trigger's.
+
+What each agent is given:
+
+- **The Orchestrator** is sent its own topic's turns - your messages and the Orchestrators' answers -
+  and of the chat's other topics only their names (the last 20), with the words "what was said and
+  done in them is not shown to you".
+- **A sub-agent** sees only its own work. Within a topic the Orchestrator can go on with an agent of
+  an earlier turn - one it opened that finished by itself, or one stopped with its work kept on a
+  branch of its own: an agent of the same name is opened again, and what the earlier ones did and said
+  is its history. Never one of another topic.
+- **Claude Code** run **Native** with **Sign-in: Its own for KOLONİ** goes on in its own CLI session
+  from the topic's previous turn: it is sent only what is new, and compacts the session itself. A new
+  topic starts a new session, and so does a turn run with another model, folder, permission level or
+  setup. On any other model the Orchestrator is sent the topic's history each turn, and KOLONİ summarises its older part
+  past **Summarise a long context at (%)** of the window (75 by default; see
+  [Going on from the last turn](models/setup-cli.md#going-on-from-the-last-turn)).
+
+[![Who remembers what: one chat's two topics with the line New topic draws between them, and where the turns before are kept - an API model sent the topic's history by KOLONİ, which compacts it; every other CLI started anew and sent it again; Claude Code, Native on its own sign-in, resuming its session from the topic's last turn](diagrams/topics.svg)](diagrams/topics.svg)
+
+*Who remembers what, by topic and by kind of model.*
+
+**When to press New topic**: when the next message is about other work. The Orchestrator then starts
+with a short history - cheaper, and nothing of the other work leads it astray - and Claude Code with a
+new session. Keep going in the topic when the message builds on what was just done: the Orchestrator
+sees that work, and can go on with the agents that did it.
+
 ## Project notes and Knowledge are not memory
 
 - **Knowledge** (its own page on the rail) holds expert topics learned from web pages or project

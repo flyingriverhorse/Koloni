@@ -203,7 +203,7 @@ const elsewhere: [string, () => Promise<void>, RegExp[]][] = [
     },
     [
       /A task not finished gets one fix round; still not, it is stuck and the next goes on\. A stop, a restart or a limit pauses the run and says why\./,
-      /a fast model, if you have one, writes the Assistant product owner’s view of it: one more request, and only an opinion\. None is written for work that failed, was stopped, only made a plan or went over its turn’s token limit\./,
+      /a fast model, if you have one, writes the Scout’s view of it - what of what makes it done looks met: one more request, and only an opinion\. None is written for work that failed, was stopped, only made a plan or went over its turn’s token limit\./,
     ],
   ],
   [

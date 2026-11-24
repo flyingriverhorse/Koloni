@@ -62,8 +62,8 @@ LATER_ROLES = (
     "Translator",
     "Summarizer",
     # slice 52
-    "Product owner",
-    "Assistant product owner",
+    "Hive keeper",
+    "Scout",
     # K-takim-duzen
     "Data engineer",
     "ML engineer",

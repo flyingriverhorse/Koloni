@@ -112,7 +112,9 @@ def test_a_recipe_whose_checks_step_checks_nothing_says_so(make_client, wait_run
         executor=executor,
     )
     cid, run_id = run_it(
-        client, project_dir, docs_recipe(client, docs=False, config=False, scripts=False)
+        client,
+        project_dir,
+        docs_recipe(client, docs=False, config=False, scripts=False, style=False),
     )
     snap = wait_run(client, cid, run_id)
     assert texts(snap)[0] == proof.RECIPE_OFF and executor.started == [], texts(snap)
@@ -121,13 +123,14 @@ def test_a_recipe_whose_checks_step_checks_nothing_says_so(make_client, wait_run
 def test_the_ready_bugfix_checks_its_tests_and_a_review(make_client):
     client, _model = make_client([])
     checks = recipe_named(client, "Bugfix")["graph"]["checks"]
-    # (and Config and Scripts: model-free and cheap, on unless unticked - a Checks step from
-    # before reads so)
+    # (and Config and Scripts - model-free and cheap - and Code style and types - which asks
+    # before it runs a tool unasked - on unless unticked: a Checks step from before reads so)
     assert {part for part, on in checks.items() if on is True} == {
         "tests",
         "review",
         "config",
         "scripts",
+        "style",
     }
     assert "checks" not in recipe_named(client, "Research")["graph"]  # (it follows the project)
 
@@ -153,7 +156,7 @@ def test_a_folder_recipe_carries_its_checks_step_and_a_wrong_one_is_not_read(
         "ui": False,
         "fix_rounds": 0,
     }  # (written before 0.1.7: no Config - it reads as on, and is written back so)
-    read_as = {**checks, "config": True, "scripts": True}
+    read_as = {**checks, "config": True, "scripts": True, "style": True}
     (folder / "report.json").write_text(
         json.dumps({"name": "Report", "graph": {**SMALL, "checks": checks}}), encoding="utf-8"
     )
@@ -343,8 +346,8 @@ def test_the_orchestrators_pick_adds_and_the_users_lowers(make_client, wait_run,
         session.commit()
         by_user = proof.checks_of(session, conversation, run)
     assert by_lead.on >= {"tests", "review", "docs"} and by_lead.rounds == 3, by_lead
-    # (A Checks step from before 0.1.7 has no Config nor Scripts: they read as on.)
-    assert by_user.on == {"docs", "config", "scripts"} and by_user.rounds == 0, by_user
+    # (A Checks step from before 0.1.7 has no Config, Scripts nor Code style: they read as on.)
+    assert by_user.on == {"docs", "config", "scripts", "style"} and by_user.rounds == 0, by_user
 
 
 def select_team():

@@ -129,6 +129,7 @@ from app.roles import (
     stage_order,
     team_roles,
     title_of,
+    was_named,
 )
 from app.schemas import RecipeStep, WhoCandidates
 from app.serialize import question_out
@@ -2063,7 +2064,7 @@ class SpawnMixin:
                         f"{agent.name} is an agent of this turn, not a role: "
                         "message_agent reaches it"
                     )
-            raise ToolError(f"unknown role: {wanted}. Available roles: {known}")
+            raise ToolError(f"unknown role: {wanted}{was_named(wanted)}. Available roles: {known}")
         if shut:
             raise ToolError(f"{shut}. Available roles: {known}")
         # After the role's own rules: a tier it may not be given is said first, so "give why"
@@ -2224,7 +2225,16 @@ class SpawnMixin:
                     f"{role.name} again without findings_from, and say in its task what "
                     f"{found.name} did"
                 )
-            if not _blocking(found.findings):
+            # (CL-345: a step of the turn's recipe hands its report on to the step its arrow goes
+            # to - its findings for that role or for none, suggestions too: no step's brief
+            # carries them else, `_recipe_task`. Another step's suggestions stay the user's.)
+            step_of = any(
+                recipe_run.feeds(state, found.id)
+                for row, _t in self._runs(session, ctx)
+                if (state := self._live_state(row, ctx.run_id))
+                and state["status"] == recipe_run.RUNNING
+            )
+            if not step_of and not _blocking(found.findings):
                 raise ToolError(
                     f"findings_from: {found.name} left suggestions only - they "
                     "are the user's, not to hand on"
@@ -2245,7 +2255,12 @@ class SpawnMixin:
                 if self._gives_slots(ctx)
                 else None
             )
-            handed = found.id, _carried(found.findings, role.name, step)
+            handed = found.id, _carried(found.findings, role.name, step, every=step_of)
+            if not handed[1]:
+                raise ToolError(
+                    f"findings_from: {found.name} has no findings for {role.name} or for no "
+                    f"role to hand on - open {role.name} again without findings_from"
+                )
             task += (
                 f"\n\n{FINDINGS_HANDED.format(name=found.name)}\n{handed[1]}\n\n{FINDINGS_ANSWERED}"
             )
@@ -2475,7 +2490,8 @@ class SpawnMixin:
             if role is None:
                 raise ToolError(
                     f"{earlier.name} cannot be gone on with: its role, {earlier.role}, no "
-                    "longer exists. Open a sub-agent in another role with spawn_agent and "
+                    f"longer exists{was_named(earlier.role)}. Open a sub-agent in another role "
+                    "with spawn_agent and "
                     "tell it what it needs to know."
                 )
             conversation = session.get_one(Conversation, ctx.cid)
