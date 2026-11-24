@@ -32,7 +32,7 @@ See [Settings](../settings.md).
 **An unattended turn runs at most (hours)**, **Summarise a long context at (%)**, **Knowledge
 reads at most**, **KOLONİ's test runs at once**, **Test processes per run** and **Show experimental
 CLIs** (Agents),
-**Voice** (this browser's), and **Your data** (Export, Restore, Always blocked). See
+**Voice** (this browser's), and **Your data** (Export, Restore, kept working copies, Always blocked). See
 [Settings](../settings.md#the-app).
 
 ## Next to the message box

@@ -49,8 +49,9 @@ Models page is left as it is.
   KOLONİ's own hook; on the older one, before each command, write and read).
   KOLONİ's own team tools reach a Native CLI over its tool bridge: opening sub-agents, asking you, the
   To-do list, notes and memory, **Notify you** (only where the project has a notification address or the
-  desktop switch on, with the same limit as any agent's) and **Propose triggers** (always a card you
-  approve).
+  desktop switch on; at most 6 desktop notifications a minute for one chat, as for any agent) and
+  **Propose triggers** (always a card you approve, never in a turn nobody watches; see
+  [Triggers proposed by agents](../automation/triggers.md#triggers-proposed-by-agents)).
 - **Reads with its own tools** (agy): it reads, and is started without leave to write or run.
 
 A trigger never starts a CLI that works with its own tools (Native, or agy's reads): with nobody watching,
