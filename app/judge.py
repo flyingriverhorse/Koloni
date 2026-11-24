@@ -39,9 +39,36 @@ NO = re.compile(
     r"|avoid|forbid\w*|prohibit\w*|nobody|nothing|none|neither|nor|refrain|off-limits"
     r"|asla|sakın|hiç|hiçbir|yasak\w*|değil|olmaz|istemiyorum|etme|yapma)\b"
 )
+# Turkish "if" is a word's `-se` / `-sa` and its person (`-sem`, `-sen`, `-seniz`, `-seler`) after
+# a consonant - by vowel harmony or not ("yeşilse", "yoksa", "temizse", "kontrolse", "saatse") - or
+# an apostrophe ("OK'se", "CI'ysa"), and "ise" / "isen" / "iseniz"; its "when", "while" and "as
+# long as" are "-ınca", "-dığında" / "-dığımda" / "-diklerinde", "-ken" after a consonant, "iken",
+# "-dikçe", "sürece", "-dığı zaman", "-ene kadar" / "-inceye kadar" ("bitince", "olduğunda",
+# "yeşilken", "dönene kadar") - not "her zaman", "istediğin kadar", "gereken", "the provided x". An
+# English word that ends so is in NOT_CONDITIONAL.
+_CONSONANT = "[bcçdfgğhjklmnprsştvyz]"
+_PERSON = "(?:m|n|k|n[ıiuü]z|l[ae]r)?"
 CONDITION = re.compile(
-    r"\b(?:without|unless|except|only if|before|ask|if|when|once|after|until"
-    r"|eğer|ise|\w+(?:rs[ae]|ys[ae]|[dt][ıiuü]kt[ae]n|m[ae]d[ae]n))\b"
+    r"\b(?:without|unless|except|only if|before|ask|if|when|whenever|while|once|after|until"
+    r"|as long as|so long as|(?<!\bthe )(?<!\ba )provided|providing|in case|assuming"
+    rf"|eğer|is[ae]{_PERSON}|iken|sürece|takdirde|halinde|durumunda|şartıyla|koşuluyla|sonra"
+    r"|dek|madem\w*|yeter ki|\w+[dt][ıiuü]ğ\w* zaman"
+    rf"|\w{{2,}}[ae]n[ae] kadar|\w+[ıiuü]nc[ae]y[ae] kadar|\w*{_CONSONANT}ken"
+    r"|\w+(?:rs[ae]|ys[ae]|[dt][ıiuü]kt[ae]n|m[ae]d[ae]n|[dt][ıiuü](?:ğ|kl[ae]r)\w*d[ae]"
+    r"|[dt][ıiuü]k[çc][ae]|[ıiuü]nc[ae])"
+    rf"|\w*[aeıioöuü]{_CONSONANT}+s[ae]{_PERSON}|'y?s[ae]{_PERSON})\b"
+)
+NOT_CONDITIONAL = frozenset(
+    {
+        *("false", "pulse", "impulse", "response", "license", "sense", "nonsense", "course"),
+        *("dense", "tense", "intense", "immense", "expense", "defense", "offense", "pretense"),
+        *("suspense", "dispense", "condense", "incense", "rinse", "cleanse", "expanse", "parse"),
+        *("lapse", "collapse", "relapse", "eclipse", "ellipse", "glimpse", "corpse", "salsa"),
+        *("worsen", "lessen", "announce", "pronounce", "province", "convince", "prince"),
+        *("bounce", "kimse", "token", "taken", "broken", "spoken", "woken", "awoken", "shaken"),
+        *("mistaken", "weaken", "darken", "quicken", "chicken", "stricken", "overtaken"),
+        *("istediğin zaman", "istediğiniz zaman"),  # ("whenever you like": a leave)
+    }
 )
 # shortcut: Turkish says no by a verb's ending, and its endings after it ("itme", "silmeyiniz",
 # "silmiyoruz", "silemezsin", "silinmesin") - any word ending so counts, a noun such as
@@ -138,10 +165,13 @@ def prompt(said: dict[str, list[str]], command: dict) -> str:
 
 
 def _plain(text: str) -> str:
-    """Case, runs of spaces, a capital İ's dot and a curly apostrophe evened out, and the
-    punctuation a line ends with taken off."""
-    evened = text.casefold().replace("\u0307", "").replace("’", "'")
+    """Case, runs of spaces, a capital İ's dot and an apostrophe's other marks (’ ‘ ´ ʼ) evened
+    out, and the punctuation a line ends with taken off."""
+    evened = text.casefold().replace("\u0307", "").translate(_APOSTROPHES)
     return " ".join(evened.split()).rstrip(" .!?;")
+
+
+_APOSTROPHES = str.maketrans(dict.fromkeys("\u2019\u2018\u00b4\u02bc", "'"))
 
 
 def _prose(text: str) -> list[str | None]:
@@ -214,9 +244,14 @@ def _says_no(plain: str) -> bool:
     )
 
 
+def _conditional(plain: str) -> bool:
+    """Whether a `_plain` text sets a condition (`CONDITION`, but `NOT_CONDITIONAL`'s words)."""
+    return any(found[0] not in NOT_CONDITIONAL for found in CONDITION.finditer(plain))
+
+
 def _forbids(plain: str) -> bool:
-    """Whether a `_plain` text says no or sets a condition (`_says_no`, `CONDITION`)."""
-    return _says_no(plain) or bool(CONDITION.search(plain))
+    """Whether a `_plain` text says no or sets a condition (`_says_no`, `_conditional`)."""
+    return _says_no(plain) or _conditional(plain)
 
 
 def verdict(answer: str, said: dict[str, list[str]]) -> dict | None:
@@ -246,7 +281,7 @@ def verdict(answer: str, said: dict[str, list[str]]) -> dict | None:
             and "?" not in shown
             and not shown.endswith(":")
             and _says_no(unit)
-            and not CONDITION.search(unit)
+            and not _conditional(unit)
         )
     )
     if source and holds:

@@ -284,6 +284,51 @@ def _tsconfig_says(folder: Path, root: Path) -> str | None:
 
 
 MOST_EXTENDS = 8
+MOST_TSC_READS = 32
+
+
+def tsc_reads(root: Path, cwd: str, words: Iterable[str]) -> set[str] | None:
+    """W7: the settings a tsc line reads - the nearest tsconfig.json from `cwd` up, a folder's
+    tsconfig.json or a `.json` any of its words names (`-p`'s, in any spelling, after `=` too),
+    and what each `extends` or `references` in the project (`root`) -, by real paths, casefolded;
+    None: more than MOST_TSC_READS (any JSON may be one).
+    shortcut: a package's config it extends (`@tsconfig/node20`) is not followed - an agent's
+    write there is under node_modules, or named tsconfig (`tsc_setting`)."""
+    here = root / cwd
+    nearest = (one / "tsconfig.json" for one in (here, *here.parents) if _inside(one, root))
+    todo = [next((one for one in nearest if one.is_file()), here / "tsconfig.json")]
+    for word in words:
+        for one in (word, word.partition("=")[2]):
+            if one.casefold().endswith(".json") or one and (here / one).is_dir():
+                todo.append(here / one)
+    read: set[str] = set()
+    while todo:
+        path = todo.pop()
+        path = path / "tsconfig.json" if path.is_dir() else path
+        if not _inside(path, root) or not path.is_file() or (real := _real(path)) in read:
+            continue
+        if len(read) == MOST_TSC_READS:
+            return None
+        read.add(real)
+        found = _json_config(path) or {}
+        bases, refs = found.get("extends", []), found.get("references", [])
+        for base in bases if isinstance(bases, list) else [bases]:
+            todo += [at] if (at := _extended(path.parent, base, root)) else []
+        for ref in refs if isinstance(refs, list) else []:
+            at = ref.get("path") if isinstance(ref, dict) else None
+            todo += [path.parent / at] if isinstance(at, str) and at else []
+    return read
+
+
+def tsc_setting(root: Path, rel: str, read: set[str] | None) -> str | None:
+    """W7: `rel` (from the root) where tsc may read it as a setting - a `tsconfig*.json` or
+    `jsconfig*.json` anywhere, or one of what a line reads (`tsc_reads`; None: any JSON). tsc's
+    settings make it write: `generateTrace`, a composite build's info where `tsBuildInfoFile`
+    says, outside the project too (measured, 5.9)."""
+    name = PurePosixPath(rel).name.casefold()
+    a_json = name.endswith(".json")
+    named = a_json and name.startswith(("tsconfig", "jsconfig"))
+    return rel if named or (a_json if read is None else _real(root / rel) in read) else None
 
 
 def _json_config(path: Path) -> dict | None:

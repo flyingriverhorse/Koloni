@@ -141,6 +141,12 @@ def test_diff_counts(ws):
         "a.txt:evil",
         "a.txt::$DATA",
         "src:x/a.txt",
+        # (a name ending in a dot or a space: Windows drops it, the record would not)
+        "packages/x/pyproject.toml.",
+        "uv.toml ",
+        "sub/package.json.",
+        "web/tsconfig.json.",
+        "web./tsconfig.json",
     ],
 )
 def test_a_device_or_a_file_s_stream_is_never_written(ws, bad):
