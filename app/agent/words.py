@@ -56,8 +56,8 @@ IMAGE_SHOWN = "it is shown to you with your next step"
 # B-344: a CLI session keeps its own loop: its picture goes in the tool's MCP result itself.
 # Claude Code hands an MCP image block to its model in the same step: measured by REA 3 Nov
 # 2026, Claude Code 2.1.317 (R131, a 2 KB PNG); and Copilot's session (R133, gpt-6-luna saw
-# it). shortcut: one of 1-3 MB is not measured (a cap on a tool's output?), nor Qoder's session
-# at all (the same bridge); say "not shown to you" there if one is seen not to pass it on.
+# it). shortcut: one of 1-3 MB is not measured (a cap on a tool's output?); say "not shown to
+# you" there if one is seen not to pass it on.
 IMAGE_HERE = "it is shown to you with this result"
 IMAGE_MIME = {ext: mime for mime, ext in IMAGE_EXT.items()}
 

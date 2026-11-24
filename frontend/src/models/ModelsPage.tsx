@@ -31,6 +31,7 @@ import type { LimitsChange } from './LimitsTab'
 import type { ServerAction } from './LocalServerTab'
 import type { LoadModels } from './ModelNameInput'
 import { dayOf, type LoadFacts } from './levels'
+import { RetiredProvider } from './ProviderConnection'
 import { ProviderEditor, type Tab } from './ProviderEditor'
 import type { Routing } from './routing'
 import { TierSlots } from './TierSlots'
@@ -499,6 +500,7 @@ export function ModelsPage({
             className="switch"
             aria-label={`${current.name} on`}
             checked={current.enabled !== false}
+            disabled={!!current.off_why}
             onChange={e => void switchOn(current.id, e.target.checked)}
           />
           <span>{current.enabled === false ? 'off' : 'on'}</span>
@@ -527,22 +529,26 @@ export function ModelsPage({
         aria-labelledby="provider-dialog-title"
       >
         {windowHead()}
-        <ProviderEditor
-          // (Not drawn anew by a save: a change the Models tab saved leaves what is typed on Connection.)
-          key={creating ? 'new' : current!.id}
-          provider={current}
-          onlyOne={providers.length <= 1}
-          isDefault={!creating && current!.id === providers[0]?.id}
-          avail={current ? full[current.id] : undefined}
-          onCheck={!current || !onAvailability ? undefined : () => check(current.id)}
-          used={onUsage ? month : null}
-          tab={tab}
-          onTab={setTab}
-          onDirty={setDirty}
-          unkept={unkept}
-          {...editing}
-          onDone={() => setOpened(null)}
-        />
+        {current?.off_why ? (
+          <RetiredProvider provider={current} onlyOne={providers.length <= 1} onDelete={editing.onDelete} />
+        ) : (
+          <ProviderEditor
+            // (Not drawn anew by a save: a change the Models tab saved leaves what is typed on Connection.)
+            key={creating ? 'new' : current!.id}
+            provider={current}
+            onlyOne={providers.length <= 1}
+            isDefault={!creating && current!.id === providers[0]?.id}
+            avail={current ? full[current.id] : undefined}
+            onCheck={!current || !onAvailability ? undefined : () => check(current.id)}
+            used={onUsage ? month : null}
+            tab={tab}
+            onTab={setTab}
+            onDirty={setDirty}
+            unkept={unkept}
+            {...editing}
+            onDone={() => setOpened(null)}
+          />
+        )}
         {confirm.shown(() => setOpened(null))}
       </div>
     </div>

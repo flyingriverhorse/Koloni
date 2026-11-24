@@ -33,6 +33,10 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 - **Chat**: on Windows, KOLONİ writes no file whose name, or a folder's in its path, ends in a dot or a space - Windows dropped them and wrote `pyproject.toml` for `pyproject.toml.`, while the record named another file, so no rule's check of what an agent wrote saw it ([docs](use/permissions.md#what-a-rule-never-covers)).
 - **Chat**: a node runner's rule also stops at an agent's yarn `.env.yarn` or bun `.env`, `.env.local`, `.env.production` or `.env.development` in the folder or above it, and a tsc rule at `node node_modules/typescript/lib/tsc.js`; what the rules do not see is listed in the guide's **Known limits** ([docs](use/permissions.md#known-limits)).
 
+### Removed
+
+- **CLIs**: Qoder. KOLONİ no longer runs it, and **Add a provider** no longer offers it. A Qoder provider you added before stays on the Models page, switched off with its settings: its card says "no longer supported", its switch cannot turn it on, and its window says why and offers **Delete provider**. A chat or a role still on it fails with that reason, as on any provider switched off, until you pick another model; once it is deleted they run on your default provider. Nothing of yours is deleted by the upgrade ([docs](models/setup-cli.md#qoder-is-no-longer-supported)).
+
 ## [0.1.7] - 2026-11-24
 
 ### Added
@@ -345,7 +349,7 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 - **CLIs**: several Claude Code or Codex accounts side by side, each with its own sign-in for KOLONİ ([docs](models/setup-cli.md#sign-in-for-claude-code-and-codex)).
 - **CLIs**: Copilot's thinking levels Off to Max, its `auto` model, and its tokens and AI credits in each agent's record ([docs](models/setup-cli.md#github-copilot-cli)).
 - **CLIs**: agy is added switched off, and its card warns that Google's terms forbid using it through another app ([docs](models/subscription-rules.md)).
-- **CLIs**: while a Qoder free model waits in its queue, the agent says so ([docs](models/setup-cli.md#qoders-free-models)).
+- **CLIs**: while a Qoder free model waits in its queue, the agent says so ([docs](models/setup-cli.md#qoder-is-no-longer-supported)).
 - **Workspace**: agents work in their own working copies; **Take in** brings the work into your folder and **Discard** drops it; **Run the test** tries the project's test on the copy first, and at Auto-edit and Full auto work comes in by itself only when that test passed ([docs](use/workspace.md#taking-work-in)).
 - **Workspace**: **Changes** groups every change by what it needs from you, with **Approve**, **Reject** and **Revert** ([docs](use/workspace.md#the-workspace)).
 - **Workspace**: a team's work can get a git branch, merged or sent as a pull request from its card; an agent told to go on goes on in its own branch ([docs](use/workspace.md#branches)).

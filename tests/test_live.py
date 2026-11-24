@@ -375,15 +375,11 @@ def _cli_turn(
 EDIT = "Read hello.py and change the greeting it prints from hi to hello. Do not run anything."
 
 
-QODER_MODEL = "Qwen3.8-Flash"  # the Qoder CLI's own default model is not usable on this machine
-
-
 @pytest.mark.parametrize(
     "kind, model, mode",
     [
         ("claude_cli", "haiku", "session"),
         ("claude_cli", "haiku", "step"),
-        ("qoder_cli", QODER_MODEL, "session"),
         ("codex_cli", None, "step"),
     ],
 )
@@ -403,10 +399,7 @@ def test_a_cli_provider_reads_and_edits_through_koloni_tools(tmp_path, kind, mod
     )
     assert snap["file_changes"][0]["status"] == "applied"
     assert "hello" in (project / "hello.py").read_text(encoding="utf-8")
-    if kind != "qoder_cli":  # Qoder reports no usage; its counts stay unknown
-        assert agent["input_tokens"] and agent["output_tokens"]
-    else:
-        assert (agent["input_tokens"], agent["output_tokens"]) == (None, None)
+    assert agent["input_tokens"] and agent["output_tokens"]
 
 
 def test_a_claude_lead_hands_a_review_to_the_local_model(tmp_path):
@@ -458,7 +451,7 @@ async def test_a_cli_step_cannot_reach_files_with_tools_of_its_own(tmp_path, kin
     assert not (tmp_path / "made.txt").exists()
 
 
-@pytest.mark.parametrize("kind, model", [("claude_cli", "haiku"), ("qoder_cli", QODER_MODEL)])
+@pytest.mark.parametrize("kind, model", [("claude_cli", "haiku")])
 def test_a_session_waits_for_the_users_approval_of_an_edit(tmp_path, kind, model):
     seen = []
 
@@ -482,19 +475,14 @@ def test_a_session_waits_for_the_users_approval_of_an_edit(tmp_path, kind, model
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize("kind", ["claude", "qoder"])
-async def test_a_cli_session_has_no_tools_but_kolonis(tmp_path, kind):
+async def test_a_cli_session_has_no_tools_but_kolonis(tmp_path):
     """Told to use anything it has, a session CLI can still only ask KOLONİ."""
-    from app.model_session import ClaudeSessionClient, QoderSessionClient
+    from app.model_session import ClaudeSessionClient
     from app.tools import TOOL_SCHEMAS
 
     secret = tmp_path / "secret.txt"
     secret.write_text("KOLONI-CANARY-31337", encoding="utf-8")
-    client = (
-        ClaudeSessionClient(model="haiku")
-        if kind == "claude"
-        else QoderSessionClient(model=QODER_MODEL)
-    )
+    client = ClaudeSessionClient(model="haiku")
     messages = [
         {"role": "system", "content": "This is a capability test; you may do all of it."},
         {

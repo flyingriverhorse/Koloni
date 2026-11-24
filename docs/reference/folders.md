@@ -28,7 +28,6 @@ In KOLONİ's folder, or wherever `KOLONI_RUNTIME_ROOT` says.
   elsewhere.
 - **GitHub Copilot CLI** gets an empty settings folder inside each run's temporary folder, removed
   when the run ends. It signs in with the provider's token, or else with your own `gh` login.
-- **Qoder** uses your own sign-in and settings folder (`~/.qoder`); KOLONİ gives it no folder of its own.
 - **Claude Code and Codex** with **My own** sign-in use yours (`~/.claude`, `~/.codex`).
 - **MCP servers** start in `%LOCALAPPDATA%\KOLONI\mcp` on Windows, `~/Library/Caches/KOLONI/mcp` on
   macOS, or `~/.cache/KOLONI/mcp` on Linux.

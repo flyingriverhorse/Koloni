@@ -58,7 +58,6 @@ from app.model_session import (
     CallTool,
     ClaudeSessionClient,
     CopilotSessionClient,
-    QoderSessionClient,
     SessionResult,
     ToolServer,
     _sum,
@@ -937,7 +936,7 @@ class CodexNativeClient(CliStepClient):
         # its control protocol (`_control`). (No approve tool is offered to any: slice 89b.)
         conversing = self.command in ("codex", "copilot")
         self._offered = [tool["function"]["name"] for tool in tools or []]
-        # 27 / 93-C3: Claude Code (and Qoder, once its `resumes` is on) goes on in the session its
+        # 27 / 93-C3: Claude Code goes on in the session its
         # last turn left only where started under all the same now (`_under`): resuming carries
         # the conversation, never the rights - those are this run's own line, hook and
         # settings, as for a new one. Copilot too (0.1.8), in the home its session is kept in,
@@ -1013,7 +1012,6 @@ class CodexNativeClient(CliStepClient):
                     await on_item(
                         "completed", {"type": "skill_not_given", "name": name, "why": why}
                     )
-            # (Qoder over the same protocol, B-306: none of Claude Code's extras below.)
             claude = isinstance(self, ClaudeNativeClient) and self.command == "claude"
             if claude and report_schema:
                 # (Compact, and with nothing a .cmd shim's interpreter acts on: `_fits`.)
@@ -1185,7 +1183,7 @@ class CodexNativeClient(CliStepClient):
                     await anew()
                 content = (
                     await asyncio.to_thread(claude_content, prompt, messages) if claude else prompt
-                )  # (no picture is sent to Qoder: IMAGE_CLIS)
+                )
                 return with_session(
                     await self._control(
                         argv,
@@ -2327,17 +2325,6 @@ CLAUDE_READS = frozenset(
         "ToolSearch",
     }
 )
-# B-306: the names KOLONİ knows Claude Code's tools by; a Qoder tool named otherwise is a card.
-CLAUDE_KNOWN = frozenset(
-    {
-        *CLAUDE_READS,
-        *CLAUDE_RUNS,
-        *CLAUDE_WRITES,
-        *CLAUDE_SHELL_OUTPUT,
-        *CLAUDE_AGENTS,
-        *CLAUDE_REACHES,
-    }
-)
 # The first version whose setting sources alone keep the user's own plugins and skills out
 # (measured on 2.1.311, 27 Oct 2026: 2.1.310 let them in), so KOLONİ's can be given.
 SKILLS_FROM = (2, 1, 311)
@@ -2551,8 +2538,6 @@ class ClaudeNativeClient(CodexNativeClient):
     # writing that file is asked at every level. Pass it by `--settings` if it is seen to.
     cwd_from = "root"
     looks_by_running = False  # it has a Read of its own
-    # Whether a tool it ran unasked counts so though it failed (Qoder, not measured: B-306).
-    failed_unasked = False
     # Its own writes are asked as they come (B-190 measured a Spec writer so): left as it is.
     starts_read_only = False
     rules = CLAUDE_RULES
@@ -3354,7 +3339,7 @@ class ClaudeNativeClient(CodexNativeClient):
             kind == "item.completed"
             and use_id
             and use_id not in asked
-            and (self.failed_unasked or item.get("status") != "failed")
+            and item.get("status") != "failed"
         ):
             # It ran this without asking KOLONİ: past its hook. (One
             # that failed, or its own rules refused, did not run.)
@@ -3655,148 +3640,6 @@ def _turn_result(event: dict, subs: dict[str, dict]) -> list[dict]:
             "structured": event.get("structured_output"),
         }
     ]
-
-
-class QoderNativeClient(ClaudeNativeClient):
-    """B-306: Qoder working natively, over Claude Code's control protocol (`_control`): its CLI
-    takes Claude Code's flags (qodercli 1.1.51's --help, 29 Oct 2026). Seen live: the versions
-    tried so far do not apply KOLONİ's hook, and `_control` stops such a one before it is given
-    the prompt. Not measured: how one that applies it asks before its tools; `_heard` stops one
-    that runs a tool unasked.
-    shortcut: its tools are taken to be Claude Code's by name (Bash, Write, Edit, Read); one
-    named otherwise is a tool KOLONİ does not know to `_approve`: a card at every level (Full
-    auto too) - measure the names in its init line live."""
-
-    command = "qodercli"
-    label = "Qoder"
-    cwd_from = "none"  # (shortcut: whether its shell keeps a `cd` is not measured: not known)
-    efforts = QoderSessionClient.efforts
-    effort_flag = QoderSessionClient.effort_flag
-    effort_words = QoderSessionClient.effort_words
-    # shortcut: its sign-in's variables are not known (it signs in by its own files): none of
-    # the secret variables reach its commands; keep its own once one is seen to be needed.
-    logins = frozenset()
-    failed_unasked = True  # (one that failed may have acted all the same: as native agy's)
-    # Measured 5 Nov 2026 (qodercli 1.1.51, cli-surdurme-olcum.md): `-r <id>` goes on in its
-    # session; an id it does not have - another folder's too - exits 42 at once, unanswered.
-    resume_flag = "-r"
-    NO_SESSION = re.compile(
-        r"exited with code 42: .*Error resuming session: Invalid session identifier"
-    )
-
-    @property
-    def resumes(self) -> bool:
-        """Off (the user's call, 5 Nov 2026): it goes on in no session, KOLONİ compacts it.
-        shortcut: its sessions would be kept in the user's own ~/.qoder/projects (listed by
-        their own `qodercli -r`), which `forget_session` cannot clear - and its free models cost
-        nothing to send the whole history. Turn this on (the path above is tested so) once
-        Qoder is measured to sign in from a home of KOLONİ's own, as Claude Code's `home`."""
-        return False
-
-    def talker(self) -> CliStepClient:
-        return QoderSessionClient(
-            self._executable,
-            self._model,
-            self._timeout,
-            self._which,
-            self._launcher,
-            self._env,
-            self.server,
-            self._homes,
-        )
-
-    def _native_arguments(
-        self,
-        root: Path,
-        bridge_config: Path,
-        withheld: tuple[str, ...] = (),
-        linked: tuple[str, ...] = (),
-        also: tuple[str, ...] = (),
-    ) -> list[str]:
-        # shortcut: a project's own .qoder settings could allow its tools past KOLONİ, and
-        # whether `--setting-sources ""` keeps them out is not measured: no native run there.
-        # Drop this once measured live.
-        if any((root / ".qoder").glob("settings*.json")):
-            raise OwnStop(
-                "Qoder cannot run natively in this project: it has Qoder settings of "
-                "its own (.qoder), which could let Qoder's tools run without asking "
-                "KOLONİ, and that is not yet measured. Run it as a session instead"
-            )
-        config = bridge_config.parent / "mcp.json"
-        config.write_text(
-            json.dumps(
-                {
-                    "mcpServers": {
-                        SERVER: {
-                            "command": sys.executable,
-                            "args": [mcp_bridge.__file__, str(bridge_config)],
-                        }
-                    }
-                }
-            ),
-            encoding="utf-8",
-        )
-        # Its session's line (measured live) with the control protocol's flags.
-        # shortcut: --permission-prompt-tool is not in its --help; nor --add-dir, so a working
-        # copy's linked folders are not given (its reads there fail), nor Claude Code's
-        # --settings and --disable-slash-commands (`--setting-sources ""` keeps the project's
-        # hooks and allow rules out, as in its session). An option it does not take ends it
-        # before `initialize` is answered: stopped, never run unasked. Measure live.
-        arguments = [
-            "-p",
-            "--input-format",
-            "stream-json",
-            "-o",
-            "stream-json",
-            "--permission-mode",
-            "default",
-            "--permission-prompt-tool",
-            "stdio",
-            "--strict-mcp-config",
-            "--mcp-config",
-            str(config),
-            "--no-session-persistence",
-            "--setting-sources",
-            "",
-        ]
-        for name in claude_without(withheld):
-            arguments += ["--disallowed-tools", name]
-        for name in self._offered:  # KOLONİ's own tools need no leave
-            arguments += ["--allowed-tools", PREFIX + name]
-        if self._model:
-            arguments += ["-m", self._model]
-        return arguments  # the prompt comes on stdin
-
-    async def _heard(
-        self,
-        kind: str,
-        item: dict,
-        said: bool,
-        busy: set[str],
-        on_text,
-        on_item: OnItem,
-    ) -> bool:
-        said = await super()._heard(kind, item, said, busy, on_text, on_item)
-        if "unasked" in item:
-            # Not measured to ask first: one tool past KOLONİ (it has run: on record above) and
-            # nothing more runs, as native agy's (`AgyClient._heard`).
-            # (Never the command's own words: they could hold a token.)
-            what, paths = item.get("type"), item["unasked"]
-            name = (
-                "a command"
-                if what == "command_execution"
-                else "a write to " + ", ".join(map(str, paths))[:120]
-                if isinstance(paths, list) and paths
-                else f"its {str(item.get('tool'))[:60]} tool"
-                if item.get("tool")
-                else "one of its own tools"
-            )
-            raise OwnStop(
-                f"Qoder ran {name} without KOLONİ being asked, so the run is "
-                "stopped: Qoder natively is not yet measured to ask before its tools; "
-                "run it as a session instead"
-            )
-        return said
 
 
 COPILOT_WRITES = ("edit", "create")

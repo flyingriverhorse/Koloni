@@ -1,4 +1,4 @@
-"""A stand-in for a CLI agent in a session (Claude Code or Qoder), driven by a plan.
+"""A stand-in for a CLI agent in a session (Claude Code), driven by a plan.
 
 FAKE_CLI_PLAN names a JSON file: {"record": path, "script": [...]}. Like the real
 CLIs it starts the one MCP server it is given (KOLONİ's bridge), asks it for its
@@ -50,14 +50,6 @@ def save_record(record: dict) -> None:
     mine.unlink(missing_ok=True)
 
 
-if argv == ["--list-models"]:
-    # Qoder's model list: plan "models_text" printed, "models_exit" its code, "models_hang".
-    save_record({"argv": argv})
-    if plan.get("models_hang"):
-        time.sleep(120)
-    sys.stdout.write(plan.get("models_text", ""))
-    sys.stderr.write("account buzzy@example.com refused\n")  # (never to be shown)
-    sys.exit(plan.get("models_exit", 0))
 stdin = sys.stdin.buffer.read().decode("utf-8")
 cwd = Path.cwd()
 record = {

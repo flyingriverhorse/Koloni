@@ -35,7 +35,6 @@ const KINDS: [kind: ProviderKind, label: string][] = [
   ['openai_compat', 'OpenAI-compatible server'],
   ['anthropic', 'Anthropic API'],
   ['claude_cli', 'Claude Code (CLI)'],
-  ['qoder_cli', 'Qoder (CLI)'],
   ['codex_cli', 'Codex (CLI)'],
   ['copilot_cli', 'GitHub Copilot CLI'],
   // By its command's name: what the product is called was not measured.
@@ -49,7 +48,6 @@ const limitChange = (most: number | null | undefined, provider: Provider | null)
 /** How each CLI can be run; the first is its default. */
 const MODES: Partial<Record<ProviderKind, Mode[]>> = {
   claude_cli: ['session', 'step', 'native'],
-  qoder_cli: ['session', 'native'],
   codex_cli: ['session', 'step', 'native'],
   copilot_cli: ['session', 'native'],
   agy_cli: ['reads', 'native'],

@@ -2380,8 +2380,6 @@ def test_an_agy_model_whose_name_fixes_its_level_takes_none():
         cli = AgyClient(None, name)
         assert not cli.level_named and cli.efforts == ("low", "medium", "high", "xhigh", "max")
     assert facts("agy_cli", None, "gemini-3.8-flash")[0]["efforts"] == list(cli.efforts)
-    # (agy's alone: a Qoder model's name ends in a level's word, and is not read so)
-    assert facts("qoder_cli", None, "Qwen-3.8-Max")[1].get("efforts") != "its name says its level"
 
 
 def test_an_agy_that_crashes_leaving_a_child_on_its_output_fails_the_turn_at_once(

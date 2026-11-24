@@ -72,7 +72,7 @@ NEVER_ENDED = "the CLI started this and never said how it ended: not known wheth
 # is never bridged to one), and the arguments that name the file (`AgentRunner._own_look`).
 # Measured (REA R127, R128): Codex's imageView, Copilot's view, agy's file reading (its stream
 # names it view_file, AbsolutePath; REA's note read_file). shortcut: Claude Code's Read of an
-# image is not measured, nor Qoder's; take them off if a look is seen named otherwise.
+# image is not measured; take it off if a look is seen named otherwise.
 IMAGE_LOOKS = frozenset(
     {"codex__imageView", "copilot__view", "agy__view_file", "agy__read_file", "claude__Read"}
 )

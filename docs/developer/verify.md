@@ -90,8 +90,7 @@ Tests marked `live` are left out of `verify`:
 .venv/Scripts/python.exe -m pytest tests/test_docker_executor.py -m live
 ```
 
-The first needs a model server on port 8080 and, for its CLI tests, signed-in `claude`, `codex` and
-`qodercli`. The second needs a Docker daemon and the `alpine` image.
+The first needs a model server on port 8080 and, for its CLI tests, signed-in `claude` and `codex`. The second needs a Docker daemon and the `alpine` image.
 
 ## CI
 

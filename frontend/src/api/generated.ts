@@ -9551,7 +9551,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "openai_compat" | "anthropic" | "claude_cli" | "qoder_cli" | "codex_cli" | "copilot_cli" | "agy_cli";
+            kind: "openai_compat" | "anthropic" | "claude_cli" | "codex_cli" | "copilot_cli" | "agy_cli" | "qoder_cli";
             /** Max Running */
             max_running: number | null;
             /** Mode */
@@ -9574,6 +9574,8 @@ export interface components {
             } | null;
             /** Note */
             note: string | null;
+            /** Off Why */
+            off_why?: string | null;
             offers?: components["schemas"]["CopilotOffers"] | null;
             /** Only Listed */
             only_listed: boolean;

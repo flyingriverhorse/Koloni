@@ -73,9 +73,9 @@ def test_a_cli_not_on_this_machine_comes_unticked(client, quiet):
 def test_a_cli_signed_out_comes_unticked_and_one_not_known_ticked(client, quiet):
     # Paid by the plan only once signed in: one that says it is not is no agent's to choose.
     add(client, name="Codex", kind="codex_cli", executable="out")
-    add(client, name="Qoder", kind="qoder_cli")  # (it says nothing of its sign-in)
+    add(client, name="agy", kind="agy_cli")  # (it says nothing of its sign-in)
     told = proposed(client)
-    assert (told["Codex"]["for_agents"], told["Qoder"]["for_agents"]) == (False, True)
+    assert (told["Codex"]["for_agents"], told["agy"]["for_agents"]) == (False, True)
 
 
 def test_a_cli_already_ticked_is_not_asked_whether_it_is_signed_in(client, quiet, monkeypatch):

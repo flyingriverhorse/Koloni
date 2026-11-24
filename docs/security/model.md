@@ -66,7 +66,7 @@ repository inside one of those; a branch or worktree delete run in another repos
 or a worktree in the project, or in a folder reached through a link; `.git`, `.koloni`, a path above the
 folder the command runs in (a registered worktree aside); any command of GitHub Copilot CLI's own;
 a folder's delete in a form its shell does not read as one (`rm -rf` in PowerShell, which deletes
-nothing), or by a CLI that does not say its shell (Codex, agy, Qoder);
+nothing), or by a CLI that does not say its shell (Codex, agy);
 or any line that is not one plain delete. What is checked is the folder
 as it is then - KOLONİ's own command a second time just before it runs: one swapped for a link
 after that look is not seen. Windows PowerShell 5.1.26100, PowerShell 7 and Git Bash delete through
@@ -154,7 +154,7 @@ What is not framed:
 ## Other walls
 
 - **Sub-agents** work in working copies, not in your folder, until you take their work in. The commands of
-  Claude Code or Qoder run **Native** there are not sandboxed: at Full auto, one that reaches the project by a path it does not
+  Claude Code run **Native** there are not sandboxed: at Full auto, one that reaches the project by a path it does not
   spell out changes it directly, and KOLONİ records that change at the end of the turn
   ([Known limits](../reference/known-limits.md#clis)).
 - **Agents beside each other**: a sub-agent's command that names another agent's copy, a worktree or a
@@ -188,8 +188,7 @@ What is not framed:
 - A command that names a secret file, or searches the whole folder when the folder holds one, is asked
   about at every level. Exceptions: when it runs **Native**, Codex runs commands its own rules count as
   safe (a read of `.env` or of a file outside the project) without asking KOLONİ; agy reading with its
-  own tools reads without asking; and Qoder run **Native** stops before it acts on the versions measured
-  so far (they do not apply KOLONİ's hook), while how one that applies it asks is not measured. Copilot on
+  own tools reads without asking. Copilot on
   its newer protocol (1.0.114 on) asks nothing of a command it counts as read-only, a read of a secret
   among them: KOLONİ's own hook makes it ask before every tool, and a tool that still ran without KOLONİ
   being asked stops the turn. A script
@@ -200,7 +199,7 @@ What is not framed:
   project's `.git`, until git prunes them.
 - When a CLI runs **Native**, its model reads its commands' raw output; KOLONİ masks keys only in what it
   records and shows.
-- At Full auto, a command of Claude Code, Qoder or agy run **Native** (and Copilot where it cannot sandbox
+- At Full auto, a command of Claude Code or agy run **Native** (and Copilot where it cannot sandbox
   its commands) can write outside the project (the Startup folder, a PowerShell profile) without a card,
   unless it names a CLI's settings folder such as `.claude` or `.gemini`, or a secret file, or it deletes
   or sends data off the machine. Their own file tools are asked about there at every level, outside the

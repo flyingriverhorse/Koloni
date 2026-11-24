@@ -1,7 +1,7 @@
 # Set up a CLI
 
 A CLI provider runs an agent CLI that you installed and signed in to yourself: Claude Code, Codex,
-GitHub Copilot CLI, Qoder or agy. It runs on your plan with that vendor. KOLONİ never installs a CLI and
+GitHub Copilot CLI or agy. It runs on your plan with that vendor. KOLONİ never installs a CLI and
 never signs in for you. Read [Subscription rules](subscription-rules.md) first.
 
 ## Steps
@@ -16,7 +16,7 @@ never signs in for you. Read [Subscription rules](subscription-rules.md) first.
 5. **Test** only checks that the command is found; it does not run it. **Try a real run** runs it once
    on a one-word question, on your plan.
 
-At the first start, KOLONİ adds Claude Code, Qoder, Codex and agy by itself if they are installed. It
+At the first start, KOLONİ adds Claude Code, Codex and agy by itself if they are installed. It
 never adds Copilot by itself. It adds agy switched off: Google's terms forbid using Antigravity through
 another app (see [Subscription rules](subscription-rules.md)). Its card on the Models page, switched on
 or off, says "Google's terms forbid using Antigravity through another app; your Google account may be
@@ -30,7 +30,6 @@ as it is.
 | **Claude Code (CLI)** | `claude` | `claude auth login` |
 | **Codex (CLI)** | `codex` | `codex login` |
 | **GitHub Copilot CLI** | `copilot` | `gh auth login`, or a GitHub token |
-| **Qoder (CLI)** | `qodercli` | Qoder's own sign-in |
 | **agy (CLI)** | `agy` | agy's own sign-in |
 
 ## How it runs
@@ -40,7 +39,6 @@ as it is.
 | Claude Code | One session per agent · One run per model step · Native |
 | Codex | One session per agent · One run per model step · Native. As a session its own patch tool cannot be switched off: KOLONİ refuses every patch it asks to make, and it writes with KOLONİ's write_file and edit_file instead. Unlike Native, it runs wherever the other sessions run: triggers, To-do, While you're away, recipe steps and comparisons. The default since 7 Nov 2026; a Codex provider added before keeps the way it was saved with. One added with a model server of your own starts as One run per model step, since its session there is not yet measured. |
 | Copilot | One session per agent · Native |
-| Qoder | One session per agent · Native. Set a model name if Qoder's own default model does not answer. |
 | agy | Reads with its own tools · Native |
 
 - **One session per agent** and **One run per model step** use KOLONİ's tools and cards, with the CLI's
@@ -48,9 +46,7 @@ as it is.
 - **Native** uses the CLI's own tools in your folder. Claude Code and agy ask KOLONİ before every tool
   they use; Codex before each command and patch, except the commands its own rules count as safe, which
   it runs without asking; Copilot before every tool it uses (on its newer protocol, 1.0.114 on, through
-  KOLONİ's own hook; on the older one, before each command, write and read). The Qoder versions measured so
-  far do not apply KOLONİ's hook, so a native Qoder turn stops before Qoder does anything and says to
-  run it as a session; how a Qoder that applies the hook works natively is not measured.
+  KOLONİ's own hook; on the older one, before each command, write and read).
 - **Reads with its own tools** (agy): it reads, and is started without leave to write or run.
 
 A trigger never starts a CLI that works with its own tools (Native, or agy's reads): with nobody watching,
@@ -81,7 +77,7 @@ in a trigger's topic. While it works, the agent's details show how full Copilot 
 Native CLI's turn is over no fill is shown, since its tokens in are its turn's model calls added up. Every other
 CLI lead starts each turn anew and is sent the whole chat. KOLONİ compacts that, as it does for an API model, past
 **Summarise a long context at (%)** of the window set on its role, or with none set there, of the window the
-catalogue has for its model (Claude Code's, Codex's and Copilot's models; none for Qoder's or agy's, where only
+catalogue has for its model (Claude Code's, Codex's and Copilot's models; none for agy's, where only
 **Compact now** compacts it). Against a catalogued window this is seldom reached: what is measured is the chat
 KOLONİ sends, with its older tool outputs already left out past about 240,000 characters, so only a chat whose own
 words are very long gets there; what the CLI reads by itself during a turn is not counted. To have it summarised
@@ -106,26 +102,21 @@ the default context tier as 272,000 tokens of prompt; KOLONİ's catalogue has a 
 (1,050,000). Run **Native**, Copilot says its session's own window as it works (272,000 for gpt-6-luna,
 872,000 for claude-haiku-5.5, measured): the agent keeps that one, at most 100,000 (its price step), from its
 first turn, where its role sets none, and it is what the agent's context is measured against; a kept session is
-held to 100,000 whatever the role's window. Run as a session, set the role's window to what your tier takes. Claude Code and Qoder report a
-failed turn in a text that can be their model's words, so theirs is not recognised yet, and the other CLIs' own
+held to 100,000 whatever the role's window. Run as a session, set the role's window to what your tier takes. Claude Code reports a
+failed turn in a text that can be its model's words, so its is not recognised yet, and the other CLIs' own
 wordings are not known. Where the failure says nothing of a summary, use **Compact now** and send the message
 again.
 
 **Compact now** is in the top bar's **context** button (see
 [Chat and canvas](../use/chat-and-canvas.md#the-context-button)).
 
-## Qoder's free models
+## Qoder is no longer supported
 
-Qoder puts a free model's request in a queue when it is busy. In tests the wait was about 1 to 3 minutes,
-once longer. While it waits, the agent's window says so, for example "Qoder: in the model's queue for 2 min
-43 s (waits up to 60 min)", and its box on the canvas says "queued 2 min". A sub-agent still queued after 90
-seconds is moved to the next model of its tier, where KOLONİ picked its model and the tier has another; a
-move that may cost money is asked on a card first (see [Ready and approval cards](../use/ready.md)). In
-a turn you watch, a lead, or a sub-agent that cannot be moved, waits as long as Qoder keeps it queued -
-for the Orchestrator, after 90 seconds a card asks whether to keep waiting or stop and pick another model
-(see [Step limits](../agents/step-limits.md#when-the-orchestrators-model-is-slow-to-answer)); in
-a trigger's or a job's turn while you're away it gives up after 90 seconds. Run **Native**, Qoder shows no queue line,
-and is not moved.
+Since 0.1.8 KOLONİ does not run Qoder, and **Add a provider** no longer offers it. A Qoder provider you
+added before stays on the Models page, switched off, with its settings: its card says "no longer
+supported", its switch cannot turn it on, and its window says why and has **Delete provider**. A chat or a
+role that still names it fails as on any provider switched off, with the reason, until you pick another
+model; once it is deleted, they run on your default provider. Move what used it, then delete it.
 
 ## Sign-in for Claude Code and Codex
 

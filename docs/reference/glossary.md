@@ -141,7 +141,7 @@ KOLONİ's own words, as they appear on screen.
 
 **Provider**
 : Where a model runs: an OpenAI-compatible server, the Anthropic API, or a CLI you are signed in to
-  (Claude Code, Codex, GitHub Copilot CLI, Qoder, agy). You add providers on the Models page.
+  (Claude Code, Codex, GitHub Copilot CLI, agy). You add providers on the Models page.
 
 **Ready**
 : A page on the rail that lists everything waiting for your word, with a count.

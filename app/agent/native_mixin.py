@@ -307,7 +307,6 @@ class NativeMixin:
         # shortcut: Codex - thread/start's cwd is its sandbox's writable root, and
         # `_not_as_asked` judges against it; move both once measured.
         # shortcut: Copilot - its sandbox's paths are laid out from `root`; same.
-        # shortcut: Qoder - as Claude Code's protocol, unmeasured (B-306); same.
         # shortcut: agy - its KOLONİ home and hooks are laid out from `root`; same.
         root = str(copy.root) if copy is not None else ctx.root
         denied = await self._native_work_denied(ctx, root, hide)
@@ -344,7 +343,6 @@ class NativeMixin:
             # (`_sent_with_files`): a refusal fails the run; add one if that is seen.
             model = cast(CodexNativeClient, self._model_of(ctx))
             # B-151: Claude Code's skills go in its instructions as `run_native` gives them.
-            # (Not Qoder on its protocol, B-306: none of Claude Code's extras is measured there.)
             claude = isinstance(model, ClaudeNativeClient) and model.command == "claude"
             inside = self._inside_roles(ctx, offered, withheld, watch) if claude else {}
             # 27 / 93-C3: the session it may go on in, and keeps the one it leaves (not in a

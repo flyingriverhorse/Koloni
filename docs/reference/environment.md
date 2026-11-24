@@ -36,7 +36,7 @@ these does nothing to providers that already exist.
 | `KOLONI_MODEL_BASE_URL` | `http://127.0.0.1:8080/v1` | The address of the "Local" provider. |
 | `KOLONI_MODEL_ID` | the first model the server lists | Local's default model. |
 | `KOLONI_MODEL_API_KEY` | none | Local's key. |
-| `KOLONI_DETECT_CLI` | `1` | First start only: add Claude Code, Qoder, Codex and agy (switched off) as providers if they are installed. `0` skips this. |
+| `KOLONI_DETECT_CLI` | `1` | First start only: add Claude Code, Codex and agy (switched off) as providers if they are installed. `0` skips this. |
 
 ## Models and agents
 

@@ -109,7 +109,7 @@ OVERFLOW = re.compile(
     # shortcut: its wording as remembered, not confirmed in its docs nor a live refusal; check.
     # shortcut: none for Qwen / DashScope, whose wording is neither confirmed in its docs nor
     # seen: its refusal is not taken as one for size (nothing is summarised for a second try).
-    # shortcut: no other CLI's own wording is measured (Claude Code, Codex, Qoder, agy; as a
+    # shortcut: no other CLI's own wording is measured (Claude Code, Codex, agy; as a
     # session, natively or step by step): one that passes its service's words on is read, any
     # other refusal for size is not. Add each CLI's line once a live refusal is seen.
     r"exceeds the available context size|maximum context length|context_length_exceeded"
@@ -140,9 +140,9 @@ def refused_for_size(exc: ModelUnavailable) -> bool:
     """Whether a failure is a refusal for its size (`OVERFLOW`) - read only in words that are
     the provider's or the CLI's own: never where the failure has a class of its own (a limit,
     no credit), nor where all that says why is the text of a CLI's `result`, which can be the
-    model's words (`model_cli.RESULT_TEXT`: Claude Code's and Qoder's `is_error` result) - a
+    model's words (`model_cli.RESULT_TEXT`: Claude Code's `is_error` result) - a
     page it read could have it say them, and have its history summarised and its turn run twice.
-    shortcut: so no refusal of Claude Code's or Qoder's own is read at all - no recorded stream
+    shortcut: so no refusal of Claude Code's own is read at all - no recorded stream
     in tests/ has such a result, nor a field on it that says it is the CLI's own; read that
     field (a subtype, the assistant event's `error`) once a live refusal shows one."""
     return exc.failure is None and bool(OVERFLOW.search(str(exc)))

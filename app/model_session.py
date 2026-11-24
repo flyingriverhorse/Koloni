@@ -11,7 +11,6 @@ import contextlib
 import json
 import logging
 import os
-import re
 import secrets
 import shutil
 import sys
@@ -792,79 +791,6 @@ class ClaudeSessionClient(CliSessionClient):
             arguments += ["--allowedTools", ",".join(allowed)]
         if self._model:
             arguments += ["--model", self._model]
-        return arguments
-
-
-QODER_MODELS_SECONDS = 10.0
-# A model's name first on its line, of letters, digits and `._:/-`, then nothing, or a column
-# (two spaces, a tab, a box's bar) or a remark ("(default)", "- fast"): not a sentence.
-_MODEL_LINE = re.compile(r"([A-Za-z0-9][A-Za-z0-9._:/-]*)(?:$|\s{2}|\t|\s*[│|]|\s+[(\[—*✓-])")
-_HEADINGS = {"name", "model", "models", "id"}  # a table's first column, named
-_COLOURS = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
-
-
-def qoder_models(printed: str) -> list[str]:
-    """The model names in what `qodercli --list-models` prints: of each line, its colours
-    and marks (`*`, `-`, `>`, a box's `│`) taken off, the name it begins with (`_MODEL_LINE`,
-    with a letter in it); a line that ends in ":" (a heading) is passed over.
-    Measured on 29 Oct 2026 (qodercli 1.1.51): a "MODEL" heading, then one model a line, a
-    paid one as `Name (where it is served) (its/id)`; the name is kept.
-    shortcut: whether --model takes a paid model's name or the id in its last parentheses
-    is not measured (the free ones ran by name); keep the id instead if the name is refused.
-    shortcut: an image model is passed over by "image" in its line; use catalog.json's
-    not_chat if another kind of model turns up there."""
-    names: list[str] = []
-    for line in _COLOURS.sub("", printed).splitlines():
-        line = line.strip().lstrip("*->•│|✓→ \t")
-        skip = line.endswith(":") or "image" in line.lower()
-        found = None if skip else _MODEL_LINE.match(line)
-        name = found.group(1) if found else ""
-        if re.search("[A-Za-z]", name) and name.lower() not in _HEADINGS and name not in names:
-            names.append(name)
-    return names
-
-
-class QoderSessionClient(CliSessionClient):
-    command = "qodercli"
-    label = "Qoder"
-    # shortcut: the same levels for every model; xhigh measured on the two free ones only
-    # (29 Oct), max not offered. Upgrade once each model's are known.
-    efforts = levels_of("qoder_cli")
-    effort_flag = "--reasoning-effort"
-    effort_words = {"off": "none"}  # its own word for no thinking
-
-    async def models(self) -> list[str]:
-        """The names `qodercli --list-models` prints; none where it fails. No model is used.
-        What it says on stderr (it could name the account) is never kept."""
-        code, printed, _ = await self.run_status(["--list-models"], QODER_MODELS_SECONDS)
-        return qoder_models(printed) if code == 0 else []
-
-    def _session_env(self, workdir: Path) -> dict[str, str]:
-        return {"MCP_TOOL_TIMEOUT": TOOL_WAIT_MS}
-
-    def _session_arguments(self, config: Path, allowed: list[str]) -> list[str]:
-        # Measured 4 Nov 2026 (R185, Qwen3.8-Flash): `--tools ""` starts it with `"tools":[]` and
-        # no tool_use. Its init still lists plugin `agents` and `skills`, but with no tool of its
-        # own (no Task, no Skill) nothing can start them.
-        arguments = [
-            "-p",
-            "--tools",
-            "",
-            "--strict-mcp-config",
-            "--mcp-config",
-            str(config),
-            "--no-session-persistence",
-            "--setting-sources",
-            "",
-            "-o",
-            "stream-json",
-            "--system-prompt",
-            SYSTEM_LINE,
-        ]
-        for name in allowed:
-            arguments += ["--allowed-tools", name]
-        if self._model:
-            arguments += ["-m", self._model]
         return arguments
 
 

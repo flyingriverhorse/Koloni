@@ -22,7 +22,7 @@ Press **Add a provider** (in First steps, or on the **Models** page). Fill in:
 
 - **Name**: any name you like.
 - **Kind**: **OpenAI-compatible server**, **Anthropic API**, or a CLI: **Claude Code (CLI)**,
-  **Codex (CLI)**, **GitHub Copilot CLI**, **Qoder (CLI)** or **agy (CLI)**.
+  **Codex (CLI)**, **GitHub Copilot CLI** or **agy (CLI)**.
 - For a server: its **Address** (a llama.cpp server is usually `http://127.0.0.1:8080/v1`) and an
   **API key** if it needs one.
 - For the Anthropic API: your **API key** and a **Default model**.

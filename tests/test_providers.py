@@ -12,7 +12,7 @@ from app.catalog import models_for
 from app.config import load_settings
 from app.main import create_app
 from app.model_client import UNREACHABLE, ModelUnavailable, OpenAICompatClient
-from app.providers import NOT_WATCHED, ON_HOST
+from app.providers import ON_HOST
 from tests.fakes import ScriptedModel
 from tests.keyed import TestClient
 from tests.test_chat_flow import text
@@ -150,7 +150,7 @@ def test_a_cli_says_which_rules_nobody_watches_in_each_way_it_runs_with_its_own_
     """K-native-not: per way of running (`providers.NOT_WATCHED`), for the agent's window and
     node; empty where every tool of its own is asked about, none for a model server. In a
     project whose commands run in Docker, each way that runs commands says they run here."""
-    for kind in ("codex_cli", "agy_cli", "claude_cli", "qoder_cli"):
+    for kind in ("codex_cli", "agy_cli", "claude_cli"):
         assert client.post("/api/providers", json={"name": kind, "kind": kind}).status_code == 201
     shown = client.get("/api/providers").json()
     said = {one["kind"]: one["not_watched"] for one in shown}
@@ -159,7 +159,6 @@ def test_a_cli_says_which_rules_nobody_watches_in_each_way_it_runs_with_its_own_
     assert any("web" in rule for rule in said["agy_cli"]["reads"])
     assert said["codex_cli"].keys() == {"native"}
     assert any("secret files" in rule for rule in said["codex_cli"]["native"])
-    assert said["qoder_cli"] == {"native": [NOT_WATCHED[("qoder_cli", "native")][0]]}
     docker = {one["kind"]: one["not_watched_in_docker"] for one in shown}
     assert docker["openai_compat"] is None and docker["claude_cli"] == {"native": [ON_HOST]}
     assert docker["agy_cli"] == {"native": [ON_HOST], "reads": said["agy_cli"]["reads"]}
@@ -594,7 +593,7 @@ def test_an_anthropic_workspace_is_checked_like_any_setting():
         with pytest.raises(ValueError, match="unknown setting"):
             check_options("anthropic", other, True)
     # and no other kind has this one
-    for kind in ("openai_compat", "claude_cli", "codex_cli", "qoder_cli", "agy_cli"):
+    for kind in ("openai_compat", "claude_cli", "codex_cli", "agy_cli"):
         with pytest.raises(ValueError):
             check_options(kind, {"workspace_id": WORKSPACE}, True)
     with pytest.raises(ValueError, match="unknown setting"):

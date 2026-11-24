@@ -268,7 +268,7 @@ export function ProviderCard({
           {isDefault && ' · default'}
         </span>
         <span className={look === 'bad' && !off ? 'provider-card-state' : 'provider-card-status'}>
-          {off ? 'switched off' : said}
+          {provider.off_why ? 'no longer supported' : off ? 'switched off' : said}
         </span>
         <CardReading provider={provider} paid={paid} reading={reading} readAt={readAt} oldWay={oldWay} />
         <TierCounts provider={provider} />
@@ -278,8 +278,9 @@ export function ProviderCard({
         role="switch"
         className="switch provider-card-switch"
         aria-label={`${provider.name} on`}
-        title={OFF_MEANS}
+        title={provider.off_why ?? OFF_MEANS}
         checked={!off}
+        disabled={!!provider.off_why}
         onChange={e => onSwitch(e.target.checked)}
       />
       {(action || aside || quiet) && (
