@@ -166,12 +166,11 @@ a new session - instead where:
 
 - a task of it got **stuck**, or went back to To-do (**Not yet**, Stop), so its wrong guess is not
   carried on;
-- Claude Code's last turn there sent **half its window** or more, so that KOLONİ's own summary comes
-  before Claude Code's. Claude Code says what all the calls of a turn sent, not how large its session
-  is, so a turn of many steps may start the next task anew early; the share is not yet measured.
-  Copilot and Codex are held to a size of their own already
-  ([Going on from the last turn](../models/setup-cli.md#going-on-from-the-last-turn));
 - a **day** has passed since its last turn there.
+
+A session's size starts no new topic: Claude Code compacts its own session, and Copilot's and Codex's
+are bound by KOLONİ already, at 75% (by default) of their window
+([Going on from the last turn](../models/setup-cli.md#going-on-from-the-last-turn)).
 
 The first task in the new topic is told the story so far - KOLONİ's own record of each earlier task and
 how it stands, and the files their turns changed - with the notebook. This is decided as each task

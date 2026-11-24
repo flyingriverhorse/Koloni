@@ -849,8 +849,16 @@ def drafted(said: str) -> dict:
         tasks = [task for each in _list_of(title and one.get("tasks")) if (task := _task_of(each))]
         if not tasks:
             continue
+        # (Masked before they are cut: a secret cut first would no longer be seen.)
         notes = [
-            note for each in _list_of(one.get("notes")) if (note := _cut(each, stories.NOTE_MOST))
+            note
+            for each in _list_of(one.get("notes"))
+            if isinstance(each, str)
+            and (
+                note := _cut(
+                    stories.masked(each[: stories.NOTE_MOST * 20], None), stories.NOTE_MOST
+                )
+            )
         ]
         shaped.append(
             {"title": title, "notes": notes[: stories.NOTEBOOK_MOST], "tasks": tasks[:room]}
