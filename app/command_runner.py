@@ -9,15 +9,16 @@ from collections.abc import Awaitable, Callable, Mapping
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
-from sqlalchemy import func, literal_column, select, true
+from sqlalchemy import func, literal_column, or_, select, true
 from sqlalchemy.exc import IntegrityError
 
 from app import ledger, project_map, proof, proof_style
 from app.cards import card_reason
-from app.commands import ANSI as _ANSI
 from app.commands import (
+    _INTERPRETER,
     MAX_STORED_OUTPUT,
     OutputMask,
+    _program,
     _words,
     applies_patch,
     danger,
@@ -33,6 +34,7 @@ from app.commands import (
     standing_asked,
     with_cwd,
 )
+from app.commands import ANSI as _ANSI
 from app.db.models import (
     Agent,
     AllowedCommand,
@@ -183,25 +185,114 @@ PLANTED = "an agent wrote its program ({place}): no rule covers a program an age
 PLANTED_REFUSED = "KOLONİ did not run this: {why}, and nobody is here to ask. " + CARRY_ON
 
 
+# W6: a package runner finds the program it runs by itself - npx, npm exec, yarn, pnpm and bun
+# (`corepack` before one: the same) in the node_modules of the folder it runs in or of one above
+# it, beside the files that make it run code of their own there: `.npmrc` (`node-options`,
+# `script-shell`), yarn's (`yarnPath` names the JS it runs, `.yarn/releases`, Plug'n'Play's
+# loader), bun's preloads; uv, poetry, pipenv, pdm, hatch and `python -m` in an environment: the
+# .venv there or above, or one KOLONİ cannot place - any install folder of the project's counts
+# (fails closed).
+_NODE_RUNNERS = frozenset({"npx", "pnpx", "bunx", "npm", "pnpm", "yarn", "bun"})
+_NODE_SETTINGS = {
+    "yarn": (".yarnrc.yml", ".yarnrc", ".yarn", ".pnp.cjs", ".pnp.loader.mjs", ".npmrc"),
+    "bun": ("bunfig.toml",),
+    "bunx": ("bunfig.toml",),
+}
+_PY_RUNNERS = frozenset({"uv", "uvx", "poetry", "pipenv", "pdm", "hatch"})
+_PY_INSTALLS = (".venv", "venv", "site-packages")
+_PYTHON = re.compile(r"python[\d.]*w?|pyw?")
+# (`python -m pytest` imports the project's own modules by design - its tests are its code)
+_RUNS_THE_PROJECT = frozenset({"pytest", "unittest"})
+
+
+def _python_module(words: list[str]) -> tuple[str, bool] | None:
+    """`python [its options] -m x` (`-mx`, `-Im x` too): x, and whether the folder it runs in
+    comes first on sys.path - not under -I or -P (W6: a `subprocess.py` there is imported before
+    the standard one); None: no `-m` before a script or `-c`."""
+    safe, at = False, 1
+    while at < len(words):
+        word = words[at]
+        if not word.startswith("-") or word in ("-", "--"):
+            return None
+        head, m, tail = word[1:].partition("m")
+        safe = safe or (not word.startswith("--") and bool({"I", "P"} & set(head)))
+        if m and not word.startswith("--"):
+            module = tail or (words[at + 1] if at + 1 < len(words) else "")
+            return (module, not safe) if module else None
+        if "c" in head and not word.startswith("--"):
+            return None
+        at += 2 if word in ("-X", "-W") else 1
+    return None
+
+
+def _runner_places(words: list[str], cwd: str) -> tuple[list[str], tuple[str, ...], bool] | None:
+    """W6: where a package runner's line (`words`) finds its program - folders and files from the
+    root -, the install folders it may take it from anywhere in the project, and whether it reads
+    the folder's own modules first (`python -m`: `proof_style.shadows`); None: no runner's
+    line."""
+    words = words[1:] if words and _program(words[0]) == "corepack" else words
+    name = _program(words[0]) if words else ""
+    above = [PurePosixPath(cwd), *PurePosixPath(cwd).parents]
+    if name in _NODE_RUNNERS:
+        names = ("node_modules", *_NODE_SETTINGS.get(name, (".npmrc",)))
+        return [str(folder / one) for folder in above for one in names], (), False
+    python = next((at for at, word in enumerate(words) if _PYTHON.fullmatch(_program(word))), None)
+    module = _python_module(words[python:]) if python is not None else None
+    if name not in _PY_RUNNERS and module is None:
+        return None
+    shadow = (
+        module is not None
+        and module[1]
+        and module[0].split(".")[0] not in _RUNS_THE_PROJECT
+        and not os.environ.get("PYTHONSAFEPATH")
+    )
+    envs = [str(folder / env) for folder in above for env in (".venv", "venv")]
+    return envs, _PY_INSTALLS, shadow
+
+
+def _program_word(words: list[str]) -> str:
+    """The word naming what a line runs: its program, or the script an interpreter is handed
+    from an install folder (`node node_modules/typescript/bin/tsc`, W6)."""
+    program = words[0] if words else ""
+    script = next((word for word in words[1:] if not word.startswith("-")), "")
+    parts = PurePosixPath(script.replace("\\", "/")).parts
+    if _INTERPRETER.fullmatch(_program(program)) and any(
+        part.casefold() in proof_style.INSTALLS for part in parts
+    ):
+        return script
+    return program
+
+
 def _planted(factory, cid: str, root: Path, command: str, cwd: str) -> str | None:
-    """W2: why a rule, a yes given before or a trigger's leave - each matches by the line's text,
-    in any folder - does not cover `command`: its program, named by its path, is one an agent
-    wrote on record - any turn's, as it still stands in `root` (`proof_style.still_written`) -,
-    or is in the install folder such a write is in (`proof_style.wrote_program`). None: no such
-    write. In a thread: the records are matched to the program's place first, and only those
-    files are read, once the session is closed.
+    """W2, W6: why a rule, a yes given before or a trigger's leave - each matches by the line's
+    text, in any folder - does not cover `command`: its program, named by its path, is one an
+    agent wrote on record - any turn's, as it still stands in `root` (`proof_style.
+    still_written`) -, or is in the install folder such a write is in (`proof_style.
+    wrote_program`); or a package runner's line (`_runner_places`) finds its program where such
+    a write is. None: no such write. In a thread: the records are matched to the program's place
+    first, and only those files are read, once the session is closed.
     shortcut: the program alone - a script an interpreter is given (`node x.js`) is not judged
     so; judge it too if a rule of one is seen to run one an agent wrote."""
-    words = _words(command)
+    words = [word.strip("'\"") for word in _words(command)]
     words = words[1:] if words[:1] in (["&"], ["."]) else words  # (PowerShell's call)
-    program = words[0].strip("'\"") if words else ""
+    program = _program_word(words)
     parts = PurePosixPath(program.replace("\\", "/")).parts
-    if not parts or ("/" not in program and "\\" not in program):
+    # (a runner first: `.venv/Scripts/python.exe -m x` is named by its path, and reads its folder)
+    if runner := _runner_places(words, cwd):
+        places, anywhere, shadow = runner
+        named = [*{PurePosixPath(place).name for place in places}, *anywhere]
+        named += [".py", ".pyc", ".pyd", ".so", "__init__"] if shadow else []
+    elif parts and ("/" in program or "\\" in program):
+        places, anywhere, shadow = None, (), False
+        named = [
+            next(
+                (part for part in parts if part.casefold() in proof_style.INSTALLS),
+                parts[-1].split(".")[0],
+            )
+        ]
+    else:
         return None
-    named = next(
-        (part for part in parts if part.casefold() in proof_style.INSTALLS),
-        parts[-1].split(".")[0],
-    ).lower()
+    looked = [name.lower() for name in named]
     with factory() as session:
         found = session.execute(
             select(FileChange.path, FileChange.after_sha)
@@ -212,16 +303,53 @@ def _planted(factory, cid: str, root: Path, command: str, cwd: str) -> str | Non
                 == select(Conversation.project_id).where(Conversation.id == cid).scalar_subquery(),
                 FileChange.status.in_((*ledger.KEPT, proof.MERGED)),
                 # (SQLite lowers ASCII alone: another name is looked for in every path)
-                func.lower(FileChange.path).contains(named, autoescape=True)
-                if named.isascii()
+                or_(*(func.lower(FileChange.path).contains(one, autoescape=True) for one in looked))
+                if all(one.isascii() for one in looked)
                 else true(),
             )
             .order_by(FileChange.created_at, literal_column("file_changes.rowid"))
         ).all()
     newest = {path: digest for path, digest in found}
-    mine = [one for one in newest.items() if proof_style.wrote_program(root, cwd, program, one[:1])]
-    place = proof_style.wrote_program(root, cwd, program, proof_style.still_written(root, mine))
+
+    def plants(rel: str) -> str | None:
+        if places is None:
+            return proof_style.wrote_program(root, cwd, program, [rel])
+        return proof_style.planted_in(root, places, anywhere, rel) or (
+            proof_style.shadows(cwd, rel) if shadow else None
+        )
+
+    held = proof_style.still_written(root, [one for one in newest.items() if plants(one[0])])
+    place = next((place for rel in held if (place := plants(rel))), None)
     return PLANTED.format(place=place) if place else None
+
+
+# Y1: cmd.exe's word for a bare name it did not find - under KOLONİ only on PATH (W1, as under
+# git), so a batch file of the user's that calls its neighbour so no longer finds it.
+NOT_RECOGNIZED = "' is not recognized as an internal or external command"
+BARE_NAME = (
+    "\n(KOLONİ's commands find a program named bare on PATH only, never in the folder they run "
+    "in: call {name} as .\\{name} - in a batch file as %~dp0{name}.)"
+)
+
+
+def _bare_name_hint(output: str, folder: Path) -> str:
+    """Y1: the hint for a bare name cmd.exe did not find (`NOT_RECOGNIZED`) that the run's
+    folder has, as it is or with a program's ending; "" for none."""
+    output = output[-64 * 1024 :]  # (its last words: the line cmd.exe ended on is there)
+    if NOT_RECOGNIZED not in output:
+        return ""
+    for line in output.splitlines():
+        head, found, _rest = line.partition(NOT_RECOGNIZED)
+        name = head[head.rfind("'") + 1 :] if found else ""
+        if (
+            name
+            and not set(name) & set('\\/:*?"<>|')
+            and any(
+                (folder / f"{name}{end}").is_file() for end in ("", ".cmd", ".bat", ".exe", ".com")
+            )
+        ):
+            return BARE_NAME.format(name=name)
+    return ""
 
 
 HELD_BACK = (
@@ -520,7 +648,7 @@ class CommandRunner:
         if not planned.keep_running:
             ended = await self._through(cid, command_id, running, ws.root, planned.timeout)
             status, said = self._told(*ended, planned.timeout, time.monotonic() - started, recall)
-            return status, said + note
+            return status, said + _bare_name_hint(ended[2], planned.cwd_path) + note
         heard = {"url": None, "at": None, "scanned": 0, "closed": self.closed_ports()}
         life = asyncio.ensure_future(self._through(cid, command_id, running, ws.root, None, heard))
         self._serving[command_id] = (cid, life)

@@ -72,7 +72,10 @@ _EXECUTORS = {
     ("yarn", "dlx"): 3,
     ("yarn", "exec"): 3,
     ("uv", "tool"): 4,
+    ("bun", "x"): 3,
 }
+# `corepack x ...` runs the package manager x as it is: a rule for it is x's, past `corepack`.
+_COREPACK_RUNS = frozenset({"npm", "npx", "pnpm", "pnpx", "yarn"})
 # These run whatever they are handed, so a rule must name the script or module too - by
 # any version in their name (`python3.12`, `pythonw`, `node22`); `.exe` is dropped first.
 _INTERPRETER = re.compile(
@@ -140,6 +143,12 @@ def _offer(command: str) -> str:  # noqa: C901
     rest = words[1:]
     if program in _SHELLS:
         return ""
+    if program == "corepack":  # (never the bare `corepack`: it runs any package manager)
+        inner = _offer(" ".join(rest)) if rest and _program(rest[0]) in _COREPACK_RUNS else ""
+        return f"{words[0]} {inner}" if inner else ""
+    if rest and (need := _EXECUTORS.get((program, rest[0]))) is not None:
+        named = len(words) >= need and not any(w.startswith("-") for w in words[2:need])
+        return " ".join(words[:need]) if named else ""  # (`bun x tsc` too: bun is no interpreter)
     if program in _LINTERS:
         return " ".join(
             words[: next((at for at, w in enumerate(words) if at and w.startswith("./")), None)]
@@ -157,9 +166,6 @@ def _offer(command: str) -> str:  # noqa: C901
             return words[0]
         if rest[0].startswith("-"):
             return ""  # options before the subcommand can change what it runs
-        if (need := _EXECUTORS.get((program, rest[0]))) is not None:
-            named = len(words) >= need and not any(w.startswith("-") for w in words[2:need])
-            return " ".join(words[:need]) if named else ""
         if (program, rest[0]) in _RUNNERS:
             task_named = len(rest) >= 2 and not rest[1].startswith("-")
             return " ".join(words[:3]) if task_named else ""
@@ -470,9 +476,9 @@ def _unwrapped(words: list[str]) -> list[list[str]]:  # noqa: C901
 
 def _hands_on(command: str) -> bool:
     """Whether a command's program runs what its arguments name: an interpreter, a
-    package runner (`npx`, `npm exec`). A rule for one covers a command only where it
-    names as much as "Always run" would offer now (`suggest_prefix`): one stored before,
-    or written by hand, for the program alone covers nothing."""
+    package runner (`npx`, `npm exec`; `corepack` before one). A rule for one covers a command
+    only where it names as much as "Always run" would offer now (`suggest_prefix`): one stored
+    before, or written by hand, for the program alone covers nothing."""
     words = _words(command.strip())
     if not words:
         return False
@@ -480,6 +486,7 @@ def _hands_on(command: str) -> bool:
     return bool(
         _INTERPRETER.fullmatch(program)
         or program in _RUNNER_PROGRAMS
+        or program == "corepack"
         or (len(words) > 1 and (program, words[1]) in _EXECUTORS)
     )
 

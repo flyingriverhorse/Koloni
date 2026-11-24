@@ -124,6 +124,11 @@ def test_an_interpreter_by_any_version_needs_its_script_named(command, offered):
         ("npm exec -y cowsay", ""),
         ("npm exec", ""),
         ("uv tool run", ""),
+        # (W6: bun x is bun's runner, not bun the interpreter; corepack runs a package manager)
+        ("bun x cowsay hi", "bun x cowsay"),
+        ("bun x", ""),
+        ("corepack pnpm exec tsc --noEmit", "corepack pnpm exec tsc"),
+        ("corepack enable", ""),
     ],
 )
 def test_a_package_runner_needs_the_package_named(command, offered):
