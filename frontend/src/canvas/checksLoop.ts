@@ -53,8 +53,8 @@ export interface Loop {
   /** The header's line: "⟲ 3 looks · 2 fix rounds · on hold", "● round 2 · looking…". */
   status: string
   tone: Tone
-  /** A dot a round: held (it went back, or the last one ended so), passed, at work. */
-  dots: ('held' | 'passed' | 'running')[]
+  /** A dot a round: held (it went back, or the last one ended so), passed, at work - or asked for a test (no fix round). */
+  dots: ('held' | 'passed' | 'running' | 'asked')[]
   /** The footer: the test runs' lines, as the plain node says them. */
   tests: Line[]
   /** Why the last round was the last, as the Checked section says it; null: it passed, or nothing said. */
@@ -262,12 +262,18 @@ function testsCard(rows: Row[], data: ChecksData): LoopCard {
 /** Why the checks stopped where a round held: the Checked section's own line ("Still on hold after 2 fix rounds: …", "Stopped after round 3: …"). */
 const stopOf = (rows: Row[]) => rows.find(row => row.state === 'failed' && /^(Still|Stopped)/.test(row.text) && ['review', 'rounds', 'stronger'].includes(row.kind))?.text ?? null
 
-/** A dot a pass: each but the last went back (or was handed up); the last as the box ends - or at work. */
+/** A dot a pass: each but the last went back (or was handed up) - a neutral one where it only asked for a test -; the last as the box ends, or at work. */
 function dotsOf(box: Box, running: boolean, tone: Tone): Loop['dots'] {
   const last: Loop['dots'][number] = running ? 'running' : tone === 'ok' ? 'passed' : 'held'
   if (!box.passes) return running ? [last] : []
-  return box.passes.map((_pass, at) => (at === box.passes!.length - 1 ? last : 'held'))
+  return box.passes.map((pass, at) => (at === box.passes!.length - 1 ? last : pass.sent === 'ask' ? 'asked' : 'held'))
 }
+
+/** Whether the box says its rounds - its status in its tag, a dot a pass at its foot: sent back at least once, or at work. */
+export const saysRounds = (loop: Loop) => loop.loop || loop.tone === 'run'
+
+/** Each dot in words, for its title and the dots' label. */
+export const DOT_WORDS: Record<Loop['dots'][number], string> = { held: 'held', passed: 'passed', running: 'at work', asked: 'asked for a test' }
 
 /**
  * KOLONİ's checks of a turn as one box (tuval-kontrol-dongusu, D + F): the agents its passes name (`boxOf`), each role drawn
@@ -391,8 +397,8 @@ export function checksSize(data: ChecksData): { width: number; height: number } 
  * shortcut: lines counted at ~6.5 px a character of the tag's text, 10 px a dot - measure the text if a box is seen cut.
  */
 function wrapped(loop: Loop, width: number): number {
-  const tag = (`Checks · KOLONİ  ${loop.loop ? loop.status : ''}`.length * 6.5) / (width - 64 - 12)
+  const tag = (`Checks · KOLONİ  ${saysRounds(loop) ? loop.status : ''}`.length * 6.5) / (width - 64 - 12)
   const foot = width - 2 * LOOP.pad
-  const dots = loop.loop && loop.dots.length * 10 > foot / 2 ? Math.ceil((loop.dots.length * 10) / foot) * 11 : 0
+  const dots = saysRounds(loop) && loop.dots.length * 10 > foot / 2 ? Math.ceil((loop.dots.length * 10) / foot) * 11 : 0
   return (Math.ceil(tag) - 1) * 15 + dots
 }

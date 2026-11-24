@@ -308,8 +308,10 @@ class ProofMixin:
         return None
 
     def _lead_opened(self: "AgentRunner", run_id: str, lead_id: str) -> list[str]:
-        """The agents the turn's Lead opened by a spawn of its own, oldest first: never one of
-        KOLONİ's (`PROOF_CALL`), nor a member of a room or a discussion (opened by those calls)."""
+        """The agents the turn's Lead opened by a call of its own, oldest first - a spawn, or a
+        message that went on with an agent of an earlier turn (`_go_on` opens it by that call; a
+        message that only messaged opens none): never one of KOLONİ's (`PROOF_CALL`), nor a
+        member of a room or a discussion (opened by those calls)."""
         with self._factory() as session:
             return list(
                 session.scalars(
@@ -318,7 +320,7 @@ class ProofMixin:
                     .where(
                         Agent.run_id == run_id,
                         Agent.parent_agent_id == lead_id,
-                        ToolCall.name == "spawn_agent",
+                        ToolCall.name.in_(("spawn_agent", "message_agent")),
                         ToolCall.provider_call_id.not_like(f"{proof.PROOF_CALL}%"),
                     )
                     .order_by(Agent.created_at, literal_column("agents.rowid"))

@@ -155,3 +155,23 @@ test('the panel: the way to the Checked section only once it is written - a turn
   expect(within(panel).getByRole('region', { name: 'Round 3' })).toHaveTextContent('Round 3 · a stronger model (balanced)Coder 4diagnosis')
   expect(within(panel).getByRole('button', { name: 'Open the Checked section' })).toBeInTheDocument()
 })
+
+test('live, before its section: the box draws its “● looking…” and its one amber dot - not only in its data', () => {
+  const look = opened('rv', 'Reviewer', 'review', { role_name: 'Reviewer', status: 'running', report: null, findings: null })
+  const state = convState({ runs: [run('r', 'running')], agents: [agent('r', 'running'), opened('c1', 'Coder', null).agent, look.agent], toolCalls: [look.call] })
+  const data = graphOf(state).nodes.find(n => n.kind === 'checks')!.data as ChecksData
+  const props = { id: 'checks:r', data, selected: false, type: 'checks', dragging: false, zIndex: 0, isConnectable: false, positionAbsoluteX: 0, positionAbsoluteY: 0, draggable: false, selectable: false, deletable: false }
+  render(
+    <ReactFlowProvider>
+      <ChecksNode {...(props as Parameters<typeof ChecksNode>[0])} />
+    </ReactFlowProvider>,
+  )
+  expect(screen.getByText('● looking…')).toBeInTheDocument()
+  expect(screen.getByRole('img', { name: '1 rounds: at work' }).children).toHaveLength(1)
+})
+
+test('a pass that only asked for a test has a neutral dot, never a red one', () => {
+  const parts = [opened('c1', 'Coder', null), opened('cf1', 'Coder 2', null)]
+  const passes = [pass(1, { tests: 'failed', why: 'tests fail', sent: 'fix', fixers: ['cf1'] }), pass(2, { sent: 'ask' }), pass(3)]
+  expect(loopIn(graphOf(turn(parts, [passed], passes)))!.dots).toEqual(['held', 'asked', 'passed'])
+})

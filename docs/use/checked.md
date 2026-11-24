@@ -887,7 +887,7 @@ sent back are in it too ("Coder · fix"), the looks in a column ⇄ the fixes; e
 agent, the earlier ones shadows behind it with a count (×3). Its title says the rounds - "⟲ 3 looks ·
 2 fix rounds · on hold", "✓ checked" -, or at work "● round 2 · looking…" ("· waits for you" where
 one of them asks you something: the card says it too); its foot a dot a round (red: it went back or
-held, green: passed, amber: at work). One look and nothing sent back is a plain box: no count, no
+held, green: passed, amber: at work, grey: it only asked for a test - no fix round). One look and nothing sent back is a plain box: no count, no
 shadows, no loop. Who is in it, and each round, is what KOLONİ wrote down as its checks went - each
 pass's tests, its looks and their verdicts, why it went back, and the agents its send-back had the
 Orchestrator open -, never guessed from the order agents were opened in: an agent of a room or a

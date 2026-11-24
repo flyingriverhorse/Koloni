@@ -5254,6 +5254,11 @@ fieldset.choice > label .choice-note,
   background: var(--warn);
 }
 
+/* Only asked for a test - no fix round: neutral. */
+.checks-dots i[data-dot='asked'] {
+  background: var(--muted);
+}
+
 /* Its panel in the inspector (F): a line a check or a look, its verdict at the right. */
 .checks-panel section {
   padding-bottom: 8px;

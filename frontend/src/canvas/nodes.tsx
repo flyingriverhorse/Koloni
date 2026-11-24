@@ -14,7 +14,7 @@ import { doneSaid } from '../backlog/awayText'
 import { useApp } from '../state/store'
 import { type AgentData, type AttachmentData, type AwayData, type AwayJobData, type DiscussionData, type GroupData, type PlanData, type PoData, poSaid, poTokens, SCOUT_DOES, type ReadyData, type RequestData, type RoomData, type RoundData, type TeamData, statusWords } from './deriveGraph'
 import { runClock } from '../chat/checked'
-import type { Loop, LoopCard } from './checksLoop'
+import { DOT_WORDS, type Loop, type LoopCard, saysRounds } from './checksLoop'
 import { type ChecksData, toolOf } from './checksNode'
 import { NodeActions, ToggleGroup } from './toggleGroup'
 
@@ -304,12 +304,13 @@ function ChecksBox({ data, loop, selected, now }: { data: ChecksData; loop: Loop
       <button
         type="button"
         className="checks-tag nodrag"
-        title={loop.loop ? loop.status : undefined}
-        aria-label={`Checks · KOLONİ${loop.loop ? `: ${loop.status}` : ''} - open its panel`}
+        title={saysRounds(loop) ? loop.status : undefined}
+        aria-label={`Checks · KOLONİ${saysRounds(loop) ? `: ${loop.status}` : ''} - open its panel`}
         onKeyDown={event => event.stopPropagation()}
       >
         <span className="checks-tag-title">Checks · KOLONİ</span>
-        {loop.loop && (
+        {/* (Sent back, or at work - "● looking…" with its one amber dot - it says its rounds.) */}
+        {saysRounds(loop) && (
           <span className="checks-status" data-tone={loop.tone}>
             {loop.status}
           </span>
@@ -346,10 +347,10 @@ function ChecksBox({ data, loop, selected, now }: { data: ChecksData; loop: Loop
             </span>
           ))}
         </span>
-        {loop.loop && (
-          <span className="checks-dots" role="img" aria-label={`${loop.dots.length} rounds: ${loop.dots.join(', ')}`}>
+        {saysRounds(loop) && (
+          <span className="checks-dots" role="img" aria-label={`${loop.dots.length} rounds: ${loop.dots.map(dot => DOT_WORDS[dot]).join(', ')}`}>
             {loop.dots.map((dot, n) => (
-              <i key={n} data-dot={dot} />
+              <i key={n} data-dot={dot} title={DOT_WORDS[dot]} />
             ))}
           </span>
         )}

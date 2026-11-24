@@ -134,6 +134,7 @@ def test_only_the_leads_own_spawns_are_fixers_never_koloni_s_a_rooms_or_a_discus
                 ("spawn_agent", "koloni_proof_review_x"),
                 ("discuss", "call_2"),
                 ("open_room", "call_3"),
+                ("message_agent", "call_4"),  # (going on with an earlier agent opens it: `_go_on`)
             ]
         ):
             session.add(
@@ -164,4 +165,4 @@ def test_only_the_leads_own_spawns_are_fixers_never_koloni_s_a_rooms_or_a_discus
             )
         session.commit()
         assert session.scalars(select(Agent.id).where(Agent.run_id == "r")).all()
-    assert runner._lead_opened("r", "lead") == ["a0"]
+    assert runner._lead_opened("r", "lead") == ["a0", "a4"]
