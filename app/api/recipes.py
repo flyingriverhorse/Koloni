@@ -27,6 +27,7 @@ from app.db.models import (
 )
 from app.model_client import UNREACHABLE, ModelUnavailable
 from app.providers import LIST_DOWN_SECONDS, TIERS, ask_own, down_now, looked_down, mode_of
+from app.providers import Refused as RefusedClient
 from app.roles import LEAD, agent_roles, find_role
 from app.schemas import (
     RecipeAgents,
@@ -206,8 +207,11 @@ def askers(
 
 def _talks(session: Session, providers, provider: Provider, model: str | None) -> bool:
     """`askable`'s rule for a model asked outside a tier: a CLI at work with its own tools speaks
-    with them off - one that still has them then is passed over."""
+    with them off - one that still has them then is passed over; and one that may not run at all
+    (`Refused`: switched off, or a kind no longer run - a Qoder of before 0.1.8) talks not."""
     client = providers.client(provider, model)
+    if isinstance(client, RefusedClient):
+        return False
     if getattr(client, "native", False):
         client = client.talker()
     return not getattr(client, "native", False)

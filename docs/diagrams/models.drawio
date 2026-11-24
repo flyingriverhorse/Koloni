@@ -29,7 +29,7 @@
 <mxCell id="moved" value="A sub-agent whose provider fails&#xa;before its first word (queued too&#xa;long, server down, a limit) opens&#xa;once more on the next model of its&#xa;tier; a move that costs asks first" style="rounded=1;arcSize=10;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Helvetica;fontColor=#1a1a1a;fontSize=15;spacing=6;" vertex="1" parent="1"><mxGeometry x="826" y="474" width="338" height="116" as="geometry"/></mxCell>
 
 
-<mxCell id="footer" value="From: app/team.py (would_run), app/providers.py (resolved), app/agent/tiers_mixin.py (_by_how_hard), app/agent/spawn_mixin.py (_moved_on),&#xa;app/model_session.py (QUEUE_WAIT_SECONDS, queued), app/limits.py, app/api/tiers.py,&#xa;frontend/src/agents/ModelCards.tsx (7 Nov 2026)" style="text;strokeColor=none;fillColor=none;fontFamily=Helvetica;fontColor=#555555;fontSize=13;align=left;verticalAlign=top;" vertex="1" parent="1"><mxGeometry x="30" y="814" width="1140" height="60" as="geometry"/></mxCell>
+<mxCell id="footer" value="From: app/team.py (would_run), app/providers.py (resolved), app/agent/tiers_mixin.py (_by_how_hard), app/agent/spawn_mixin.py (_moved_on),&#xa;app/limits.py, app/api/tiers.py, frontend/src/agents/ModelCards.tsx (24 Nov 2026)" style="text;strokeColor=none;fillColor=none;fontFamily=Helvetica;fontColor=#555555;fontSize=13;align=left;verticalAlign=top;" vertex="1" parent="1"><mxGeometry x="30" y="814" width="1140" height="60" as="geometry"/></mxCell>
 </root>
 </mxGraphModel>
 </diagram>
