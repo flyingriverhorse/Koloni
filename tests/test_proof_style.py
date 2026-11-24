@@ -599,16 +599,30 @@ def test_in_a_turn_nobody_watches_a_tool_runs_only_on_its_triggers_leave_for_the
 def test_a_part_test_that_does_not_run_this_turn_does_not_stand_for_the_tool(
     make_client, wait_run, project_dir
 ):
-    """The project's check command runs alone: its part's `ruff check .` does not run this
-    turn - so ruff is not said to be run by the project's own check, and runs."""
+    """The CI lines the user approved run instead of the parts' commands (`_runs_found`): the
+    whole project's `ruff check .` on the map does not run this pass - so ruff is not said to be
+    run by the project's own check, and runs. (0.1.7: no check command that runs alone - the
+    by-part chain's skip is approved CI.)"""
+    from app import ci_commands
+    from app.db.models import Project
+    from tests.test_ci_commands import write as workflow
+
     set_up(project_dir)
+    workflow(project_dir, "jobs:\n  ci:\n    steps:\n      - run: python -m pytest -q\n")
     executor = ScriptedExecutor([PASS, RUFF_CLEAN])
     client, _model = make_client([write("app.py", FIXED), text("done")], executor=executor)
-    cid, run_id = begin(
-        client, project_dir, check_command="python check.py", parts={"./": "ruff check ."}
-    )
+    pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
+    with client.app.state.session_factory() as session:  # (approved once, by Run these)
+        approved = {
+            "hash": ci_commands.fingerprint(project_dir),
+            "commands": [{"command": "python -m pytest -q", "cwd": "."}],
+            "said": [],
+        }
+        session.get_one(Project, pid).ci_commands = {"approved": approved}
+        session.commit()
+    cid, run_id = begin(client, project_dir, parts={"./": "ruff check ."})
     rows = texts(wait_run(client, cid, run_id))
-    assert [command for command, _cwd in executor.started] == ["python check.py", LINE], rows
+    assert [command for command, _cwd in executor.started] == ["python -m pytest -q", LINE], rows
     assert proof_style.BY_THEIRS.format(tool="ruff") not in rows
 
 
