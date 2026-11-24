@@ -11,8 +11,8 @@ import { useConfirm } from './Confirm'
 export const KEPT_WARN_MB = 1024
 
 /**
- * Settings › Your data: the working copies kept for your word - how many, what they take, and each one's Discard (its
- * card's own: the copy's folder is deleted). KOLONİ deletes none unasked.
+ * Settings › The app › Your data: the working copies kept for your word - how many, what they take, and each one's
+ * Discard (its card's own: the copy's folder is deleted). KOLONİ deletes none unasked.
  */
 export function KeptCopies({ storage, onChanged }: { storage: Storage; onChanged: () => void }) {
   const confirm = useConfirm()

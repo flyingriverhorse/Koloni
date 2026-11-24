@@ -16,8 +16,7 @@ import pytest
 from alembic import command as alembic
 from sqlalchemy import select
 
-from app import agent as runner
-from app import copies, git
+from app import command_runner, copies, git
 from app.agent import MAX_LINES_COMPARED, _merge_file, _projects_lines
 from app.config import load_settings
 from app.db.models import FileChange, Merge, ToolCall
@@ -1062,7 +1061,7 @@ def test_what_the_check_itself_writes_in_the_copy_is_neither_shown_nor_taken(
 def test_a_check_that_does_not_end_in_time_did_not_pass(
     make_client, wait_run, project_dir, monkeypatch
 ):
-    monkeypatch.setattr(runner, "CHECK_SECONDS", 1)
+    monkeypatch.setattr(command_runner, "longest_seconds", lambda _project: 1)
     client, _pid, cid, run_id = start(
         make_client,
         project_dir,

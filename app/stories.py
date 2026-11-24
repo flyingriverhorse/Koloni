@@ -191,6 +191,26 @@ def goal_states(session: Session, goal: Goal) -> list[str]:
     ]
 
 
+def taken(session: Session, project_id: str, title: str, but: str | None = None) -> Story | None:
+    """The project's story - open or closed, any but `but` - of this title, whatever its case.
+    A story's name is one in its project: an agent names a story by it (`story_named`), so two
+    that differ only by case would leave which one it means to chance."""
+    folded = title.strip().casefold()
+    return next(
+        (
+            story
+            for story in session.scalars(select(Story).where(Story.project_id == project_id))
+            if story.id != but and story.title.casefold() == folded
+        ),
+        None,
+    )
+
+
+def not_closable(session: Session, story: Story) -> int:
+    """How many of a story's tasks (proposals left out) are not done: closed only at none."""
+    return sum(task.status not in ("done", "proposed") for task in tasks_of(session, story.id))
+
+
 def story_named(session: Session, project_id: str, title: str) -> Story | None:
     """The project's open story of this title, whatever its case; None if it has none."""
     folded = title.strip().casefold()

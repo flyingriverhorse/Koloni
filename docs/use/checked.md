@@ -893,8 +893,9 @@ itself, the end works like a pull request's CI:
     If the related tests fail on the last round, the whole suite is not run: "Full tests not
     run: the related tests fail".
 
-The whole suite's own limit is the commands' 10 minutes. Past it the section says "Tests timed
-out after 10 min".
+The whole suite's own limit is the project's **Longest command**, 10 minutes unless you raise it
+(up to 60, in [Settings › This project › Commands and secrets](../settings.md#commands-and-secrets)).
+Past it the section says "Tests timed out after 10 min" (or the minutes you set).
 
 **Stop this check**, under a suite running after the answer, stops it: what finished stays, and
 the line says "Full tests stopped by you at 1:02 - not checked" (counted from when it started),
@@ -921,7 +922,7 @@ them, the line says "Tests not run: you stopped the check".
   the next start says "Tests not finished: KOLONİ restarted".
 - A job while you're away, a To-do task's turn and a trigger's turn have nobody waiting for
   the answer, and their fix rounds need the result: they wait for the whole suite, up to the
-  commands' 10 minutes, with no related step.
+  project's **Longest command** (10 minutes unless you raise it), with no related step.
 - A turn whose work is in its own working copy (a team's branch) cannot leave its tests running
   after it: the copy is taken in or set aside when the turn ends. There KOLONİ waits at most
   **2 minutes** for the tests, all of the turn's test commands together and another turn's run

@@ -74,12 +74,18 @@ def test_a_goal_and_a_story_are_added_listed_and_linked(client, project_dir):
         [],
         None,
     )
+    # Closed only once each of its tasks is done (review T1: the page offers it only then).
+    refused = client.patch(f"/api/stories/{story_id}", json={"closed": True})
+    assert refused.status_code == 409, refused.text
+    assert "2 of them are not" in refused.json()["detail"]
+    for one in client.get(f"/api/projects/{pid}/backlog").json():
+        client.patch(f"/api/backlog/{one['id']}", json={"status": "done"})
     # closed by the user: done, and the goal counts it
     closed = client.patch(f"/api/stories/{story_id}", json={"closed": True})
     assert closed.status_code == 200 and closed.json()["state"] == "done"
     assert tree(client, pid)["goals"][0]["stories_done"] == 1
     reopened = client.patch(f"/api/stories/{story_id}", json={"closed": False, "title": "Login"})
-    assert (reopened.json()["state"], reopened.json()["title"]) == ("todo", "Login")
+    assert (reopened.json()["state"], reopened.json()["title"]) == ("done?", "Login")
     renamed = client.patch(f"/api/goals/{goal['id']}", json={"title": "Sign-in holds"})
     assert renamed.status_code == 200 and renamed.json()["title"] == "Sign-in holds"
 
@@ -152,3 +158,33 @@ def test_deleting_a_project_deletes_its_goals_and_stories(client, project_dir):
 
     with client.app.state.session_factory() as session:
         assert session.query(Goal).count() == 0 and session.query(Story).count() == 0
+
+
+def test_a_storys_name_is_one_in_its_project_whatever_its_case(client, project_dir, tmp_path):
+    """Review T2: an agent names a story by its title, whatever its case - so the project has one
+    story of a name, open or closed (another project may have its own)."""
+    pid, _ = setup(client, project_dir)
+    first = client.post(f"/api/projects/{pid}/stories", json={"title": "Login"}).json()["id"]
+    again = client.post(f"/api/projects/{pid}/stories", json={"title": " LOGIN "})
+    assert again.status_code == 422 and "“Login”" in again.json()["detail"]
+    other = client.post(f"/api/projects/{pid}/stories", json={"title": "Reset"}).json()["id"]
+    assert client.patch(f"/api/stories/{other}", json={"title": "login"}).status_code == 422
+    # (its own name in another case is no other story's)
+    assert client.patch(f"/api/stories/{first}", json={"title": "LOGIN"}).status_code == 200
+    tree_in = {"stories": [{"title": "login", "tasks": [{"title": "t"}]}], "tasks": []}
+    assert client.post(f"/api/projects/{pid}/backlog/tree", json=tree_in).status_code == 422
+    twice = {
+        "stories": [
+            {"title": "New", "tasks": [{"title": "a"}]},
+            {"title": "NEW", "tasks": [{"title": "b"}]},
+        ],
+        "tasks": [],
+    }
+    assert client.post(f"/api/projects/{pid}/backlog/tree", json=twice).status_code == 422
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    theirs = client.post("/api/projects", json={"root_path": str(elsewhere)}).json()["id"]
+    assert (
+        client.post(f"/api/projects/{theirs}/stories", json={"title": "Login"}).status_code == 201
+    )
+    assert [s["title"] for s in tree(client, pid)["stories"]] == ["LOGIN", "Reset"]

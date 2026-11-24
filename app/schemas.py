@@ -97,6 +97,8 @@ SpawnApproval = Literal["auto", "always", "never"]
 # The most a room's budget can be set to: a number, not a way round having one.
 MAX_ROOM_POSTS, MAX_ROOM_TOKENS, MAX_ROOM_MINUTES = 1000, 100_000_000, 24 * 60
 MAX_CHAT_TEAMS = 6
+# 0.1.8: a project's longest command, in minutes - the most the user may raise it to.
+LONGEST_COMMAND = (10, 60)
 
 
 class ChatTeamIn(BaseModel):
@@ -213,6 +215,8 @@ class ProjectOut(Out):
     max_agents: int | None
     # K-devam-butce: the steps a stopped agent gets on top when told to go on with none left.
     continue_steps: int
+    # 0.1.8: the longest a command (KOLONİ's own test runs too) may take, in minutes.
+    longest_command: int
     # What this calendar month's turns may cost, in the prices' currency; None: no budget.
     monthly_budget: float | None
     # K-evrim: the command whose last line of output scores a candidate (0-100); None: none.
@@ -334,6 +338,10 @@ class ProjectPatch(BaseModel):
     max_agents: int | None = Field(default=None, gt=0, le=1000, strict=True)
     # Left out: kept as it is. A whole number from 1 to 200.
     continue_steps: int | None = Field(default=None, ge=1, le=200, strict=True)
+    # Left out: kept as it is. Minutes, 10 to 60 (the user, 24 Nov: at most an hour).
+    longest_command: int | None = Field(
+        default=None, ge=LONGEST_COMMAND[0], le=LONGEST_COMMAND[1], strict=True
+    )
     # The same: null takes it away. A number as such: not `true`, not "5".
     monthly_budget: float | None = Field(
         default=None, gt=0, le=2**53, allow_inf_nan=False, strict=True
@@ -1875,6 +1883,8 @@ class AgentOut(Out):
     # of the ended agents whose work its briefing carried (None: nothing was).
     rediscovery: int | None = None
     handed_from: list[str] | None = None
+    # L1: a sub-agent whose role writes finished with no file changed (None: not judged so).
+    changed_nothing: bool | None = None
     # K-skill-uyum: the role's skills it started with, and those left out with why.
     skills: AgentSkills | None = None
 
@@ -1927,6 +1937,14 @@ class TreeLimits(BaseModel):
     model_config = ConfigDict(extra="forbid")
     max_files: int | None = Field(None, ge=100, le=1_000_000, strict=True)
     max_mb: int | None = Field(None, ge=1, le=10_240, strict=True)
+
+
+class ExperimentalClis(BaseModel):
+    """0.1.8: whether the Models page offers what is experimental - agy, and Codex run one step
+    at a time (`providers.EXPERIMENTAL_FLAG`). Off by default; a provider already set so runs."""
+
+    model_config = ConfigDict(extra="forbid")
+    show: bool
 
 
 class AnswerLanguage(BaseModel):
@@ -3646,10 +3664,11 @@ class ProviderOut(Out):
         "openai_compat",
         "anthropic",
         "claude_cli",
-        "qoder_cli",
         "codex_cli",
         "copilot_cli",
         "agy_cli",
+        # 0.1.8: no longer run (`providers.RETIRED`); a row of it stays, switched off.
+        "qoder_cli",
     ]
     base_url: str | None
     default_model: str | None
@@ -3665,6 +3684,9 @@ class ProviderOut(Out):
     # False: switched off - nobody uses it; its key and settings stay. (Always said; optional,
     # as `key_warning`, only so that what reads a provider from before needs no change.)
     enabled: bool | None = None
+    # Why it stays off whatever the user does: its kind is one KOLONİ no longer runs
+    # (`providers.RETIRED`). None: it can be switched on.
+    off_why: str | None = None
     # The most agents at work on it at once, in the whole app, as the user set it; None: by
     # its kind - `most_at_once`, what holds now (K-paralel-saglayici).
     max_running: int | None
@@ -3697,7 +3719,7 @@ class ProviderOut(Out):
         if isinstance(value, dict):
             return value
         from app import cli_surface  # (they import the clients: not at the top)
-        from app.providers import mode_of, most_at_once, not_watched
+        from app.providers import RETIRED, mode_of, most_at_once, not_watched
 
         fields = {
             name: getattr(value, name)
@@ -3706,6 +3728,7 @@ class ProviderOut(Out):
             not in (
                 "has_key",
                 "key_warning",
+                "off_why",
                 "most_at_once",
                 "version_note",
                 "not_watched",
@@ -3717,6 +3740,7 @@ class ProviderOut(Out):
             "models": value.models or [],
             "has_key": bool(value.api_key),
             "key_warning": _key_warning(value.kind, value.api_key),
+            "off_why": RETIRED.get(value.kind),
             "most_at_once": most_at_once(value),
             "not_watched": not_watched(value.kind, docker=False),
             "not_watched_in_docker": not_watched(value.kind, docker=True),

@@ -25,6 +25,8 @@ export interface ProjectSettingsValues {
   /** Whether commands see secret files as denied or empty, and the secret variables they are given all the same: each sent only when changed, with the three above. */
   hide_secrets?: boolean
   pass_env?: string
+  /** 0.1.8: the longest a command (KOLONİ's own test runs too) may take, 10 to 60 minutes. Sent only when changed. */
+  longest_command?: number
   /** The most agents at work at once in all the project's conversations; null: no limit. Sent only when changed. */
   max_agents?: number | null
   /** K-devam-butce: the steps a stopped agent gets on top when told to go on with none left. Sent only when changed. */

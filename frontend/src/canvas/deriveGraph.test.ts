@@ -76,9 +76,6 @@ test('agent activity comes from records, in priority order', () => {
   expect(activity({ thinkingAgents: ['r'] })).toBe('Thinking…')
   expect(activity({ thinkingAgents: ['r'], summarisingAgents: ['r'] })).toBe('Summarising its earlier work…')
   expect(activity({})).toBe('Waiting for the model…')
-  // R130: its model in Qoder's queue, as its CLI says live (K-qoder-kuyruk).
-  const queue = { elapsed_s: 40, max_s: 3600, available: false }
-  expect(activity({ live: { r: { context: null, plan: null, queue } } })).toBe('Queued at Qoder')
 })
 
 test('what an agent does now (slice 84d): a command by what it runs, a file by what is done to it; since it began work, the tokens it wrote and its tier', () => {

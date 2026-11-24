@@ -19,6 +19,8 @@ from app.cards import card_reason
 from app.commands import (
     _INTERPRETER,
     MAX_STORED_OUTPUT,
+    MODEL_HEAD,
+    MODEL_TAIL,
     PLANTED,
     OutputMask,
     _program,
@@ -51,7 +53,7 @@ from app.db.models import (
 )
 from app.executors.base import Executor, StartError
 from app.serialize import allowed_command_out, command_event, command_out
-from app.tools import ToolError, plan_command
+from app.tools import MAX_TIMEOUT, ToolError, plan_command
 from app.workspace import Workspace
 
 FLUSH_SECONDS = 0.5
@@ -60,6 +62,14 @@ DRAIN_GRACE_SECONDS = 2.0
 # How long killing a command may take before we stop waiting for it.
 KILL_SECONDS = 20.0
 TRUNCATED_NOTE = "\n[output truncated: more than 1 MiB]"
+# command_output (0.1.8): at most this much of a command that keeps running at a time - as much
+# as of a command's output the model is shown (`for_model`).
+OUTPUT_AT_MOST = MODEL_HEAD + MODEL_TAIL
+# stop_command: the one way round the command gate is to stop a command the agent started itself.
+NOT_YOURS = (
+    "command {id} was not started by you, and you stop only one you started: another agent's "
+    "or an earlier turn's is the user's to stop, under Preview"
+)
 # B-321: a refusal ends that one action, not the task - told "do not try another way" and
 # "stop and ask", Codex gave up the whole task over one part of one command.
 CARRY_ON = (
@@ -568,6 +578,12 @@ def preview_url(output: str, closed: set[int]) -> str | None:
     return None
 
 
+def longest_seconds(project: Project | None) -> int:
+    """The longest a command may take in `project` (0.1.8: its `longest_command`), in seconds -
+    an agent's, and KOLONİ's own test runs'; MAX_TIMEOUT where there is no project."""
+    return project.longest_command * 60 if project is not None else MAX_TIMEOUT
+
+
 def port_of(url: str | None) -> int | None:
     try:
         parts = urlsplit(url or "")
@@ -623,6 +639,13 @@ class CommandRunner:
         future.set_result(decision)
         return True
 
+    def longest(self, cid: str) -> int:
+        """The longest a command may take in conversation `cid`'s project, in seconds."""
+        with self._factory() as session:
+            conversation = session.get(Conversation, cid)
+            project_id = conversation.project_id if conversation is not None else None
+            return longest_seconds(session.get(Project, project_id) if project_id else None)
+
     def live_outputs(self, conversation_id: str) -> dict[str, str]:
         return {k: text for k, (cid, text) in self._live.items() if cid == conversation_id}
 
@@ -660,7 +683,8 @@ class CommandRunner:
         `allowed` lifts the level's own ask only (`_free`), and its card offers "Allow such
         deletes in this project" where it is asked. `env`: what its environment gets besides
         (KOLONİ's own test runs: their processes, S6) - never an agent's command."""
-        planned = plan_command(ws, args)
+        cap = self.longest(cid)
+        planned = plan_command(ws, args, cap)
         searched = await asyncio.to_thread(search_reason, planned.command, ws.root, planned.cwd_rel)
         planted = await asyncio.to_thread(
             _planted, self._factory, cid, ws.root, planned.command, planned.cwd_rel
@@ -792,7 +816,7 @@ class CommandRunner:
         try:
             if where is not None:
                 ws = await where()
-                planned = plan_command(ws, args)
+                planned = plan_command(ws, args, cap)
         except ToolError as exc:  # its folder is not in the copy (one that is left out)
             self._set(
                 cid, command_id, status="failed_to_start", output=f"error: {exc}", ended_at=now()
@@ -1004,7 +1028,8 @@ class CommandRunner:
         )
         return "succeeded", (
             f"keeps running as command {command_id}, {where}. The user sees its page under "
-            f"Preview and can stop it there. Its last lines:\n{for_model(last)}"
+            f"Preview and can stop it there; command_output reads what it prints later, and "
+            f"stop_command stops it. Its last lines:\n{for_model(last)}"
         )
 
     def stop(self, command_id: str) -> bool:
@@ -1014,6 +1039,90 @@ class CommandRunner:
             return False
         serving[1].cancel()
         return True
+
+    def serving_here(self, cid: str) -> list[tuple[str, str]]:
+        """The commands that keep running in a conversation now: (id, command line)."""
+        ids = [command_id for command_id, (at, _life) in self._serving.items() if at == cid]
+        if not ids:
+            return []
+        with self._factory() as session:
+            return [
+                (command_id, line)
+                for command_id, line in session.execute(
+                    select(Command.id, Command.command).where(Command.id.in_(ids))
+                )
+            ]
+
+    def server(self, cid: str, command_id: str) -> Command:
+        """A command that keeps running (or did) in conversation `cid`, by its id - where it is
+        none, a ToolError that names the ones running there now."""
+        with self._factory() as session:
+            command = session.scalar(
+                select(Command)
+                .join(Run, Run.id == Command.run_id)
+                .where(
+                    Command.id == command_id,
+                    Run.conversation_id == cid,
+                    Command.keep_running.is_(True),
+                )
+            )
+            if command is not None:
+                session.expunge(command)
+                return command
+        running = "; ".join(f"{one} ({line})" for one, line in self.serving_here(cid))
+        raise ToolError(
+            f"no command that keeps running in this conversation has the id {command_id!r}: "
+            + (f"these run now - {running}" if running else "none runs now")
+        )
+
+    def output_of(self, command: Command, since: int | None) -> str:
+        """command_output: what a command that keeps running (`server`) printed - hidden as it was
+        kept (`_masks`), never the half line still held back - its newest OUTPUT_AT_MOST, or from
+        `since` on; of one that ended, its record's."""
+        command_id = command.id
+        live = self._live.get(command_id) if command_id in self._serving else None
+        text = live[1] if live is not None else command.output or ""
+        total = len(text)
+        start = max(0, total - OUTPUT_AT_MOST) if since is None else min(since, total)
+        shown = text[start : start + OUTPUT_AT_MOST]
+        end = start + len(shown)
+        if live is not None:
+            url = f", serving {command.preview_url}" if command.preview_url else ""
+            state = f"keeps running{url}"
+        else:
+            code = f", exit code {command.exit_code}" if command.exit_code is not None else ""
+            state = f"has ended ({command.status}{code})"
+        said = f"Command {command_id} ({command.command}) {state}. Characters {start}-{end} of "
+        said += f"{total} of its output"
+        if end < total:
+            said += f"; {total - end} more after them: call again with since={end}"
+        elif live is not None:
+            said += f"; for what it prints next, call again with since={end}"
+        if command.output_truncated or text.endswith(TRUNCATED_NOTE):
+            said += "; past 1 MiB its output is no longer kept"
+        return f"{said}:\n{shown}" if shown else f"{said}: nothing new."
+
+    async def stop_own(self, command: Command, agent_id: str) -> str:
+        """stop_command: a command that keeps running (`server`), stopped with what it started -
+        only one `agent_id` started itself (its card was its) - and waited for until it is on
+        record ended, so that it can be started again at once (its port free, MAX_SERVING not
+        reached)."""
+        command_id = command.id
+        if command.agent_id != agent_id:
+            raise ToolError(NOT_YOURS.format(id=command_id))
+        serving = self._serving.get(command_id)
+        if serving is None and command.status in ("proposed", "approved"):
+            waits = "its card waits for the user" if command.status == "proposed" else "starting"
+            raise ToolError(f"command {command_id} has not started yet: {waits}")
+        if serving is None:
+            raise ToolError(f"command {command_id} is not running: it has ended ({command.status})")
+        serving[1].cancel()
+        await asyncio.wait({serving[1]}, timeout=KILL_SECONDS + DRAIN_GRACE_SECONDS)
+        with self._factory() as session:
+            status = session.get_one(Command, command_id).status
+        if status == "running":
+            return f"Command {command_id} ({command.command}) is being stopped: not ended yet."
+        return f"Command {command_id} ({command.command}) is stopped ({status})."
 
     def stop_all(self, cid: str) -> None:
         """Stop every command of a conversation that keeps running, and turn down one still

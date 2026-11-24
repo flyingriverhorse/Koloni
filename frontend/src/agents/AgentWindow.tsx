@@ -20,7 +20,6 @@ import {
   Fold,
   HowItRuns,
   KeyNumbers,
-  QueueLine,
   Report,
 } from './agentParts'
 import { stepsOf } from './AgentSteps'
@@ -102,7 +101,6 @@ export function AgentStory({
       <ErrorAlert state={state} agent={agent} providers={providers} />
       {over && <AsksNow state={state} agent={agent} asks={asks} />}
       <Asked state={state} agent={agent} onSelectAgent={onSelectAgent} />
-      <QueueLine state={state} agent={agent} />
       <HowItRuns state={state} agent={agent} />
       <h3 className="agent-h">Report</h3>
       <Report state={state} agent={agent} />

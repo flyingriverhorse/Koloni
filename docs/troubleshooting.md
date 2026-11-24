@@ -78,12 +78,10 @@ and where the backup is.
 : This is what **Test** says for a CLI. To check sign-in too, press **Try a real run**. It counts
   against your plan.
 
-**"Qoder: in the model's queue for {time} (waits up to {time})"**
-: In the agent's window; its box on the canvas says "queued {time}". Qoder holds a free model's
-  request in a queue while the model is busy. In tests the wait was about 1 to 3 minutes. Wait, or pick
-  another model for the chat or the role. A sub-agent whose model KOLONİ picked by tier is moved to the
-  tier's next model after 90 seconds, if the tier has another. See
-  [Qoder's free models](models/setup-cli.md#qoders-free-models).
+**"{name}: Qoder is no longer supported (0.1.8) …"**
+: A chat or a role still names a Qoder provider added before 0.1.8, which KOLONİ no longer runs. Pick
+  another model for the chat or the role, then delete the Qoder provider on the Models page. See
+  [Qoder is no longer supported](models/setup-cli.md#qoder-is-no-longer-supported).
 
 **"Copilot can't use {model} on your account: pick another model"**
 : Or, when Copilot runs as a session: "GitHub Copilot CLI exited with code 1: Error: Model "{model}" from
@@ -92,9 +90,8 @@ and where the backup is.
   Copilot provider's **Models** tab.
 
 **"{CLI} {version} could not be asked before it acts ({why}); run it as a session instead"**
-: Seen with Qoder run **Native**, with the reason "it did not apply KOLONİ's hook". KOLONİ runs a CLI
-  with its own tools only when the CLI asks KOLONİ before each tool, and this one did not, so nothing
-  ran. Open the provider and set **How it runs** to **One session per agent, with KOLONİ's tools**. See
+: KOLONİ runs a CLI with its own tools only when the CLI asks KOLONİ before each tool, and this one did
+  not, so nothing ran. Open the provider and set **How it runs** to **One session per agent, with KOLONİ's tools**. See
   [Set up a CLI](models/setup-cli.md#how-it-runs).
 
 **Tokens show as "–" or "unknown" for a CLI**

@@ -1250,11 +1250,13 @@ def tests_row(
     ended: str | None,
     said: str,
     seconds: int = MAX_TIMEOUT,
+    longest: int = MAX_TIMEOUT,
 ) -> Row:
     """A test run as its Checked row: failed is any exit but 0 (pytest's 5, nothing collected,
     aside) or a failure its output counts; never passed without exit code 0. `ended`: its
-    record's status (None: none - it never started); `seconds`: the wait it was given. Its
-    output is read with its colours off (`commands.plain`: CL-316)."""
+    record's status (None: none - it never started); `seconds`: the wait it was given, and
+    `longest` the project's longest command (0.1.8): given that long, it timed out; given less, it
+    was not waited for. Its output is read with its colours off (`commands.plain`: CL-316)."""
     output = plain(output)
     guessed = " (guessed)" if run.guessed else " (from CI)" if run.ci else ""
     found = test_found.counts(output, run.command)
@@ -1275,7 +1277,7 @@ def tests_row(
         return made(
             "timed_out",
             TIMED_OUT.format(minutes=seconds // 60, command=run.command)
-            if seconds >= MAX_TIMEOUT
+            if seconds >= longest
             else NOT_WAITED.format(clock=clock(seconds), command=run.command),
         )
     if ended != "exited" or code is None:

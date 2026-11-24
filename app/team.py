@@ -55,7 +55,7 @@ RUNS_OWN = "with its own tools, needs Full auto"
 # seen to run unasked (R96). Codex looks at files only by running commands: a role short of
 # the write and command tools was refused it until B-301, which starts it read-only for such
 # a role, with KOLONİ's read tools over the bridge (`reads_only`).
-ASKS_FIRST = ("claude_cli", "codex_cli", "agy_cli", "qoder_cli")  # (Qoder: or it is stopped)
+ASKS_FIRST = ("claude_cli", "codex_cli", "agy_cli")
 # What a CLI that works with its own tools, and does not ask first, does whatever it is
 # offered: only a role allowed all of these may work that way.
 NATIVE_NEEDS_TOOLS = ("write_file", "edit_file", "run_command")

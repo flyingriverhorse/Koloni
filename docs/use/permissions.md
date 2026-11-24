@@ -329,7 +329,7 @@ Only such a delete alone on its line counts, written the way the shell it runs i
   Bash on Windows): `rm` with `-r`, `-R` or `-rf`, `-f` / `--force` if you like: `rm -rf build dist`.
 - **git**, in every shell: `git worktree remove ../wt/x`, `git branch -d old`.
 
-Codex, agy and Qoder do not say which shell their command runs in, so their delete of a folder keeps
+Codex and agy do not say which shell their command runs in, so their delete of a folder keeps
 its card. A disposable delete that ran and then failed says so on its row: "Ran without asking as
 disposable (…) and failed: exit 1". Anything else on the line, a forced worktree
 remove, a path above the folder or with a link in it, a line the shell continues, a command of a CLI

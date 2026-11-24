@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.ledger import NO_CHANGE
 from app.model_client import ModelUnavailable, StepResult, ToolCallRequest
 from app.roles import BUILTIN_ROLES, effective_tools
 from tests.fakes import Script, ScriptedExecutor, ScriptedModel
@@ -65,8 +66,10 @@ def begin(client, project_dir, mode="ask", content="please check my greeting", *
 def reported(result: str) -> str:
     """A spawn_agent result without KOLONİ's line on a thin task (K-brief-kalitesi): a test's
     task is short, and the line is asserted once (`test_a_thin_task_is_said_to_its_opener`) -
-    nor its record line (K-kanit), asserted in `test_child_runs_with_a_clean_context_...`."""
-    return re.sub(r"\n\nWhat it did\b[^\n]*", "", result.split("\n\nKOLONİ: the task you gave")[0])
+    nor its record line (K-kanit), asserted in `test_child_runs_with_a_clean_context_...`, nor
+    the line on a role that writes and changed nothing (L1), asserted in `test_no_change`."""
+    said = re.sub(r"\n\nWhat it did\b[^\n]*", "", result.split("\n\nKOLONİ: the task you gave")[0])
+    return said.replace(f"\n\n{NO_CHANGE}", "")
 
 
 def names(tools):

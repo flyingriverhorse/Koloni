@@ -521,7 +521,7 @@ a.btn {
   width: 64px;
   height: 6px;
   border-radius: 3px;
-  background: color-mix(in srgb, var(--text) 10%, var(--panel));
+  background: var(--border);
   overflow: hidden;
 }
 

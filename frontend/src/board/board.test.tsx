@@ -252,6 +252,7 @@ const project: Project = {
   turn_token_limit: null,
   max_agents: null,
   continue_steps: 25,
+  longest_command: 10,
   monthly_budget: null,
   measure_command: null,
   after_change: 'check',

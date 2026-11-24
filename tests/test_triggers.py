@@ -193,8 +193,6 @@ IN_AN_UNATTENDED_TURN = {
     ("claude_cli", "session"): "koloni",
     ("claude_cli", "step"): "koloni",
     ("claude_cli", "native"): "refused",
-    ("qoder_cli", "session"): "koloni",
-    ("qoder_cli", "native"): "refused",
     ("codex_cli", "step"): "koloni",
     ("codex_cli", "session"): "koloni",
     ("codex_cli", "native"): "refused",

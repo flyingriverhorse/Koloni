@@ -1,7 +1,8 @@
 """Text from outside that reads like orders to an agent (93-A4): looked for, told, never
 blocked. Where such text enters an agent's context through KOLONİ - a web page or search,
 an MCP tool's result, a webhook's body, a skill's SKILL.md, a project's file as read_file or
-search returns it (B-360), another agent's report, post, note or message - it is scanned
+search returns it (B-360), what a command that keeps running printed as command_output returns
+it, another agent's report, post, note or message - it is scanned
 for a short list of phrases; on a hit the agent is told to treat it as data and the user is
 warned, with the rule's name and where it came from - never the text that matched. The
 user's own words and KOLONİ's are never scanned, nor what the agent a reader works for tells

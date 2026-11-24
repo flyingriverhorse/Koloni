@@ -5,7 +5,6 @@ fails at once, anew with the whole conversation."""
 import asyncio
 import json
 from datetime import timedelta
-from pathlib import Path
 
 import pytest
 
@@ -14,13 +13,11 @@ from app.config import load_settings
 from app.db.models import Agent, Message, Question, ToolCall, now
 from app.main import create_app
 from app.model_agy import AgyClient
-from app.model_client import OwnStop
 from app.model_native import (
     RESUMED,
     ClaudeNativeClient,
     CodexNativeClient,
     CopilotNativeClient,
-    QoderNativeClient,
     forget_session,
     since_its_last_word,
 )
@@ -433,105 +430,7 @@ def test_what_its_session_never_saw_of_its_turn_starts_the_next_anew(chat, fake,
     assert "--resume" not in fake.starts()[-1] and "fix the greeting" in fake.stdin()
 
 
-# --- Qoder, Codex, Copilot, agy (measured 5 Nov 2026: cli-surdurme-olcum.md) ---------------
-
-NO_QODER_SESSION = [
-    42,
-    (Path(__file__).with_name("qoder_streams") / "no-session.txt").read_text("utf-8").strip(),
-]
-
-
-@pytest.fixture
-def qoder(tmp_path, fake, monkeypatch):
-    """The fake stands in for qodercli on Claude Code's protocol, as in test_qoder_native - its
-    resuming switched on, as it would be once it signs in from a home of KOLONİ's (it is off)."""
-    monkeypatch.setattr(QoderNativeClient, "resumes", property(lambda self: True))
-
-    def make(**more):
-        cli = fake(version="1.1.51", **more)
-        return QoderNativeClient(
-            launcher=FAKE, model="Qwen3.8-Flash", timeout=30, env=dict(cli._env)
-        )
-
-    return make
-
-
-def test_qoders_next_turn_resumes_its_session_with_this_runs_leave(qoder, fake, tmp_path):
-    cli = qoder()
-    kept = run(cli, tmp_path, FIRST).session
-    assert "--no-session-persistence" not in fake.starts()[0] and "home" not in kept
-    result = run(cli, tmp_path, SECOND, session=kept, withheld=("write",))
-    assert "-r" not in fake.starts()[-1]  # (another leave: anew)
-    kept = result.session
-    run(
-        cli,
-        tmp_path,
-        [
-            *SECOND,
-            {"role": "assistant", "content": "Tested."},
-            {"role": "user", "content": "and the docs"},
-        ],
-        session=kept,
-        withheld=("write",),
-    )
-    argv = fake.starts()[-1]
-    assert argv[argv.index("-r") + 1] == "sess-0001" and "--resume" not in argv
-    told = fake.stdin()
-    assert "and the docs" in told and RESUMED in told and "fix the greeting" not in told
-    # Its leave is this run's own line, as for a new session: asked first, the write off.
-    assert argv[argv.index("--permission-mode") + 1] == "default"
-    assert argv[argv.index("--permission-prompt-tool") + 1] == "stdio"
-    withheld = [argv[i + 1] for i, one in enumerate(argv) if one == "--disallowed-tools"]
-    assert "Write" in withheld and "Edit" in withheld
-
-
-@pytest.mark.parametrize("change", ["level", "folder", "model"])
-def test_qoder_in_another_folder_level_or_model_starts_anew(qoder, fake, tmp_path, change):
-    kept = run(qoder(), tmp_path, FIRST).session
-    other = tmp_path / "other"
-    other.mkdir()
-    cli = qoder()
-    if change == "model":
-        cli._model = "Qwen3.8-Max"
-    run(
-        cli,
-        other if change == "folder" else tmp_path,
-        SECOND,
-        session=kept,
-        level="ask" if change == "level" else "full_auto",
-    )
-    assert "-r" not in fake.starts()[-1] and "fix the greeting" in fake.stdin()
-
-
-def test_a_session_qoder_does_not_have_falls_back_once_and_is_counted_once(qoder, fake, tmp_path):
-    first = run(qoder(), tmp_path, FIRST)
-    result = run(
-        qoder(sessions=(), no_session=NO_QODER_SESSION, session_id="sess-0002"),
-        tmp_path,
-        SECOND,
-        session=first.session,
-    )
-    assert ["-r" in argv for argv in fake.starts()] == [False, True, False]
-    assert "fix the greeting" in fake.stdin() and "now the tests" in fake.stdin()
-    # (The new run's alone, as one run's: the one that failed counted nothing.)
-    assert (result.input_tokens, result.output_tokens) == (first.input_tokens, first.output_tokens)
-    assert result.session["id"] == "sess-0002"
-
-
-def test_any_other_failure_of_a_resumed_qoder_is_a_failure(qoder, fake, tmp_path):
-    kept = run(qoder(), tmp_path, FIRST).session
-    with pytest.raises(OwnStop, match="No conversation found"):  # (Claude Code's words: not its)
-        run(qoder(sessions=()), tmp_path, SECOND, session=kept)
-    assert ["-r" in argv for argv in fake.starts()] == [False, True]
-
-
-def test_qoder_keeps_no_session_while_its_resuming_is_off(fake, tmp_path):
-    cli = QoderNativeClient(
-        launcher=FAKE, model="Qwen3.8-Flash", timeout=30, env=dict(fake(version="1.1.51")._env)
-    )
-    assert not cli.resumes
-    assert run(cli, tmp_path, FIRST).session is None
-    assert "--no-session-persistence" in fake.starts()[-1]
+# --- Codex, Copilot, agy (measured 5 Nov 2026: cli-surdurme-olcum.md) ----------------------
 
 
 def test_codex_copilot_and_agy_go_on_in_no_session(tmp_path):

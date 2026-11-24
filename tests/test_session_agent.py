@@ -154,6 +154,8 @@ def test_a_session_turn_is_recorded_like_any_other(session_app, wait_run, projec
         "remember",
         "recall",
         "recall_output",
+        "command_output",  # (0.1.8: a session is given its tools once, before it serves any)
+        "stop_command",
     ]
     document = json.loads(seen["stdin"][seen["stdin"].index("\n\n{") + 2 :])
     assert "You are the Orchestrator (the role 'Lead') agent" in document["instructions"]
@@ -649,7 +651,7 @@ def test_each_kind_runs_the_way_it_safely_can(client):
     claude = add(name="Claude", kind="claude_cli").json()
     assert claude["mode"] == "session"  # the default for Claude Code
     assert add(name="Claude steps", kind="claude_cli", mode="step").json()["mode"] == "step"
-    assert add(name="Qoder", kind="qoder_cli").json()["mode"] == "session"
+    assert add(name="Qoder", kind="qoder_cli").status_code == 422  # (0.1.8: no longer run)
     assert add(name="Codex", kind="codex_cli").json()["mode"] == "session"
 
     # On a model server of the user's its session is not measured: a step there, unless chosen.
@@ -667,7 +669,6 @@ def test_each_kind_runs_the_way_it_safely_can(client):
     assert add(name="Codex session", kind="codex_cli", mode="session").json()["mode"] == "session"
     refused = add(name="Codex reads", kind="codex_cli", mode="reads")
     assert refused.status_code == 422 and "Codex" in refused.json()["detail"]
-    assert add(name="Qoder steps", kind="qoder_cli", mode="step").status_code == 422
     assert (
         client.patch(f"/api/providers/{claude['id']}", json={"mode": "step"}).json()["mode"]
         == "step"
@@ -680,14 +681,12 @@ def test_the_right_client_is_built_for_kind_and_mode(settings):
     from app.model_cli import ClaudeCliClient, CodexCliClient
     from app.model_native import CodexSessionClient
     from app.model_session import ClaudeSessionClient as Session
-    from app.model_session import QoderSessionClient
     from app.providers import Providers
 
     providers = Providers(settings)
     cases = [
         ("claude_cli", "session", Session),
         ("claude_cli", "step", ClaudeCliClient),
-        ("qoder_cli", "session", QoderSessionClient),
         ("codex_cli", "step", CodexCliClient),
         ("codex_cli", "session", CodexSessionClient),
         ("codex_cli", "reads", CodexSessionClient),
@@ -697,7 +696,7 @@ def test_the_right_client_is_built_for_kind_and_mode(settings):
         assert type(providers.client(row, None)) is expected
 
 
-def test_qoder_is_offered_on_the_first_start_when_installed(settings_env, tmp_path):
+def test_qoder_is_not_offered_on_the_first_start_though_installed(settings_env, tmp_path):
     settings_env["KOLONI_DETECT_CLI"] = "1"
     found = {"qodercli": str(tmp_path / "qodercli.exe"), "claude": str(tmp_path / "claude.exe")}
     app = create_app(load_settings(settings_env), model=ScriptedModel([]), which=found.get)
@@ -706,128 +705,7 @@ def test_qoder_is_offered_on_the_first_start_when_installed(settings_env, tmp_pa
     assert listed == [
         ("Local", "openai_compat", None),
         ("Claude Code", "claude_cli", "session"),
-        ("Qoder", "qoder_cli", "session"),
     ]
-
-
-QODER_KNOWN = [
-    "Qwen3.8-Flash",
-    "DeepSeek-v4-Pro",
-    "Qwen-3.8-Max",
-    "DeepSeek-v4-Flash",
-    "Qwen-3.7-Max",
-    "GLM-5.2",
-    "Qwen-3.6-Flash",
-]  # catalog.json's (`qodercli --list-models`, 4 Nov)
-
-
-@pytest.fixture
-def qoder_app(settings_env, tmp_path):
-    """An app whose provider "Qoder" is the stand-in, its `--list-models` as the plan says."""
-    from app.model_session import QoderSessionClient
-
-    opened = []
-    record, plan = tmp_path / "record.json", tmp_path / "plan.json"
-
-    def make(**more):
-        plan.write_text(json.dumps({"record": str(record), **more}), encoding="utf-8")
-        cli = QoderSessionClient(launcher=FAKE, env={"FAKE_CLI_PLAN": str(plan)})
-        app = create_app(
-            load_settings(settings_env), model=ScriptedModel([]), clients={"Qoder": cli}
-        )
-        client = TestClient(app, base_url="http://127.0.0.1:8790")
-        client.__enter__()
-        opened.append(client)
-        made = client.post("/api/providers", json={"name": "Qoder", "kind": "qoder_cli"})
-        assert made.status_code == 201, made.text
-        return client, made.json()["id"]
-
-    make.record = lambda: json.loads(record.read_text(encoding="utf-8"))
-    yield make
-    for client in opened:
-        client.__exit__(None, None, None)
-
-
-# What `qodercli --list-models` printed on the user's account (29 Oct 2026, qodercli 1.1.51).
-QODER_LISTED = """MODEL
-Qwen3.8-Flash
-DeepSeek-Flash
-DeepSeek-v4-Pro (Alibaba Cloud Model Studio - Singapore) (bailian-intl/deepseek-v4-pro-tp)
-Qwen-3.8-Max (Alibaba Cloud Model Studio - Singapore) (bailian-intl/qwen3.8-max-tp)
-DeepSeek-v4-Flash (Alibaba Cloud Model Studio - Singapore) (bailian-intl/deepseek-v4-flash-tp)
-Qwen-3.7-Max (Alibaba Cloud Model Studio - Singapore) (bailian-intl/qwen3.7-max-tp)
-GLM-5.2 (Alibaba Cloud Model Studio - Singapore) (bailian-intl/glm5.2-tp)
-Qwen-3.6-Flash (Alibaba Cloud Model Studio - Singapore) (bailian-intl/qwen3.6-flash-tp)
-wan2.7-image-pro (Alibaba Cloud Model Studio - Singapore / Token plan) (bailian-intl/tp/wan2.7-image-pro)
-"""
-QODER_NAMES = [
-    "Qwen3.8-Flash",
-    "DeepSeek-Flash",
-    "DeepSeek-v4-Pro",
-    "Qwen-3.8-Max",
-    "DeepSeek-v4-Flash",
-    "Qwen-3.7-Max",
-    "GLM-5.2",
-    "Qwen-3.6-Flash",
-]
-
-
-def test_qoder_lists_the_models_its_own_cli_lists(qoder_app):
-    client, provider = qoder_app(models_text=QODER_LISTED)
-    listed = client.get(f"/api/providers/{provider}/models").json()
-    assert listed == {"models": list(dict.fromkeys([*QODER_KNOWN, *QODER_NAMES])), "note": None}
-    assert qoder_app.record()["argv"] == ["--list-models"]  # nothing else on its line
-    # A listed model takes Qoder's levels (catalog.json's, the same for each of its models).
-    facts = client.get(
-        f"/api/providers/{provider}/model-facts", params={"model": "DeepSeek-Flash"}
-    ).json()
-    assert facts["efforts"] == ["off", "low", "medium", "high", "xhigh"]
-
-
-@pytest.mark.parametrize(
-    "plan",
-    [
-        {"models_exit": 1, "models_text": "Qwen3.8-Flash\n"},
-        {"models_text": "No models.\n"},
-        {"models_hang": True},
-    ],
-)
-def test_qoder_that_cannot_list_falls_back_to_the_catalogue_silently(qoder_app, plan, monkeypatch):
-    import app.model_session
-
-    monkeypatch.setattr(app.model_session, "QODER_MODELS_SECONDS", 1.0)
-    client, provider = qoder_app(**plan)
-    listed = client.get(f"/api/providers/{provider}/models").json()
-    assert listed == {"models": QODER_KNOWN, "note": None}  # no error, nothing of its stderr
-
-
-def test_qoder_not_installed_falls_back_to_the_catalogue_silently(settings_env):
-    from app.model_session import QoderSessionClient
-
-    cli = QoderSessionClient(which=lambda name: None)
-    app = create_app(load_settings(settings_env), model=ScriptedModel([]), clients={"Qoder": cli})
-    with TestClient(app, base_url="http://127.0.0.1:8790") as client:
-        made = client.post("/api/providers", json={"name": "Qoder", "kind": "qoder_cli"}).json()
-        listed = client.get(f"/api/providers/{made['id']}/models").json()
-    assert listed == {"models": QODER_KNOWN, "note": None}
-
-
-def test_qoders_list_gives_its_names_without_the_image_model_and_tiers_them():
-    from app import catalog
-    from app.model_session import qoder_models
-
-    assert qoder_models(QODER_LISTED) == QODER_NAMES  # (no "MODEL", no wan2.7-image-pro)
-    tiers = {row["name"]: row["tier"] for row in catalog.fill("qoder_cli", [], QODER_NAMES)[0]}
-    assert tiers == {
-        "Qwen3.8-Flash": "fast",
-        "DeepSeek-Flash": "fast",
-        "DeepSeek-v4-Pro": "strongest",
-        "Qwen-3.8-Max": "strongest",
-        "DeepSeek-v4-Flash": "fast",
-        "Qwen-3.7-Max": "strongest",
-        "GLM-5.2": "strongest",
-        "Qwen-3.6-Flash": "fast",
-    }
 
 
 def test_migration_0006_and_back(tmp_path):

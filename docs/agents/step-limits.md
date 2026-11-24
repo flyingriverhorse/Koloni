@@ -115,9 +115,7 @@ asked - no words, no call - a card under the turn asks you:
 > Codex · gpt-6-astra has not answered for 5 min. Keep waiting, or stop this turn and pick another
 > model?
 
-Time on a tool (a sub-agent, a command) or on another card that waits for you does not count. When
-Qoder has kept a free model queued for 90 seconds, the card comes then: "Qoder has kept
-Qwen3.8-Flash queued for 2 min."
+Time on a tool (a sub-agent, a command) or on another card that waits for you does not count.
 
 While it waits, the card counts as waiting for you outside its chat too: on the Ready page, as a
 mark on the chat in the Chats list, and in a note in the corner ("Orchestrator waits for you").

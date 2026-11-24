@@ -81,8 +81,8 @@ def what(
 
 def cli_shell(cli: str, tool: str) -> str | None:
     """The shell a CLI's own command runs in, where KOLONİ knows it: Claude Code's Bash tool's
-    bash (Git Bash on Windows), its PowerShell tool's PowerShell. None for any other: Codex, agy
-    and Qoder send a command with no shell said (each reaches KOLONİ named "Bash"), and Claude
+    bash (Git Bash on Windows), its PowerShell tool's PowerShell. None for any other: Codex and
+    agy send a command with no shell said (each reaches KOLONİ named "Bash"), and Claude
     Code's Monitor is not measured."""
     return {"Bash": POSIX, "PowerShell": POWERSHELL}.get(tool) if cli == "claude" else None
 

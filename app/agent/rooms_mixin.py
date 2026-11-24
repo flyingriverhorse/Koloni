@@ -432,7 +432,7 @@ class RoomsMixin:
                 # shortcut: why the live lead's session ended mid-wait is not measured. A CLI
                 # that gives up on the call (notifications/cancelled, `model_session._given_up`)
                 # ends it here too - which CLI sends that is measured for none (Copilot is given
-                # no tool timeout; Claude Code and Qoder get MCP_TOOL_TIMEOUT, Codex
+                # no tool timeout; Claude Code gets MCP_TOOL_TIMEOUT, Codex
                 # tool_timeout_sec); measure Copilot's and give it one if a lead is seen giving
                 # up on a room whose cards still wait.
                 self._unopened(ctx, [child for child, _role in members])

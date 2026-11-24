@@ -8,7 +8,7 @@ we have and how strong each is". Design: `tasarim/specs/2026-10-20-dilim-60-sayf
 Contract:
 - `POST /api/providers/fill-all` (the app's own page): a proposal for every provider, nothing saved:
   {"providers": [{"id", "name", "kind", "for_agents", "models": [{"name", "tier", "note", ...}]}]}.
-  A subscription CLI (Claude Code, Codex, agy, Qoder) comes ticked for agents; a provider that is paid
+  A subscription CLI (Claude Code, Codex, agy) comes ticked for agents; a provider that is paid
   per token (an API key) comes unticked; one with no catalogue keeps its own rows and tick as they are.
 - `POST /api/providers/fill-all/save` {"providers": [...]} (own page): saves what was shown, in one go.
 """
