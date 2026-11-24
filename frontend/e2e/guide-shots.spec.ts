@@ -292,6 +292,57 @@ test('To-do in a chat', async ({ page }) => {
   }
 })
 
+test('a story’s strip and notebook', async ({ page }) => {
+  await openFreshConversation(page)
+  const pid = await e2eProject(page)
+  const tree = {
+    stories: [
+      {
+        title: 'Two-step sign-in',
+        notes: ['Codes go by mail, not SMS.'],
+        tasks: [
+          { title: 'Send a code by mail', criteria: 'a six-digit code is mailed, valid for ten minutes' },
+          { title: 'Check the code on sign-in' },
+          { title: 'Turn it on in Settings' },
+        ],
+      },
+    ],
+    tasks: [],
+  }
+  const added = await (
+    await page.request.post(`/api/projects/${pid}/backlog/tree`, { headers: OWN, data: tree })
+  ).json()
+  try {
+    // (The two after the first wait for it: once it waits at "done?", the strip says the next.)
+    const [first, ...later] = added.task_ids
+    for (const id of later) await page.request.patch(`/api/backlog/${id}`, { headers: OWN, data: { after: [first] } })
+    await rail(page, 'To-do').click()
+    await page
+      .getByRole('list', { name: 'Tasks' })
+      .getByRole('checkbox', { name: 'Tick the story Two-step sign-in' })
+      .check()
+    await page
+      .getByRole('region', { name: 'Selected tasks' })
+      .getByRole('button', { name: /Do in chat/ })
+      .click()
+    await page.getByRole('menuitem', { name: 'A new chat' }).click()
+    const chat = page.getByRole('region', { name: 'Chat' })
+    await expect(chat.getByRole('group', { name: 'Done? — “Send a code by mail”' })).toBeVisible({ timeout: 20_000 })
+    const strip = page.getByRole('region', { name: 'Story' })
+    await expect(strip).toHaveText('Story · Two-step sign-in · 2 / 3 · next: Turn it on in Settings · 📓 notes', {
+      timeout: 20_000,
+    })
+    await strip.getByRole('button', { name: 'notes' }).click()
+    await expect(page.getByRole('dialog', { name: 'Notebook of Two-step sign-in' })).toContainText(
+      '“Send a code by mail” — done?',
+    )
+    await picture(page, 'story-notebook')
+  } finally {
+    for (const id of added.task_ids) await page.request.delete(`/api/backlog/${id}`, { headers: OWN })
+    for (const id of added.story_ids) await page.request.delete(`/api/stories/${id}`, { headers: OWN })
+  }
+})
+
 test('Memory search, Triggers and Usage', async ({ page, request }) => {
   const id = await openFreshConversation(page)
   await say(page, 'Answer only: The ZEPPELIN hangar is in Kayseri.', 'The ZEPPELIN hangar is in Kayseri.')

@@ -150,6 +150,10 @@ line - a **decision**, a **file**, a **result** or a **question** - with who wro
   `Story note: <decision|file|result|question>: <one line>`; KOLONİ reads them off its answer.
 - The **Hive keeper** adds its notes as it drafts a story.
 
+![A chat working through a story: the strip over it reads "Story · Two-step sign-in · 2 / 3 · next: Turn it on in Settings · notes", and its notebook is open - the Hive keeper's decision and KOLONİ's result line for the first task](../images/story-notebook.png)
+
+*The strip over a chat a story works in, and its notebook opened from it.*
+
 Every turn of the story is given the notebook, quoted as data, not instructions: each task's first message
 and its fix round carry it, and so do the Orchestrator's instructions in a turn of yours in the story's
 topic, as the notebook stood when that turn began. A session that summarises itself keeps short notes

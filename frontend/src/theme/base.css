@@ -841,6 +841,8 @@ p.hive-empty {
 
 /* 0.1.8: the one line over the chat while a story of To-do works in it (StoryStrip), and the container its narrow rule
    is measured by: in a 340-380px chat only the story's title and place stay. */
+/* (`pre`: each part is a flex item, and the spaces around its "·" would go at its ends; a long name ends in "…", the
+   notebook's button stays.) */
 .story-strip {
   container: story-strip / inline-size;
   display: flex;
@@ -849,7 +851,7 @@ p.hive-empty {
   padding: 4px 14px;
   border-bottom: 1px solid var(--border);
   font-size: var(--text-meta);
-  white-space: nowrap;
+  white-space: pre;
 }
 
 .story-strip-title,
