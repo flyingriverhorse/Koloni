@@ -492,6 +492,51 @@ def test_a_nested_row_or_a_placeholder_elsewhere_is_still_a_finding(report, bloc
     assert [f["blocking"] for f in look(report)[1]] == blocking
 
 
+FENCE = "```"
+
+
+@pytest.mark.parametrize(
+    ("report", "blocking"),
+    [
+        # (a fence's lines are not read; the section open before it goes on after it)
+        (
+            f"Verdict: MERGE\n\n## Findings\n{ROW_S}\n{FENCE}python\nx = 1 / 0\n{FENCE}\n{ROW_B}\n",
+            [False, True],
+        ),
+        (f"Verdict: MERGE\n\n## Findings\n{FENCE}\nx = 1 / 0\n{FENCE}\n{ROW_B}\n", [True]),
+        # (`### Blocking` under `## Findings`: its own subheading)
+        (
+            f"Verdict: MERGE\n\n## Findings\n### Blocking\n{ROW_B}\n### Suggestions\n{ROW_S}\n",
+            [True, False],
+        ),
+        # (a label line in it ends nothing)
+        (f"Verdict: MERGE\n\n## Findings\nChecked: ran pytest\n{ROW_B}\n", [True]),
+        # (an earlier look quoted inside an open one: opens none, ends none - its rows are read
+        # with the rest: towards holding)
+        (
+            f"Verdict: MERGE\n\n## Findings\n{ROW_S}\n    ## Findings\n    {ROW_B}\n"
+            "- b.py:1: leaks a file handle | kind: bug | role: Orchestrator | blocking\n",
+            [False, True, True],
+        ),
+    ],
+)
+def test_a_fence_a_subheading_a_label_or_a_quoted_heading_ends_no_section(report, blocking):
+    # (k-findings-2: each of these lost every row after it - a blocking one too)
+    assert [f["blocking"] for f in look(report)[1]] == blocking
+
+
+def test_what_still_ends_a_section_or_is_not_read():
+    # (rows inside a fence: never counted)
+    assert look(f"Verdict: MERGE\n\n## Findings\n{FENCE}\n{ROW_B}\n{FENCE}\n")[1] is None
+    # (a heading of its level or above; after a "Findings:" line, any heading)
+    assert [
+        f["what"] for f in look(f"Verdict: MERGE\n\n### Findings\n{ROW_S}\n## Next\n{ROW_B}\n")[1]
+    ] == ["a.py:9: naming"]
+    assert look(f"Verdict: MERGE\n\nFindings:\n### Notes\n{ROW_B}\n")[1] is None
+    # (a quoted heading with no section open opens none)
+    assert look(f"Verdict: MERGE\n\n> ## Findings\n> {ROW_B}\n")[1] is None
+
+
 def test_the_live_report_with_a_closing_line_keeps_its_rows():
     # (Claude Code · haiku: its section, then "Findings: see the suggestions above; …")
     said, found = look(SECTION.format(verdict="MERGE", mark="suggestion", closing="none blocking"))
