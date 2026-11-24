@@ -134,6 +134,63 @@ def test_a_secret_file_changed_by_hand_beside_a_cli_in_its_copy_is_named_and_kep
     assert "value-1" not in str(snap) and "value-2" not in str(snap)
 
 
+def test_what_a_command_of_native_claude_code_writes_into_the_project_is_found_as_it_runs(
+    claude_app,
+    wait_run,
+    project_dir,
+    settings_env,  # noqa: F811
+):
+    """C2 (security review, 7 Nov): no sandbox holds Claude Code's Bash to its copy - at Full
+    auto a command that wrote into the project by a path it did not name was found only at the
+    turn's end, and a write of KOLONİ's there meanwhile (`seen_in_project`) took it in unseen.
+    Now the project is looked at after each of its commands, as native agy's is."""
+    client, provider, _ = claude_app(
+        [
+            {
+                "tool": "Bash",
+                "input": {"command": "python fix.py"},
+                "write": ["PROJECT/hello.py", "print('straight in')\n"],
+                "result": "",
+            },
+            {"koloni": "ask_user", "args": {"question": "Go on?"}},
+            {"say": "Done."},
+        ],
+        # (At Full auto the Lead is asked first to answer for the user: it leaves it to them.)
+        default_steps=[LEAD[0], text("Leave it to the user."), LEAD[1]],
+    )
+    cid, run_id = begin(client, project_dir, provider)
+    # found by the look after the command, while it is still at work (its question open)
+    snap = until(client, cid, lambda s: s["questions"] and s["file_changes"], timeout=20)
+    assert changes(snap) == [("hello.py", "applied", "cli")], by_the_cli(snap)
+    assert f"{IN_THE_PROJECT}: hello.py (+1 -1)" in by_the_cli(snap)
+    client.post(f"/api/questions/{snap['questions'][0]['id']}/answer", json={"answer": "yes"})
+    snap = wait_run(client, cid, run_id, timeout=20)
+    assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
+    assert changes(snap) == [("hello.py", "applied", "cli")]
+    assert by_the_cli(snap).count(f"{IN_THE_PROJECT}: hello.py (+1 -1)") == 1
+    assert hello(project_dir) == "print('straight in')\n"
+
+
+def test_one_look_over_a_mid_size_project_after_a_command_costs_little(tmp_path):
+    """What C2's look after each command of a CLI in a copy costs (`_look_at_project`): one walk
+    of the project with a stat of each file, nothing read where nothing changed. 3,000 files in
+    60 folders: measured some 0.1 s on Windows (24 Nov 2026); the bound leaves CI its slow disks."""
+    import time
+
+    from app.project_view import ProjectView
+
+    for n in range(60):
+        folder = tmp_path / f"pkg{n}"
+        folder.mkdir()
+        for m in range(50):
+            (folder / f"mod{m}.py").write_text(f"X = {m}\n", encoding="utf-8")
+    view = ProjectView(tmp_path)
+    started = time.perf_counter()
+    assert view.changes() == []
+    took = time.perf_counter() - started
+    assert took < (30 if os.environ.get("CI") else 5), took
+
+
 def test_what_a_native_codex_sub_agent_would_write_straight_into_the_project_is_refused(
     native_app,
     wait_run,

@@ -290,8 +290,9 @@ class _Watch:
         # there all the same, by a path outside its copy, is seen with what was before.
         self.project: ProjectView | None = None
         self.straight: set[str] = set()  # the project's files it was found to have changed
-        # Its CLI is held to no folder (`_sandboxed`): a command of it can write there
-        # without a path being named, so the project is looked at after each, and at its end.
+        # Its CLI is held to no folder (`_sandboxed`), or its commands are not (Claude Code:
+        # `commands_held`): a command of it can write there without a path being named, so the
+        # project is looked at after each, and at its end.
         self.unheld = False
         # B-310: its CLI (agy) never took KOLONİ's bridge, so it runs the old way: with none of
         # KOLONİ's tools, a Lead that hands code on cannot, and writes itself.

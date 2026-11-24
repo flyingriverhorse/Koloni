@@ -83,8 +83,9 @@ messages.
   the version it runs. Only Windows was measured.
 - A sub-agent on Claude Code or Qoder run **Native** works in a working copy, but its commands are not
   sandboxed: at Full auto, one that writes into your project by a path it does not spell out (`..\..`, a
-  script) changes the project directly. KOLONİ finds such a change at the end of the turn and records it
-  as made in the project by an unknown maker.
+  script) changes the project directly. KOLONİ looks at the project after each of its commands and
+  records such a change as made in the project by an unknown maker - one look over the project's files
+  each time (some 0.1 s for 3,000 files, 0.4 s for 10,000, measured on Windows).
 - With Codex run **Native**, a command of Codex's own still at work after 11 minutes is ended as
   failed, and so is Codex's turn; one you allowed that Codex never says it started is ended as "never
   started" at the same 11 minutes.
