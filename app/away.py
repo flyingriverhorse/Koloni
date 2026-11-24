@@ -497,7 +497,7 @@ def busy(session: Session, project_id: str, waiting: bool = False) -> str | None
     (B-147: an earlier night's job waiting for an approval held a new night off for good)."""
     if backlog.away(session, project_id):
         return "you're away from this project"
-    ended = (*backlog.ENDED, "waiting_approval") if waiting else ENDED
+    ended = (*backlog.ENDED, "waiting_approval") if waiting else backlog.ENDED
     at_work = session.scalar(
         select(BacklogTask.title)
         .join(Run, Run.task_id == BacklogTask.id)

@@ -202,7 +202,7 @@ is merged into yours, or sent as a pull request where the project's finished wor
 is stuck with why - **Fix it** goes on on the branch, then close it again. It goes in by itself only at
 **Full auto**, or where its check ran and passed; below that, a branch nothing tested waits on its **Merge**
 (or pull request) card in the chat, and **Discard** there keeps the branch and the story open. A branch
-holding a secret KOLONİ knows is held too, its last task stuck with why. Where the branch cannot be opened -
+holding a secret KOLONİ knows is held too, its last task stuck with why (KOLONİ looks at the files as the branch ends; a pull request sends its whole history, so a secret committed and removed on it still goes up). Where the branch cannot be opened -
 your folder on no branch, or on the story's branch itself - nothing goes in and the story stays open; only a
 branch deleted from git counts as gone. A chat holding a story's branch is not deleted until the story is
 closed or deleted; a deleted story's branch stays in git, and its chat says so. A task added to a closed
