@@ -510,3 +510,13 @@ def test_a_session_whose_size_was_not_said_is_not_gone_on_in(chat):
     snap = chat("now the tests", usage_info=[], call_usage={})
     assert leads(chat)[-1].cli_session is None and homes_of(chat) == []
     assert SESSION_UNSIZED in [c["result"] for c in snap["tool_calls"]]
+
+
+def test_where_it_says_no_size_its_last_calls_input_is_its_size_cache_and_all(copilot, tmp_path):
+    # (Measured live, 1.0.114: inputTokens 7,129 holds its cache read 2,757 and write 4,369.)
+    call = {"inputTokens": 7129, "cacheReadTokens": 2757, "cacheWriteTokens": 4369}
+    result, items = run(copilot(call_usage=call), tmp_path, FIRST)
+    assert result.context_used == 7129
+    # Its usage_info, where it came, stands over that.
+    result, _ = run(copilot(call_usage=call, usage_info=[info(9000)]), tmp_path, FIRST)
+    assert result.context_used == 9000

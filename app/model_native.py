@@ -3933,14 +3933,12 @@ def _sized(data: dict, kind: object, size: dict[str, int | None]) -> int | None:
     systemTokens, conversationTokens, toolDefinitionsTokens, messagesLength, isInitial} - its
     window (272,000 for gpt-6-luna, 872,000 for claude-haiku-5.5; not models.list's
     maxPromptTokens, a price step's, nor the catalogue's model window) and its size now. Where it
-    says none, its last model call's input and cache read (assistant.usage).
-    shortcut: that a call's inputTokens leaves its cache read out is not measured (23 Nov's numbers,
-    6,248 in with 6,078 read, suggest it holds it): this may count it twice - the safe side for
-    `session_cap`."""
+    says none, its last model call's input (assistant.usage)."""
     if kind == "session.usage_info":
         size["info"] = count_of(data.get("currentTokens"))
         return count_of(data.get("tokenLimit"))
-    size["call"] = _sum(data.get("inputTokens"), data.get("cacheReadTokens"))
+    # (inputTokens holds its cache read and write: 7,129 = 2,757 + 4,369 + 3, live 24 Nov 2026)
+    size["call"] = count_of(data.get("inputTokens"))
     return None
 
 
