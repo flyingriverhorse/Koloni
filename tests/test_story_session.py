@@ -309,3 +309,7 @@ def test_a_task_stop_everything_cut_goes_on_in_its_topic_and_is_no_bad_end(story
     assert stories.fresh_needed(session, topic, s) is None
     assert stories.topic_for(session, cid, t["t1"]) == (topic, False)
     assert stories.topic_for(session, cid, t["t2"]) == (topic, False)
+    # taken out of the queue (Remove, a stopped queue), it is held no more: rule 6 sees it again
+    backlog.unqueue(session, t["t1"])
+    assert "held" not in (t["t1"].flow or {})
+    assert stories.fresh_needed(session, topic, s) == 'its task "t1" went back to To-do'

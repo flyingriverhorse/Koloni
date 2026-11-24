@@ -595,7 +595,7 @@ def _copy_waits(session: Session, runs) -> bool:
 def _delete_for_good(session: Session, ids: list[str]) -> None:
     # (A To-do task waiting in their queue, or due its fix round there, is back on To-do.)
     for task in session.scalars(select(BacklogTask).where(BacklogTask.conversation_id.in_(ids))):
-        backlog.set_flow(task, place=None, fix=None)
+        backlog.set_flow(task, place=None, fix=None, held=None)
         if task.status == "doing" and task.away_run_id is None:
             task.status = "todo"
     runs = select(Run.id).where(Run.conversation_id.in_(ids))

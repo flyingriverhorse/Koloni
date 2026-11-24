@@ -354,7 +354,7 @@ def start(
     conversation.title = topics.one_line(task.title) or conversation.title
     task.status, task.conversation_id = "doing", conversation.id
     # (A new conversation is a new start: its fix round is still to have.)
-    set_flow(task, fix=None, fixed=None, stuck=None)
+    set_flow(task, fix=None, fixed=None, stuck=None, held=None)
     say(session, conversation, content, bus, start_run, task_id=task.id)
     bus.emit(conversation.id, None, "conversation.updated", conversation_out(conversation))
     return conversation.id
@@ -734,8 +734,8 @@ def fix_again(session: Session, task: BacklogTask) -> None:
 
 def unqueue(session: Session, task: BacklogTask) -> None:
     """Out of its chat's queue, back on the To-do list: still linked to the chat where it had a
-    turn there, else to none."""
-    set_flow(task, place=None)
+    turn there, else to none - no longer held (`turn_ended`): it is not gone on with."""
+    set_flow(task, place=None, held=None)
     if session.scalar(select(Run.id).where(Run.task_id == task.id).limit(1)) is None:
         task.conversation_id = None
 
