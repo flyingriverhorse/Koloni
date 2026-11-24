@@ -7,6 +7,7 @@ import { DeleteProject } from './DeleteProject'
 import { FoldersSection } from './Folders'
 import { GUIDE } from './guide'
 import { LANGUAGES, ProjectSettings, Row, type Section } from './ProjectSettings'
+import { experimentalChanged } from '../models/experimental'
 import { VoiceSettings } from '../voice/VoiceControls'
 import { ChatSheet } from '../chat/ChatSheet'
 import { useApp } from '../state/store'
@@ -497,7 +498,9 @@ function ExperimentalChoice() {
   async function change(on: boolean) {
     setError(null)
     try {
-      setShow((await api.put<ExperimentalClis>('/experimental-clis', { show: on })).show)
+      const saved = (await api.put<ExperimentalClis>('/experimental-clis', { show: on })).show
+      setShow(saved)
+      experimentalChanged(saved)
     } catch (err) {
       setError(errorText(err))
     }

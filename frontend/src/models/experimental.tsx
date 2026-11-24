@@ -42,17 +42,28 @@ export function Choices<T extends string>({
   )
 }
 
+// Every page that reads it, told when Settings changes it: Settings keeps its levels mounted, and This project ›
+// Memory and web shows Let agy search too by it.
+const told = new Set<(show: boolean) => void>()
+
+/** Settings' Show experimental CLIs, as it was read or saved: whatever reads it now follows. */
+export function experimentalChanged(show: boolean) {
+  told.forEach(listener => listener(show))
+}
+
 /** Whether experimental CLIs are shown; off until read, and where it could not be. */
 export function useExperimentalClis(): boolean {
   const [show, setShow] = useState(false)
   useEffect(() => {
     let current = true
+    told.add(setShow)
     api.get<ExperimentalClis>('/experimental-clis').then(
-      told => current && setShow(told.show),
+      read => current && setShow(read.show),
       () => {},
     )
     return () => {
       current = false
+      told.delete(setShow)
     }
   }, [])
   return show
