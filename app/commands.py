@@ -759,19 +759,42 @@ _PAST_A_RULE = {
     "uvx": ("-w", "--with", "--from"),
     "pipx": ("--spec",),
     # 0.1.7's Code style and types: another config (a plugin it loads is code), a rules folder or
-    # plugins found elsewhere, another Python run for it
-    "ruff": ("--config",),
-    "mypy": ("--config-file", "--python-executable"),
-    "eslint": ("-c", "--config", "--resolve-plugins-relative-to", "--rulesdir"),
+    # plugins found elsewhere, another Python run for it; a fix written into the files; a
+    # formatter (but its own, `_ESLINT_FORMATS`), plugin or parser loaded by name or path; eslint's
+    # `--init` and `--inspect-config`, which fetch a package and run it (npm init, npx), and its
+    # suppressions file written; mypy's stubs installed (pip); tsc made to write - its build info,
+    # a trace, its output, a build (but `--incremental false`, `--composite false`, `--noEmit`,
+    # `--generateTrace null`, which Code style's own line gives: `_harmless`)
+    "ruff": ("--config", "--fix", "--fix-only", "--unsafe-fixes", "--add-noqa"),
+    "mypy": ("--config-file", "--python-executable", "--install-types"),
+    "eslint": (
+        *("-c", "--config", "--resolve-plugins-relative-to", "--rulesdir"),
+        *("-f", "--format", "--plugin", "--parser", "--fix", "--init", "--inspect-config"),
+        *("--suppress-all", "--suppress-rule", "--prune-suppressions"),
+    ),
+    "tsc": ("--incremental", "--composite", "--noEmit", "--generateTrace", "-b", "--build"),
 }
+_ESLINT_FORMATS = frozenset({"stylish", "json", "json-with-metadata", "html"})
 # ...these only where their value leads out of the folder (a report written there)...
 _PAST_A_RULE_OUT = {
     "pytest": ("--junitxml", "--junit-xml"),
-    # (0.1.7: a report, a cache or a build put elsewhere; tsc on another folder's config)
+    # (0.1.7: a report, a cache or a build put elsewhere; tsc on another folder's config, its
+    # trace or profile - tsc reads its options in any case, `--OUTDIR` too: measured, 5.9)
     "ruff": ("--output-file", "-o", "--cache-dir"),
-    "mypy": ("--cache-dir", "--junit-xml"),
-    "eslint": ("--output-file", "-o", "--cache-location"),
-    "tsc": ("-p", "--project", "--outDir", "--outFile", "--tsBuildInfoFile", "--declarationDir"),
+    "mypy": (
+        *("--cache-dir", "--junit-xml", "--html-report", "--txt-report", "--xml-report"),
+        *("--xslt-html-report", "--xslt-txt-report", "--cobertura-xml-report"),
+        *("--linecount-report", "--linecoverage-report", "--lineprecision-report"),
+        *("--any-exprs-report", "--memory-xml-report"),
+    ),
+    "eslint": (
+        *("--output-file", "-o", "--cache-location", "--cache-file"),
+        "--suppressions-location",
+    ),
+    "tsc": (
+        *("-p", "--project", "--outDir", "--outFile", "--tsBuildInfoFile", "--declarationDir"),
+        "--generateCpuProfile",
+    ),
 }
 # ...the short options that take a value where a program bundles its short ones (`pytest -qo x`:
 # the bundle ends at one of these; elsewhere only the first letter counts, `-pfoo`)...
@@ -838,35 +861,93 @@ def _past_the_rule(words: list[str], extra: list[str]) -> bool:
     if _runner_options_past(words, extra):
         return True
     named = {_program(word) for word in words}
-    given = [
-        (option, _SHORT_VALUES.get(program))
-        for program in named
-        for option in _PAST_A_RULE.get(program, ())
-    ]
-    out = [
-        (option, _SHORT_VALUES.get(program))
-        for program in named
-        for option in _PAST_A_RULE_OUT.get(program, ())
-    ]
+    given, out = (
+        [
+            (program, _option_spelling(program, option), _SHORT_VALUES.get(program))
+            for program in named
+            for option in rows.get(program, ())
+        ]
+        for rows in (_PAST_A_RULE, _PAST_A_RULE_OUT)
+    )
     own = extra[: extra.index("--")] if "--" in extra else extra
-    for at, word in enumerate(own):
+    for at, written in enumerate(own):
         after = own[at + 1] if at + 1 < len(own) else ""
-        for option, takes in given:
-            value = _option_given(word, after, option, takes)
-            if value is not None and not (
-                option == "-p"
-                and value.startswith("no:")
-                or option in ("-o", "--override-ini")
-                and value.split("=", 1)[0] in _HARMLESS_INI
-            ):
+        # (an option's name in pieces a shell joins - `--incre"mental"` - is past any rule of
+        # these; its value after `=` may be quoted whole, `--select="E,F"`; a value in pieces is
+        # judged with its option - as `after`, or glued as written)
+        name, sep, glued = written.partition("=")
+        if (bare := _one_piece(name)) is None:
+            if (given or out) and _PIECES.sub("", name).startswith("-"):
+                return True
+            continue
+        word = f"{bare}{sep}{_one_piece(glued, path=True) or glued}"
+        for program, option, takes in given:
+            value = _option_given(_option_spelling(program, word), after, option, takes)
+            if value is not None and not _harmless(program, option, value):
                 return True
         if any(
-            (value := _option_given(word, after, option, takes)) is not None
-            and (_outside(value.strip("'\"")) or re.search(r"[$%~]", value))
-            for option, takes in out
+            (value := _option_given(_option_spelling(program, word), after, option, takes))
+            is not None
+            and _value_leads_out(value)
+            for program, option, takes in out
         ):
             return True
     return bool(_SHELL_LINE.search(" ".join(extra)))
+
+
+def _option_spelling(program: str, word: str) -> str:
+    """A word as `program` reads an option's name: tsc's in any case (`--OUTDIR`, `-P`: measured,
+    5.9); eslint's long ones in any case and with or without inner dashes (`--outputFile`) -
+    optionator 0.9.4, eslint's, looks a name up as written and refuses `--Fix` or `-F`: this
+    fails closed if a version does not. A value after `=` stays as written."""
+    if program == "tsc":  # (and `--p` is `-p` to it)
+        folded = word.casefold()
+        return folded[1:] if len(folded) == 3 and folded.startswith("--") else folded
+    if program == "eslint" and word.startswith("--"):
+        name, sep, value = word[2:].partition("=")
+        return f"--{name.replace('-', '').casefold()}{sep}{value}"
+    return word
+
+
+def _harmless(program: str, option: str, written: str) -> bool:
+    """What of an option `_PAST_A_RULE` lists changes nothing of what runs: pytest's plugin
+    turned off (`-p no:x`) or how it logs (`-o log_cli=true`), eslint's own formatter, tsc
+    told to write nothing (`--incremental false`, `--composite false`, `--noEmit`,
+    `--generateTrace null` - tsc reads `false` and `null` as written: `FALSE` is true). A value
+    in pieces a shell joins (`fal""se`, `f\\alse`) never is (`_one_piece`)."""
+    if (value := _one_piece(written)) is None:
+        return False
+    if program == "tsc":  # (`--noEmit` last, before another option, or `true`: on)
+        return (
+            (option in ("--incremental", "--composite") and value == "false")
+            or (option == "--noemit" and (value in ("", "true") or value.startswith("-")))
+            or (option == "--generatetrace" and value == "null")
+        )
+    if program == "pytest":
+        return (option == "-p" and value.startswith("no:")) or (
+            option in ("-o", "--override-ini") and value.split("=", 1)[0] in _HARMLESS_INI
+        )
+    return program == "eslint" and option in ("-f", "--format") and value in _ESLINT_FORMATS
+
+
+# A quote or a backslash in a word past a rule: a shell joins or unescapes its pieces.
+_PIECES = re.compile(r"[\"'\\]")
+
+
+def _one_piece(text: str, path: bool = False) -> str | None:
+    """`text` without one pair of outer quotes - None where a quote or a backslash is anywhere
+    else in it (a `path` on Windows may hold a backslash: its separator there): a shell joins
+    or unescapes such pieces (`fal""se`, `".."/x`, sh's `f\\alse`), never worked out here."""
+    quoted = len(text) > 1 and text[0] == text[-1] and text[0] in "'\""
+    inner = text[1:-1] if quoted else text
+    odd = re.search(r"[\"']", inner) if path and sys.platform == "win32" else _PIECES.search(inner)
+    return None if odd else inner
+
+
+def _value_leads_out(value: str) -> bool:
+    """Whether an option's value leads out of the folder - or is in pieces (`_one_piece`)."""
+    plain = _one_piece(value, path=True)
+    return plain is None or _outside(plain) or bool(re.search(r"[$%~]", plain))
 
 
 def _option_given(word: str, after: str, option: str, takes: str | None) -> str | None:
@@ -883,8 +964,8 @@ def _option_given(word: str, after: str, option: str, takes: str | None) -> str 
         if not word.startswith("-") or word.startswith("--"):
             return None
         for at, letter in enumerate(word[1:], 1):
-            if letter == full:
-                return word[at + 1 :] or after
+            if letter == full:  # (`-o=x` is `-o x` to clap and argparse)
+                return word[at + 1 :].removeprefix("=") or after
             if takes is None or not letter.isalpha() or letter in takes:
                 return None
         return None

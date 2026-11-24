@@ -317,10 +317,11 @@ MOST_COMPARED = 1_000_000
 COMPARE_STEPS = 2_000_000
 
 
-def changed_lines(before: str, after: str) -> list[int] | None:
+def changed_lines(before: str, after: str, script: bool = False) -> list[int] | None:
     """The numbers of the lines `after` added or rewrote, counted as the tools count them
-    (`_lines`); None: too large to compare in the time it may take - never "nothing changed"."""
-    a, b = _lines(before), _lines(after)
+    (`_lines`; `script`: a JavaScript or TypeScript file's, as eslint and tsc count them); None:
+    too large to compare in the time it may take - never "nothing changed"."""
+    a, b = _lines(before, script), _lines(after, script)
     out: list[int] = []
     steps, compared, stack = 0, 0, [(0, len(a), 0, len(b))]
     while stack:
@@ -380,15 +381,17 @@ def _anchors(
     return found[::-1]
 
 
-def _lines(text: str) -> list[str]:
+def _lines(text: str, script: bool = False) -> list[str]:
     """A file's lines as its tools number them - split at `\\n`, `\\r\\n` and `\\r` only: a form
-    feed or a line separator inside a line is no line of its own to ruff, mypy, eslint or tsc
-    (`str.splitlines` would make it one, and blame the turn for a line it never wrote)."""
-    found = _LINE_END.split(text)
+    feed or a line separator inside a line is no line of its own to ruff or mypy (`str.splitlines`
+    would make it one, and blame the turn for a line it never wrote). eslint and tsc (`script`)
+    end a line at U+2028 and U+2029 too - JavaScript's line ends (tsc 5.9, measured)."""
+    found = (_SCRIPT_LINE_END if script else _LINE_END).split(text)
     return found[:-1] if found[-1] == "" else found
 
 
 _LINE_END = re.compile(r"\r\n|[\r\n]")
+_SCRIPT_LINE_END = re.compile("\r\n|[\r\n\u2028\u2029]")
 
 
 def _kept(session: Session, run_id: str) -> dict[str, list[FileChange]]:

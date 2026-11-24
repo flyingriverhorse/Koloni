@@ -855,7 +855,7 @@ _DOTTED = re.compile(rf"(?:\.[^.=\n\[\]{{}},]*){{{MOST_DEPTH}}}")
 # JSON with comments (tsconfig.json, VS Code's): its comments left out, then its trailing commas -
 # a comment between one and its bracket too - its lines kept where they were, its strings as
 # they are.
-_JSONC = re.compile(rf"({_QUOTED})|//.*|/\*[\s\S]*?(?:\*/|\Z)")
+_JSONC = re.compile(rf"({_QUOTED})|//[^\r\n\u2028\u2029]*|/\*[\s\S]*?(?:\*/|\Z)")
 _TRAILING = re.compile(rf"({_QUOTED})|,(?=\s*[}}\]])")
 # (Python reads them; JSON has none, and a strict reader - npm's, JSON.parse - breaks on them.)
 _CONSTANT = re.compile(r"-?\b(?:NaN|Infinity)\b")

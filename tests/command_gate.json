@@ -84608,21 +84608,21 @@ false
 },
 "unruled": {
 "cargo run -- C:\\Windows\\System32\\cmd.exe /c x": "cargo run",
+"npx eslint . --fix": "npx eslint",
 "poetry run C:\\Windows\\System32\\cmd.exe /c rd /s /q src": "poetry",
 "poetry run cmd /c rd /s /q src": "poetry",
+"uv run ruff check --fix .": "uv run ruff",
 "uv run \"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -c x": "uv run",
 "uv run C:\\Windows\\System32\\cmd.exe /c x": "uv run"
 },
 "ruled": {
 "conda run -n env python x.py": "conda",
-"npx eslint . --fix": "npx eslint",
 "npx prettier --write .": "npx prettier",
 "npx vitest run kill": "npx vitest",
 "pnpm exec tsc -p .": "pnpm exec tsc",
 "poetry run ruff format": "poetry run ruff",
 "uv run mypy .": "uv run mypy",
 "uv run pytest -k kill": "uv run pytest",
-"uv run ruff check --fix .": "uv run ruff",
 "uv run ruff format .": "uv run ruff",
 "uv run ruff format app": "uv run ruff"
 }

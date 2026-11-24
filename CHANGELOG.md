@@ -21,6 +21,19 @@ How to write an entry (every release looks the same):
 
 ## [Unreleased]
 
+### Fixed
+
+- **Chat**: Code style and types reads a `tsconfig.json`'s files through what it extends, up to 8 deep: one that names none - itself or by a base's `files: []` - is said "not checked", never passed; one that extends a file outside the project or not there is said too, and a tsconfig with a byte-order mark or a `//` comment ended by a lone carriage return is read as tsc reads it ([docs](docs/use/checked.md)).
+- **Chat**: in a `.js`, `.ts` or `.vue` file, a line separator (U+2028, U+2029) ends a line for Code style and types as it does for eslint and tsc - a problem on a line the turn wrote was counted as on a line it did not change, and the other way round.
+- **Chat**: Code style and types does not offer a card for a program an earlier turn's agent wrote in an install folder while it was in a working copy, or that was merged in - it read only writes already in the project; such a write, while the file still holds it, is said "not run" as one in the project is ([docs](docs/use/checked.md)).
+
+### Security
+
+- **Chat**: Code style and types tells tsc to write nothing - `--composite false --generateTrace null` after its other words, which win over the tsconfig and what it extends: a composite project, an incremental one with a `tsBuildInfoFile`, or a `generateTrace` made tsc write its build info or a trace where they said, outside the project too. Such a project is now type-checked, not passed over ([docs](docs/use/checked.md)).
+- **Chat**: an **Always run** rule no longer covers, past its words, ruff's `--fix`, `--fix-only`, `--unsafe-fixes` or `--add-noqa`; eslint's `--fix`, `--plugin`, `--parser`, `--init`, `--inspect-config`, `--suppress-all`, `--suppress-rule`, `--prune-suppressions` or a `--format` other than its own (`stylish`, `json`, `json-with-metadata`, `html`), nor its `--cache-file` or `--suppressions-location` outside the folder, in any spelling (`--outputFile`); mypy's `--install-types`, nor its reports outside the folder (`--html-report`, …); tsc's `--incremental`, `--composite`, `--noEmit false`, `--generateTrace`, `-b` / `--build` - but for `false` and `null`, which write nothing -, nor its `--generateCpuProfile` outside the folder: the rule Code style and types offers is a check that writes nothing. A word past a rule written in pieces a shell joins - `fal""se`, `--incre"mental"`, `".."/x` - is never taken for a harmless value or a path inside the folder (a value after `=` quoted whole, `--select="E,F"`, is that value), a short option's `=` is read past as ruff and eslint read it - `-o=../x` wrote ruff's report outside under Code style's own rule -, and tsc's `--p` and `--b` are read as its `-p` and `-b`. This reaches agents' own commands too - `uv run ruff` no longer covers `uv run ruff check --fix .`, `npx eslint` no longer `npx eslint . --fix` -, and tsc's options are read in any case, as tsc reads them (`--OUTDIR` is `--outDir`) ([docs](docs/use/permissions.md#what-a-rule-never-covers)).
+- **Chat**: Code style and types does not run eslint or tsc where an agent wrote in a `node_modules` above the folder they run in - Node loads their packages from the root's too -, and an **Always run** rule - or a yes given before - for a program in a `node_modules` asks on its card while such a write stands ([docs](docs/use/permissions.md#what-a-rule-never-covers)).
+- **Chat**: in a working copy, Code style and types runs its tools without the copy's own code first on PYTHONPATH - a `mypy/__init__.py` an agent wrote there was imported in place of the project's mypy; KOLONİ's test runs and the agents' commands keep the copy's code first ([docs](docs/use/checked.md)).
+
 ## [0.1.7] - 2026-11-24
 
 ### Added

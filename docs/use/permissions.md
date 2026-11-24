@@ -96,7 +96,18 @@ You can see and remove the rules you made under Settings › This project › **
   `-toolexec` and `-C`; cargo's `--config` and `--manifest-path`; gradle's `-I`, `-p` and `-b`;
   npm's `--script-shell`, `--prefix`, `--package`, `--userconfig` and `--node-options`; make's
   `SHELL=` and `-f`; tox's `-c`; maven's `-Dmaven.ext…`; uv's and pipx's `--with`, `-w`, `--from`,
-  `--spec`; a shell handed a line (`bash -c`). A rule for `python -m pytest` still covers
+  `--spec`; ruff's `--config`, `--fix`, `--fix-only`, `--unsafe-fixes` and `--add-noqa`; mypy's
+  `--config-file`, `--python-executable` and `--install-types`, and its `--cache-dir`,
+  `--junit-xml` and `--…-report` outside the folder; eslint's `-c`, `--rulesdir`,
+  `--resolve-plugins-relative-to`, `--plugin`, `--parser`, `--fix`, `--init`, `--inspect-config`,
+  `--suppress-all`, `--suppress-rule`, `--prune-suppressions` and a `--format` other than its own
+  (`stylish`, `json`, `json-with-metadata`, `html`), and its `-o`, `--cache-location`,
+  `--cache-file` and `--suppressions-location` outside the folder - a long one in any spelling
+  (`--outputFile`); tsc's `--incremental`, `--composite`, `--noEmit false`, `--generateTrace`, `-b`
+  and `--build` (but `false` and `null`, which write nothing: `--incremental false`), and its `-p`,
+  `--outDir`, `--outFile`, `--tsBuildInfoFile`, `--declarationDir` and `--generateCpuProfile`
+  outside the folder - in any case (`--OUTDIR`, `--p`); an option or its value written in pieces a
+  shell joins (`fal""se`, `".."/x`); a shell handed a line (`bash -c`). A rule for `python -m pytest` still covers
   `python -m pytest -q tests`, `-p no:cacheprovider` (a plugin turned off) and `-o log_cli=true`,
   but not `python -m pytest -p plugin`. Words after `--` are the script's own (`npm test --
   --prefix x` is covered), and past a rule that names a runner's package (`npx tsc`) the words are
@@ -106,7 +117,8 @@ Below Full auto, a command that keeps running (a server) asks every time, even w
 
 Nor does a rule - or a yes you gave before - cover a command whose program, named by its path in
 the project (`node_modules/.bin/tsc`, `./scripts/check`), is one an agent wrote, or sits in an
-install folder (`node_modules`, `.venv`, `site-packages`) an agent wrote in, while that file still
+install folder (`node_modules`, `.venv`, `site-packages`) an agent wrote in - for a program in a
+`node_modules`, in one above it too, which Node loads its packages from -, while that file still
 holds what the agent wrote: below Full auto it asks on a card that says so ("an agent wrote its
 program (web/node_modules): no rule covers a program an agent wrote, so none is offered - run it
 once or reject it"), with **Run once** and **Reject** alone - an **Always run** rule would not
