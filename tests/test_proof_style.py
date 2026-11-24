@@ -894,6 +894,39 @@ def test_the_rule_a_card_offers_is_the_line_koloni_runs_and_covers_nothing_more(
     assert not matches("gradle build -p no:x", "gradle build")
 
 
+def test_a_word_in_pieces_a_shell_joins_is_never_harmless_past_a_rule():
+    """The re-check's: `fal""se` is `false` to PowerShell and sh (and `f\\alse` to sh) - tsc
+    then emitted. A value or an option so written is never harmless, nor a path so built
+    inside; and tsc reads `--p` as `-p`."""
+    from app.commands import matches
+
+    tsc = NODE.replace("eslint", "tsc")
+    past = {
+        f"{tsc} {proof_style.TSC_WORDS}": [
+            *('--noEmit fal""se', '--noEmit f"alse"', '--noEmit "fa"lse', "--noEmit fal''se"),
+            *("--noEmit fals\\e", "--noEmit \\false", '--noEmit "false"', "--noEmit ./x.ts"),
+            *('--incremental fal""se', '--generateTrace nu""ll', '--incre"mental"'),
+            *('"--incremental"', "'-b'", '--no"Emit" false', "--incre\\mental"),
+            *('--outDir ".."/x', "--p C:/x/tsconfig.json", "--b", "--B"),
+        ],
+        f"{NODE} --format stylish": ['--output-file "."./x', '-o ".."/x', '--format st"yl"ish'],
+        ".venv/Scripts/mypy.exe": ['--html-report ".."/x'],
+        "pytest": ['-p no:"x"'],
+    }
+    for rule, extras in past.items():
+        for extra in extras:
+            assert not matches(f"{rule} {extra} ./a", rule), extra
+    # (one pair of outer quotes is a word as it is; a value that is no option's stays covered)
+    covered = {
+        f"{tsc} {proof_style.TSC_WORDS}": ["--noEmit", "--noEmit true", '--outDir "dist"'],
+        f"{NODE} --format stylish": ['--format "stylish"', "--format 'json'"],
+        "pytest": ['-k "a or b"', '-p "no:cacheprovider"'],
+    }
+    for rule, extras in covered.items():
+        for extra in extras:
+            assert matches(f"{rule} {extra}", rule), extra
+
+
 @pytest.mark.no_po
 def test_a_program_an_earlier_turn_planted_is_not_run_by_a_rule_either(
     make_client, wait_run, project_dir

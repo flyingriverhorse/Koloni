@@ -106,7 +106,8 @@ You can see and remove the rules you made under Settings › This project › **
   (`--outputFile`); tsc's `--incremental`, `--composite`, `--noEmit false`, `--generateTrace`, `-b`
   and `--build` (but `false` and `null`, which write nothing: `--incremental false`), and its `-p`,
   `--outDir`, `--outFile`, `--tsBuildInfoFile`, `--declarationDir` and `--generateCpuProfile`
-  outside the folder - in any case (`--OUTDIR`); a shell handed a line (`bash -c`). A rule for `python -m pytest` still covers
+  outside the folder - in any case (`--OUTDIR`, `--p`); an option or its value written in pieces a
+  shell joins (`fal""se`, `".."/x`); a shell handed a line (`bash -c`). A rule for `python -m pytest` still covers
   `python -m pytest -q tests`, `-p no:cacheprovider` (a plugin turned off) and `-o log_cli=true`,
   but not `python -m pytest -p plugin`. Words after `--` are the script's own (`npm test --
   --prefix x` is covered), and past a rule that names a runner's package (`npx tsc`) the words are

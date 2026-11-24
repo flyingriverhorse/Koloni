@@ -870,16 +870,23 @@ def _past_the_rule(words: list[str], extra: list[str]) -> bool:
         for rows in (_PAST_A_RULE, _PAST_A_RULE_OUT)
     )
     own = extra[: extra.index("--")] if "--" in extra else extra
-    for at, word in enumerate(own):
+    for at, written in enumerate(own):
         after = own[at + 1] if at + 1 < len(own) else ""
+        # (an option in pieces a shell joins - `--incre"mental"` - is past any rule of these; a
+        # value in pieces is judged with its option, as `after`)
+        option_like = _PIECES.sub("", written).startswith("-")
+        if (given or out) and option_like and _one_piece(written) is None:
+            return True
+        if (word := _one_piece(written, path=True)) is None:
+            continue
         for program, option, takes in given:
             value = _option_given(_option_spelling(program, word), after, option, takes)
-            if value is not None and not _harmless(program, option, value.strip("'\"")):
+            if value is not None and not _harmless(program, option, value):
                 return True
         if any(
             (value := _option_given(_option_spelling(program, word), after, option, takes))
             is not None
-            and (_outside(value.strip("'\"")) or re.search(r"[$%~]", value))
+            and _value_leads_out(value)
             for program, option, takes in out
         ):
             return True
@@ -891,23 +898,27 @@ def _option_spelling(program: str, word: str) -> str:
     5.9); eslint's long ones in any case and with or without inner dashes (`--outputFile`) -
     optionator 0.9.4, eslint's, looks a name up as written and refuses `--Fix` or `-F`: this
     fails closed if a version does not. A value after `=` stays as written."""
-    if program == "tsc":
-        return word.casefold()
+    if program == "tsc":  # (and `--p` is `-p` to it)
+        folded = word.casefold()
+        return folded[1:] if len(folded) == 3 and folded.startswith("--") else folded
     if program == "eslint" and word.startswith("--"):
         name, sep, value = word[2:].partition("=")
         return f"--{name.replace('-', '').casefold()}{sep}{value}"
     return word
 
 
-def _harmless(program: str, option: str, value: str) -> bool:
+def _harmless(program: str, option: str, written: str) -> bool:
     """What of an option `_PAST_A_RULE` lists changes nothing of what runs: pytest's plugin
     turned off (`-p no:x`) or how it logs (`-o log_cli=true`), eslint's own formatter, tsc
     told to write nothing (`--incremental false`, `--composite false`, `--noEmit`,
-    `--generateTrace null` - tsc reads `false` and `null` as written: `FALSE` is true)."""
-    if program == "tsc":
+    `--generateTrace null` - tsc reads `false` and `null` as written: `FALSE` is true). A value
+    in pieces a shell joins (`fal""se`, `f\\alse`) never is (`_one_piece`)."""
+    if (value := _one_piece(written)) is None:
+        return False
+    if program == "tsc":  # (`--noEmit` last, before another option, or `true`: on)
         return (
             (option in ("--incremental", "--composite") and value == "false")
-            or (option == "--noemit" and value != "false")
+            or (option == "--noemit" and (value in ("", "true") or value.startswith("-")))
             or (option == "--generatetrace" and value == "null")
         )
     if program == "pytest":
@@ -915,6 +926,26 @@ def _harmless(program: str, option: str, value: str) -> bool:
             option in ("-o", "--override-ini") and value.split("=", 1)[0] in _HARMLESS_INI
         )
     return program == "eslint" and option in ("-f", "--format") and value in _ESLINT_FORMATS
+
+
+# A quote or a backslash in a word past a rule: a shell joins or unescapes its pieces.
+_PIECES = re.compile(r"[\"'\\]")
+
+
+def _one_piece(text: str, path: bool = False) -> str | None:
+    """`text` without one pair of outer quotes - None where a quote or a backslash is anywhere
+    else in it (a `path` on Windows may hold a backslash: its separator there): a shell joins
+    or unescapes such pieces (`fal""se`, `".."/x`, sh's `f\\alse`), never worked out here."""
+    quoted = len(text) > 1 and text[0] == text[-1] and text[0] in "'\""
+    inner = text[1:-1] if quoted else text
+    odd = re.search(r"[\"']", inner) if path and sys.platform == "win32" else _PIECES.search(inner)
+    return None if odd else inner
+
+
+def _value_leads_out(value: str) -> bool:
+    """Whether an option's value leads out of the folder - or is in pieces (`_one_piece`)."""
+    plain = _one_piece(value, path=True)
+    return plain is None or _outside(plain) or bool(re.search(r"[$%~]", plain))
 
 
 def _option_given(word: str, after: str, option: str, takes: str | None) -> str | None:
