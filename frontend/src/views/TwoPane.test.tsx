@@ -13,7 +13,15 @@ const files: TreeFile[] = [
 function Tree(more: Partial<Parameters<typeof TwoPane>[0]>) {
   const [open, setOpen] = useState<Record<string, boolean>>({})
   return (
-    <TwoPane name="t" files={files} selected="1" onOpen={() => {}} isOpen={key => open[key] ?? true} onFolder={(key, now) => setOpen(was => ({ ...was, [key]: now }))} {...more}>
+    <TwoPane
+      name="t"
+      files={files}
+      selected="1"
+      onOpen={() => {}}
+      isOpen={key => open[key] ?? true}
+      onFolder={(key, now) => setOpen(was => ({ ...was, [key]: now }))}
+      {...more}
+    >
       <p>the content</p>
     </TwoPane>
   )
@@ -28,7 +36,11 @@ afterEach(() => vi.restoreAllMocks())
 test('the files are a tree by their folders: each with its state, a dot when new, and who wrote it on hover', () => {
   pane()
   const tree = screen.getByRole('tree', { name: 'Files' })
-  expect(within(tree).getAllByRole('treeitem').map(i => i.textContent)).toEqual(['Artifacts', 'site', 'index.htmlproposed', 'notes.mdshown', 'Images', 'chart.pngshown'])
+  expect(
+    within(tree)
+      .getAllByRole('treeitem')
+      .map(i => i.textContent),
+  ).toEqual(['Artifacts', 'site', 'index.htmlproposed', 'notes.mdshown', 'Images', 'chart.pngshown'])
   expect(item('Artifacts')).toHaveAttribute('aria-expanded', 'true')
   expect(item('Artifacts')).toHaveAttribute('aria-level', '1')
   expect(item(/^index\.html/)).toHaveAttribute('aria-level', '3')
@@ -95,7 +107,14 @@ test('a folder is one though nothing in it is read yet; below the top folders co
     { id: 'A.md', path: 'koloni/A.md', title: 'A.md', meta: '' },
   ]
   pane({ files: tree, selected: undefined, isOpen: key => key !== '/koloni/empty' })
-  expect(items().map(i => i.textContent)).toEqual(['koloni', 'empty', 'src', 'a.pymodified, Waits for you', 'A.md', 'b.py'])
+  expect(items().map(i => i.textContent)).toEqual([
+    'koloni',
+    'empty',
+    'src',
+    'a.pymodified, Waits for you',
+    'A.md',
+    'b.py',
+  ])
   expect(item('empty')).toHaveAttribute('aria-expanded', 'false')
   expect(item('koloni changed')).toHaveAttribute('aria-level', '1')
   expect(item('src changed').querySelector('.tree-changed')).not.toBeNull()
@@ -150,7 +169,22 @@ test('the files are never wider than the window leaves them, whatever width was 
 
 test('what is shown beside a name can be a mark of its own; the words are still its name and on hover', () => {
   render(
-    <TwoPane name="t" files={[{ id: '1', path: 'a.py', title: 'a.py · Applied', meta: '+1 −0 Applied', mark: <span className="tree-mark">●</span> }]} selected="1" onOpen={() => {}} isOpen={() => true} onFolder={() => {}}>
+    <TwoPane
+      name="t"
+      files={[
+        {
+          id: '1',
+          path: 'a.py',
+          title: 'a.py · Applied',
+          meta: '+1 −0 Applied',
+          mark: <span className="tree-mark">●</span>,
+        },
+      ]}
+      selected="1"
+      onOpen={() => {}}
+      isOpen={() => true}
+      onFolder={() => {}}
+    >
       <p />
     </TwoPane>,
   )
@@ -165,11 +199,35 @@ test('a row says where its file is and shows its mark in place of the words; a c
   pane({ files: more, selected: 'b' })
   const row = (name: string | RegExp) => {
     const one = item(name)
-    return { name: one.getAttribute('aria-label'), class: one.className, selected: one.getAttribute('aria-selected'), tab: one.tabIndex, inside: Array.from(one.children, child => `${child.className}:${child.textContent}`) }
+    return {
+      name: one.getAttribute('aria-label'),
+      class: one.className,
+      selected: one.getAttribute('aria-selected'),
+      tab: one.tabIndex,
+      inside: Array.from(one.children, child => `${child.className}:${child.textContent}`),
+    }
   }
-  expect(row(/^src/)).toEqual({ name: 'src changed', class: 'tree-row tree-folder', selected: null, tab: -1, inside: ['tree-name:src', 'tree-changed:'] })
-  expect(row(/^app\.py/)).toEqual({ name: 'app.py in koloni-wt modified', class: 'tree-row', selected: 'false', tab: -1, inside: ['tree-name:app.py', 'tree-where:koloni-wt', 'tree-meta mono:M'] })
-  expect(row(/^old\.py/)).toEqual({ name: 'old.py shown', class: 'tree-row', selected: 'true', tab: 0, inside: ['tree-name:old.py', 'tree-meta mono:shown'] })
+  expect(row(/^src/)).toEqual({
+    name: 'src changed',
+    class: 'tree-row tree-folder',
+    selected: null,
+    tab: -1,
+    inside: ['tree-name:src', 'tree-changed:'],
+  })
+  expect(row(/^app\.py/)).toEqual({
+    name: 'app.py in koloni-wt modified',
+    class: 'tree-row',
+    selected: 'false',
+    tab: -1,
+    inside: ['tree-name:app.py', 'tree-where:koloni-wt', 'tree-meta mono:M'],
+  })
+  expect(row(/^old\.py/)).toEqual({
+    name: 'old.py shown',
+    class: 'tree-row',
+    selected: 'true',
+    tab: 0,
+    inside: ['tree-name:old.py', 'tree-meta mono:shown'],
+  })
   expect(item(/^app\.py/)).toHaveStyle({ paddingLeft: '36px' })
   expect(item(/^src/)).toHaveStyle({ paddingLeft: '8px' })
 })

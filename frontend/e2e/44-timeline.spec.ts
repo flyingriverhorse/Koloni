@@ -16,7 +16,8 @@ test.beforeEach(tidy)
 test.afterEach(tidy)
 
 const stripOf = (page: Page) => page.getByRole('region', { name: 'Timeline' })
-const rowOf = (strip: Locator, name: string) => strip.getByRole('row').filter({ has: strip.page().getByRole('button', { name, exact: true }) })
+const rowOf = (strip: Locator, name: string) =>
+  strip.getByRole('row').filter({ has: strip.page().getByRole('button', { name, exact: true }) })
 
 /** Every piece of text in it against what it stands on: 4.5 or more. */
 async function check(root: Locator, least: number) {
@@ -30,7 +31,9 @@ async function above(upper: Locator, lower: Locator) {
   expect(a && b && a.y + a.height <= b.y + 1, 'drawn above the strip').toBe(true)
 }
 
-test('the timeline says who waits for you while it waits and how long afterwards; a sub-agent under its lead; a bar opens its window', async ({ page }) => {
+test('the timeline says who waits for you while it waits and how long afterwards; a sub-agent under its lead; a bar opens its window', async ({
+  page,
+}) => {
   test.setTimeout(90_000)
   await openFreshConversation(page, { leadWrites: false })
   const chat = page.getByRole('region', { name: 'Chat' })
@@ -83,7 +86,9 @@ test('the timeline says who waits for you while it waits and how long afterwards
 })
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`in the ${theme} theme every text of the timeline stands out from what it is on (contrast 4.5 or more) - its waits too`, async ({ page }) => {
+  test(`in the ${theme} theme every text of the timeline stands out from what it is on (contrast 4.5 or more) - its waits too`, async ({
+    page,
+  }) => {
     test.setTimeout(60_000)
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page, { leadWrites: false })
@@ -107,12 +112,16 @@ for (const theme of ['light', 'dark'] as const) {
   })
 }
 
-test('on a small window the strip at its tallest leaves the open chat its header, on the stage and above the strip', async ({ page }) => {
+test('on a small window the strip at its tallest leaves the open chat its header, on the stage and above the strip', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1366, height: 768 })
   await openFreshConversation(page)
   await page.getByLabel('Message').fill('review the greeting')
   await page.getByRole('button', { name: 'Send' }).click()
-  await expect(page.getByRole('region', { name: 'Chat' }).getByText('The reviewer found no problems.')).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('region', { name: 'Chat' }).getByText('The reviewer found no problems.')).toBeVisible({
+    timeout: 20_000,
+  })
   await page.getByRole('button', { name: 'Timeline', exact: true }).click()
   const strip = stripOf(page)
   const edge = strip.getByRole('separator', { name: 'Timeline height' })

@@ -19,13 +19,22 @@ import { READY_PANEL, type ReadyItem, type ReadySource, SOURCES, chatOf, ofChat,
 /** Open a chat; `key`: at that card of it (the panel's This chat). Resolves once it is open. */
 type OpenChat = (conversationId: string, key?: string) => Promise<void>
 
-const WORD: Record<ReadySource, string> = { chat: 'chat', todo: 'to-do', memory: 'memory', night: 'while away', other: 'other folder' }
+const WORD: Record<ReadySource, string> = {
+  chat: 'chat',
+  todo: 'to-do',
+  memory: 'memory',
+  night: 'while away',
+  other: 'other folder',
+}
 
 /**
  * A chat's cards' words, as the chat's own take them. Another chat sends no events here: once one of its cards is
  * answered, it is read again (`loadReadyChats`); a diff of it opens in its chat.
  */
-function handlersOf(state: ConvState, openChat: OpenChat): RequestHandlers & { onDecidePlan: ReturnType<typeof useApp.getState>['decidePlan'] } {
+function handlersOf(
+  state: ConvState,
+  openChat: OpenChat,
+): RequestHandlers & { onDecidePlan: ReturnType<typeof useApp.getState>['decidePlan'] } {
   const s = useApp.getState()
   const id = state.conversation.id
   const then =
@@ -61,7 +70,9 @@ function fromOf(item: ReadyItem, folder: (projectId: string | null) => string | 
   const agent = item.state.agents.find(a => a.id === item.row.agentId)
   const name = agent && titleOf(agent.name || agent.role_name, teams)
   const where = item.source === 'other' ? folder(item.state.conversation.project_id) : undefined
-  return [name && (koloniAbout(item.row) ? `for ${name}` : `${name} asks`), `“${item.state.conversation.title}”`, where].filter(Boolean).join(' · ')
+  return [name && (koloniAbout(item.row) ? `for ${name}` : `${name} asks`), `“${item.state.conversation.title}”`, where]
+    .filter(Boolean)
+    .join(' · ')
 }
 
 /** A chat's card, with its chat's words. */
@@ -73,7 +84,17 @@ function ChatCard({ state, row, openChat }: { state: ConvState; row: WaitingRow;
 }
 
 /** One thing that waits: where it is from, since when, and its own card, its decision on it (tek-ev §1). */
-function ReadyRow({ item, openChat, error, off }: { item: ReadyItem; openChat: OpenChat; error?: string; off?: boolean }) {
+function ReadyRow({
+  item,
+  openChat,
+  error,
+  off,
+}: {
+  item: ReadyItem
+  openChat: OpenChat
+  error?: string
+  off?: boolean
+}) {
   const projects = useApp(s => s.projects)
   const memory = useApp(s => s.memory)
   const teams = useApp(s => s.teams)
@@ -81,16 +102,27 @@ function ReadyRow({ item, openChat, error, off }: { item: ReadyItem; openChat: O
   const from = fromOf(item, projectId => projects.find(p => p.id === projectId)?.name, teams)
   const s = useApp.getState()
   // A night's job, whether from the night or from its chat's card: what it asks, and the way to its chat - nothing more.
-  const night = item.what === 'night' ? item.job : item.what === 'card' && item.row.what === 'night' ? item.row.item.job : null
+  const night =
+    item.what === 'night' ? item.job : item.what === 'card' && item.row.what === 'night' ? item.row.item.job : null
   return (
     // (Each row a group named by where it is from: their buttons told apart.)
-    <li id={readyId(item.key)} tabIndex={-1} className="ready-item" role="group" aria-label={`${WORD[item.source]}: ${from}`}>
+    <li
+      id={readyId(item.key)}
+      tabIndex={-1}
+      className="ready-item"
+      role="group"
+      aria-label={`${WORD[item.source]}: ${from}`}
+    >
       <div className="ready-item-head">
         <span className="tag">{WORD[item.source]}</span>
         <span className="ready-item-from">{from}</span>
         {item.at && <span className="mono muted">{since(item.at)}</span>}
         {chat && (
-          <button type="button" className="btn btn-small" onClick={() => void openChat(chat, item.what === 'card' ? item.key : undefined)}>
+          <button
+            type="button"
+            className="btn btn-small"
+            onClick={() => void openChat(chat, item.what === 'card' ? item.key : undefined)}
+          >
             Open chat
           </button>
         )}
@@ -100,12 +132,26 @@ function ReadyRow({ item, openChat, error, off }: { item: ReadyItem; openChat: O
       ) : item.what === 'card' ? (
         <ChatCard state={item.state} row={item.row} openChat={openChat} />
       ) : item.what === 'task' ? (
-        <WaitRow task={item.task} only={item.kind} onDecide={s.decideTask} onChange={s.changeTask} onOpen={id => void openChat(id)} off={off} failed={error} />
+        <WaitRow
+          task={item.task}
+          only={item.kind}
+          onDecide={s.decideTask}
+          onChange={s.changeTask}
+          onOpen={id => void openChat(id)}
+          off={off}
+          failed={error}
+        />
       ) : item.what === 'memory' ? (
         item.suggestion ? (
           <Suggestion record={item.record} onAdd={s.addPreference} onReject={s.rejectMemory} />
         ) : (
-          <Proposal record={item.record} replaces={memory ? wouldReplace(memory, item.record) : undefined} onApprove={s.approveMemory} onReject={s.rejectMemory} onConfirm={s.confirmMemory} />
+          <Proposal
+            record={item.record}
+            replaces={memory ? wouldReplace(memory, item.record) : undefined}
+            onApprove={s.approveMemory}
+            onReject={s.rejectMemory}
+            onConfirm={s.confirmMemory}
+          />
         )
       ) : null}
     </li>
@@ -115,7 +161,17 @@ function ReadyRow({ item, openChat, error, off }: { item: ReadyItem; openChat: O
 /** A row's kind, for its part of Ready for you (`PARTS`): a chat's card as its chat counts it; a To-do, memory or night row is a decision. */
 const kindOf = (item: ReadyItem): WaitingKind => (item.what === 'card' ? item.row.kind : 'decision')
 
-function ReadyList({ items, openChat, errors = {}, off }: { items: ReadyItem[]; openChat: OpenChat; errors?: Record<string, string>; off?: boolean }) {
+function ReadyList({
+  items,
+  openChat,
+  errors = {},
+  off,
+}: {
+  items: ReadyItem[]
+  openChat: OpenChat
+  errors?: Record<string, string>
+  off?: boolean
+}) {
   return (
     <ul className="ready-items">
       {items.map(item => (
@@ -195,7 +251,11 @@ export function ReadyPanel({ items, openChat, onPage, onClose }: PanelProps) {
           <h3 id={`${id}-rest`} className="kicker">
             Elsewhere · {rest.length}
           </h3>
-          {rest.length > 0 ? <ReadyList items={rest} openChat={openChat} /> : <p className="muted">Nothing else waits for you.</p>}
+          {rest.length > 0 ? (
+            <ReadyList items={rest} openChat={openChat} />
+          ) : (
+            <p className="muted">Nothing else waits for you.</p>
+          )}
         </section>
       </div>
       <div className="ready-panel-foot">
@@ -249,7 +309,13 @@ export function ReadyPage({ items, openChat }: { items: ReadyItem[]; openChat: O
           All · {items.length}
         </button>
         {SOURCES.map(([source, word]) => (
-          <button key={source} type="button" className="btn btn-small" aria-pressed={only === source} onClick={() => setOnly(source)}>
+          <button
+            key={source}
+            type="button"
+            className="btn btn-small"
+            aria-pressed={only === source}
+            onClick={() => setOnly(source)}
+          >
             {word} · {items.filter(item => item.source === source).length}
           </button>
         ))}

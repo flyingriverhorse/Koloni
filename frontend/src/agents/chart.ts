@@ -1,5 +1,13 @@
 import type { DragEvent } from 'react'
-import { type Category, type Colour, type Provider, type Role, type RoleModel, type RolesActivity, TIERS } from '../api/types'
+import {
+  type Category,
+  type Colour,
+  type Provider,
+  type Role,
+  type RoleModel,
+  type RolesActivity,
+  TIERS,
+} from '../api/types'
 import { modelName } from '../shell/modelName'
 
 /**
@@ -21,7 +29,8 @@ export const colourVar = (colour: Colour) => `var(--cat-${colour})`
 /** KOLONİ's four categories (app/api/categories.py): renamed and recoloured, never deleted. */
 export const BUILT_IN_CATEGORIES = ['plan', 'build', 'check', 'write']
 /** A role's colour and its category's name ("brown" and the key itself for a kind no category has). */
-export const kindColour = (categories: Category[], kind: string) => colourVar(categories.find(one => one.key === kind)?.colour ?? 'brown')
+export const kindColour = (categories: Category[], kind: string) =>
+  colourVar(categories.find(one => one.key === kind)?.colour ?? 'brown')
 export const kindName = (categories: Category[], kind: string) => categories.find(one => one.key === kind)?.name ?? kind
 
 /** The library's groups: the categories in their order, then any kind a role has that no category is (shown, not changed). */
@@ -38,7 +47,13 @@ export function groupsOf(roles: Role[], categories: Category[]): CategoryGroup[]
   const loose = [...new Set(roles.map(role => role.kind).filter(kind => !keys.has(kind)))]
   return [
     ...categories.map(one => ({ ...one, roles: roles.filter(role => role.kind === one.key), listed: true })),
-    ...loose.map(kind => ({ key: kind, name: kind, colour: 'brown' as const, roles: roles.filter(role => role.kind === kind), listed: false })),
+    ...loose.map(kind => ({
+      key: kind,
+      name: kind,
+      colour: 'brown' as const,
+      roles: roles.filter(role => role.kind === kind),
+      listed: false,
+    })),
   ]
 }
 
@@ -57,8 +72,13 @@ export const hasSwitch = (role: Role) => canSwitch(role) && !role.locked_tools?.
 
 /** Which model a role uses, in a few words (mockup B), wherever it is said: "Orchestrator · fast–strongest",
  *  "Always balanced", "Claude Code · opus", "As the chat". */
-export function ruleText(role: Pick<Role, 'provider_id' | 'model_id' | 'tier' | 'tier_min' | 'tier_max'>, providers: Pick<Provider, 'id' | 'name'>[], isLead = false): string {
-  if (role.provider_id) return `${providers.find(p => p.id === role.provider_id)?.name ?? 'a provider'} · ${role.model_id ? modelName(role.model_id) : 'its default'}`
+export function ruleText(
+  role: Pick<Role, 'provider_id' | 'model_id' | 'tier' | 'tier_min' | 'tier_max'>,
+  providers: Pick<Provider, 'id' | 'name'>[],
+  isLead = false,
+): string {
+  if (role.provider_id)
+    return `${providers.find(p => p.id === role.provider_id)?.name ?? 'a provider'} · ${role.model_id ? modelName(role.model_id) : 'its default'}`
   // (The Lead's own "none" is the conversation's model.)
   if (role.tier === 'conversation' || (!role.tier && isLead)) return 'As the chat'
   if (role.tier) return `Always ${role.tier}`

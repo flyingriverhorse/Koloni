@@ -6,8 +6,16 @@ import { part, Row, within } from './part'
 
 /** Who changes the files (K-devret): every chat's choice, the project's (tek-ev); and the To-do page's for its chats. */
 export const LEAD_WORK: [value: Project['lead_work'], label: string, note: string][] = [
-  ['delegates', 'Orchestrator delegates the work', 'The Orchestrator plans, asks and checks; sub-agents change the files.'],
-  ['decides', 'Orchestrator decides', 'A small change (one or two files, a few lines) it makes itself, asking as usual; bigger work goes to a sub-agent.'],
+  [
+    'delegates',
+    'Orchestrator delegates the work',
+    'The Orchestrator plans, asks and checks; sub-agents change the files.',
+  ],
+  [
+    'decides',
+    'Orchestrator decides',
+    'A small change (one or two files, a few lines) it makes itself, asking as usual; bigger work goes to a sub-agent.',
+  ],
   ['itself', 'Orchestrator does it itself', 'It changes the files itself, and may still hand a part to a sub-agent.'],
 ]
 
@@ -24,7 +32,8 @@ export const OPENING: [value: Project['spawn_approval'], label: string][] = [
   ['always', 'Always ask'],
   ['never', 'Never ask'],
 ]
-const OPENING_WHY = 'Ask when it matters: only when you approve everything and the sub-agent could write files or run commands. Always: before every sub-agent. Never: sub-agents open on their own.'
+const OPENING_WHY =
+  'Ask when it matters: only when you approve everything and the sub-agent could write files or run commands. Always: before every sub-agent. Never: sub-agents open on their own.'
 
 /** K-yargıç: at Full auto a command that deletes, overwrites or sends something off this machine asks you, or is first checked against what you said. */
 export const FULL_AUTO_CHECK: [value: Project['full_auto_check'], label: string][] = [
@@ -37,7 +46,8 @@ const CHECK_WHY =
 /** What a look over each report costs, and what is sent to which model, in sight under its box; the rest behind ⓘ. */
 const OBSERVE_SHOWN =
   'One more model request after every sub-agent’s report, on your plan or your bill; Usage shows it under that model. The Observer role’s model (set on the Agents page) is sent the task, the report, the diffs of the changed files and the test’s output, with the secrets KOLONİ knows masked.'
-const OBSERVE_REST = 'It says, with no tools, what of the report the record shows. The Orchestrator takes its words as an opinion, not a fact.'
+const OBSERVE_REST =
+  'It says, with no tools, what of the report the record shows. The Orchestrator takes its words as an opinion, not a fact.'
 
 /** The Scout at a turn's end (6 Nov): who it is and what it costs, in sight; the rest behind ⓘ. */
 const SUGGEST_SHOWN =
@@ -70,8 +80,18 @@ export function useAgents(project: Project) {
     <>
       <h2>Agents</h2>
       <p className="choice-note">Every chat of this project follows these, the ones made before too.</p>
-      <Row label="Who changes the files" htmlFor="lead-work" doc={GUIDE.settingsAgents} why={LEAD_WORK.map(([, label, note]) => `${label}: ${note}`).join(' ')}>
-        <select id="lead-work" className="input" value={leadWork} onChange={e => setLeadWork(e.target.value as Project['lead_work'])}>
+      <Row
+        label="Who changes the files"
+        htmlFor="lead-work"
+        doc={GUIDE.settingsAgents}
+        why={LEAD_WORK.map(([, label, note]) => `${label}: ${note}`).join(' ')}
+      >
+        <select
+          id="lead-work"
+          className="input"
+          value={leadWork}
+          onChange={e => setLeadWork(e.target.value as Project['lead_work'])}
+        >
           {LEAD_WORK.map(([value, label]) => (
             <option key={value} value={value}>
               {label}
@@ -81,7 +101,12 @@ export function useAgents(project: Project) {
       </Row>
       <label className="choice">
         {/* Named by all of its note, as the commit box is: a browser leaves a closed hint out of a name. */}
-        <input type="checkbox" aria-label={`Have a model look over each sub-agent’s report ${OBSERVE_SHOWN} ${OBSERVE_REST}`} checked={observe} onChange={e => setObserve(e.target.checked)} />
+        <input
+          type="checkbox"
+          aria-label={`Have a model look over each sub-agent’s report ${OBSERVE_SHOWN} ${OBSERVE_REST}`}
+          checked={observe}
+          onChange={e => setObserve(e.target.checked)}
+        />
         <span>
           Have a model look over each sub-agent’s report
           <span className="choice-note">
@@ -100,7 +125,12 @@ export function useAgents(project: Project) {
       </label>
       {suggest && (
         <Row label="Follow-up tasks from" htmlFor="suggest-tier">
-          <select id="suggest-tier" className="input" value={suggestTier} onChange={e => setSuggestTier(e.target.value as Project['suggest_tier'])}>
+          <select
+            id="suggest-tier"
+            className="input"
+            value={suggestTier}
+            onChange={e => setSuggestTier(e.target.value as Project['suggest_tier'])}
+          >
             {SUGGEST_TIERS.map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
@@ -139,10 +169,20 @@ export function useAsking(project: Project) {
       <Row
         label="Opening a sub-agent"
         htmlFor="spawn-approval"
-        doc={GUIDE.settingsAsking} why={OPENING_WHY}
-        warn={approval === 'never' && <span className="choice-note">Sub-agents open on their own, in every chat of this project.</span>}
+        doc={GUIDE.settingsAsking}
+        why={OPENING_WHY}
+        warn={
+          approval === 'never' && (
+            <span className="choice-note">Sub-agents open on their own, in every chat of this project.</span>
+          )
+        }
       >
-        <select id="spawn-approval" className="input" value={approval} onChange={e => setApproval(e.target.value as Project['spawn_approval'])}>
+        <select
+          id="spawn-approval"
+          className="input"
+          value={approval}
+          onChange={e => setApproval(e.target.value as Project['spawn_approval'])}
+        >
           {OPENING.map(([value, label]) => (
             <option key={value} value={value}>
               {label}
@@ -153,15 +193,25 @@ export function useAsking(project: Project) {
       <Row
         label="When you’re away"
         htmlFor="when-away"
-        doc={GUIDE.answeringForYou} why={AWAY_WHY}
+        doc={GUIDE.answeringForYou}
+        why={AWAY_WHY}
         warn={
           <>
             {awayMinutes === undefined && <span className="choice-note">0 (at once) to 1440 minutes.</span>}
-            {whenAway === 'lead' && <span className="choice-note">An Orchestrator on a CLI uses one request of your plan for each answer.</span>}
+            {whenAway === 'lead' && (
+              <span className="choice-note">
+                An Orchestrator on a CLI uses one request of your plan for each answer.
+              </span>
+            )}
           </>
         }
       >
-        <select id="when-away" className="input" value={whenAway} onChange={e => setWhenAway(e.target.value as Project['when_away'])}>
+        <select
+          id="when-away"
+          className="input"
+          value={whenAway}
+          onChange={e => setWhenAway(e.target.value as Project['when_away'])}
+        >
           {WHEN_AWAY.map(([value, label]) => (
             <option key={value} value={value}>
               {label}
@@ -170,7 +220,15 @@ export function useAsking(project: Project) {
         </select>{' '}
         <span className="set-inline">
           after{' '}
-          <input id="away-minutes" className="input mono set-short" inputMode="numeric" aria-label="Minutes before the Orchestrator answers" value={minutesText} aria-invalid={awayMinutes === undefined || undefined} onChange={e => setMinutesText(e.target.value)} />{' '}
+          <input
+            id="away-minutes"
+            className="input mono set-short"
+            inputMode="numeric"
+            aria-label="Minutes before the Orchestrator answers"
+            value={minutesText}
+            aria-invalid={awayMinutes === undefined || undefined}
+            onChange={e => setMinutesText(e.target.value)}
+          />{' '}
           min
         </span>
       </Row>
@@ -191,8 +249,8 @@ function useDisposableDeletes(project: Project) {
         <span>
           Agents may delete what is disposable without asking
           <span className="choice-note">
-            (clean worktrees and merged branches you no longer use, build and cache folders) - at Auto-edit and Full auto, in a chat you
-            watch. KOLONİ checks each one first; any other delete asks as before.
+            (clean worktrees and merged branches you no longer use, build and cache folders) - at Auto-edit and Full
+            auto, in a chat you watch. KOLONİ checks each one first; any other delete asks as before.
           </span>
         </span>
       </label>
@@ -210,10 +268,22 @@ function useFullAutoCheck(project: Project) {
       <Row
         label="A harmful-looking command at Full auto"
         htmlFor="full-auto-check"
-        doc={GUIDE.settingsAsking} why={CHECK_WHY}
-        warn={check === 'judge' && <span className="choice-note">Each such command is one request of your Fast tier’s first model (on a CLI, of your plan).</span>}
+        doc={GUIDE.settingsAsking}
+        why={CHECK_WHY}
+        warn={
+          check === 'judge' && (
+            <span className="choice-note">
+              Each such command is one request of your Fast tier’s first model (on a CLI, of your plan).
+            </span>
+          )
+        }
       >
-        <select id="full-auto-check" className="input" value={check} onChange={e => setCheck(e.target.value as Project['full_auto_check'])}>
+        <select
+          id="full-auto-check"
+          className="input"
+          value={check}
+          onChange={e => setCheck(e.target.value as Project['full_auto_check'])}
+        >
           {FULL_AUTO_CHECK.map(([value, label]) => (
             <option key={value} value={value}>
               {label}

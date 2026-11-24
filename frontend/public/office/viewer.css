@@ -4,7 +4,9 @@ body {
   min-height: 100%;
   background: #ffffff;
   color: #1a1a1a;
-  font: 13px system-ui, sans-serif;
+  font:
+    13px system-ui,
+    sans-serif;
 }
 .sheet-name {
   margin: 12px 8px 4px;

@@ -30,7 +30,18 @@ interface Props {
  * A model name: free text, with the names the provider can list offered as you type.
  * Where a provider has no list, the note says what to type instead; nothing is made up.
  */
-export function ModelNameInput({ id, label, value, placeholder, providerId, loadModels, listId: shared, more = [], quiet, onChange }: Props) {
+export function ModelNameInput({
+  id,
+  label,
+  value,
+  placeholder,
+  providerId,
+  loadModels,
+  listId: shared,
+  more = [],
+  quiet,
+  onChange,
+}: Props) {
   const ownId = useId()
   const listId = shared ?? ownId
   const [offered, setOffered] = useState<OfferedModels | null>(null)
@@ -42,7 +53,7 @@ export function ModelNameInput({ id, label, value, placeholder, providerId, load
       .then(result => {
         if (current) setOffered(result)
       })
-      .catch(() => {})  // no suggestions is not an error worth a message
+      .catch(() => {}) // no suggestions is not an error worth a message
     return () => {
       current = false
     }

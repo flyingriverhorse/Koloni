@@ -14,7 +14,8 @@ const CODEX = 'Codex 81a'
 
 async function remove(request: APIRequestContext) {
   for (const provider of await (await request.get('/api/providers')).json())
-    if ([CLI, PAID, MANY, CODEX].includes(provider.name)) await request.delete(`/api/providers/${provider.id}`, { headers: OWN })
+    if ([CLI, PAID, MANY, CODEX].includes(provider.name))
+      await request.delete(`/api/providers/${provider.id}`, { headers: OWN })
 }
 
 test.beforeEach(async ({ request }) => {
@@ -37,7 +38,12 @@ test.beforeEach(async ({ request }) => {
   expect(cli.ok()).toBeTruthy()
   const paid = await request.post('/api/providers', {
     headers: OWN,
-    data: { name: PAID, kind: 'openai_compat', base_url: 'https://api.example.invalid/v1', models: [{ name: 'paid-chat', tier: 'balanced' }] },
+    data: {
+      name: PAID,
+      kind: 'openai_compat',
+      base_url: 'https://api.example.invalid/v1',
+      models: [{ name: 'paid-chat', tier: 'balanced' }],
+    },
   })
   expect(paid.ok()).toBeTruthy()
 })
@@ -47,10 +53,15 @@ test.afterEach(async ({ request }) => {
 })
 
 const balanced = async (request: APIRequestContext) =>
-  ((await (await request.get('/api/tiers')).json()).balanced as { model: string }[]).map(one => one.model).filter(model => ['sonnet', 'paid-chat'].includes(model))
+  ((await (await request.get('/api/tiers')).json()).balanced as { model: string }[])
+    .map(one => one.model)
+    .filter(model => ['sonnet', 'paid-chat'].includes(model))
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`cards say what is known, a tier's order is the user's, and a provider opens in a window (${theme})`, async ({ page, request }) => {
+  test(`cards say what is known, a tier's order is the user's, and a provider opens in a window (${theme})`, async ({
+    page,
+    request,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page)
     await rail(page, 'Models').click()
@@ -86,11 +97,18 @@ for (const theme of ['light', 'dark'] as const) {
     await shot(page, `81a-models-1280-${theme}`)
     expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false)
     // No card's words are cut.
-    expect(await page.locator('.provider-card *:not(.visually-hidden)').evaluateAll(all => all.filter(one => one.scrollWidth > one.clientWidth + 1).map(one => one.className))).toEqual([])
+    expect(
+      await page
+        .locator('.provider-card *:not(.visually-hidden)')
+        .evaluateAll(all => all.filter(one => one.scrollWidth > one.clientWidth + 1).map(one => one.className)),
+    ).toEqual([])
     await page.setViewportSize({ width: 1440, height: 900 })
 
     // Its switch is on its card: off, greyed and said, its window not opened; on again.
-    const enabled = async () => ((await (await request.get('/api/providers')).json()) as { name: string; enabled: boolean }[]).find(p => p.name === PAID)?.enabled
+    const enabled = async () =>
+      ((await (await request.get('/api/providers')).json()) as { name: string; enabled: boolean }[]).find(
+        p => p.name === PAID,
+      )?.enabled
     const paidCard = page.getByRole('button', { name: new RegExp(`^${PAID}`) })
     await page.getByRole('switch', { name: `${PAID} on` }).click()
     await expect.poll(enabled).toBe(false)
@@ -119,7 +137,12 @@ for (const theme of ['light', 'dark'] as const) {
     await dialog.getByRole('switch', { name: 'Agents may use opus' }).uncheck()
     await expect(dialog.getByRole('status').filter({ hasText: 'Agents may not use opus now.' })).toBeVisible()
     await expect
-      .poll(async () => ((await (await request.get('/api/tiers')).json()).strongest as { model: string; agents: boolean }[]).find(one => one.model === 'opus')?.agents)
+      .poll(
+        async () =>
+          ((await (await request.get('/api/tiers')).json()).strongest as { model: string; agents: boolean }[]).find(
+            one => one.model === 'opus',
+          )?.agents,
+      )
       .toBe(false)
     // The model without a tier is last, faded.
     await expect(table.getByRole('row').last()).toHaveClass(/model-untiered/)
@@ -156,7 +179,9 @@ test('a long tier folds after five, and Codex’s card says why its use is not k
   ])
     expect((await request.post('/api/providers', { headers: OWN, data })).ok()).toBeTruthy()
   // Its command does not exist: it is said to be there, as a CLI not installed has no Read now.
-  const codexId = ((await (await request.get('/api/providers')).json()) as { id: string; name: string }[]).find(p => p.name === CODEX)!.id
+  const codexId = ((await (await request.get('/api/providers')).json()) as { id: string; name: string }[]).find(
+    p => p.name === CODEX,
+  )!.id
   await page.route(
     url => url.pathname === `/api/providers/${codexId}/availability`,
     route => route.fulfill({ json: { installed: true, signed_in: true, models: [] } }),

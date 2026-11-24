@@ -12,16 +12,23 @@ const PLANS = [
 async function clean(request: APIRequestContext) {
   await request.put('/api/triggers/paused', { headers: OWN, data: { paused: false } })
   for (const provider of await (await request.get('/api/providers')).json())
-    if (PLANS.some(plan => plan.name === provider.name)) await request.delete(`/api/providers/${provider.id}`, { headers: OWN })
+    if (PLANS.some(plan => plan.name === provider.name))
+      await request.delete(`/api/providers/${provider.id}`, { headers: OWN })
 }
 
 test.beforeEach(async ({ request }) => clean(request))
 test.afterEach(async ({ request }) => clean(request))
 
-test('at 700 px the top bar shows the plans used beside paused triggers and a turn, all on the screen, and opens Usage', async ({ page, request }) => {
+test('at 700 px the top bar shows the plans used beside paused triggers and a turn, all on the screen, and opens Usage', async ({
+  page,
+  request,
+}) => {
   await page.setViewportSize({ width: 700, height: 800 })
   for (const plan of PLANS) {
-    const made = await request.post('/api/providers', { headers: OWN, data: { name: plan.name, kind: plan.kind, executable: 'no-such-cli-for-42d' } })
+    const made = await request.post('/api/providers', {
+      headers: OWN,
+      data: { name: plan.name, kind: plan.kind, executable: 'no-such-cli-for-42d' },
+    })
     expect(made.ok()).toBe(true)
     const id = (await made.json()).id as string
     await page.route(
@@ -46,12 +53,19 @@ test('at 700 px the top bar shows the plans used beside paused triggers and a tu
   await page.getByLabel('Message').fill('say hello instead of hi')
   await page.getByRole('button', { name: 'Send' }).click()
   const bar = page.getByRole('banner')
-  const use = bar.getByRole('button', { name: /^Plan use: .*Claude Code 42d 42% of 5 hours, Codex 42d 8% of 5 hours.*; open Usage$/ })
+  const use = bar.getByRole('button', {
+    name: /^Plan use: .*Claude Code 42d 42% of 5 hours, Codex 42d 8% of 5 hours.*; open Usage$/,
+  })
   await expect(use).toContainText('Claude Code 42d42%Codex 42d8%')
   const state = bar.locator('[data-run="waiting_approval"]')
   await expect(state).toBeVisible()
   // It fits: nothing on the right is pushed past the window's edge.
-  for (const each of [use, bar.getByRole('button', { name: 'Resume' }), state, bar.getByRole('button', { name: 'Help' })]) {
+  for (const each of [
+    use,
+    bar.getByRole('button', { name: 'Resume' }),
+    state,
+    bar.getByRole('button', { name: 'Help' }),
+  ]) {
     const at = (await each.boundingBox())!
     expect(at.x + at.width).toBeLessThanOrEqual(700)
   }

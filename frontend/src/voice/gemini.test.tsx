@@ -23,8 +23,15 @@ const server = {
   said: [] as { text: string; style?: string }[],
   fail: null as null | { status: number; detail: unknown },
 }
-const shown = () => ({ has_key: server.key !== null, model: server.model, voice: server.voice, style: server.style, note: null })
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+const shown = () => ({
+  has_key: server.key !== null,
+  model: server.model,
+  voice: server.voice,
+  style: server.style,
+  note: null,
+})
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
 class FakeAudio {
   static all: FakeAudio[] = []
@@ -62,14 +69,25 @@ beforeEach(() => {
   localStorage.clear()
   resetStoreForTests()
   stopReading()
-  useVoice.setState({ ...DEFAULTS, speaking: null, stops: 0, fromStart: {}, saved: null, failed: null, fallback: false })
+  useVoice.setState({
+    ...DEFAULTS,
+    speaking: null,
+    stops: 0,
+    fromStart: {},
+    saved: null,
+    failed: null,
+    fallback: false,
+  })
   Object.assign(server, { key: null, style: '', note: null, put: [], said: [], fail: null })
   FakeAudio.all = []
   FakeAudio.refuse = null
   synth.said = []
   revoked.length = 0
   let made = 0
-  Object.assign(URL, { createObjectURL: () => `blob:sound-${++made}`, revokeObjectURL: (url: string) => revoked.push(url) })
+  Object.assign(URL, {
+    createObjectURL: () => `blob:sound-${++made}`,
+    revokeObjectURL: (url: string) => revoked.push(url),
+  })
   vi.stubGlobal('Audio', FakeAudio)
   vi.stubGlobal('speechSynthesis', synth)
   vi.stubGlobal('SpeechSynthesisUtterance', function (this: { text: string }, text: string) {
@@ -82,7 +100,11 @@ beforeEach(() => {
       if (url === '/api/voice/gemini' && init?.method === 'PUT') {
         server.put.push(body)
         if (body.api_key !== undefined) server.key = body.api_key || null
-        Object.assign(server, { model: body.model ?? server.model, voice: body.voice ?? server.voice, style: body.style ?? server.style })
+        Object.assign(server, {
+          model: body.model ?? server.model,
+          voice: body.voice ?? server.voice,
+          style: body.style ?? server.style,
+        })
         return json({ ...shown(), note: server.note })
       }
       if (url === '/api/voice/gemini') return json(shown())
@@ -99,7 +121,11 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-const opened = convState({ runs: [run('r0', 'completed')], messages: [userMessage('r0', 'hi'), assistantMessage('a0', 'r0', 'First one. Second one.')], agents: [agent('r0', 'completed')] })
+const opened = convState({
+  runs: [run('r0', 'completed')],
+  messages: [userMessage('r0', 'hi'), assistantMessage('a0', 'r0', 'First one. Second one.')],
+  agents: [agent('r0', 'completed')],
+})
 const going = (content: string, status: 'streaming' | 'complete' = 'streaming'): ConvState => ({
   ...opened,
   runs: [...opened.runs, run('r1', 'running')],
@@ -117,18 +143,30 @@ async function openPanel() {
 async function withKey(conv: ConvState = opened) {
   server.key = KEY
   useApp.setState({ conv, projectId: 'p' })
-  render(<><ChatPanel /><VoiceSettings /></>)
+  render(
+    <>
+      <ChatPanel />
+      <VoiceSettings />
+    </>,
+  )
   await waitFor(() => expect(useVoice.getState().saved?.has_key).toBe(true))
 }
 
 test('with no key the Browser tab is first, Gemini’s settings are off, and the browser reads', async () => {
   useApp.setState({ conv: opened, projectId: 'p' })
-  render(<><ChatPanel /><VoiceSettings /></>)
+  render(
+    <>
+      <ChatPanel />
+      <VoiceSettings />
+    </>,
+  )
   const panel = await openPanel()
   expect(screen.getByRole('tab', { name: 'Browser' })).toHaveAttribute('aria-selected', 'true')
   expect(panel).toHaveTextContent('Reading aloud uses this computer’s voices')
   await userEvent.click(screen.getByRole('tab', { name: 'Gemini' }))
-  expect(screen.getByRole('tabpanel', { name: 'Gemini' })).toHaveTextContent('Text read with Gemini is sent to Google. On the free tier Google may use it to improve its products; on a paid key it does not.')
+  expect(screen.getByRole('tabpanel', { name: 'Gemini' })).toHaveTextContent(
+    'Text read with Gemini is sent to Google. On the free tier Google may use it to improve its products; on a paid key it does not.',
+  )
   const reads = screen.getByRole('checkbox', { name: 'Read aloud with Gemini' })
   expect(reads).toBeDisabled()
   expect(reads).toHaveAccessibleDescription('With no key saved, this computer’s voices read.')
@@ -144,7 +182,12 @@ test('with no key the Browser tab is first, Gemini’s settings are off, and the
 
 test('the key is given once and never shown again; saved, Gemini reads and is the first tab; removed, it is gone', async () => {
   useApp.setState({ conv: opened, projectId: 'p' })
-  render(<><ChatPanel /><VoiceSettings /></>)
+  render(
+    <>
+      <ChatPanel />
+      <VoiceSettings />
+    </>,
+  )
   await openPanel()
   await userEvent.click(screen.getByRole('tab', { name: 'Gemini' }))
   const field = screen.getByLabelText('Gemini API key')
@@ -157,7 +200,9 @@ test('the key is given once and never shown again; saved, Gemini reads and is th
   const reads = screen.getByRole('checkbox', { name: 'Read aloud with Gemini' })
   expect(reads).toBeChecked()
   expect(reads).toHaveAccessibleDescription('When off, this computer’s voices read.')
-  expect(screen.getByRole('region', { name: 'Voice' })).toHaveTextContent('Reading aloud is Gemini’s. Text read with Gemini is sent to Google. On the free tier Google may use it to improve its products; on a paid key it does not. KOLONİ keeps no sound.')
+  expect(screen.getByRole('region', { name: 'Voice' })).toHaveTextContent(
+    'Reading aloud is Gemini’s. Text read with Gemini is sent to Google. On the free tier Google may use it to improve its products; on a paid key it does not. KOLONİ keeps no sound.',
+  )
   await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Voice' }), 'Puck')
   await userEvent.selectOptions(screen.getByLabelText('Model'), 'Flash-Lite TTS')
   expect(server.put.slice(1)).toEqual([{ voice: 'Puck' }, { model: 'gemini-3.8-flash-lite-tts' }])
@@ -172,7 +217,12 @@ test('the key is given once and never shown again; saved, Gemini reads and is th
 test('a key that could not be checked now is saved, and the panel says so', async () => {
   server.note = 'The key is saved, but it could not be checked now: Google was not reached.'
   useApp.setState({ conv: opened, projectId: 'p' })
-  render(<><ChatPanel /><VoiceSettings /></>)
+  render(
+    <>
+      <ChatPanel />
+      <VoiceSettings />
+    </>,
+  )
   await openPanel()
   await userEvent.click(screen.getByRole('tab', { name: 'Gemini' }))
   await userEvent.type(screen.getByLabelText('Gemini API key'), KEY)
@@ -275,7 +325,9 @@ test('a browser that will not play sound before a click says so plainly', async 
   FakeAudio.refuse = Object.assign(new Error('play() failed'), { name: 'NotAllowedError' })
   await withKey()
   await userEvent.click(screen.getByRole('button', { name: 'Read aloud' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent('The browser plays sound only after you click on the page.')
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'The browser plays sound only after you click on the page.',
+  )
 })
 
 test('a text the app does not take is said in a sentence, not by its status', async () => {
@@ -289,13 +341,25 @@ test('a text the app does not take is said in a sentence, not by its status', as
 
 test('the Gemini tab’s key and fields: Save key waits for a key; saved, the model, voice and rate show what is kept and can be changed', async () => {
   useApp.setState({ conv: opened, projectId: 'p' })
-  render(<><ChatPanel /><VoiceSettings /></>)
+  render(
+    <>
+      <ChatPanel />
+      <VoiceSettings />
+    </>,
+  )
   await openPanel()
   await userEvent.click(screen.getByRole('tab', { name: 'Gemini' }))
   const tab = screen.getByRole('tabpanel', { name: 'Gemini' })
   expect(within(tab).getByRole('button', { name: 'Save key' })).toBeDisabled()
   expect(within(tab).getByLabelText('Gemini API key')).toHaveAttribute('type', 'password')
-  expect(Array.from(tab.querySelectorAll('.voice-fields > *'), one => `${one.tagName}#${one.id}`)).toEqual(['LABEL#', 'SELECT#gemini-model', 'LABEL#', 'SELECT#gemini-voice', 'LABEL#', 'INPUT#gemini-rate'])
+  expect(Array.from(tab.querySelectorAll('.voice-fields > *'), one => `${one.tagName}#${one.id}`)).toEqual([
+    'LABEL#',
+    'SELECT#gemini-model',
+    'LABEL#',
+    'SELECT#gemini-voice',
+    'LABEL#',
+    'INPUT#gemini-rate',
+  ])
   expect(within(tab).getByLabelText('Model').querySelectorAll('option').length).toBeGreaterThan(1)
   expect(within(tab).getByRole('combobox', { name: 'Voice' }).querySelectorAll('option').length).toBeGreaterThan(1)
   await userEvent.type(within(tab).getByLabelText('Gemini API key'), KEY)

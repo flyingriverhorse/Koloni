@@ -10,7 +10,9 @@ const PAGE = path.join(PROJECT_DIR, 'page51.html')
 
 test.afterEach(() => rmSync(PAGE, { force: true }))
 
-test('the agent opens a page of the project in its browser; its screenshot is under the step and beside the chat', async ({ page }) => {
+test('the agent opens a page of the project in its browser; its screenshot is under the step and beside the chat', async ({
+  page,
+}) => {
   writeFileSync(
     PAGE,
     '<!doctype html><html><head><meta charset="utf-8"><title>Page 51</title></head><body><h1>Hello from 51</h1><button>Start</button></body></html>',

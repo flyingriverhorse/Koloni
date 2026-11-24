@@ -18,7 +18,11 @@ const base: Provider = {
   note: null,
   models: [],
   only_listed: false,
-  max_running: null, plan: false, step_down_at: null, day_limit: null, month_limit: null,
+  max_running: null,
+  plan: false,
+  step_down_at: null,
+  day_limit: null,
+  month_limit: null,
   has_key: true,
   position: 0,
   created_at: 't',
@@ -93,14 +97,30 @@ test('a new Anthropic provider is added with its workspace only when one was typ
 test('saving a Copilot provider untouched sends every option it had, as it was', async () => {
   const h = handlers()
   const options = { provider_type: 'anthropic', max_prompt_tokens: 70000, max_output_tokens: 8000, offline: false }
-  const copilot: Provider = { ...base, kind: 'copilot_cli', name: 'Copilot', base_url: 'http://localhost:8080/v1', mode: 'session', options, has_key: false }
+  const copilot: Provider = {
+    ...base,
+    kind: 'copilot_cli',
+    name: 'Copilot',
+    base_url: 'http://localhost:8080/v1',
+    mode: 'session',
+    options,
+    has_key: false,
+  }
   await connection(<ModelsPage picked="p1" providers={[copilot]} {...h} />)
   await save()
   expect(h.onSave.mock.calls[0][1].options).toEqual(options)
 })
 
 const OWN_SETUP = 'Use my own Claude Code setup'
-const claudeCode: Provider = { ...base, kind: 'claude_cli', name: 'Claude Code', base_url: null, mode: 'native', options: null, has_key: false }
+const claudeCode: Provider = {
+  ...base,
+  kind: 'claude_cli',
+  name: 'Claude Code',
+  base_url: null,
+  mode: 'native',
+  options: null,
+  has_key: false,
+}
 
 test('native Claude Code, and nothing else, can be told to start with your own setup', async () => {
   for (const [provider, shown] of [
@@ -178,12 +198,16 @@ test('K-claude-hesap: Claude Code and Codex may sign in with a folder of their o
   expect(screen.getByText(/Uses the claude command you are signed in to on this machine/)).toBeInTheDocument()
   await userEvent.selectOptions(screen.getByLabelText('Sign-in'), 'koloni')
   // (R125: before it is saved - its own sign-in is not the one of this machine, and none is in it yet)
-  expect(screen.getByRole('status', { name: '' })).toHaveTextContent(/^Not signed in yet: save, then “Log in to Claude for this provider”/)
+  expect(screen.getByRole('status', { name: '' })).toHaveTextContent(
+    /^Not signed in yet: save, then “Log in to Claude for this provider”/,
+  )
   expect(screen.queryByText(/you are signed in to on this machine/)).not.toBeInTheDocument()
   await save()
   expect(h.onSave.mock.calls[0][1].options).toEqual({ own_setup: false, sign_in: 'koloni' })
   unmount()
-  const again = await connection(<ModelsPage picked="p1" providers={[{ ...claudeCode, options: { sign_in: 'koloni' } }]} {...h} />)
+  const again = await connection(
+    <ModelsPage picked="p1" providers={[{ ...claudeCode, options: { sign_in: 'koloni' } }]} {...h} />,
+  )
   expect(screen.getByLabelText('Sign-in')).toHaveValue('koloni')
   await save()
   expect('options' in h.onSave.mock.calls[1][1]).toBe(false) // left alone
@@ -204,10 +228,15 @@ test('K-claude-hesap: Claude Code and Codex may sign in with a folder of their o
 
 test('a provider with its own sign-in moved to a model server of your own leaves it', async () => {
   const h = handlers()
-  await connection(<ModelsPage picked="p1" providers={[{ ...claudeCode, mode: 'step', options: { sign_in: 'koloni' } }]} {...h} />)
+  await connection(
+    <ModelsPage picked="p1" providers={[{ ...claudeCode, mode: 'step', options: { sign_in: 'koloni' } }]} {...h} />,
+  )
   await userEvent.type(screen.getByLabelText('Model server address'), 'http://127.0.0.1:8080/v1')
   await save()
-  expect(h.onSave.mock.calls[0][1]).toMatchObject({ base_url: 'http://127.0.0.1:8080/v1', options: { own_setup: false } })
+  expect(h.onSave.mock.calls[0][1]).toMatchObject({
+    base_url: 'http://127.0.0.1:8080/v1',
+    options: { own_setup: false },
+  })
   expect(h.onSave.mock.calls[0][1].options).not.toHaveProperty('sign_in')
 })
 

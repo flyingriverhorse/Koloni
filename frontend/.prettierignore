@@ -4,3 +4,5 @@ coverage
 test-results
 playwright-report
 src/api/generated.ts
+# draw.io's viewer, vendored unchanged (Apache-2.0, THIRD-PARTY-NOTICES.md): never rewritten
+public/drawio/viewer-static.min.js

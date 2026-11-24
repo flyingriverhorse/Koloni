@@ -44,7 +44,9 @@ async function drag(page: Page, handle: Locator, dx: number, dy: number, during?
   await page.mouse.up()
 }
 
-test('the user’s (5 Nov): two agents are two small nodes - what each did is counted on it, and the side panel shows it', async ({ page }) => {
+test('the user’s (5 Nov): two agents are two small nodes - what each did is counted on it, and the side panel shows it', async ({
+  page,
+}) => {
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   await page.getByLabel('Message').fill('review the greeting')

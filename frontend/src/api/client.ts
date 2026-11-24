@@ -19,7 +19,10 @@ export class ApiError extends Error {
 export function overWhat(err: unknown): string | null {
   if (!(err instanceof ApiError) || err.status !== 409) return null
   // The server's own sentence, whole: a provider's name ("Budget box") is never taken for the budget.
-  const said = /^this project is (over this month's budget|over .+'s limit of [\d.]+ \S+ a (?:day|month) \(.+ spent (?:today|this month)\))(?: \(.*\))?(?:: say to go on over it)?$/.exec(err.message)
+  const said =
+    /^this project is (over this month's budget|over .+'s limit of [\d.]+ \S+ a (?:day|month) \(.+ spent (?:today|this month)\))(?: \(.*\))?(?:: say to go on over it)?$/.exec(
+      err.message,
+    )
   if (!said) return null
   return said[1] === "over this month's budget" ? 'Over this month’s budget' : `O${said[1].slice(1)}`
 }
@@ -58,7 +61,11 @@ export async function takeKey(): Promise<void> {
   let given = hash.get('key')
   if (given && !(await takes(given))) given = null
   if (!given && code) {
-    const res = await fetch('/api/open', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) }).catch(() => null)
+    const res = await fetch('/api/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    }).catch(() => null)
     // (Refused - used, late: the page says to open it from the link in KOLONİ's window, as for any missing key.)
     given = res?.ok ? ((await res.json()) as { key: string }).key : null
   }
@@ -81,7 +88,10 @@ async function takes(given: string): Promise<boolean> {
   if (!kept || kept === given) return true
   // (Not through `send`: its 401 would show the whole page as refused. Any answer but a yes - KOLONİ not reached, slow, a proxy's
   // 500 - keeps the kept one.)
-  const res = await fetch('/api/answer-in', { headers: { 'X-KOLONI-Key': given }, signal: AbortSignal.timeout(5000) }).catch(() => null)
+  const res = await fetch('/api/answer-in', {
+    headers: { 'X-KOLONI-Key': given },
+    signal: AbortSignal.timeout(5000),
+  }).catch(() => null)
   return !!res?.ok
 }
 
@@ -155,7 +165,8 @@ async function send(method: string, path: string, body?: unknown, signal?: Abort
   })
   if (!res.ok) {
     const data = await res.json().catch(() => null)
-    const detail = typeof data?.detail === 'string' ? data.detail : (fieldErrors(data?.detail) ?? `${res.status} ${res.statusText}`)
+    const detail =
+      typeof data?.detail === 'string' ? data.detail : (fieldErrors(data?.detail) ?? `${res.status} ${res.statusText}`)
     // (Only the key is asked with a 401: the server's other refusals are 403s.)
     if (res.status === 401 && !refused) {
       refused = true

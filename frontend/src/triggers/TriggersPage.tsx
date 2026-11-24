@@ -1,14 +1,34 @@
 import { CaretDown, Copy, Plus } from '@phosphor-icons/react'
 import { useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import type { AllowedCommand, Conversation, NewTrigger, Trigger, TriggerChange, TriggerCreated, TriggerLogEntry, TriggerProposal } from '../api/types'
+import type {
+  AllowedCommand,
+  Conversation,
+  NewTrigger,
+  Trigger,
+  TriggerChange,
+  TriggerCreated,
+  TriggerLogEntry,
+  TriggerProposal,
+} from '../api/types'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
 import { Menu } from './Menu'
 import { TriggerCard } from './TriggerCard'
 import { TriggerChanges } from './TriggerChanges'
 import { TriggerForm } from './TriggerForm'
-import { type Allow, type FormValues, OWN_TOPIC, PRESET, READY, blank, fromProposal, fromTrigger, toBody, toPatch } from './triggerText'
+import {
+  type Allow,
+  type FormValues,
+  OWN_TOPIC,
+  PRESET,
+  READY,
+  blank,
+  fromProposal,
+  fromTrigger,
+  toBody,
+  toPatch,
+} from './triggerText'
 
 interface Props {
   /** The open project's triggers; null until they have been read. */
@@ -40,7 +60,9 @@ interface Props {
 }
 
 /** The form that is open: a new trigger from these values (an agent's proposal's, its id said), or one that is there. */
-type Open = { id: null; initial: FormValues; allow: null; proposalId?: string } | { id: string; initial: FormValues; allow: Allow | null; proposalId?: undefined }
+type Open =
+  | { id: null; initial: FormValues; allow: null; proposalId?: string }
+  | { id: string; initial: FormValues; allow: Allow | null; proposalId?: undefined }
 
 /** The page before its triggers are read: that they are being read, or why they could not be. */
 const notRead = (error: Props['error']) => (
@@ -56,10 +78,16 @@ const notRead = (error: Props['error']) => (
 )
 
 /** The open form's key: another for each thing it is opened on. */
-const formKey = (open: Open) => `${open.id ?? 'new'}:${open.initial.name}:${open.allow ? JSON.stringify(open.allow) : ''}`
+const formKey = (open: Open) =>
+  `${open.id ?? 'new'}:${open.initial.name}:${open.allow ? JSON.stringify(open.allow) : ''}`
 
 /** A webhook's address, shown once: to copy, and to put away. */
-const addressOf = (made: { name: string; address: string }, copied: boolean, setCopied: (copied: boolean) => void, onPutAway: () => void) => (
+const addressOf = (
+  made: { name: string; address: string },
+  copied: boolean,
+  setCopied: (copied: boolean) => void,
+  onPutAway: () => void,
+) => (
   <section className="trigger-key" aria-label={`The address of ${made.name}`}>
     <h3>{made.name} runs when this address is sent a POST request</h3>
     <div className="trigger-address">
@@ -80,9 +108,13 @@ const addressOf = (made: { name: string; address: string }, copied: boolean, set
       </button>
     </div>
     <p className="trigger-key-warn">
-      This is shown once: it cannot be read back later. Anyone on this machine who has this address can run the trigger. If it is lost or leaks, make a new key on the trigger; this address then stops working.
+      This is shown once: it cannot be read back later. Anyone on this machine who has this address can run the trigger.
+      If it is lost or leaks, make a new key on the trigger; this address then stops working.
     </p>
-    <p className="muted trigger-note">The agent gets what the request carries as something to look at, never as an instruction. Only requests from this machine are accepted.</p>
+    <p className="muted trigger-note">
+      The agent gets what the request carries as something to look at, never as an instruction. Only requests from this
+      machine are accepted.
+    </p>
     <div className="role-actions">
       <button type="button" className="btn btn-small" onClick={onPutAway}>
         I have copied it
@@ -96,7 +128,24 @@ const addressOf = (made: { name: string; address: string }, copied: boolean, set
  * conversation you choose, with a message you wrote, and with nobody watching. Such a turn
  * asks nobody: it does only what its trigger allows. Only this page makes or changes one.
  */
-export function TriggersPage({ triggers, error, changes = null, conversations, draft, onDraftTaken, origin, onCreate, onSave, onDelete, onRun, onNewKey, onShowTurn, onRules, onAddRule, onHosts }: Props) {
+export function TriggersPage({
+  triggers,
+  error,
+  changes = null,
+  conversations,
+  draft,
+  onDraftTaken,
+  origin,
+  onCreate,
+  onSave,
+  onDelete,
+  onRun,
+  onNewKey,
+  onShowTurn,
+  onRules,
+  onAddRule,
+  onHosts,
+}: Props) {
   const [open, setOpen] = useState<Open | null>(null)
   // A webhook's address, held only until it is put away: the server never says it again.
   const [made, setMade] = useState<{ name: string; address: string } | null>(null)
@@ -162,7 +211,12 @@ export function TriggersPage({ triggers, error, changes = null, conversations, d
           <span className="muted">Every hour it looks the project over. Reads only.</span>
         </button>
         {READY.map(card => (
-          <button key={card.name} type="button" role="menuitem" onClick={() => start({ ...blank(first), name: card.name, ...card.values })}>
+          <button
+            key={card.name}
+            type="button"
+            role="menuitem"
+            onClick={() => start({ ...blank(first), name: card.name, ...card.values })}
+          >
             <strong>{card.name}</strong>
             <span className="muted">{card.says}</span>
           </button>
@@ -183,9 +237,10 @@ export function TriggersPage({ triggers, error, changes = null, conversations, d
         <span className="muted trigger-lede">
           Work that starts by itself. Only you make or change a trigger; no agent can.{' '}
           <Hint doc={GUIDE.triggers}>
-            It runs with nobody watching, doing only what you allowed. A trigger sends its message by the clock, when files change, or on a request from outside. Its work asks nobody: it does only
-            what its trigger allows, and says afterwards what it would have asked for. “Keep an agent on this project” fills in a trigger that looks the project over every hour, reading only, with a
-            message for you to change. {OWN_TOPIC}
+            It runs with nobody watching, doing only what you allowed. A trigger sends its message by the clock, when
+            files change, or on a request from outside. Its work asks nobody: it does only what its trigger allows, and
+            says afterwards what it would have asked for. “Keep an agent on this project” fills in a trigger that looks
+            the project over every hour, reading only, with a message for you to change. {OWN_TOPIC}
           </Hint>
         </span>
         <div className="memory-actions">{triggers.length > 0 && newTrigger}</div>

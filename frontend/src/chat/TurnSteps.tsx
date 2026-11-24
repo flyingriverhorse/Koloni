@@ -20,7 +20,11 @@ interface Props {
 }
 
 /** What a turn that did not complete says on its fold's line. */
-const ENDED: Partial<Record<Run['status'], string>> = { failed: 'Failed', cancelled: 'Stopped', interrupted: 'Interrupted' }
+const ENDED: Partial<Record<Run['status'], string>> = {
+  failed: 'Failed',
+  cancelled: 'Stopped',
+  interrupted: 'Interrupted',
+}
 
 /**
  * A finished turn's steps before its answer, as VS Code folds them: one closed line, "Completed 5 steps in 32s · 1 failed";
@@ -39,7 +43,11 @@ export function TurnSteps({ refocus, ended, count, took, calls, state, children 
     <>
       <details className="turn-steps">
         <summary ref={line}>
-          <span>{ENDED[ended] ? `${ENDED[ended]} after ${count} steps` : `Completed ${count} steps${took ? ` in ${took}` : ''}`}</span>
+          <span>
+            {ENDED[ended]
+              ? `${ENDED[ended]} after ${count} steps`
+              : `Completed ${count} steps${took ? ` in ${took}` : ''}`}
+          </span>
           {marks.map(([end, n]) => (
             <span key={end} className={`tag ${end === 'failed' ? 'tag-del' : 'tag-warn'}`}>
               {`${n} ${TOOL_STATUS[end][0]}`}
@@ -61,6 +69,10 @@ export function TurnSteps({ refocus, ended, count, took, calls, state, children 
 
 /** The first failed step's reason in one line, as KOLONİ wrote it: its result's first line, "error: " off (app/agent does the same); null with none. */
 function firstWhy(calls: ToolCall[]): string | null {
-  const line = calls.find(call => call.status === 'failed' && call.result)?.result?.split('\n', 1)[0].replace(/^error: /, '').trim()
+  const line = calls
+    .find(call => call.status === 'failed' && call.result)
+    ?.result?.split('\n', 1)[0]
+    .replace(/^error: /, '')
+    .trim()
   return line || null
 }

@@ -1,10 +1,14 @@
 import { expect, test } from './fixtures'
 import { editRole, openFreshConversation, OWN } from './helpers'
 
-test('a model that says no levels offers none; levels kept for a role and a conversation are shown as not sent to it, and can be taken back', async ({ page, request }) => {
+test('a model that says no levels offers none; levels kept for a role and a conversation are shown as not sent to it, and can be taken back', async ({
+  page,
+  request,
+}) => {
   const url = `/api/conversations/${await openFreshConversation(page)}`
   const agents = page.getByRole('button', { name: 'Agents', exact: true })
-  const coder = async () => (await (await request.get('/api/roles')).json()).find((r: { name: string }) => r.name === 'Coder')
+  const coder = async () =>
+    (await (await request.get('/api/roles')).json()).find((r: { name: string }) => r.name === 'Coder')
   const picker = page.getByRole('button', { name: /^Model:/ })
 
   // The fake model (OpenAI-compatible) says no levels: the Lead's select offers none, and says why.
@@ -26,8 +30,10 @@ test('a model that says no levels offers none; levels kept for a role and a conv
   await editRole(page, 'Coder', 'tiers')
   await expect(page.getByText(/The model’s levels are not known: nothing is sent\./)).toBeVisible()
   // K-ladder: one fixed level, checked on the ladder and struck (not taken by this model); its most set earlier said below.
-  const mode = (name: string) => page.getByRole('radiogroup', { name: 'Thinking' }).getByRole('radio', { name, exact: true })
-  const rung = (group: string, name: string) => page.getByRole('radiogroup', { name: group }).getByRole('radio', { name, exact: true })
+  const mode = (name: string) =>
+    page.getByRole('radiogroup', { name: 'Thinking' }).getByRole('radio', { name, exact: true })
+  const rung = (group: string, name: string) =>
+    page.getByRole('radiogroup', { name: group }).getByRole('radio', { name, exact: true })
   await expect(mode('One fixed level')).toBeChecked()
   await expect(rung('Fixed level', 'High')).toBeChecked()
   await expect(rung('Fixed level', 'High')).toBeDisabled()

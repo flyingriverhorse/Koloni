@@ -81,7 +81,11 @@ export function closing(tabs: string[], tab: string, openTab: string | null): { 
 }
 
 /** A tab's dot, with its word: orange while a chat of its project waits for you, green while one works (§5b: not the amber of work, beside orange), else grey (none said). */
-export function standingOfTab(tab: string, conversations: ListedConversation[], board: Board | null): readonly [label: string | null, color: string] {
+export function standingOfTab(
+  tab: string,
+  conversations: ListedConversation[],
+  board: Board | null,
+): readonly [label: string | null, color: string] {
   const ids = new Set(conversations.filter(c => tabOf(c.project_id) === tab).map(c => c.id))
   const standings = (board?.conversations ?? []).filter(c => ids.has(c.conversation_id)).map(standingOf)
   if (standings.includes('waits')) return [WAITS, AGENT_STATUS.waiting_approval[1]]

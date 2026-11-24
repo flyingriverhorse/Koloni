@@ -81,7 +81,10 @@ function browserEngine(): VoiceEngine {
   // Held until they end: Chrome lets go of an utterance nothing holds, and its onend never comes.
   const reading = new Set<SpeechSynthesisUtterance>()
   const recognitionClass = () => {
-    const found = window as unknown as { SpeechRecognition?: RecognitionClass; webkitSpeechRecognition?: RecognitionClass }
+    const found = window as unknown as {
+      SpeechRecognition?: RecognitionClass
+      webkitSpeechRecognition?: RecognitionClass
+    }
     return found.SpeechRecognition ?? found.webkitSpeechRecognition
   }
   let listening: Recognition | null = null
@@ -132,7 +135,12 @@ function browserEngine(): VoiceEngine {
       return window.speechSynthesis
         .getVoices()
         .filter(voice => !language || sameLanguage(voice.lang, language))
-        .map(voice => ({ uri: voice.voiceURI, name: voice.name, lang: voice.lang.replace('_', '-'), local: voice.localService }))
+        .map(voice => ({
+          uri: voice.voiceURI,
+          name: voice.name,
+          lang: voice.lang.replace('_', '-'),
+          local: voice.localService,
+        }))
     },
     onVoices(listener) {
       if (!this.canSpeak) return () => {}
@@ -145,7 +153,9 @@ function browserEngine(): VoiceEngine {
       const utterance = new window.SpeechSynthesisUtterance(text)
       const all = window.speechSynthesis.getVoices()
       // None chosen: the first of this computer's own for the language, so that nothing goes out unasked.
-      const voice = all.find(each => each.voiceURI === how.voice) ?? all.find(each => each.localService && sameLanguage(each.lang, how.language))
+      const voice =
+        all.find(each => each.voiceURI === how.voice) ??
+        all.find(each => each.localService && sameLanguage(each.lang, how.language))
       if (voice) utterance.voice = voice
       utterance.lang = voice?.lang ?? how.language
       utterance.rate = how.rate
@@ -178,7 +188,12 @@ export const MOST = 4000
 async function sound(text: string, signal: AbortSignal): Promise<Blob> {
   let res: Response
   try {
-    res = await fetch('/api/voice/gemini/say', { method: 'POST', headers: { 'Content-Type': 'application/json', ...keyHeader() }, body: JSON.stringify({ text }), signal })
+    res = await fetch('/api/voice/gemini/say', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...keyHeader() },
+      body: JSON.stringify({ text }),
+      signal,
+    })
   } catch (err) {
     if (signal.aborted) throw err
     throw new Error('Gemini could not read it: the app could not be reached.')
@@ -186,7 +201,11 @@ async function sound(text: string, signal: AbortSignal): Promise<Blob> {
   if (!res.ok) {
     const data = await res.json().catch(() => null)
     if (typeof data?.detail === 'string') throw new Error(data.detail)
-    throw new Error(res.status === 422 ? 'Gemini could not read it: the app did not take the text.' : `Gemini could not read it: the app answered ${res.status}.`)
+    throw new Error(
+      res.status === 422
+        ? 'Gemini could not read it: the app did not take the text.'
+        : `Gemini could not read it: the app answered ${res.status}.`,
+    )
   }
   return res.blob()
 }
@@ -209,15 +228,17 @@ function play(blob: Blob, signal: AbortSignal, onStart: () => void, rate: number
     signal.addEventListener('abort', stop)
     audio.onended = stop
     audio.onerror = () => end(new Error('Gemini could not read it: the browser could not play its sound.'))
-    audio.play().then(onStart, (err: unknown) =>
-      end(
-        err instanceof Error && err.name === 'NotAllowedError'
-          ? new Error('The browser plays sound only after you click on the page.')
-          : err instanceof Error
-            ? err
-            : new Error(String(err)),
-      ),
-    )
+    audio
+      .play()
+      .then(onStart, (err: unknown) =>
+        end(
+          err instanceof Error && err.name === 'NotAllowedError'
+            ? new Error('The browser plays sound only after you click on the page.')
+            : err instanceof Error
+              ? err
+              : new Error(String(err)),
+        ),
+      )
   })
 }
 

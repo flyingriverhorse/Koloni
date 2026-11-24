@@ -33,7 +33,10 @@ test('the Triggers page takes every colour from the theme: triggers.css names no
   expect(ownColours(css)).toEqual([])
 })
 
-test('a trigger is made, run now with nobody watching, refused what it does not allow, allowed it from the chat, and run again', async ({ page, request }) => {
+test('a trigger is made, run now with nobody watching, refused what it does not allow, allowed it from the chat, and run again', async ({
+  page,
+  request,
+}) => {
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   const list = page.getByRole('complementary', { name: 'Recent' })
@@ -108,9 +111,13 @@ test('a trigger is made, run now with nobody watching, refused what it does not 
   await form.getByLabel('Starts', { exact: true }).selectOption('files')
   await form.getByLabel('Path pattern', { exact: true }).fill('../outside/*.md')
   await form.getByLabel('Conversation', { exact: true }).selectOption({ label: title })
-  await form.getByLabel('Message', { exact: true }).fill('Read what changed in the docs and say whether it still fits the code.')
+  await form
+    .getByLabel('Message', { exact: true })
+    .fill('Read what changed in the docs and say whether it still fits the code.')
   await form.getByRole('button', { name: 'Add trigger' }).click()
-  await expect(form.getByLabel('Path pattern', { exact: true })).toHaveAccessibleDescription(/inside the project folder/)
+  await expect(form.getByLabel('Path pattern', { exact: true })).toHaveAccessibleDescription(
+    /inside the project folder/,
+  )
   await form.getByLabel('Path pattern', { exact: true }).fill('docs/**/*.md')
   await form.getByRole('button', { name: 'Add trigger' }).click()
   await expect(form).toHaveCount(0)
@@ -140,7 +147,10 @@ test('a trigger is made, run now with nobody watching, refused what it does not 
   expect(pieces.length).toBeGreaterThan(40)
   expect(pieces.filter(piece => piece.ratio < 4.5)).toEqual([])
   // a trigger's name stands out on its card as a heading did
-  expect(pieces.find(piece => /trigger-name/.test(piece.cls))).toMatchObject({ color: '228,230,234', background: '26,30,38' })
+  expect(pieces.find(piece => /trigger-name/.test(piece.cls))).toMatchObject({
+    color: '228,230,234',
+    background: '26,30,38',
+  })
   const inBar = await bar.locator('.triggers-status').evaluate(contrasts)
   expect(inBar.filter(piece => piece.ratio < 4.5)).toEqual([])
   await page.getByRole('button', { name: 'Theme: switch to light' }).click()
@@ -150,7 +160,9 @@ test('a trigger is made, run now with nobody watching, refused what it does not 
   // --- "Run now": its turn, with what it allows and nobody asked -------------------------------
   await card.getByRole('button', { name: 'Run now' }).click()
   // The canvas, with that turn: Recent lists it by the trigger's name, beside your own (slice 107).
-  await expect(chat.getByText('I could not write made.txt: I would have asked you first.')).toBeVisible({ timeout: 15_000 })
+  await expect(chat.getByText('I could not write made.txt: I would have asked you first.')).toBeVisible({
+    timeout: 15_000,
+  })
   const own = list.locator('.turn-row').filter({ hasText: title })
   const scheduled = list.locator('.turn-row').filter({ hasText: 'Nightly check' })
   await openTurns(page)
@@ -177,7 +189,9 @@ test('a trigger is made, run now with nobody watching, refused what it does not 
   expect(existsSync(made)).toBe(false)
 
   // The chat says who started the turn, and - at its end - what it would have asked you.
-  await expect(chat.getByRole('note', { name: 'Started by the trigger Nightly check' })).toContainText('nobody watching')
+  await expect(chat.getByRole('note', { name: 'Started by the trigger Nightly check' })).toContainText(
+    'nobody watching',
+  )
   const asked = chat.getByRole('group', { name: 'It would have asked you' })
   await expect(asked.getByRole('listitem')).toHaveCount(1)
   await expect(asked.getByRole('listitem')).toContainText('write made.txt')
@@ -191,9 +205,13 @@ test('a trigger is made, run now with nobody watching, refused what it does not 
   form = page.getByRole('form', { name: 'Edit trigger' })
   await expect(form.getByLabel('Name', { exact: true })).toHaveValue('Nightly check')
   await expect(form.getByLabel('May change files', { exact: true })).toBeChecked()
-  await expect(form.getByRole('status')).toContainText('Not saved yet: “May change files” was switched on from the chat. Look it over and save.')
+  await expect(form.getByRole('status')).toContainText(
+    'Not saved yet: “May change files” was switched on from the chat. Look it over and save.',
+  )
   const permissions = async () => {
-    const all: { name: string; permissions: { write: boolean } }[] = await (await request.get(`/api/projects/${project.id}/triggers`)).json()
+    const all: { name: string; permissions: { write: boolean } }[] = await (
+      await request.get(`/api/projects/${project.id}/triggers`)
+    ).json()
     return all.find(t => t.name === 'Nightly check')?.permissions.write
   }
   expect(await permissions()).toBe(false)
@@ -242,7 +260,10 @@ test('a trigger is made, run now with nobody watching, refused what it does not 
   await expect(card.getByRole('alert')).toHaveCount(0)
 })
 
-test('a command is put on the conversation’s list in the trigger’s form, ticked, and run by its turn as written; what was done to the trigger is on its record', async ({ page, request }) => {
+test('a command is put on the conversation’s list in the trigger’s form, ticked, and run by its turn as written; what was done to the trigger is on its record', async ({
+  page,
+  request,
+}) => {
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   const title = 'hello from the ticked-command spec'
@@ -261,11 +282,16 @@ test('a command is put on the conversation’s list in the trigger’s form, tic
   await form.getByLabel('Message', { exact: true }).fill('nightly run')
   await expect(form.getByText('This conversation has no allowed commands yet.')).toBeVisible()
   await form.getByRole('button', { name: 'Add trigger' }).click()
-  await page.getByRole('region', { name: 'The address of Nightly run' }).getByRole('button', { name: 'I have copied it' }).click()
+  await page
+    .getByRole('region', { name: 'The address of Nightly run' })
+    .getByRole('button', { name: 'I have copied it' })
+    .click()
   const card = page.getByRole('article', { name: 'Nightly run' })
   await expect(card).toContainText('reads only')
   await card.getByRole('button', { name: 'Run now' }).click()
-  await expect(chat.getByText('I could not run python check.py: I would have asked you first.')).toBeVisible({ timeout: 15_000 })
+  await expect(chat.getByText('I could not run python check.py: I would have asked you first.')).toBeVisible({
+    timeout: 15_000,
+  })
   const asked = chat.getByRole('group', { name: 'It would have asked you' })
   await expect(asked.getByRole('listitem')).toContainText('run `python check.py`')
 
@@ -274,16 +300,23 @@ test('a command is put on the conversation’s list in the trigger’s form, tic
   form = page.getByRole('form', { name: 'Edit trigger' })
   const add = form.getByLabel("Add a command to this conversation's list", { exact: true })
   await expect(add).toHaveValue('python check.py')
-  await expect(form.getByRole('status')).toContainText('“python check.py” is not on this conversation’s list yet: add it below, then tick it.')
+  await expect(form.getByRole('status')).toContainText(
+    '“python check.py” is not on this conversation’s list yet: add it below, then tick it.',
+  )
   const [project]: { id: string }[] = await (await request.get('/api/projects')).json()
   const kept = async () => {
-    const all: { name: string; conversation_id: string; permissions: { commands: string[] }; command_lines: string[] }[] = await (
-      await request.get(`/api/projects/${project.id}/triggers`)
-    ).json()
+    const all: {
+      name: string
+      conversation_id: string
+      permissions: { commands: string[] }
+      command_lines: string[]
+    }[] = await (await request.get(`/api/projects/${project.id}/triggers`)).json()
     return all.find(t => t.name === 'Nightly run')!
   }
   const rules = async () => {
-    const snap: { allowed_commands: { id: string; prefix: string }[] } = await (await request.get(`/api/conversations/${(await kept()).conversation_id}`)).json()
+    const snap: { allowed_commands: { id: string; prefix: string }[] } = await (
+      await request.get(`/api/conversations/${(await kept()).conversation_id}`)
+    ).json()
     return snap.allowed_commands
   }
   expect(await rules()).toEqual([])
@@ -314,7 +347,9 @@ test('a command is put on the conversation’s list in the trigger’s form, tic
   await card.getByRole('button', { name: 'Run now' }).click()
   await expect(chat.getByText('Ran it: 2 passed.')).toBeVisible({ timeout: 20_000 })
   await expect(chat.getByRole('button', { name: 'Approve' })).toHaveCount(0)
-  const snap: { commands: { command: string; status: string; output: string }[] } = await (await request.get(`/api/conversations/${saved.conversation_id}`)).json()
+  const snap: { commands: { command: string; status: string; output: string }[] } = await (
+    await request.get(`/api/conversations/${saved.conversation_id}`)
+  ).json()
   expect(snap.commands.map(c => [c.command, c.status])).toEqual([['python check.py', 'exited']])
   expect(snap.commands[0].output).toContain('2 passed')
 
@@ -325,7 +360,9 @@ test('a command is put on the conversation’s list in the trigger’s form, tic
   const changes = page.getByRole('list', { name: 'Changes to Nightly run' }).getByRole('listitem')
   await expect(changes).toHaveCount(2)
   await expect(changes.first()).toContainText('permissions changed: may run: python check.py')
-  await expect(changes.last()).toContainText('created: on a request from outside; no end; reads only; 15 model steps and 10 minutes a run, 24 runs a day')
+  await expect(changes.last()).toContainText(
+    'created: on a request from outside; no end; reads only; 15 model steps and 10 minutes a run, 24 runs a day',
+  )
   await shot(page, '18a-trigger-changes')
   // Taken off the conversation's list, the command is gone from the trigger at once - and that is on its record too.
   const [only] = await rules()
@@ -338,5 +375,7 @@ test('a command is put on the conversation’s list in the trigger’s form, tic
   await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click()
   await expect(card).toHaveCount(0)
   await page.getByText(/^Changes of deleted triggers/).click()
-  await expect(page.getByRole('list', { name: 'Changes of deleted triggers' }).getByRole('listitem').first()).toContainText('Nightly run · deleted')
+  await expect(
+    page.getByRole('list', { name: 'Changes of deleted triggers' }).getByRole('listitem').first(),
+  ).toContainText('Nightly run · deleted')
 })

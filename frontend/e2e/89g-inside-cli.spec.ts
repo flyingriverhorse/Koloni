@@ -19,9 +19,11 @@ async function both(page: Page, target: Locator, name: string) {
 /** The stand-in provider and the role are taken away, also after a test that failed half-way. */
 async function cleanUp(request: APIRequestContext) {
   const providers: { id: string; name: string }[] = await (await request.get('/api/providers')).json()
-  for (const one of providers.filter(p => p.name === 'Claude Code')) await request.delete(`/api/providers/${one.id}`, { headers: OWN })
+  for (const one of providers.filter(p => p.name === 'Claude Code'))
+    await request.delete(`/api/providers/${one.id}`, { headers: OWN })
   const roles: { id: string; name: string }[] = await (await request.get('/api/roles')).json()
-  for (const one of roles.filter(r => r.name === 'Checker')) await request.delete(`/api/roles/${one.id}`, { headers: OWN })
+  for (const one of roles.filter(r => r.name === 'Checker'))
+    await request.delete(`/api/roles/${one.id}`, { headers: OWN })
 }
 
 // 89g: a role the user lets run inside Claude Code is offered to a Claude Code Lead as one of its own
@@ -30,12 +32,21 @@ test.describe('a role run inside Claude Code', () => {
   test.beforeEach(async ({ page, request }) => {
     await cleanUp(request)
     const made = await request.post('/api/roles', {
-      data: { name: 'Checker', description: 'Looks over the code', instructions: 'Check it.', tools: ['read_file', 'search', 'list_dir', 'run_command'] },
+      data: {
+        name: 'Checker',
+        description: 'Looks over the code',
+        instructions: 'Check it.',
+        tools: ['read_file', 'search', 'list_dir', 'run_command'],
+      },
       headers: OWN,
     })
     expect(made.ok()).toBe(true)
     const id = await openFreshConversation(page)
-    expect((await page.request.patch(`/api/conversations/${id}`, { data: { permission_mode: 'full_auto' }, headers: OWN })).ok()).toBe(true)
+    expect(
+      (
+        await page.request.patch(`/api/conversations/${id}`, { data: { permission_mode: 'full_auto' }, headers: OWN })
+      ).ok(),
+    ).toBe(true)
     await page.getByRole('button', { name: 'Models', exact: true }).click()
     await page.getByRole('button', { name: /Add a provider/ }).click()
     await page.getByLabel('Name').fill('Claude Code')
@@ -47,7 +58,9 @@ test.describe('a role run inside Claude Code', () => {
     // B-385: a sub-agent runs only on a provider the user opened to agents.
     const added: { id: string; name: string }[] = await (await request.get('/api/providers')).json()
     const claude = added.find(p => p.name === 'Claude Code')!
-    expect((await request.patch(`/api/providers/${claude.id}`, { headers: OWN, data: { for_agents: true } })).ok()).toBe(true)
+    expect(
+      (await request.patch(`/api/providers/${claude.id}`, { headers: OWN, data: { for_agents: true } })).ok(),
+    ).toBe(true)
   })
 
   test.afterEach(async ({ request }) => {

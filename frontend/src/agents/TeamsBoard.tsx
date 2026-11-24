@@ -52,7 +52,21 @@ const remember = (teamId: string | null) => {
 }
 
 /** A name typed in place: Enter saves, Esc puts it away. */
-export function NameForm({ label, value = '', button, max, onSave, onCancel }: { label: string; value?: string; button: string; max: number; onSave: (name: string) => void; onCancel: () => void }) {
+export function NameForm({
+  label,
+  value = '',
+  button,
+  max,
+  onSave,
+  onCancel,
+}: {
+  label: string
+  value?: string
+  button: string
+  max: number
+  onSave: (name: string) => void
+  onCancel: () => void
+}) {
   const [name, setName] = useState(value)
   return (
     <form
@@ -62,7 +76,15 @@ export function NameForm({ label, value = '', button, max, onSave, onCancel }: {
         onSave(name.trim())
       }}
     >
-      <input className="input" aria-label={label} maxLength={max} autoFocus value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Escape' && onCancel()} />
+      <input
+        className="input"
+        aria-label={label}
+        maxLength={max}
+        autoFocus
+        value={name}
+        onChange={e => setName(e.target.value)}
+        onKeyDown={e => e.key === 'Escape' && onCancel()}
+      />
       <button type="submit" className="btn btn-small" disabled={!name.trim()}>
         {button}
       </button>
@@ -112,7 +134,27 @@ const LEAD_PARTS: [string, PanelTab][] = [
 const boxMark = (marked: RowProps['marked'], hit: boolean) => (marked ? (hit ? ' team-box-hit' : ' team-box-dim') : '')
 
 /** A team (slice 63b): one line folded - its stages, faces, default recipe, lead; open, its lead, stages side by side and foot. */
-function TeamRow({ team, projectId = null, colour, roles, categories, recipes, selected, marked, dragging, open, onToggle, onOpen, onPatch, actions, act, say, onNewRole, models, providers = [] }: RowProps) {
+function TeamRow({
+  team,
+  projectId = null,
+  colour,
+  roles,
+  categories,
+  recipes,
+  selected,
+  marked,
+  dragging,
+  open,
+  onToggle,
+  onOpen,
+  onPatch,
+  actions,
+  act,
+  say,
+  onNewRole,
+  models,
+  providers = [],
+}: RowProps) {
   const [edit, setEdit] = useState<'rename' | 'delete' | 'stage' | null>(null)
   const [renaming, setRenaming] = useState<string | null>(null)
   const byId = new Map(roles.map(role => [role.id, role]))
@@ -127,9 +169,18 @@ function TeamRow({ team, projectId = null, colour, roles, categories, recipes, s
   const hit = marked !== null && members.some(role => role.id === marked.id)
   const place = (role: Role, stage: Team['stages'][number]) => {
     const was = stageOf(role.id)
-    act(actions?.placeRole(team.id, role.id, stage.id).then(() => say(`${role.name} is in ${stage.name} now${was ? `, not ${was.name}` : ''}.`)))
+    act(
+      actions
+        ?.placeRole(team.id, role.id, stage.id)
+        .then(() => say(`${role.name} is in ${stage.name} now${was ? `, not ${was.name}` : ''}.`)),
+    )
   }
-  const takeOut = (role: Role) => act(onPatch(role.id, { teams: role.teams.filter(id => id !== team.id) }).then(() => say(`${role.name} is out of ${team.name} now.`)))
+  const takeOut = (role: Role) =>
+    act(
+      onPatch(role.id, { teams: role.teams.filter(id => id !== team.id) }).then(() =>
+        say(`${role.name} is out of ${team.name} now.`),
+      ),
+    )
   const move = (at: number, by: number) => {
     const order = team.stages.map(stage => stage.id)
     ;[order[at], order[at + by]] = [order[at + by], order[at]]
@@ -139,9 +190,15 @@ function TeamRow({ team, projectId = null, colour, roles, categories, recipes, s
     const first = team.stages.find(one => one.id !== stage.id)
     const names = stage.roles.flatMap(id => byId.get(id)?.name ?? [])
     act(
-      actions?.deleteStage(team.id, stage.id).then(() =>
-        say(names.length ? `${stage.name} removed: ${names.join(', ')} ${names.length === 1 ? 'is' : 'are'} in ${first?.name} now.` : `${stage.name} removed.`),
-      ),
+      actions
+        ?.deleteStage(team.id, stage.id)
+        .then(() =>
+          say(
+            names.length
+              ? `${stage.name} removed: ${names.join(', ')} ${names.length === 1 ? 'is' : 'are'} in ${first?.name} now.`
+              : `${stage.name} removed.`,
+          ),
+        ),
     )
   }
   // A role dragged from the library, or from another stage of this team: put in this one.
@@ -154,19 +211,34 @@ function TeamRow({ team, projectId = null, colour, roles, categories, recipes, s
   }
   /** The team's lead, on top of its stages: who it is shown as, when it steps in, and the ways into its parts. */
   const leadRow = () => (
-    <div className={`team-lead-row${team.lead_on ? '' : ' team-lead-off'}${selected === lead.id ? ' team-lead-chosen' : ''}`}>
+    <div
+      className={`team-lead-row${team.lead_on ? '' : ' team-lead-off'}${selected === lead.id ? ' team-lead-chosen' : ''}`}
+    >
       <Avatar name={team.name} colour={colour} />
       <span className="team-lead-what">
-        <button type="button" className="team-lead-name" aria-current={selected === lead.id || undefined} onClick={() => onOpen(lead.id)}>
+        <button
+          type="button"
+          className="team-lead-name"
+          aria-current={selected === lead.id || undefined}
+          onClick={() => onOpen(lead.id)}
+        >
           {lead.name}
         </button>
         <span className="muted">— shown as {team.name} coordinator</span>
-        <span className="muted">{team.lead_on ? ruleText(lead, providers) : `Off: the Orchestrator always runs ${team.name} itself`}</span>
+        <span className="muted">
+          {team.lead_on ? ruleText(lead, providers) : `Off: the Orchestrator always runs ${team.name} itself`}
+        </span>
       </span>
       {team.lead_on && <span className="muted team-lead-when">{LEAD_WHEN}</span>}
       <span className="team-lead-links">
         {LEAD_PARTS.map(([title, tab]) => (
-          <button key={title} type="button" className="link-btn" aria-label={`${lead.name}: ${title}`} onClick={() => onOpen(lead.id, tab)}>
+          <button
+            key={title}
+            type="button"
+            className="link-btn"
+            aria-label={`${lead.name}: ${title}`}
+            onClick={() => onOpen(lead.id, tab)}
+          >
             {title}
           </button>
         ))}
@@ -174,7 +246,11 @@ function TeamRow({ team, projectId = null, colour, roles, categories, recipes, s
     </div>
   )
   return (
-    <section className={`team-box${boxMark(marked, hit)}`} aria-label={team.name} style={{ '--c': colour } as CSSProperties}>
+    <section
+      className={`team-box${boxMark(marked, hit)}`}
+      aria-label={team.name}
+      style={{ '--c': colour } as CSSProperties}
+    >
       <div className="team-head">
         <button type="button" className="team-toggle" aria-expanded={open} onClick={onToggle}>
           <span className="team-chev" aria-hidden="true">
@@ -218,7 +294,14 @@ function TeamRow({ team, projectId = null, colour, roles, categories, recipes, s
           <span className={`team-pill${recipe ? '' : ' team-pill-none'}`}>{recipe?.name ?? 'no recipe'}</span>
         </button>
         <label className="team-leadmark">
-          <input type="checkbox" role="switch" className="model-agents" aria-label={`${lead.name} on`} checked={team.lead_on} onChange={e => act(actions?.changeTeam(team.id, { lead_on: e.target.checked }))} />
+          <input
+            type="checkbox"
+            role="switch"
+            className="model-agents"
+            aria-label={`${lead.name} on`}
+            checked={team.lead_on}
+            onChange={e => act(actions?.changeTeam(team.id, { lead_on: e.target.checked }))}
+          />
           {team.lead_on ? 'lead' : 'lead off'}
         </label>
       </div>
@@ -229,57 +312,126 @@ function TeamRow({ team, projectId = null, colour, roles, categories, recipes, s
             {team.stages.map((stage, at) => {
               const here = stage.roles.flatMap(id => byId.get(id) ?? [])
               return (
-                <section key={stage.id} className="team-stage" aria-label={`Stage ${at + 1}, ${stage.name}`} onDragOver={e => e.preventDefault()} onDrop={drop(stage)}>
+                <section
+                  key={stage.id}
+                  className="team-stage"
+                  aria-label={`Stage ${at + 1}, ${stage.name}`}
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={drop(stage)}
+                >
                   {/* The heading is the stage's number and name alone; what changes it stands beside it. */}
                   <div className="team-stage-head">
                     {renaming === stage.id ? (
-                      <NameForm label="Stage’s new name" value={stage.name} button="Rename" max={60} onSave={name => act(actions?.changeStage(team.id, stage.id, { name }).then(() => setRenaming(null)))} onCancel={() => setRenaming(null)} />
+                      <NameForm
+                        label="Stage’s new name"
+                        value={stage.name}
+                        button="Rename"
+                        max={60}
+                        onSave={name =>
+                          act(actions?.changeStage(team.id, stage.id, { name }).then(() => setRenaming(null)))
+                        }
+                        onCancel={() => setRenaming(null)}
+                      />
                     ) : (
                       <h4>
                         <span className="team-stage-n" aria-hidden="true">
                           {at + 1}
                         </span>
-                        <button type="button" className="team-stage-name" title="Click to rename" aria-label={`Rename stage ${stage.name}`} onClick={() => setRenaming(stage.id)}>
+                        <button
+                          type="button"
+                          className="team-stage-name"
+                          title="Click to rename"
+                          aria-label={`Rename stage ${stage.name}`}
+                          onClick={() => setRenaming(stage.id)}
+                        >
                           {stage.name}
                         </button>
                       </h4>
                     )}
                     {/* shortcut: a stage moves by these buttons, not by drag as the design draws it; add a drag if they are slow with many stages. */}
                     <span className="team-stage-tools">
-                      <button type="button" className="icon-btn" aria-label={`Move ${stage.name} up`} disabled={at === 0} onClick={() => move(at, -1)}>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label={`Move ${stage.name} up`}
+                        disabled={at === 0}
+                        onClick={() => move(at, -1)}
+                      >
                         <ArrowUp size={12} />
                       </button>
-                      <button type="button" className="icon-btn" aria-label={`Move ${stage.name} down`} disabled={at === team.stages.length - 1} onClick={() => move(at, 1)}>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label={`Move ${stage.name} down`}
+                        disabled={at === team.stages.length - 1}
+                        onClick={() => move(at, 1)}
+                      >
                         <ArrowDown size={12} />
                       </button>
                       {/* The server keeps a team with one stage at least: the last one stays. */}
-                      <button type="button" className="icon-btn" aria-label={`Remove stage ${stage.name}`} disabled={team.stages.length === 1} onClick={() => remove(stage)}>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label={`Remove stage ${stage.name}`}
+                        disabled={team.stages.length === 1}
+                        onClick={() => remove(stage)}
+                      >
                         <X size={12} />
                       </button>
                     </span>
                     <label className="team-stage-together">
-                      <input type="checkbox" aria-label={`${stage.name}: all at once`} checked={stage.together} onChange={e => act(actions?.changeStage(team.id, stage.id, { together: e.target.checked }))} />
+                      <input
+                        type="checkbox"
+                        aria-label={`${stage.name}: all at once`}
+                        checked={stage.together}
+                        onChange={e => act(actions?.changeStage(team.id, stage.id, { together: e.target.checked }))}
+                      />
                       all at once
                     </label>
                   </div>
                   {here.map(role => (
-                    <div key={role.id} className={`team-mini${role.enabled ? '' : ' team-mini-off'}${marked?.id === role.id ? ' team-mini-hit' : ''}`} draggable onDragStart={e => e.dataTransfer.setData('text/plain', `${team.id} ${role.id}`)}>
+                    <div
+                      key={role.id}
+                      className={`team-mini${role.enabled ? '' : ' team-mini-off'}${marked?.id === role.id ? ' team-mini-hit' : ''}`}
+                      draggable
+                      onDragStart={e => e.dataTransfer.setData('text/plain', `${team.id} ${role.id}`)}
+                    >
                       <Avatar name={role.name} colour={kindColour(categories, role.kind)} />
-                      <button type="button" className="team-mini-open" title={role.name} aria-current={selected === role.id || undefined} onClick={() => onOpen(role.id)}>
+                      <button
+                        type="button"
+                        className="team-mini-open"
+                        title={role.name}
+                        aria-current={selected === role.id || undefined}
+                        onClick={() => onOpen(role.id)}
+                      >
                         {role.name}
                       </button>
                       {/* K-uzman: an expert is a member as any role is; what it knows is said beside it. */}
-                      {(role.knows ?? []).filter(one => one.mode === 'full' && (one.project_id === null || one.project_id === projectId)).map(one => one.topic).filter((topic, at, all) => all.indexOf(topic) === at).map(topic => (
-                        <span key={topic} className="chip-knows" title="advises · reads only">
-                          knows: {topic}
-                        </span>
-                      ))}
+                      {(role.knows ?? [])
+                        .filter(one => one.mode === 'full' && (one.project_id === null || one.project_id === projectId))
+                        .map(one => one.topic)
+                        .filter((topic, at, all) => all.indexOf(topic) === at)
+                        .map(topic => (
+                          <span key={topic} className="chip-knows" title="advises · reads only">
+                            knows: {topic}
+                          </span>
+                        ))}
                       {cannot(role).length > 0 && (
-                        <span className="team-st-warn" role="img" aria-label={cannot(role).join(' ')} title={cannot(role).join('\n')}>
+                        <span
+                          className="team-st-warn"
+                          role="img"
+                          aria-label={cannot(role).join(' ')}
+                          title={cannot(role).join('\n')}
+                        >
                           ⚠
                         </span>
                       )}
-                      <button type="button" className="chip-x" aria-label={`Take ${role.name} out of ${team.name}`} onClick={() => takeOut(role)}>
+                      <button
+                        type="button"
+                        className="chip-x"
+                        aria-label={`Take ${role.name} out of ${team.name}`}
+                        onClick={() => takeOut(role)}
+                      >
                         <X size={10} />
                       </button>
                     </div>
@@ -292,12 +444,24 @@ function TeamRow({ team, projectId = null, colour, roles, categories, recipes, s
                     here.length === 0 && <p className="muted team-empty">No role yet: drop one here, or add one</p>
                   )}
                   {/* shortcut: one role a pick, not the design's tick boxes. Add ticks if teams are filled many roles at a time. */}
-                  <AddRole title={`${team.name}, ${stage.name}`} label="+ Add a role" others={roles.filter(role => !stage.roles.includes(role.id))} kindOf={role => kindName(categories, role.kind)} onPick={role => (role ? place(role, stage) : onNewRole(team.id, stage.id))} />
+                  <AddRole
+                    title={`${team.name}, ${stage.name}`}
+                    label="+ Add a role"
+                    others={roles.filter(role => !stage.roles.includes(role.id))}
+                    kindOf={role => kindName(categories, role.kind)}
+                    onPick={role => (role ? place(role, stage) : onNewRole(team.id, stage.id))}
+                  />
                 </section>
               )
             })}
             {edit === 'stage' ? (
-              <NameForm label="New stage’s name" button="Add stage" max={60} onSave={name => act(actions?.addStage(team.id, name).then(() => setEdit(null)))} onCancel={() => setEdit(null)} />
+              <NameForm
+                label="New stage’s name"
+                button="Add stage"
+                max={60}
+                onSave={name => act(actions?.addStage(team.id, name).then(() => setEdit(null)))}
+                onCancel={() => setEdit(null)}
+              />
             ) : (
               <button type="button" className="agents-add team-add-stage" onClick={() => setEdit('stage')}>
                 + Add a stage
@@ -308,7 +472,12 @@ function TeamRow({ team, projectId = null, colour, roles, categories, recipes, s
           <div className="team-foot muted">
             <label>
               Default recipe
-              <select className="chip" aria-label={`${team.name}'s default recipe`} value={team.default_recipe_id ?? ''} onChange={e => act(actions?.changeTeam(team.id, { default_recipe_id: e.target.value || null }))}>
+              <select
+                className="chip"
+                aria-label={`${team.name}'s default recipe`}
+                value={team.default_recipe_id ?? ''}
+                onChange={e => act(actions?.changeTeam(team.id, { default_recipe_id: e.target.value || null }))}
+              >
                 <option value="">none</option>
                 {recipes.map(one => (
                   <option key={one.id} value={one.id}>
@@ -318,15 +487,31 @@ function TeamRow({ team, projectId = null, colour, roles, categories, recipes, s
               </select>
             </label>
             <label>
-              <input type="checkbox" aria-label={`The Orchestrator may pick ${team.name}`} checked={team.lead_may_pick} onChange={e => act(actions?.changeTeam(team.id, { lead_may_pick: e.target.checked }))} />
+              <input
+                type="checkbox"
+                aria-label={`The Orchestrator may pick ${team.name}`}
+                checked={team.lead_may_pick}
+                onChange={e => act(actions?.changeTeam(team.id, { lead_may_pick: e.target.checked }))}
+              />
               <span>The Orchestrator may pick it</span>
             </label>
             {edit === 'rename' ? (
-              <NameForm label="Team’s new name" value={team.name} button="Rename team" max={55} onSave={name => act(actions?.changeTeam(team.id, { name }).then(() => setEdit(null)))} onCancel={() => setEdit(null)} />
+              <NameForm
+                label="Team’s new name"
+                value={team.name}
+                button="Rename team"
+                max={55}
+                onSave={name => act(actions?.changeTeam(team.id, { name }).then(() => setEdit(null)))}
+                onCancel={() => setEdit(null)}
+              />
             ) : edit === 'delete' ? (
               <span className="team-foot-ask">
                 Delete {team.name}? Its roles stay and its lead goes; its conversations will use every team.
-                <button type="button" className="btn btn-small btn-danger" onClick={() => act(actions?.deleteTeam(team.id))}>
+                <button
+                  type="button"
+                  className="btn btn-small btn-danger"
+                  onClick={() => act(actions?.deleteTeam(team.id))}
+                >
                   Delete team
                 </button>
                 <button type="button" className="btn btn-small" onClick={() => setEdit(null)}>
@@ -335,10 +520,20 @@ function TeamRow({ team, projectId = null, colour, roles, categories, recipes, s
               </span>
             ) : (
               <>
-                <button type="button" className="link-btn" aria-label={`Rename ${team.name}`} onClick={() => setEdit('rename')}>
+                <button
+                  type="button"
+                  className="link-btn"
+                  aria-label={`Rename ${team.name}`}
+                  onClick={() => setEdit('rename')}
+                >
                   Rename
                 </button>
-                <button type="button" className="link-btn team-foot-delete" aria-label={`Delete ${team.name}`} onClick={() => setEdit('delete')}>
+                <button
+                  type="button"
+                  className="link-btn team-foot-delete"
+                  aria-label={`Delete ${team.name}`}
+                  onClick={() => setEdit('delete')}
+                >
                   Delete team
                 </button>
               </>
@@ -381,7 +576,13 @@ export function TeamsBoard({ lead, teams, activity, ...row }: Props) {
               {activity && ` · ${lastLine(lead, activity.last[lead.name])}`}
             </span>
           </span>
-          <button type="button" className="btn btn-small" aria-label="Open the Lead" aria-current={row.selected === lead.id || undefined} onClick={() => row.onOpen(lead.id)}>
+          <button
+            type="button"
+            className="btn btn-small"
+            aria-label="Open the Lead"
+            aria-current={row.selected === lead.id || undefined}
+            onClick={() => row.onOpen(lead.id)}
+          >
             Open
           </button>
         </div>
@@ -392,12 +593,19 @@ export function TeamsBoard({ lead, teams, activity, ...row }: Props) {
           : `${teams.length === 1 ? '1 team' : `${teams.length} teams`} · one open at a time · drag a role from the left into a stage`}
       </p>
       {teams.map(team => (
-        <TeamRow key={team.id} team={team} colour={colours.get(team.id)!} open={team.id === open} onToggle={() => toggle(team.id)} {...row} />
+        <TeamRow
+          key={team.id}
+          team={team}
+          colour={colours.get(team.id)!}
+          open={team.id === open}
+          onToggle={() => toggle(team.id)}
+          {...row}
+        />
       ))}
       <p className="agents-legend muted">
-        A stage’s name and order are the team’s own; a role sits in one stage of a team, and may be in several teams. A chat’s team runs by
-        the recipe picked for it, else by its default recipe; with none, the Orchestrator may open any of its roles. A default recipe is one of
-        KOLONİ’s, not a folder’s own: a team is every folder’s.
+        A stage’s name and order are the team’s own; a role sits in one stage of a team, and may be in several teams. A
+        chat’s team runs by the recipe picked for it, else by its default recipe; with none, the Orchestrator may open
+        any of its roles. A default recipe is one of KOLONİ’s, not a folder’s own: a team is every folder’s.
       </p>
     </div>
   )

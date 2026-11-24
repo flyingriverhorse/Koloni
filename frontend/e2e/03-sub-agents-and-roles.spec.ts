@@ -97,5 +97,7 @@ test('a role a sub-agent asks for is decided from the chat and lands on the Agen
 
   await page.getByRole('button', { name: 'Agents', exact: true }).click()
   await page.getByRole('button', { name: /^Documenter/ }).click()
-  await expect(page.getByRole('complementary', { name: 'Role Documenter' }).getByText('Created by an agent')).toBeVisible()
+  await expect(
+    page.getByRole('complementary', { name: 'Role Documenter' }).getByText('Created by an agent'),
+  ).toBeVisible()
 })

@@ -47,7 +47,14 @@ export function WebLeave({ conversationId, web, hosts, notify, onChange, onHosts
   return (
     <>
       <label className="choice" htmlFor="trigger-web">
-        <input id="trigger-web" type="checkbox" aria-label="May search the web" checked={web} aria-describedby="trigger-web-note" onChange={e => onChange({ web: e.target.checked })} />
+        <input
+          id="trigger-web"
+          type="checkbox"
+          aria-label="May search the web"
+          checked={web}
+          aria-describedby="trigger-web-note"
+          onChange={e => onChange({ web: e.target.checked })}
+        />
         <span>
           May search the web
           <span id="trigger-web-note" className="choice-note">
@@ -58,7 +65,11 @@ export function WebLeave({ conversationId, web, hosts, notify, onChange, onHosts
       {conversationId && (
         <fieldset className="trigger-leave" aria-label="May make requests to these hosts">
           <legend>May make requests to these hosts</legend>
-          <p className="choice-note">With nobody watching, a ticked host is asked with GET and HEAD only - over https on its usual port, unless it is written here with another scheme and port - and a redirect to anywhere else is not followed. Nothing on this machine or its network is ever reached.</p>
+          <p className="choice-note">
+            With nobody watching, a ticked host is asked with GET and HEAD only - over https on its usual port, unless
+            it is written here with another scheme and port - and a redirect to anywhere else is not followed. Nothing
+            on this machine or its network is ever reached.
+          </p>
           {failed && (
             <div role="alert" className="alert">
               {failed}
@@ -66,22 +77,39 @@ export function WebLeave({ conversationId, web, hosts, notify, onChange, onHosts
           )}
           {shown === null && !failed && <p className="muted trigger-note">Reading this conversation’s list…</p>}
           {shown?.length === 0 && (
-            <p className="muted trigger-note">This conversation has no allowed hosts yet. A host gets on its list when you answer a request in the chat with “Always allow GET to …”.</p>
+            <p className="muted trigger-note">
+              This conversation has no allowed hosts yet. A host gets on its list when you answer a request in the chat
+              with “Always allow GET to …”.
+            </p>
           )}
           {shown?.map(host => (
             <label key={host} className="choice">
-              <input type="checkbox" checked={hosts.includes(host)} onChange={event => onChange({ hosts: event.target.checked ? [...hosts, host] : hosts.filter(other => other !== host) })} />
+              <input
+                type="checkbox"
+                checked={hosts.includes(host)}
+                onChange={event =>
+                  onChange({ hosts: event.target.checked ? [...hosts, host] : hosts.filter(other => other !== host) })
+                }
+              />
               <span className="mono">{host}</span>
             </label>
           ))}
         </fieldset>
       )}
       <label className="choice" htmlFor="trigger-notify">
-        <input id="trigger-notify" type="checkbox" aria-label="May send you notifications" checked={notify} aria-describedby="trigger-notify-note" onChange={e => onChange({ notify: e.target.checked })} />
+        <input
+          id="trigger-notify"
+          type="checkbox"
+          aria-label="May send you notifications"
+          checked={notify}
+          aria-describedby="trigger-notify-note"
+          onChange={e => onChange({ notify: e.target.checked })}
+        />
         <span>
           May send you notifications
           <span id="trigger-notify-note" className="choice-note">
-            Where the project’s settings say - your desktop, your notification address - and nowhere else. With neither set there is no such tool.
+            Where the project’s settings say - your desktop, your notification address - and nowhere else. With neither
+            set there is no such tool.
           </span>
         </span>
       </label>

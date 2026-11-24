@@ -25,14 +25,25 @@ const CODE_LINE = [
 
 /** A stack trace, code in no one language: Python's header, or two of a trace's lines (one alone may be words: "at 14:30"). */
 const TRACE_LINE = /^([ \t]+at .+:\d+|[ \t]*File ".+", line \d+)/
-const isTrace = (code: string) => /^Traceback \(most recent call last\)/m.test(code) || code.split('\n').filter(line => TRACE_LINE.test(line)).length >= 2
+const isTrace = (code: string) =>
+  /^Traceback \(most recent call last\)/m.test(code) ||
+  code.split('\n').filter(line => TRACE_LINE.test(line)).length >= 2
 
 /** The strong signs, in the order they are tried. */
 const LANGUAGES: [string, RegExp][] = [
-  ['sql', /^\s*(select\b[\s\S]*\bfrom\b|insert\s+into\b|update\s+\w+\s+set\b|delete\s+from\b|create\s+(table|index|view)\b)/im],
-  ['python', /^\s*(def \w+\(.*\)\s*(->.*)?:|class \w+(\(.*\))?:|(from [\w.]+ )?import [\w.]+(\s+as \w+)?(,\s*[\w.]+)*|elif\b.*:|except\b.*:|if __name__ == )\s*$/m],
+  [
+    'sql',
+    /^\s*(select\b[\s\S]*\bfrom\b|insert\s+into\b|update\s+\w+\s+set\b|delete\s+from\b|create\s+(table|index|view)\b)/im,
+  ],
+  [
+    'python',
+    /^\s*(def \w+\(.*\)\s*(->.*)?:|class \w+(\(.*\))?:|(from [\w.]+ )?import [\w.]+(\s+as \w+)?(,\s*[\w.]+)*|elif\b.*:|except\b.*:|if __name__ == )\s*$/m,
+  ],
   ['typescript', /^\s*(export\s+)?(interface|type)\s+\w+[^=]*[={]|\w\??:\s*(string|number|boolean|void|unknown)\b/m],
-  ['javascript', /^\s*(import .+ from ['"]|(export\s+)?(const|let) \w+ = |(export\s+)?(async\s+)?function\s*\w*\s*\()|console\.log\(|require\(['"]/m],
+  [
+    'javascript',
+    /^\s*(import .+ from ['"]|(export\s+)?(const|let) \w+ = |(export\s+)?(async\s+)?function\s*\w*\s*\()|console\.log\(|require\(['"]/m,
+  ],
 ]
 
 const SHEBANG: [string, RegExp][] = [
@@ -56,7 +67,10 @@ function languageOf(code: string): string | null {
 }
 
 export function asCode(pasted: string): { text: string; language: string | null } | null {
-  const code = pasted.replace(/\r\n?/g, '\n').replace(/^\s*\n/, '').trimEnd()
+  const code = pasted
+    .replace(/\r\n?/g, '\n')
+    .replace(/^\s*\n/, '')
+    .trimEnd()
   const lines = code.split('\n')
   if (lines.length < 3 || /^ {0,3}(```|~~~)/m.test(code)) return null
   const said = lines.filter(line => line.trim())

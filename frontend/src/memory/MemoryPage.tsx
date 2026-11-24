@@ -6,7 +6,20 @@ import { useApp } from '../state/store'
 import type { ProjectSettingsValues } from '../shell/ProjectSettings'
 import { Find } from './Find'
 import { FolderRules, type NewFact, RulesBox, WriteBox } from './forms'
-import { byTopic, decisionId, decisionOf, lastAutoText, linesOf, meter, moment, subject, type Tab, TABS, wouldReplace, writerOf } from './memoryText'
+import {
+  byTopic,
+  decisionId,
+  decisionOf,
+  lastAutoText,
+  linesOf,
+  meter,
+  moment,
+  subject,
+  type Tab,
+  TABS,
+  wouldReplace,
+  writerOf,
+} from './memoryText'
 import { CoreFact, JournalNote, PastRecord, Proposal, Suggestion } from './records'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
@@ -40,7 +53,17 @@ interface Props {
   searchFor?: { words: string; n: number }
 }
 
-function Section({ title, hint, more, children }: { title: string; hint?: string; more?: ReactNode; children: ReactNode }) {
+function Section({
+  title,
+  hint,
+  more,
+  children,
+}: {
+  title: string
+  hint?: string
+  more?: ReactNode
+  children: ReactNode
+}) {
   return (
     <section className="memory-section" aria-label={title}>
       <h3>{title}</h3>
@@ -67,7 +90,15 @@ function TabHead({ line, more, children }: { line: string; more: ReactNode; chil
 }
 
 /** A filter of a tab by subject: '' for all, otherwise '=' and the subject as compared. */
-function TopicFilter({ records, value, onChange }: { records: MemoryRecord[]; value: string; onChange: (value: string) => void }) {
+function TopicFilter({
+  records,
+  value,
+  onChange,
+}: {
+  records: MemoryRecord[]
+  value: string
+  onChange: (value: string) => void
+}) {
   return (
     <select className="input memory-filter" aria-label="Topic" value={value} onChange={e => onChange(e.target.value)}>
       <option value="">All topics</option>
@@ -80,7 +111,8 @@ function TopicFilter({ records, value, onChange }: { records: MemoryRecord[]; va
   )
 }
 
-const ofTopic = (records: MemoryRecord[], topic: string) => (topic ? records.filter(record => `=${subject(record.about)}` === topic) : records)
+const ofTopic = (records: MemoryRecord[], topic: string) =>
+  topic ? records.filter(record => `=${subject(record.about)}` === topic) : records
 
 /**
  * Which turn the last notes made by themselves were of: one of the open conversation's, when it
@@ -88,7 +120,9 @@ const ofTopic = (records: MemoryRecord[], topic: string) => (topic ? records.fil
  */
 function lastTurnOf(memory: ProjectMemory | null, conv: ConvState | null) {
   const ofAuto = memory?.last_auto ? conv?.runs.find(run => run.id === memory.last_auto?.run_id) : undefined
-  return ofAuto && conv ? `the work on the ${moment(ofAuto.created_at)} message in “${conv.conversation.title}”` : 'a message of a conversation not open here'
+  return ofAuto && conv
+    ? `the work on the ${moment(ofAuto.created_at)} message in “${conv.conversation.title}”`
+    : 'a message of a conversation not open here'
 }
 
 /** The rules in the box: the folder's where it is read - but the saved ones where they differ, which Full auto's check reads (K-yargıç). */
@@ -113,7 +147,12 @@ function ExportButton({ onExport }: { onExport: () => Promise<void> }) {
   }
   return (
     <>
-      <button type="button" className="btn btn-small" onClick={save} title="The core as a Markdown file to read. A copy: editing it does not change the memory.">
+      <button
+        type="button"
+        className="btn btn-small"
+        onClick={save}
+        title="The core as a Markdown file to read. A copy: editing it does not change the memory."
+      >
         Export
       </button>
       {failed && (
@@ -183,7 +222,9 @@ export function MemoryPage({ memory, error, onReload, onSearch, onMeaning, onExp
   }
   function onTabKey(event: KeyboardEvent<HTMLDivElement>) {
     const at = TABS.findIndex(([id]) => id === tab)
-    const to = ({ ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: TABS.length - 1 } as Record<string, number>)[event.key]
+    const to = ({ ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: TABS.length - 1 } as Record<string, number>)[
+      event.key
+    ]
     if (to === undefined) return
     event.preventDefault()
     const next = TABS[(to + TABS.length) % TABS.length][0]
@@ -211,13 +252,23 @@ export function MemoryPage({ memory, error, onReload, onSearch, onMeaning, onExp
   const waits = () =>
     (waiting > 0 || waited) && (
       <div className="memory-waiting">
-        <button type="button" className="memory-waiting-line" aria-expanded={waitOpen} aria-controls="memory-waits" onClick={() => setWaitOpen(!waitOpen)}>
-          {waiting > 0 ? `● ${waiting} ${waiting === 1 ? 'fact waits' : 'facts wait'} for your word` : 'Nothing waits for your word'}
+        <button
+          type="button"
+          className="memory-waiting-line"
+          aria-expanded={waitOpen}
+          aria-controls="memory-waits"
+          onClick={() => setWaitOpen(!waitOpen)}
+        >
+          {waiting > 0
+            ? `● ${waiting} ${waiting === 1 ? 'fact waits' : 'facts wait'} for your word`
+            : 'Nothing waits for your word'}
         </button>
         {/* shortcut: no "Open in Ready →" beside it - the Ready page is not on main yet; add the link when it is. */}
         {waitOpen && (
           <section id="memory-waits" className="memory-section" aria-label="Waits for you">
-            <p className="muted memory-hint">Notes agents put forward for the core. Nothing enters the core unless you approve it.</p>
+            <p className="muted memory-hint">
+              Notes agents put forward for the core. Nothing enters the core unless you approve it.
+            </p>
             {/* (Shown as the last note is decided: the focus goes here, not to the page.) */}
             {waiting === 0 && (
               <p className="muted" tabIndex={-1} ref={said => said?.focus()}>
@@ -241,20 +292,35 @@ export function MemoryPage({ memory, error, onReload, onSearch, onMeaning, onExp
 
   /** Told: your preferences, with what is suggested for them, and this project's rules. */
   const toldPanel = () => (
-    <div id="memory-panel-told" role="tabpanel" aria-labelledby="memory-tab-told" className="memory-panel" hidden={tab !== 'told'}>
+    <div
+      id="memory-panel-told"
+      role="tabpanel"
+      aria-labelledby="memory-tab-told"
+      className="memory-panel"
+      hidden={tab !== 'told'}
+    >
       <TabHead
         line="Said to every agent, always."
         more="Your preferences are yours in every project: every agent is told them as your instructions, before the project’s rules - language, tone, commit rules, whatever holds wherever you work. This project’s rules are like an AGENTS.md or CLAUDE.md file: every agent working in this project is given them each turn. Only you write either. At Full auto, with Check what I said first on (Settings › This project › Asking and away), a harmful-looking command runs without a card when a line here names it and what it touches: “You may delete build/ and dist/.”, “Pushing branches other than main is fine.” One a line here forbids is not run: “Never push to main.”"
       />
       <Section title="Your preferences">
         {/* Keyed by what is saved, so the text follows a save made here or elsewhere. */}
-        <RulesBox key={memory.preferences ?? ''} rules={memory.preferences ?? null} what="preferences" onSave={on.onSavePreferences} />
+        <RulesBox
+          key={memory.preferences ?? ''}
+          rules={memory.preferences ?? null}
+          what="preferences"
+          onSave={on.onSavePreferences}
+        />
         {(memory.suggestions ?? []).length > 0 && (
           <div role="group" aria-label="Suggested for your preferences" className="memory-section">
             <div className="muted memory-hint">
               {/* (What Add does is read before it is clicked: in sight, the rest behind the "?".) */}
-              <span className="tag">suggested</span> Added, it is told to every agent in every project as your instruction.{' '}
-              <Hint doc={GUIDE.memoryKinds}>What KOLONİ’s summariser took for a preference of yours from a finished message. Nothing enters your preferences unless you add it.</Hint>
+              <span className="tag">suggested</span> Added, it is told to every agent in every project as your
+              instruction.{' '}
+              <Hint doc={GUIDE.memoryKinds}>
+                What KOLONİ’s summariser took for a preference of yours from a finished message. Nothing enters your
+                preferences unless you add it.
+              </Hint>
             </div>
             {(memory.suggestions ?? []).map(record => (
               <Suggestion key={record.id} record={record} onAdd={on.onAddPreference} onReject={on.onReject} />
@@ -285,35 +351,71 @@ export function MemoryPage({ memory, error, onReload, onSearch, onMeaning, onExp
 
   /** Facts: the core, filtered by subject, and the box to add one. */
   const factsPanel = () => (
-    <div id="memory-panel-facts" role="tabpanel" aria-labelledby="memory-tab-facts" className="memory-panel" hidden={tab !== 'facts'}>
+    <div
+      id="memory-panel-facts"
+      role="tabpanel"
+      aria-labelledby="memory-tab-facts"
+      className="memory-panel"
+      hidden={tab !== 'facts'}
+    >
       <TabHead line="Given to an agent when its work names the subject." more={FACTS_MORE}>
         <span className="mono muted memory-count">{meter(memory.core_chars, memory.core_limit)}</span>
         <TopicFilter records={memory.core} value={factsOf} onChange={setFactTopic} />
-        <button type="button" className="btn btn-small btn-primary" aria-expanded={adding} onClick={() => { setAdding(!adding); setDraft(undefined) }}>
+        <button
+          type="button"
+          className="btn btn-small btn-primary"
+          aria-expanded={adding}
+          onClick={() => {
+            setAdding(!adding)
+            setDraft(undefined)
+          }}
+        >
           ＋ Add a fact
         </button>
       </TabHead>
       {adding && (
-        <Section title="Add a fact" hint="It goes into the core at once, replacing the fact on the same subject. Without a subject, it is found only when looked up.">
+        <Section
+          title="Add a fact"
+          hint="It goes into the core at once, replacing the fact on the same subject. Without a subject, it is found only when looked up."
+        >
           <WriteBox from={draft} onWrite={on.onWrite} />
         </Section>
       )}
-      {memory.core.length === 0 && <p className="muted">Nothing is in the core yet. Agents are given only what you approve or write here.</p>}
+      {memory.core.length === 0 && (
+        <p className="muted">Nothing is in the core yet. Agents are given only what you approve or write here.</p>
+      )}
       {facts.map(record => (
-        <CoreFact key={record.id} record={record} onCorrect={on.onCorrect} onReject={on.onReject} onConfirm={on.onConfirm} />
+        <CoreFact
+          key={record.id}
+          record={record}
+          onCorrect={on.onCorrect}
+          onReject={on.onReject}
+          onConfirm={on.onConfirm}
+        />
       ))}
     </div>
   )
 
   /** Notes: the journal, filtered by subject and by who wrote it, and how noting by itself last went. */
   const notesPanel = () => (
-    <div id="memory-panel-notes" role="tabpanel" aria-labelledby="memory-tab-notes" className="memory-panel" hidden={tab !== 'notes'}>
+    <div
+      id="memory-panel-notes"
+      role="tabpanel"
+      aria-labelledby="memory-tab-notes"
+      className="memory-panel"
+      hidden={tab !== 'notes'}
+    >
       <TabHead
         line="Found only when an agent looks."
         more="What agents noted, and, if the project’s settings say so, what a fast model noted of finished work, signed as its own. No agent is given these: an agent finds them only when it looks."
       >
         <TopicFilter records={memory.journal} value={notesOf} onChange={setNoteTopic} />
-        <select className="input memory-filter" aria-label="Written by" value={by} onChange={e => setWriter(e.target.value)}>
+        <select
+          className="input memory-filter"
+          aria-label="Written by"
+          value={by}
+          onChange={e => setWriter(e.target.value)}
+        >
           <option value="">Anyone</option>
           {writers.map(name => (
             <option key={name} value={name}>
@@ -323,7 +425,11 @@ export function MemoryPage({ memory, error, onReload, onSearch, onMeaning, onExp
         </select>
       </TabHead>
       {lastAuto && <p className="muted memory-hint">{lastAuto}</p>}
-      {memory.journal.length === 0 ? <p className="muted hive-empty">Agents have noted nothing yet.</p> : notes.length === 0 && <p className="muted">No note matches.</p>}
+      {memory.journal.length === 0 ? (
+        <p className="muted hive-empty">Agents have noted nothing yet.</p>
+      ) : (
+        notes.length === 0 && <p className="muted">No note matches.</p>
+      )}
       {notes.map(record => (
         <JournalNote key={record.id} record={record} onReject={on.onReject} onMakeFact={makeFact} />
       ))}
@@ -332,7 +438,13 @@ export function MemoryPage({ memory, error, onReload, onSearch, onMeaning, onExp
 
   /** History: the last decisions, and what was removed or replaced. */
   const historyPanel = () => (
-    <div id="memory-panel-history" role="tabpanel" aria-labelledby="memory-tab-history" className="memory-panel" hidden={tab !== 'history'}>
+    <div
+      id="memory-panel-history"
+      role="tabpanel"
+      aria-labelledby="memory-tab-history"
+      className="memory-panel"
+      hidden={tab !== 'history'}
+    >
       <TabHead
         line="Decisions and what was removed. Nothing is deleted."
         more="The last decision on each record and the last change to your rules, newest first. KOLONİ only knows each came from this page’s address, not who made it. If one of them was not yours, look into it."
@@ -378,7 +490,14 @@ export function MemoryPage({ memory, error, onReload, onSearch, onMeaning, onExp
         </div>
       )}
 
-      <Find key={searchFor?.n} memory={memory} onOpen={open} onSearch={onSearch} onMeaning={onMeaning} searchFor={searchFor?.words} />
+      <Find
+        key={searchFor?.n}
+        memory={memory}
+        onOpen={open}
+        onSearch={onSearch}
+        onMeaning={onMeaning}
+        searchFor={searchFor?.words}
+      />
 
       {waits()}
 

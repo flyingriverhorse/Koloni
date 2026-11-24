@@ -64,13 +64,16 @@ for (const [name, theme, layer] of [
   test(`every text colour reads on every ground in the ${name} theme`, () => {
     for (const fg of texts)
       for (const bg of flats) expect(ratio(theme[fg], theme[bg]), `${fg} on ${bg}`).toBeGreaterThanOrEqual(4.5)
-    expect(ratio(theme['--accent-fg'], theme['--accent-fill']), '--accent-fg on --accent-fill').toBeGreaterThanOrEqual(4.5)
+    expect(ratio(theme['--accent-fg'], theme['--accent-fill']), '--accent-fg on --accent-fill').toBeGreaterThanOrEqual(
+      4.5,
+    )
   })
 
   test(`a role's tool groups read on every ground, and the ground on them, in the ${name} theme`, () => {
     // The group's heading is in its colour; its mark and a tile's check are the ground on it.
     for (const group of ['files', 'commands', 'web', 'browser', 'team', 'to-do', 'memory'])
-      for (const bg of flats) expect(ratio(theme[`--tool-${group}`], theme[bg]), `--tool-${group} on ${bg}`).toBeGreaterThanOrEqual(4.5)
+      for (const bg of flats)
+        expect(ratio(theme[`--tool-${group}`], theme[bg]), `--tool-${group} on ${bg}`).toBeGreaterThanOrEqual(4.5)
   })
 
   test(`every text reads on a hovered or chosen row, and in its tags, in the ${name} theme`, () => {
@@ -142,7 +145,8 @@ for (const [name, theme] of [
       expect(ratio(theme['--member-line'], theme[bg]), `--member-line on ${bg}`).toBeGreaterThanOrEqual(3)
     for (const other of ['--border-strong', '--accent'])
       expect(distance(theme['--member-line'], theme[other]), `--member-line from ${other}`).toBeGreaterThanOrEqual(15)
-    for (const team of teamFrames) expect(distance(theme['--member-line'], team), `--member-line from a team's ${team}`).toBeGreaterThanOrEqual(15)
+    for (const team of teamFrames)
+      expect(distance(theme['--member-line'], team), `--member-line from a team's ${team}`).toBeGreaterThanOrEqual(15)
   })
 }
 
@@ -150,7 +154,9 @@ for (const [name, theme] of [
 // with the line numbers and the signs beside it - the tints changes.css lays over the window's ground.
 const changes = readFileSync(new URL('./changes.css', import.meta.url), 'utf8')
 const tint = (kind: string) => {
-  const found = changes.match(new RegExp(`\\.diff-${kind} \\{\\s*background: color-mix\\(in srgb, var\\((--[\\w-]+)\\) (\\d+)%, transparent\\);`))
+  const found = changes.match(
+    new RegExp(`\\.diff-${kind} \\{\\s*background: color-mix\\(in srgb, var\\((--[\\w-]+)\\) (\\d+)%, transparent\\);`),
+  )
   return found && { token: found[1], alpha: Number(found[2]) / 100 }
 }
 for (const [name, theme, own] of [
@@ -168,12 +174,14 @@ for (const [name, theme, own] of [
       removed: over(rgb(theme[removed!.token]), removed!.alpha, theme['--surface']),
     }
     for (const fg of [...code, '--text', '--faint', '--ok', '--del'])
-      for (const [ground, bg] of Object.entries(grounds)) expect(ratio(theme[fg], bg), `${fg} on a ${ground} line`).toBeGreaterThanOrEqual(4.5)
+      for (const [ground, bg] of Object.entries(grounds))
+        expect(ratio(theme[fg], bg), `${fg} on a ${ground} line`).toBeGreaterThanOrEqual(4.5)
   })
 }
 
 // The colour a base.css rule gives first, by its selector as written.
-const rule = (selector: string) => base.match(new RegExp(`${selector.replace(/\./g, '\\.')} \\{\\s*color: var\\((--[\\w-]+)\\);`))?.[1]
+const rule = (selector: string) =>
+  base.match(new RegExp(`${selector.replace(/\./g, '\\.')} \\{\\s*color: var\\((--[\\w-]+)\\);`))?.[1]
 
 test('an answer colours its paths, commands and bold words with the tokens checked above (K-sohbet-renk)', () => {
   expect(rule('.markdown .md-path')).toBe('--code-title')
@@ -210,7 +218,10 @@ test('an older turn’s hidden Copy and Read aloud take no room: a foot of only 
   // (Hidden by opacity, they left a blank band under every older answer; the latest keeps its row, and so does a turn
   // that ends with a card: the foot would lie over its buttons.)
   expect(base).toMatch(/\.chat \.msg-list > \.turn:not\(\.turn-latest\)\.turn-words-end \{\s*position: relative;/)
-  const foot = base.match(/\.chat \.msg-list > \.turn:not\(\.turn-latest\)\.turn-words-end > \.turn-foot:not\(:has\(\.turn-summary\)\) \{([^}]*)\}/)?.[1] ?? ''
+  const foot =
+    base.match(
+      /\.chat \.msg-list > \.turn:not\(\.turn-latest\)\.turn-words-end > \.turn-foot:not\(:has\(\.turn-summary\)\) \{([^}]*)\}/,
+    )?.[1] ?? ''
   expect(foot).toContain('position: absolute;')
   expect(foot).toContain('pointer-events: none;')
   expect(foot).not.toMatch(/visibility|display: none/)

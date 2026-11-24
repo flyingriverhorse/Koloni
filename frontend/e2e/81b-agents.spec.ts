@@ -7,7 +7,8 @@ import { OWN, contrasts, openFreshConversation, say, settled, shot } from './hel
 type Named = { id: string; name: string }
 let local: { id: string; models: unknown[] }
 
-const roles = async (request: APIRequestContext) => (await (await request.get('/api/roles')).json()) as (Named & { enabled: boolean })[]
+const roles = async (request: APIRequestContext) =>
+  (await (await request.get('/api/roles')).json()) as (Named & { enabled: boolean })[]
 const roleId = async (request: APIRequestContext, name: string) => (await roles(request)).find(r => r.name === name)!.id
 const patch = async (request: APIRequestContext, name: string, data: object) =>
   expect((await request.patch(`/api/roles/${await roleId(request, name)}`, { headers: OWN, data })).ok()).toBe(true)
@@ -15,13 +16,22 @@ const patch = async (request: APIRequestContext, name: string, data: object) =>
 test.beforeEach(async ({ request }) => {
   local = (await (await request.get('/api/providers')).json()).find((p: Named) => p.name === 'Local')
   // The fake model is the balanced one: a role with no tier given for the job runs on it.
-  expect((await request.patch(`/api/providers/${local.id}`, { headers: OWN, data: { models: [{ name: 'fake-qwen', tier: 'balanced' }] } })).ok()).toBe(true)
+  expect(
+    (
+      await request.patch(`/api/providers/${local.id}`, {
+        headers: OWN,
+        data: { models: [{ name: 'fake-qwen', tier: 'balanced' }] },
+      })
+    ).ok(),
+  ).toBe(true)
   await patch(request, 'Translator', { enabled: false })
   await patch(request, 'Security reviewer', { tier: 'strongest' })
 })
 
 test.afterEach(async ({ request }) => {
-  expect((await request.patch(`/api/providers/${local.id}`, { headers: OWN, data: { models: local.models } })).ok()).toBe(true)
+  expect(
+    (await request.patch(`/api/providers/${local.id}`, { headers: OWN, data: { models: local.models } })).ok(),
+  ).toBe(true)
   for (const name of ['Translator', 'Security reviewer', 'DevOps']) {
     await patch(request, name, { enabled: true })
     expect((await request.post(`/api/roles/${await roleId(request, name)}/reset`, { headers: OWN })).ok()).toBe(true)
@@ -30,14 +40,25 @@ test.afterEach(async ({ request }) => {
 
 /** Every line of every library row and team row is whole: none wider or taller than its box (a row widens, never cuts). */
 const cutLines = (page: Page) =>
-  page.locator('.lib-row-open, .team-toggle').evaluateAll(rows =>
-    rows.flatMap(row => [...row.children].filter(line => line.scrollWidth > line.clientWidth + 1 || line.scrollHeight > line.clientHeight + 1).map(line => line.textContent)),
-  )
-const pageScrollsSideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)
-const lowContrast = async (page: Page) => (await page.locator('.paged').evaluate(contrasts)).filter(piece => piece.ratio < 4.5)
+  page
+    .locator('.lib-row-open, .team-toggle')
+    .evaluateAll(rows =>
+      rows.flatMap(row =>
+        [...row.children]
+          .filter(line => line.scrollWidth > line.clientWidth + 1 || line.scrollHeight > line.clientHeight + 1)
+          .map(line => line.textContent),
+      ),
+    )
+const pageScrollsSideways = (page: Page) =>
+  page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)
+const lowContrast = async (page: Page) =>
+  (await page.locator('.paged').evaluate(contrasts)).filter(piece => piece.ratio < 4.5)
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`the Agents page by kind of work, a role opened beside, the tier on the node (${theme})`, async ({ page, request }) => {
+  test(`the Agents page by kind of work, a role opened beside, the tier on the node (${theme})`, async ({
+    page,
+    request,
+  }) => {
     test.setTimeout(60_000)
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await page.setViewportSize({ width: 1440, height: 900 })
@@ -56,7 +77,8 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(page.locator('.lead-strip')).toContainText('Lead — shown as Orchestrator · Talks with the user')
     await expect(page.locator('.lead-strip')).toContainText('Last: fake-qwen')
     const library = page.getByRole('complementary', { name: 'Roles' })
-    for (const kind of ['Plan', 'Build', 'Data', 'ML', 'Ops', 'Check', 'Write & keep up']) await expect(library.getByRole('region', { name: kind, exact: true })).toBeVisible()
+    for (const kind of ['Plan', 'Build', 'Data', 'ML', 'Ops', 'Check', 'Write & keep up'])
+      await expect(library.getByRole('region', { name: kind, exact: true })).toBeVisible()
     const check = library.getByRole('region', { name: 'Check' })
     await expect(check.getByRole('button', { name: /^Reviewer/ })).toContainText('Reviewer4 teams')
     // off: muted in its own group, and counted
@@ -81,7 +103,9 @@ for (const theme of ['light', 'dark'] as const) {
     const panel = page.getByRole('complementary', { name: 'Role Reviewer' })
     await expect(panel.getByLabel("Reviewer's category")).toHaveValue('check')
     await expect(panel).toContainText('Web app · Check')
-    await expect(page.getByText(/^Reviewer is in 4 of \d+ teams · the others are faded while it is open$/)).toBeVisible()
+    await expect(
+      page.getByText(/^Reviewer is in 4 of \d+ teams · the others are faded while it is open$/),
+    ).toBeVisible()
     await expect(page.locator('.team-box-hit')).toHaveCount(4)
     await expect(panel).toContainText('Which modelOrchestrator · fast–strongest')
     await expect(panel.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true')

@@ -70,7 +70,11 @@ const FEATURE: Recipe = {
   file: null,
   graph: {
     version: 1,
-    steps: [step('build', 'Build it'), step('code', 'Code review', { who: { role: 'Reviewer' }, group: 'g' }), step('ui', 'UI review', { group: 'g' })],
+    steps: [
+      step('build', 'Build it'),
+      step('code', 'Code review', { who: { role: 'Reviewer' }, group: 'g' }),
+      step('ui', 'UI review', { group: 'g' }),
+    ],
     groups: [{ id: 'g', name: 'All at once, wait for all', wait: 'all' }],
     ends: [{ id: 'end', then: 'in' }],
     arrows: [
@@ -157,7 +161,11 @@ const CHECKS: Recipe = {
   name: 'Checks',
   graph: {
     ...FEATURE.graph,
-    steps: [step('build', 'Build it', { group: 'g' }), step('test', 'Test it', { group: 'g' }), step('docs', 'Write docs', { group: 'g' })],
+    steps: [
+      step('build', 'Build it', { group: 'g' }),
+      step('test', 'Test it', { group: 'g' }),
+      step('docs', 'Write docs', { group: 'g' }),
+    ],
     groups: [{ id: 'g', name: 'Checks', wait: 'first' }],
     arrows: [
       { from: 'start', to: 'g' },
@@ -183,7 +191,10 @@ test('the branches fork from the group and join at its way out; a group that wai
   // React Flow draws an arrow once its parts have a size, and sizes an arrow's words: jsdom gives neither.
   vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(100)
   vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(50)
-  Object.defineProperty(SVGElement.prototype, 'getBBox', { configurable: true, value: () => ({ x: 0, y: 0, width: 40, height: 10 }) })
+  Object.defineProperty(SVGElement.prototype, 'getBBox', {
+    configurable: true,
+    value: () => ({ x: 0, y: 0, width: 40, height: 10 }),
+  })
   onTestFinished(() => {
     vi.restoreAllMocks()
     delete (SVGElement.prototype as { getBBox?: unknown }).getBBox
@@ -198,7 +209,10 @@ test('the branches fork from the group and join at its way out; a group that wai
 
 test('Tidy up lays a group stacked in one column out in its branches’ columns (B-374)', async () => {
   // Saved as the board drew it before: one under another.
-  const stacked = (['build', 'test', 'docs'] as const).reduce((graph, id, at) => place(graph, id, { x: 12, y: 30 + at * 58 }), CHECKS.graph)
+  const stacked = (['build', 'test', 'docs'] as const).reduce(
+    (graph, id, at) => place(graph, id, { x: 12, y: 30 + at * 58 }),
+    CHECKS.graph,
+  )
   const given = draw(actions(), { ...list, recipes: [{ ...CHECKS, ready: false, graph: stacked }] })
   expect(new Set(['build', 'test', 'docs'].map(id => layout(stacked)[id].x)).size).toBe(1)
   fireEvent.click(screen.getByRole('button', { name: 'Tidy up' }))
@@ -226,15 +240,35 @@ test('B-375: the one line shows a fork’s ways side by side, then where they me
       { id: 'g1', name: 'All at once', wait: 'all' },
     ],
     ends: [{ id: 'end', then: 'in' }],
-    arrows: [[START, 'g'], [START, 'g1'], ['build', 'test'], ['g', 'end'], ['g1', 'end']].map(([from, to]) => ({ from, to })),
+    arrows: [
+      [START, 'g'],
+      [START, 'g1'],
+      ['build', 'test'],
+      ['g', 'end'],
+      ['g1', 'end'],
+    ].map(([from, to]) => ({ from, to })),
   }
   expect(summary(twoGroups)).toBe('(3 at once ∥ 2 at once) → Ask me, then in')
   // A step forking into a line of two and one, met at a third.
   const diamond: RecipeGraph = {
     ...emptyGraph(),
-    steps: [step('a', 'Build it'), step('b', 'Test it'), step('b2', 'Fix it'), step('c', 'Write docs'), step('d', 'Review')],
+    steps: [
+      step('a', 'Build it'),
+      step('b', 'Test it'),
+      step('b2', 'Fix it'),
+      step('c', 'Write docs'),
+      step('d', 'Review'),
+    ],
     ends: [{ id: 'end', then: 'in' }],
-    arrows: [['start', 'a'], ['a', 'b'], ['a', 'c'], ['b', 'b2'], ['b2', 'd'], ['c', 'd'], ['d', 'end']].map(([from, to]) => ({ from, to })),
+    arrows: [
+      ['start', 'a'],
+      ['a', 'b'],
+      ['a', 'c'],
+      ['b', 'b2'],
+      ['b2', 'd'],
+      ['c', 'd'],
+      ['d', 'end'],
+    ].map(([from, to]) => ({ from, to })),
   }
   expect(summary(diamond)).toBe('Build it → (Test it → Fix it ∥ Write docs) → Review → Ask me, then in')
 })
@@ -242,18 +276,31 @@ test('B-375: the one line shows a fork’s ways side by side, then where they me
 test('parts no arrow from the start reaches are laid out under it along their own arrows, no row wider than four (B-108)', () => {
   const ten = Array.from({ length: 10 }, (_, at) => step(`s${at + 1}`, `Step ${at + 1}`))
   const arrows = [...ten.slice(1).map((one, at) => ({ from: ten[at].id, to: one.id })), { from: 's10', to: 'end' }]
-  const loose: RecipeGraph = { version: 1, steps: ten, groups: [], ends: [{ id: 'end', then: 'in' }], arrows, loops: [] }
+  const loose: RecipeGraph = {
+    version: 1,
+    steps: ten,
+    groups: [],
+    ends: [{ id: 'end', then: 'in' }],
+    arrows,
+    loops: [],
+  }
   const places = layout(loose)
   expect(places.s1.y).toBeGreaterThan(places.start.y)
   for (let at = 1; at < 10; at++) expect(places[`s${at + 1}`].y).toBeGreaterThan(places[`s${at}`].y)
-  const across = (all: ReturnType<typeof layout>) => Math.max(...Object.values(all).map(one => one.x + one.w)) - Math.min(...Object.values(all).map(one => one.x))
+  const across = (all: ReturnType<typeof layout>) =>
+    Math.max(...Object.values(all).map(one => one.x + one.w)) - Math.min(...Object.values(all).map(one => one.x))
   expect(across(places)).toBe(200)
   // Not joined at all: four to a row, and the end, joined to nothing, at the bottom.
   const apart = layout({ ...loose, arrows: [] })
   expect(across(apart)).toBeLessThanOrEqual(4 * 200 + 3 * 34)
   expect(apart.end.y).toBeGreaterThan(Math.max(...ten.map(one => apart[one.id].y)))
   // Five the start leads to, side by side: one row.
-  const five = layout({ ...loose, steps: ten.slice(0, 5), arrows: ten.slice(0, 5).map(one => ({ from: START, to: one.id })), ends: [] })
+  const five = layout({
+    ...loose,
+    steps: ten.slice(0, 5),
+    arrows: ten.slice(0, 5).map(one => ({ from: START, to: one.id })),
+    ends: [],
+  })
   expect(new Set(ten.slice(0, 5).map(one => five[one.id].y)).size).toBe(1)
 })
 
@@ -268,7 +315,10 @@ test('a part dragged stays where it was put, the rest laid out as before; Tidy u
   // Put in a group or taken out of one, a step is placed by the board again: a group's step is placed from its corner.
   const out = changeStep(moved, 'ui', { group: null })
   expect(out.steps.find(one => one.id === 'ui')?.pos).toBeNull()
-  expect(changeStep(moved, 'ui', { name: 'Look at it' }).steps.find(one => one.id === 'ui')?.pos).toEqual({ x: 12, y: 0 })
+  expect(changeStep(moved, 'ui', { name: 'Look at it' }).steps.find(one => one.id === 'ui')?.pos).toEqual({
+    x: 12,
+    y: 0,
+  })
 })
 
 test('a loop back is a curve from one right side to the other, its words just past the curve, not on it', () => {
@@ -309,7 +359,14 @@ test('a step added is named apart from the others', () => {
   let [graph] = addStep(emptyGraph(), START)
   ;[graph] = addStep(graph, null)
   ;[graph] = addGroup(addGroup(graph, null)[0], null)
-  expect(graph.steps.map(one => one.name)).toEqual(['New step', 'New step 2', 'First at once', 'Second at once', 'First at once 2', 'Second at once 2'])
+  expect(graph.steps.map(one => one.name)).toEqual([
+    'New step',
+    'New step 2',
+    'First at once',
+    'Second at once',
+    'First at once 2',
+    'Second at once 2',
+  ])
 })
 
 // --- the tab ----------------------------------------------------------------------------------------------------------------------
@@ -325,16 +382,39 @@ test('a ready recipe is drawn read-only and copied to be changed', async () => {
   expect(screen.getByLabelText('Recipe’s name')).toHaveValue('Feature copy')
   expect(screen.getByRole('button', { name: '+ Step' })).toBeEnabled()
   fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }))
-  await waitFor(() => expect(given.saveRecipe).toHaveBeenCalledWith(null, { name: 'Feature copy', graph: FEATURE.graph }, null))
+  await waitFor(() =>
+    expect(given.saveRecipe).toHaveBeenCalledWith(null, { name: 'Feature copy', graph: FEATURE.graph }, null),
+  )
 })
 
 test('a step says, before any run, where its role cannot be a step, and a room where a member cannot be in one (B-89)', () => {
   const models = {
-    Reviewer: { cannot_run: null, cannot_step: 'agy works with tools of its own in the project itself', cannot_room: null },
+    Reviewer: {
+      cannot_run: null,
+      cannot_step: 'agy works with tools of its own in the project itself',
+      cannot_room: null,
+    },
     Coder: { cannot_run: null, cannot_step: null, cannot_room: 'Codex works with tools of its own here' },
   } as unknown as Record<string, RoleModel>
-  const talk: Recipe = { ...FEATURE, id: 'talk', graph: { ...FEATURE.graph, steps: [...FEATURE.graph.steps, step('room', 'Talk it over', { who: { room: ['Coder', 'Reviewer'] } })] } }
-  render(<RecipesTab roles={roles} teams={teams} list={{ ...list, recipes: [talk] }} projectId={null} actions={actions()} reload={vi.fn()} models={models} />)
+  const talk: Recipe = {
+    ...FEATURE,
+    id: 'talk',
+    graph: {
+      ...FEATURE.graph,
+      steps: [...FEATURE.graph.steps, step('room', 'Talk it over', { who: { room: ['Coder', 'Reviewer'] } })],
+    },
+  }
+  render(
+    <RecipesTab
+      roles={roles}
+      teams={teams}
+      list={{ ...list, recipes: [talk] }}
+      projectId={null}
+      actions={actions()}
+      reload={vi.fn()}
+      models={models}
+    />,
+  )
   const warned = () => within(panel()).queryByRole('list', { name: 'Will not run' })?.textContent ?? null
   fireEvent.click(part(/^Code review/))
   expect(warned()).toBe('⚠ Reviewer: Not as a recipe’s step: agy works with tools of its own in the project itself')
@@ -345,7 +425,12 @@ test('a step says, before any run, where its role cannot be a step, and a room w
 })
 
 test('a ready recipe’s parts stay where they are; a copy’s are dragged, and Tidy up is saved like any change', async () => {
-  const arranged: Recipe = { ...FEATURE, id: 'mine', ready: false, graph: place(FEATURE.graph, 'build', { x: 300, y: 90 }) }
+  const arranged: Recipe = {
+    ...FEATURE,
+    id: 'mine',
+    ready: false,
+    graph: place(FEATURE.graph, 'build', { x: 300, y: 90 }),
+  }
   const given = draw(actions(), { ...list, recipes: [FEATURE, arranged] })
   const node = (id: string) => document.querySelector(`.react-flow__node[data-id="${id}"]`) as HTMLElement
   expect(node('build')).not.toHaveClass('draggable')
@@ -356,7 +441,9 @@ test('a ready recipe’s parts stay where they are; a copy’s are dragged, and 
   expect(node('build').style.transform).toBe('translate(300px,90px)')
   fireEvent.click(screen.getByRole('button', { name: 'Tidy up' }))
   fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }))
-  await waitFor(() => expect(given.saveRecipe).toHaveBeenCalledWith(arranged, { name: 'Feature', graph: tidy(arranged.graph) }, null))
+  await waitFor(() =>
+    expect(given.saveRecipe).toHaveBeenCalledWith(arranged, { name: 'Feature', graph: tidy(arranged.graph) }, null),
+  )
   expect(tidy(arranged.graph).steps.every(one => one.pos === null)).toBe(true)
 })
 
@@ -424,7 +511,11 @@ test('K-rol-cogul: a role’s step draws at most 1 to 5 of it, said on its card;
   fireEvent.change(within(panel()).getByLabelText('Who'), { target: { value: 'role:Coder' } })
   const most = within(panel()).getByRole('combobox', { name: 'At most of its role' })
   expect(most).toHaveValue('1')
-  expect(within(most).getAllByRole('option').map(one => one.textContent)).toEqual(['1 agent', '2 agents', '3 agents', '4 agents', '5 agents'])
+  expect(
+    within(most)
+      .getAllByRole('option')
+      .map(one => one.textContent),
+  ).toEqual(['1 agent', '2 agents', '3 agents', '4 agents', '5 agents'])
   fireEvent.change(most, { target: { value: '2' } })
   expect(part(/^Build it/)).toHaveTextContent('Coder, up to 2')
   fireEvent.click(screen.getByRole('button', { name: '+ Ask me' }))
@@ -447,7 +538,11 @@ test('K-evrim: a step of candidates of a role, 2 to 5 of them, said on its card 
   fireEvent.change(within(panel()).getByLabelText('Who'), { target: { value: 'candidates:Coder' } })
   const most = within(panel()).getByRole('combobox', { name: 'At most candidates' })
   expect(most).toHaveValue('2')
-  expect(within(most).getAllByRole('option').map(one => one.textContent)).toEqual(['2 candidates', '3 candidates', '4 candidates', '5 candidates'])
+  expect(
+    within(most)
+      .getAllByRole('option')
+      .map(one => one.textContent),
+  ).toEqual(['2 candidates', '3 candidates', '4 candidates', '5 candidates'])
   fireEvent.change(most, { target: { value: '3' } })
   expect(part(/^Build it/)).toHaveTextContent('Candidates')
   expect(part(/^Build it/)).toHaveTextContent('Coder ×3')
@@ -466,14 +561,23 @@ test('K-evrim: a step of candidates has a target and may go round again itself; 
   fireEvent.click(screen.getByRole('button', { name: '+ Step' }))
   fireEvent.change(within(panel()).getByLabelText('Name'), { target: { value: 'Build it' } })
   fireEvent.change(within(panel()).getByLabelText('Who'), { target: { value: 'role:Coder' } })
-  const loops = () => within(within(panel()).getByLabelText('Loops back to')).getAllByRole('option').map(one => one.textContent)
+  const loops = () =>
+    within(within(panel()).getByLabelText('Loops back to'))
+      .getAllByRole('option')
+      .map(one => one.textContent)
   expect(loops()).not.toContain('round again, from the picked one’s work')
   expect(within(panel()).queryByLabelText('Target score')).toBeNull()
   fireEvent.change(within(panel()).getByLabelText('Who'), { target: { value: 'candidates:Coder' } })
   expect(loops()).toContain('round again, from the picked one’s work')
   fireEvent.change(within(panel()).getByLabelText('Target score'), { target: { value: '80' } })
   const id = (given.saveRecipe as ReturnType<typeof vi.fn>).mock.calls.length
-  fireEvent.change(within(panel()).getByLabelText('Loops back to'), { target: { value: within(within(panel()).getByLabelText('Loops back to')).getByText('round again, from the picked one’s work').getAttribute('value') } })
+  fireEvent.change(within(panel()).getByLabelText('Loops back to'), {
+    target: {
+      value: within(within(panel()).getByLabelText('Loops back to'))
+        .getByText('round again, from the picked one’s work')
+        .getAttribute('value'),
+    },
+  })
   fireEvent.change(within(panel()).getByRole('combobox', { name: 'At most' }), { target: { value: '3' } })
   fireEvent.click(screen.getByRole('button', { name: '+ Ask me' }))
   fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }))
@@ -492,7 +596,18 @@ test('K-evrim-model: the candidates’ models are the Lead’s, the same, or you
   ] as Provider[]
   const given = actions()
   const onModels = vi.fn().mockResolvedValue({ models: ['quick', 'deep'], note: null })
-  render(<RecipesTab roles={roles} teams={teams} list={list} projectId={null} actions={given} reload={vi.fn()} providers={providers} onModels={onModels} />)
+  render(
+    <RecipesTab
+      roles={roles}
+      teams={teams}
+      list={list}
+      projectId={null}
+      actions={given}
+      reload={vi.fn()}
+      providers={providers}
+      onModels={onModels}
+    />,
+  )
   fireEvent.click(screen.getByRole('button', { name: '+ Draw a new recipe' }))
   fireEvent.click(part(/^Your message/))
   fireEvent.click(screen.getByRole('button', { name: '+ Step' }))
@@ -501,18 +616,28 @@ test('K-evrim-model: the candidates’ models are the Lead’s, the same, or you
   fireEvent.change(within(panel()).getByLabelText('Who'), { target: { value: 'candidates:Coder' } })
   const how = within(panel()).getByRole('combobox', { name: 'Models' })
   expect(how).toHaveValue('auto')
-  expect(within(how).getAllByRole('option').map(one => one.textContent)).toEqual(['Auto, the Lead picks', 'Same model', 'I pick each'])
+  expect(
+    within(how)
+      .getAllByRole('option')
+      .map(one => one.textContent),
+  ).toEqual(['Auto, the Lead picks', 'Same model', 'I pick each'])
   expect(within(panel()).queryByRole('group', { name: 'Each candidate’s model' })).toBeNull()
   fireEvent.change(how, { target: { value: 'each' } })
   const each = () => within(panel()).getByRole('group', { name: 'Each candidate’s model' })
   // One picker each, its providers those agents may use; its models suggested by the provider's list.
   const first = within(each()).getByRole('combobox', { name: 'Candidate 1’s provider' })
-  expect(within(first).getAllByRole('option').map(one => one.textContent)).toEqual(['Local', 'Fast'])
+  expect(
+    within(first)
+      .getAllByRole('option')
+      .map(one => one.textContent),
+  ).toEqual(['Local', 'Fast'])
   fireEvent.change(first, { target: { value: 'fast' } })
   await waitFor(() => expect(onModels).toHaveBeenCalledWith('fast'))
   fireEvent.change(within(each()).getByLabelText('Candidate 1’s model'), { target: { value: 'deep' } })
   fireEvent.click(within(each()).getByRole('button', { name: '+ Candidate 2' }))
-  fireEvent.change(within(each()).getByRole('combobox', { name: 'Candidate 2’s provider' }), { target: { value: 'local' } })
+  fireEvent.change(within(each()).getByRole('combobox', { name: 'Candidate 2’s provider' }), {
+    target: { value: 'local' },
+  })
   // Up to as many as it takes: one past "At most" is cut as it goes down.
   expect(within(each()).queryByRole('button', { name: '+ Candidate 3' })).toBeNull()
   fireEvent.change(within(panel()).getByRole('combobox', { name: 'At most candidates' }), { target: { value: '3' } })
@@ -539,7 +664,17 @@ test('K-evrim-model: the candidates’ models are the Lead’s, the same, or you
 test('a part’s panel: If it fails, Ask me to approve, a candidate’s model taken off, a step removed, how it ends - saved as drawn', async () => {
   const providers = [{ id: 'local', name: 'Local', for_agents: true, default_model: 'big-model' }] as Provider[]
   const given = actions()
-  render(<RecipesTab roles={roles} teams={teams} list={list} projectId={null} actions={given} reload={vi.fn()} providers={providers} />)
+  render(
+    <RecipesTab
+      roles={roles}
+      teams={teams}
+      list={list}
+      projectId={null}
+      actions={given}
+      reload={vi.fn()}
+      providers={providers}
+    />,
+  )
   fireEvent.click(screen.getByRole('button', { name: '+ Draw a new recipe' }))
   fireEvent.click(part(/^Your message/))
   expect(within(panel()).queryByRole('button', { name: /^Remove/ })).toBeNull()
@@ -564,7 +699,12 @@ test('a part’s panel: If it fails, Ask me to approve, a candidate’s model ta
   await waitFor(() => expect(given.saveRecipe).toHaveBeenCalled())
   const [, body] = (given.saveRecipe as ReturnType<typeof vi.fn>).mock.calls[0]
   expect(body.graph.steps).toEqual([
-    expect.objectContaining({ name: 'Build it', if_fails: 'stop', ask_me: true, who: { candidates: 'Coder', most: 2, models: [{ provider_id: 'local', model_id: null }] } }),
+    expect.objectContaining({
+      name: 'Build it',
+      if_fails: 'stop',
+      ask_me: true,
+      who: { candidates: 'Coder', most: 2, models: [{ provider_id: 'local', model_id: null }] },
+    }),
   ])
   expect(body.graph.ends).toEqual([expect.objectContaining({ then: 'report' })])
 })
@@ -586,7 +726,18 @@ test('B-388: I pick each offers no provider whose agent of the role works in the
       ],
     },
   } as unknown as Record<string, RoleModel>
-  render(<RecipesTab roles={roles} teams={teams} list={list} projectId={null} actions={actions()} reload={vi.fn()} providers={providers} models={models} />)
+  render(
+    <RecipesTab
+      roles={roles}
+      teams={teams}
+      list={list}
+      projectId={null}
+      actions={actions()}
+      reload={vi.fn()}
+      providers={providers}
+      models={models}
+    />,
+  )
   fireEvent.click(screen.getByRole('button', { name: '+ Draw a new recipe' }))
   fireEvent.click(part(/^Your message/))
   fireEvent.click(screen.getByRole('button', { name: '+ Step' }))
@@ -614,7 +765,9 @@ test('a room (slice 84e): never in a group, after the chosen part; its roles tic
   fireEvent.click(within(who).getByLabelText('Reviewer'))
   // A room meets on its own; it ends by its own rules.
   expect(within(panel()).queryByLabelText('At the same time as')).toBeNull()
-  expect(within(panel()).getByLabelText('Done when')).toHaveDisplayValue('the room ends: all say done, or its time or budget is up')
+  expect(within(panel()).getByLabelText('Done when')).toHaveDisplayValue(
+    'the room ends: all say done, or its time or budget is up',
+  )
   expect(part(/^Meeting/)).toHaveTextContent('Coder · Reviewer')
   fireEvent.click(screen.getByRole('button', { name: '+ Ask me' }))
   fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }))
@@ -652,7 +805,11 @@ test('K-tarif-kol: an arrow drawn inside a group from its step’s panel, and th
   expect(panel()).toHaveTextContent('the others are stopped; what they already changed stays in the work')
   fireEvent.click(part(/^First at once/))
   const add = within(panel()).getByLabelText('Add an arrow to')
-  expect(within(add).getAllByRole('option').map(one => one.textContent)).toEqual(['+ an arrow to…', 'Second at once'])
+  expect(
+    within(add)
+      .getAllByRole('option')
+      .map(one => one.textContent),
+  ).toEqual(['+ an arrow to…', 'Second at once'])
   fireEvent.change(add, { target: { value: within(add).getByText('Second at once').getAttribute('value') } })
   fireEvent.click(part(/^Second at once/))
   expect(panel()).toHaveTextContent('the work of First at once')
@@ -703,23 +860,38 @@ test('what the server says keeps it from running is shown at its step', async ()
   // (R57: the first part it is about is chosen, its words in its panel - none under the node, over its arrows)
   expect(await screen.findByText('Build it: “Wizard” is no role here')).toBeVisible()
   expect(within(panel()).getByRole('alert')).toHaveTextContent('“Wizard” is no role here')
-  expect(screen.getAllByRole('alert').map(one => one.textContent)).toContain('The recipe has no end: add one (+ Ask me)')
+  expect(screen.getAllByRole('alert').map(one => one.textContent)).toContain(
+    'The recipe has no end: add one (+ Ask me)',
+  )
   // (the node's ⚠ comes in React Flow's own update after the words: on a busy machine, a moment later)
-  await waitFor(() => expect(document.querySelector('.react-flow__node[data-id="build"] [role="img"]')).toHaveAccessibleName('Build it: “Wizard” is no role here'))
+  await waitFor(() =>
+    expect(document.querySelector('.react-flow__node[data-id="build"] [role="img"]')).toHaveAccessibleName(
+      'Build it: “Wizard” is no role here',
+    ),
+  )
   expect(document.querySelector('.react-flow__node[data-id="build"]')).not.toHaveTextContent('Wizard')
 })
 
 test('B-375: a fork the runner cannot run is said at the part it forks from, Your message too', async () => {
-  const msg = 'Your message: its ways run at once and meet again at one part, which waits for all of them (an end may be it)'
-  draw(actions({ saveRecipe: vi.fn().mockRejectedValue(new ApiError(422, msg, [{ loc: ['body', 'graph'], msg, at: 'start' }])) }))
+  const msg =
+    'Your message: its ways run at once and meet again at one part, which waits for all of them (an end may be it)'
+  draw(
+    actions({
+      saveRecipe: vi.fn().mockRejectedValue(new ApiError(422, msg, [{ loc: ['body', 'graph'], msg, at: 'start' }])),
+    }),
+  )
   fireEvent.click(screen.getByRole('button', { name: 'Copy it' }))
   fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }))
   expect(await screen.findByText(msg)).toBeVisible()
-  await waitFor(() => expect(document.querySelector('.react-flow__node[data-id="start"] [role="img"]')).toHaveAccessibleName(msg))
+  await waitFor(() =>
+    expect(document.querySelector('.react-flow__node[data-id="start"] [role="img"]')).toHaveAccessibleName(msg),
+  )
 })
 
 test('B-196: the condition the server refused taken off its step, the step’s ⚠ and “It cannot run yet” go', async () => {
-  const refused = new ApiError(422, 'refused', [{ loc: ['body', 'graph'], msg: 'Build it: the first step has no step before it', at: 'build' }])
+  const refused = new ApiError(422, 'refused', [
+    { loc: ['body', 'graph'], msg: 'Build it: the first step has no step before it', at: 'build' },
+  ])
   draw(actions({ saveRecipe: vi.fn().mockRejectedValue(refused) }))
   fireEvent.click(screen.getByRole('button', { name: 'Copy it' }))
   fireEvent.click(part(/^Build it/))
@@ -735,23 +907,49 @@ test('B-196: the condition the server refused taken off its step, the step’s �
 })
 
 test('a step whose role cannot be a step there shows ⚠ on its node, with why (B-108)', () => {
-  const models = { Reviewer: { cannot_run: null, cannot_step: 'agy works with tools of its own in the project itself', cannot_room: null } } as unknown as Record<string, RoleModel>
-  render(<RecipesTab roles={roles} teams={teams} list={list} projectId={null} actions={actions()} reload={vi.fn()} models={models} />)
+  const models = {
+    Reviewer: {
+      cannot_run: null,
+      cannot_step: 'agy works with tools of its own in the project itself',
+      cannot_room: null,
+    },
+  } as unknown as Record<string, RoleModel>
+  render(
+    <RecipesTab
+      roles={roles}
+      teams={teams}
+      list={list}
+      projectId={null}
+      actions={actions()}
+      reload={vi.fn()}
+      models={models}
+    />,
+  )
   const sign = (id: string) => document.querySelector(`.react-flow__node[data-id="${id}"] [role="img"]`)
-  expect(sign('code')).toHaveAccessibleName('Reviewer: Not as a recipe’s step: agy works with tools of its own in the project itself')
+  expect(sign('code')).toHaveAccessibleName(
+    'Reviewer: Not as a recipe’s step: agy works with tools of its own in the project itself',
+  )
   expect(sign('build')).toBeNull()
 })
 
 test('a step left with no name is said at it in plain words, not as the request’s field (B-108)', async () => {
   const refused = new ApiError(422, "graph.steps.0.name: Value error, a step's name is 1 to 60 printable characters", [
-    { loc: ['body', 'graph', 'steps', 0, 'name'], msg: "Value error, a step's name is 1 to 60 printable characters", type: 'value_error' },
+    {
+      loc: ['body', 'graph', 'steps', 0, 'name'],
+      msg: "Value error, a step's name is 1 to 60 printable characters",
+      type: 'value_error',
+    },
   ])
   draw(actions({ saveRecipe: vi.fn().mockRejectedValue(refused) }))
   fireEvent.click(screen.getByRole('button', { name: 'Copy it' }))
   fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }))
   expect(await screen.findByText("A step's name is 1 to 60 printable characters")).toBeVisible()
   expect(screen.queryByText(/Value error|graph\.steps/)).toBeNull()
-  await waitFor(() => expect(document.querySelector('.react-flow__node[data-id="build"] [role="img"]')).toHaveAccessibleName("A step's name is 1 to 60 printable characters"))
+  await waitFor(() =>
+    expect(document.querySelector('.react-flow__node[data-id="build"] [role="img"]')).toHaveAccessibleName(
+      "A step's name is 1 to 60 printable characters",
+    ),
+  )
 })
 
 test('an empty recipe name is said in plain words, a Who the board does not draw in one line at its step, an empty word breaks nothing', async () => {
@@ -765,7 +963,11 @@ test('an empty recipe name is said in plain words, a Who the board does not draw
   fireEvent.click(screen.getByRole('button', { name: 'Copy it' }))
   fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }))
   expect(await screen.findByText("A recipe's name is 1 to 60 printable characters")).toBeVisible()
-  await waitFor(() => expect(document.querySelector('.react-flow__node[data-id="build"] [role="img"]')).toHaveAccessibleName('Who does it is not one the board draws: choose it again'))
+  await waitFor(() =>
+    expect(document.querySelector('.react-flow__node[data-id="build"] [role="img"]')).toHaveAccessibleName(
+      'Who does it is not one the board draws: choose it again',
+    ),
+  )
   expect(screen.queryByText(/Field required/)).toBeNull()
 })
 
@@ -783,12 +985,23 @@ test('or write it: the Lead’s model draws a draft on the board, saved by nobod
 })
 
 test('a list not read says why, with nothing drawn and no part; with nothing to act with, nothing is made or saved', () => {
-  const { unmount } = render(<RecipesTab roles={roles} teams={teams} list="the server is down" projectId={null} actions={actions()} reload={vi.fn()} />)
+  const { unmount } = render(
+    <RecipesTab
+      roles={roles}
+      teams={teams}
+      list="the server is down"
+      projectId={null}
+      actions={actions()}
+      reload={vi.fn()}
+    />,
+  )
   expect(screen.getByRole('alert')).toHaveTextContent(/^The recipes could not be read: the server is down$/)
   expect(screen.getByText('The recipes are not read yet.')).toHaveClass('muted', 'recipe-note')
   expect(screen.queryByLabelText('Recipe’s name')).toBeNull()
   expect(screen.queryByRole('toolbar', { name: 'Draw' })).toBeNull()
-  expect(screen.getByRole('complementary', { name: 'Recipe part' })).toHaveTextContent(/^Choose a part of the drawing to see who does it, what it gets and where it goes on\.$/)
+  expect(screen.getByRole('complementary', { name: 'Recipe part' })).toHaveTextContent(
+    /^Choose a part of the drawing to see who does it, what it gets and where it goes on\.$/,
+  )
   unmount()
   render(<RecipesTab roles={roles} teams={teams} list={list} projectId={null} reload={vi.fn()} />)
   fireEvent.change(screen.getByLabelText('The recipe in words'), { target: { value: 'spec, then code' } })
@@ -801,23 +1014,56 @@ test('whose each recipe is; a ready one says so with no Delete; its copy may be 
   // (How many agents a run opens, as the server counted the drawing: the fewest–the most; none where it could not count.)
   const ready: Recipe = { ...FEATURE, agents: { least: 3, most: 9 } }
   const mine: Recipe = { ...FEATURE, id: 'mine', name: 'Mine', ready: false, agents: { least: 1, most: 1 } }
-  const folder: Recipe = { ...FEATURE, id: 'f1', name: 'Fix', ready: false, project_id: 'p', file: 'fix.json', agents: null }
+  const folder: Recipe = {
+    ...FEATURE,
+    id: 'f1',
+    name: 'Fix',
+    ready: false,
+    project_id: 'p',
+    file: 'fix.json',
+    agents: null,
+  }
   let answer: (drawn: RecipeDraft) => void = () => {}
   const given = actions({
-    saveRecipe: vi.fn(async (_recipe, body) => ({ id: 'f2', ready: false, project_id: 'p', file: 'copy.json', ...body })),
+    saveRecipe: vi.fn(async (_recipe, body) => ({
+      id: 'f2',
+      ready: false,
+      project_id: 'p',
+      file: 'copy.json',
+      ...body,
+    })),
     draftRecipe: vi.fn(() => new Promise<RecipeDraft>(done => (answer = done))),
   })
-  render(<RecipesTab roles={roles} teams={teams} list={{ recipes: [ready, mine, folder], broken: ['bad.json: not a recipe'], writer: { why: null, asks: 'Balanced: Fast · deep' } }} projectId="p" actions={given} reload={vi.fn()} />)
+  render(
+    <RecipesTab
+      roles={roles}
+      teams={teams}
+      list={{
+        recipes: [ready, mine, folder],
+        broken: ['bad.json: not a recipe'],
+        writer: { why: null, asks: 'Balanced: Fast · deep' },
+      }}
+      projectId="p"
+      actions={given}
+      reload={vi.fn()}
+    />,
+  )
   expect(screen.getByRole('alert')).toHaveTextContent(/^bad\.json: not a recipe$/)
   const item = (name: RegExp) => screen.getByRole('button', { name })
-  expect(item(/^Feature/)).toHaveTextContent(/^FeatureBuild it → 2 at once \(≤2 rounds\) → Ask me, then in · 3–9 agents · ready$/)
+  expect(item(/^Feature/)).toHaveTextContent(
+    /^FeatureBuild it → 2 at once \(≤2 rounds\) → Ask me, then in · 3–9 agents · ready$/,
+  )
   expect(item(/^Mine/)).toHaveTextContent(/then in · 1 agent · yours$/)
   expect(item(/^Fix/)).toHaveTextContent(/then in · this folder’s$/)
   expect(item(/^Feature/).className).toBe('recipe-item recipe-item-chosen')
   expect(item(/^Mine/).className).toBe('recipe-item')
   expect(item(/^Mine/)).toHaveAttribute('aria-pressed', 'false')
   // (k-tarif-yaz: whom it asks, before the press - not Local's model whose server is not running)
-  expect(screen.getByText('Asks Balanced: Fast · deep. It draws the recipe on the board; nothing is saved until you save it.')).toHaveClass('muted', 'recipe-note')
+  expect(
+    screen.getByText(
+      'Asks Balanced: Fast · deep. It draws the recipe on the board; nothing is saved until you save it.',
+    ),
+  ).toHaveClass('muted', 'recipe-note')
   expect(screen.getByRole('status')).toHaveTextContent(/^A ready recipe: copy it to change it\.$/)
   expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull()
   expect(screen.queryByLabelText('Where it is kept')).toBeNull()
@@ -832,7 +1078,9 @@ test('whose each recipe is; a ready one says so with no Delete; its copy may be 
   expect(screen.getByLabelText('Where it is kept')).toHaveValue('koloni')
   fireEvent.change(screen.getByLabelText('Where it is kept'), { target: { value: 'folder' } })
   fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }))
-  await waitFor(() => expect(given.saveRecipe).toHaveBeenCalledWith(null, { name: 'Feature copy', graph: FEATURE.graph }, 'p'))
+  await waitFor(() =>
+    expect(given.saveRecipe).toHaveBeenCalledWith(null, { name: 'Feature copy', graph: FEATURE.graph }, 'p'),
+  )
   expect(await screen.findByText('Saved in .koloni/ in this folder (kept in git).')).toBeVisible()
   fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
   expect(screen.getByText(/^Delete Feature copy\? Its file in \.koloni\/recipes goes too\.$/)).toBeVisible()
@@ -841,7 +1089,9 @@ test('whose each recipe is; a ready one says so with no Delete; its copy may be 
   expect(screen.getByRole('button', { name: 'Asking the model…' })).toBeDisabled()
   answer({ name: 'Spec first', graph: FEATURE.graph, provider_name: 'Local', model_id: null })
   await waitFor(() => expect(screen.getByLabelText('Recipe’s name')).toHaveValue('Spec first'))
-  expect(screen.getByRole('status')).toHaveTextContent(/^Drawn by Local: change it as you like, then save it\. Nothing is saved yet\.$/)
+  expect(screen.getByRole('status')).toHaveTextContent(
+    /^Drawn by Local: change it as you like, then save it\. Nothing is saved yet\.$/,
+  )
   expect(screen.getByRole('button', { name: 'Make it a recipe' })).toBeEnabled()
 })
 
@@ -859,7 +1109,10 @@ test('K-uzman: a step of the team’s experts says whose, and its Who keeps it',
     name: 'Integration',
     graph: {
       version: 1,
-      steps: [step('learn', 'Learn', { who: { experts: 'stale' } }), step('check', 'Experts check the plan', { who: { experts: 'all' }, done_when: 'no_findings' })],
+      steps: [
+        step('learn', 'Learn', { who: { experts: 'stale' } }),
+        step('check', 'Experts check the plan', { who: { experts: 'all' }, done_when: 'no_findings' }),
+      ],
       groups: [],
       ends: [{ id: 'end', then: 'in' }],
       arrows: [
@@ -896,7 +1149,11 @@ test('a refused save is said in words: its parts counted, the request’s own ch
   ])
   expect(await screen.findByText('It cannot run yet: 3 things to change, each at its part.')).toBeVisible()
   // (said twice of one part, shown once)
-  expect(within(panel()).getAllByRole('alert').map(one => one.textContent)).toEqual(['Build it: no role'])
+  expect(
+    within(panel())
+      .getAllByRole('alert')
+      .map(one => one.textContent),
+  ).toEqual(['Build it: no role'])
   cleanup()
   // the request's own check: its name, a step's field, a step's Who, and anything else by where it is
   await refuse([
@@ -906,7 +1163,11 @@ test('a refused save is said in words: its parts counted, the request’s own ch
     { loc: ['body', 'graph', 'edges', 3], msg: 'Field required' },
   ])
   await waitFor(() => expect(alerts()).toContain('Name is empty; graph.edges.3: Field required'))
-  expect(within(panel()).getAllByRole('alert').map(one => one.textContent)).toEqual(['A step needs a nameWho does it is not one the board draws: choose it again'])
+  expect(
+    within(panel())
+      .getAllByRole('alert')
+      .map(one => one.textContent),
+  ).toEqual(['A step needs a nameWho does it is not one the board draws: choose it again'])
   cleanup()
   // nothing the page can read at a part: the server's own words
   await refuse(undefined, 'the recipe could not be saved')
@@ -924,7 +1185,9 @@ test('S5c: the Checks step is joined to the last step(s) - each an arrow to an e
   ;[graph, second] = addStep(graph, first)
   expect(lastParts(graph)).toEqual([second])
   expect(checksLine(undefined)).toBe('follows the project')
-  expect(checksLine({ ...ownChecks(), tests: false, docs: true, fix_rounds: 0 })).toBe('Review · Docs · Config · Scripts · Code style and types · check only')
+  expect(checksLine({ ...ownChecks(), tests: false, docs: true, fix_rounds: 0 })).toBe(
+    'Review · Docs · Config · Scripts · Code style and types · check only',
+  )
 })
 
 test('S5c: the Checks step is drawn after the last step, never dragged nor removed; its panel sets it for the recipe, saved with it', async () => {
@@ -959,22 +1222,41 @@ test('S5c: the Checks step is drawn after the last step, never dragged nor remov
   fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }))
   await waitFor(() => expect(given.saveRecipe).toHaveBeenCalled())
   const [, body] = (given.saveRecipe as ReturnType<typeof vi.fn>).mock.calls[0]
-  expect(body.graph.checks).toEqual({ tests: false, review: true, docs: true, diagram: false, data: false, slides: false, ui: true, config: false, scripts: true, style: true, fix_rounds: 0 })
+  expect(body.graph.checks).toEqual({
+    tests: false,
+    review: true,
+    docs: true,
+    diagram: false,
+    data: false,
+    slides: false,
+    ui: true,
+    config: false,
+    scripts: true,
+    style: true,
+    fix_rounds: 0,
+  })
 })
 
 test('k-canli-016: a recipe’s Checks step may go on until it passes', async () => {
-  expect(checksLine({ ...ownChecks(), fix_rounds: 'until' })).toBe('Tests · Review · Config · Scripts · Code style and types · until it passes')
+  expect(checksLine({ ...ownChecks(), fix_rounds: 'until' })).toBe(
+    'Tests · Review · Config · Scripts · Code style and types · until it passes',
+  )
   expect(roundsChosen('until')).toBe('until')
   expect(roundsChosen('')).toBeNull()
   expect(roundsChosen('7')).toBe(7)
 })
 
 test('S5c: a ready recipe’s Checks step is shown, not changed', () => {
-  draw(actions(), { ...list, recipes: [{ ...FEATURE, graph: { ...FEATURE.graph, checks: { ...ownChecks(), fix_rounds: null } } }] })
+  draw(actions(), {
+    ...list,
+    recipes: [{ ...FEATURE, graph: { ...FEATURE.graph, checks: { ...ownChecks(), fix_rounds: null } } }],
+  })
   fireEvent.click(part(/^Checks 🔒/))
   expect(within(panel()).getByRole('radio', { name: 'Set for this recipe' })).toBeChecked()
   expect(within(panel()).getByRole('checkbox', { name: /^Tests/ })).toBeDisabled()
-  expect(part(/^Checks 🔒/)).toHaveTextContent('Tests · Review · Config · Scripts · Code style and types · the project’s rounds')
+  expect(part(/^Checks 🔒/)).toHaveTextContent(
+    'Tests · Review · Config · Scripts · Code style and types · the project’s rounds',
+  )
 })
 
 // --- k-sira-016: KOLONİ's checks before Ready for you - the Checks step between the last step(s) and the end(s) ----------------------

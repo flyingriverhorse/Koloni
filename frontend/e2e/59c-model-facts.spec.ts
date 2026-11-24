@@ -15,7 +15,10 @@ async function remove(request: APIRequestContext) {
 
 test.beforeEach(async ({ request }) => {
   await remove(request)
-  const made = await request.post('/api/providers', { headers: OWN, data: { name: NAME, kind: 'claude_cli', executable: 'no-such-claude-for-the-facts-test' } })
+  const made = await request.post('/api/providers', {
+    headers: OWN,
+    data: { name: NAME, kind: 'claude_cli', executable: 'no-such-claude-for-the-facts-test' },
+  })
   expect(made.ok()).toBeTruthy()
 })
 
@@ -24,7 +27,10 @@ test.afterEach(async ({ request }) => {
 })
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`the picker shows the levels of the model being picked; a new provider is offered its service's names (${theme})`, async ({ page, request }) => {
+  test(`the picker shows the levels of the model being picked; a new provider is offered its service's names (${theme})`, async ({
+    page,
+    request,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page)
     const picker = page.getByRole('button', { name: /^Model:/ })
@@ -56,6 +62,10 @@ for (const theme of ['light', 'dark'] as const) {
     await shot(editor, `59c-new-provider-${theme}`)
     expect((await editor.evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])
     // Nothing was saved, and nothing was asked of the service.
-    expect((await (await request.get('/api/providers')).json()).some((p: { base_url: string | null }) => p.base_url?.includes('deepseek'))).toBe(false)
+    expect(
+      (await (await request.get('/api/providers')).json()).some((p: { base_url: string | null }) =>
+        p.base_url?.includes('deepseek'),
+      ),
+    ).toBe(false)
   })
 }

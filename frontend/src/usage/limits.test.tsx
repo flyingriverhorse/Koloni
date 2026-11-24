@@ -28,26 +28,53 @@ const claude: Limits = {
   ],
   credits: null,
 }
-const unknown = (why: string): Limits => ({ unknown: why, read_at: null, source: null, plan: null, windows: [], credits: null })
+const unknown = (why: string): Limits => ({
+  unknown: why,
+  read_at: null,
+  source: null,
+  plan: null,
+  windows: [],
+  credits: null,
+})
 
 test('a plan is read here and its own limit set on Models: "Limit in Models →" opens its provider there', async () => {
   const onModels = vi.fn()
-  render(<PlanLimits providers={[provider('c', 'Codex', 'codex_cli')]} onLimits={vi.fn(async () => codex)} onModels={onModels} />)
+  render(
+    <PlanLimits
+      providers={[provider('c', 'Codex', 'codex_cli')]}
+      onLimits={vi.fn(async () => codex)}
+      onModels={onModels}
+    />,
+  )
   await userEvent.click(await screen.findByRole('button', { name: 'Limit Codex in Models' }))
   expect(onModels).toHaveBeenCalledWith('c')
 })
 
 test('each CLI has a row with what it says of its plan, and what is not known says so', async () => {
-  const told: Record<string, Limits> = { l: unknown(NO_PLAN), c: codex, k: claude, a: unknown('this CLI does not say what is left of its plan') }
+  const told: Record<string, Limits> = {
+    l: unknown(NO_PLAN),
+    c: codex,
+    k: claude,
+    a: unknown('this CLI does not say what is left of its plan'),
+  }
   const onLimits = vi.fn((id: string, _afresh: boolean) => Promise.resolve(told[id]))
-  const providers = [provider('l', 'Local', 'openai_compat'), provider('c', 'Codex', 'codex_cli'), provider('k', 'Claude Code', 'claude_cli'), provider('a', 'agy', 'agy_cli')]
+  const providers = [
+    provider('l', 'Local', 'openai_compat'),
+    provider('c', 'Codex', 'codex_cli'),
+    provider('k', 'Claude Code', 'claude_cli'),
+    provider('a', 'agy', 'agy_cli'),
+  ]
   render(<PlanLimits providers={providers} onLimits={onLimits} />)
   const rows = within(screen.getByRole('table', { name: 'Plan limits by provider' }))
-  expect(await rows.findByRole('row', { name: /^Codex/ })).toHaveTextContent(`pro · 7% of the week used, resets ${dayAndTime(SOON)} · credits 49,675.89`)
+  expect(await rows.findByRole('row', { name: /^Codex/ })).toHaveTextContent(
+    `pro · 7% of the week used, resets ${dayAndTime(SOON)} · credits 49,675.89`,
+  )
   expect(rows.getByRole('row', { name: /^Codex/ })).toHaveTextContent('read 3 min ago')
   // A window that has reset since is not shown as it was, nor as a zero; one without a measured length goes by its name.
   const own = rows.getByRole('row', { name: /^Claude Code/ })
-  expect(own).toHaveTextContent(`99% of 5 hours used, resets ${dayAndTime(SOON)} · the another_window window: stale — it says again in its next run`)
+  expect(own).toHaveTextContent(
+    `99% of 5 hours used, resets ${dayAndTime(SOON)} · the another_window window: stale — it says again in its next run`,
+  )
   // and the time of day it was read (89l)
   expect(own).toHaveTextContent(`read just now (${asOf(claude.read_at!)}), from its last run`)
   // the time of day within a day; past that, the day too
@@ -59,10 +86,18 @@ test('each CLI has a row with what it says of its plan, and what is not known sa
   expect(own).toHaveTextContent(`Claude Code is near its limit: 99% of 5 hours used, resets ${dayAndTime(SOON)}`)
   expect(rows.getByRole('row', { name: /^Codex/ })).not.toHaveTextContent('near its limit')
   // A bar for each window whose used share is known now: none for the stale one, none where nothing was read.
-  expect(within(own).getAllByRole('meter').map(m => [m.getAttribute('aria-label'), m.getAttribute('value')])).toEqual([['Claude Code: 5 hours used', '99']])
-  expect(within(rows.getByRole('row', { name: /^Codex/ })).getByRole('meter', { name: 'Codex: the week used' })).toHaveAttribute('value', '7')
+  expect(
+    within(own)
+      .getAllByRole('meter')
+      .map(m => [m.getAttribute('aria-label'), m.getAttribute('value')]),
+  ).toEqual([['Claude Code: 5 hours used', '99']])
+  expect(
+    within(rows.getByRole('row', { name: /^Codex/ })).getByRole('meter', { name: 'Codex: the week used' }),
+  ).toHaveAttribute('value', '7')
   expect(within(rows.getByRole('row', { name: /^agy/ })).queryByRole('meter')).not.toBeInTheDocument()
-  expect(rows.getByRole('row', { name: /^agy/ })).toHaveTextContent('not known — this CLI does not say what is left of its plan')
+  expect(rows.getByRole('row', { name: /^agy/ })).toHaveTextContent(
+    'not known — this CLI does not say what is left of its plan',
+  )
   // A model server that says nothing of its limits has no row (73: an API's answers may say them). Opening the page asks nobody afresh.
   expect(rows.queryByRole('row', { name: /^Local/ })).not.toBeInTheDocument()
   expect(onLimits.mock.calls).toEqual([
@@ -71,7 +106,9 @@ test('each CLI has a row with what it says of its plan, and what is not known sa
     ['k', false],
     ['a', false],
   ])
-  expect(screen.getByText(/These are the limits of the account the CLI on this machine is signed in to\./)).toBeInTheDocument()
+  expect(
+    screen.getByText(/These are the limits of the account the CLI on this machine is signed in to\./),
+  ).toBeInTheDocument()
   expect(screen.getByText(/Claude Code is not asked here: its limits are read from its own runs/)).toBeInTheDocument()
 })
 
@@ -98,13 +135,20 @@ test('opening the page reads nothing afresh; "Check now" does, and a reading tha
   // A reading that fails after a good one leaves the good one, with its time, and says so beside it.
   await check()
   expect(row()).toHaveTextContent('pro · 7% of the week used')
-  expect(row()).toHaveTextContent('could not be read just now: Codex did not answer within 15 seconds; last read 3 min ago')
+  expect(row()).toHaveTextContent(
+    'could not be read just now: Codex did not answer within 15 seconds; last read 3 min ago',
+  )
   expect(onLimits.mock.calls.map(([, afresh]) => afresh)).toEqual([false, true, true, true, true])
 })
 
 test('"Check now" never reads Claude Code afresh: that runs a turn, which only its own Read now on the Models page does (87)', async () => {
   const onLimits = vi.fn((_id: string, _afresh: boolean) => Promise.resolve(unknown('not read yet')))
-  render(<PlanLimits providers={[provider('c', 'Codex', 'codex_cli'), provider('k', 'Claude Code', 'claude_cli')]} onLimits={onLimits} />)
+  render(
+    <PlanLimits
+      providers={[provider('c', 'Codex', 'codex_cli'), provider('k', 'Claude Code', 'claude_cli')]}
+      onLimits={onLimits}
+    />,
+  )
   await userEvent.click(await screen.findByRole('button', { name: 'Check now' }))
   await waitFor(() => expect(onLimits).toHaveBeenCalledTimes(4))
   expect(onLimits.mock.calls.slice(2)).toEqual([
@@ -140,12 +184,40 @@ test('without a CLI, or an API that says anything, there is no section', async (
 })
 
 test('an API says its rate limits in its answers, and DeepSeek its balance when checked (73)', async () => {
-  const window = { name: 'requests', minutes: 1, used_percent: null, resets_at: SOON, stale: false, limit: 50, remaining: 48 }
-  const api: Limits = { ...unknown(''), unknown: null, read_at: new Date().toISOString(), source: 'its last answer', windows: [window, { ...window, name: 'tokens', limit: 8000, stale: true }] }
-  const balance: Limits = { ...unknown(''), unknown: null, read_at: new Date().toISOString(), credits: { balance: '110.00 CNY', has_credits: true, unlimited: null } }
+  const window = {
+    name: 'requests',
+    minutes: 1,
+    used_percent: null,
+    resets_at: SOON,
+    stale: false,
+    limit: 50,
+    remaining: 48,
+  }
+  const api: Limits = {
+    ...unknown(''),
+    unknown: null,
+    read_at: new Date().toISOString(),
+    source: 'its last answer',
+    windows: [window, { ...window, name: 'tokens', limit: 8000, stale: true }],
+  }
+  const balance: Limits = {
+    ...unknown(''),
+    unknown: null,
+    read_at: new Date().toISOString(),
+    credits: { balance: '110.00 CNY', has_credits: true, unlimited: null },
+  }
   const told: Record<string, Limits> = { a: api, d: balance, l: unknown(NO_PLAN) }
   const onLimits = vi.fn((id: string, _afresh: boolean) => Promise.resolve(told[id]))
-  render(<PlanLimits providers={[provider('a', 'Claude API', 'anthropic'), provider('d', 'DeepSeek', 'openai_compat'), provider('l', 'Local', 'openai_compat')]} onLimits={onLimits} />)
+  render(
+    <PlanLimits
+      providers={[
+        provider('a', 'Claude API', 'anthropic'),
+        provider('d', 'DeepSeek', 'openai_compat'),
+        provider('l', 'Local', 'openai_compat'),
+      ]}
+      onLimits={onLimits}
+    />,
+  )
   const at = new Date(SOON).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
   expect(await screen.findByRole('row', { name: /^Claude API/ })).toHaveTextContent(
     `requests 48/50 left this minute, resets ${at} · tokens: 8000 a minute, stale — it says again in its next run`,
@@ -158,35 +230,55 @@ test('an API says its rate limits in its answers, and DeepSeek its balance when 
   await waitFor(() => expect(onLimits).toHaveBeenCalledTimes(6))
   expect(onLimits.mock.calls.slice(3).map(([, afresh]) => afresh)).toEqual([true, true, true])
   // only what was said: no limit said, no "of"
-  expect(limitsLine({ ...api, windows: [{ ...window, limit: null, minutes: null }] })).toBe(`requests 48 left now, resets ${at}`)
+  expect(limitsLine({ ...api, windows: [{ ...window, limit: null, minutes: null }] })).toBe(
+    `requests 48 left now, resets ${at}`,
+  )
 })
 
 test('a line says only what was said', () => {
-  expect(limitsLine({ ...codex, plan: null, credits: { balance: null, has_credits: null, unlimited: true }, windows: [] })).toBe('credits unlimited')
-  expect(limitsLine({ ...codex, credits: { balance: 'a lot', has_credits: true, unlimited: false }, windows: [{ name: null, minutes: 90, used_percent: 12.5, resets_at: null, stale: false }] })).toBe(
-    'pro · 12.5% of 90 minutes used · credits a lot',
-  )
+  expect(
+    limitsLine({ ...codex, plan: null, credits: { balance: null, has_credits: null, unlimited: true }, windows: [] }),
+  ).toBe('credits unlimited')
+  expect(
+    limitsLine({
+      ...codex,
+      credits: { balance: 'a lot', has_credits: true, unlimited: false },
+      windows: [{ name: null, minutes: 90, used_percent: 12.5, resets_at: null, stale: false }],
+    }),
+  ).toBe('pro · 12.5% of 90 minutes used · credits a lot')
   expect(limitsLine({ ...codex, plan: null, credits: null, windows: [] })).toBe('not known')
   // A window that has not reset, with when it does but not how much of it is used: not "stale".
-  expect(limitsLine({ ...codex, plan: null, credits: null, windows: [{ ...codex.windows[0], used_percent: null }] })).toBe(`the week: resets ${dayAndTime(SOON)}; how much is used was not said`)
+  expect(
+    limitsLine({ ...codex, plan: null, credits: null, windows: [{ ...codex.windows[0], used_percent: null }] }),
+  ).toBe(`the week: resets ${dayAndTime(SOON)}; how much is used was not said`)
   // B-74: a window the last reading did not name says when it was read itself
   const earlier = new Date(Date.now() - 6 * 60000).toISOString()
-  expect(limitsLine({ ...codex, plan: null, credits: null, windows: [{ ...codex.windows[0], read_at: earlier }] })).toMatch(/, read 6 min ago$/)
+  expect(
+    limitsLine({ ...codex, plan: null, credits: null, windows: [{ ...codex.windows[0], read_at: earlier }] }),
+  ).toMatch(/, read 6 min ago$/)
   expect(readAgo('2026-10-11T10:00:00Z', Date.parse('2026-10-11T12:30:00Z'))).toBe('read 2 h ago')
   // A reading kept across restarts can be old: days, and past a week the day it was.
   expect(readAgo('2026-10-11T10:00:00Z', Date.parse('2026-10-12T09:59:00Z'))).toBe('read 23 h ago')
   expect(readAgo('2026-10-11T10:00:00Z', Date.parse('2026-10-12T10:00:00Z'))).toBe('read 1 day ago')
   expect(readAgo('2026-10-11T10:00:00Z', Date.parse('2026-10-17T12:00:00Z'))).toBe('read 6 days ago')
-  expect(readAgo('2026-10-11T10:00:00Z', Date.parse('2026-10-18T10:00:00Z'))).toBe(`read on ${day('2026-10-11T10:00:00Z')}`)
+  expect(readAgo('2026-10-11T10:00:00Z', Date.parse('2026-10-18T10:00:00Z'))).toBe(
+    `read on ${day('2026-10-11T10:00:00Z')}`,
+  )
 })
 
 test('why an agent failed is said in plain words only where its provider said why', () => {
   const failed = { provider_name: 'Codex', failure: 'rate_limited', failure_resets_at: SOON } as const
   expect(failureText(failed)).toBe(`Codex: limit reached, resets ${dayAndTime(SOON)}`)
   expect(failureText({ ...failed, failure_resets_at: null })).toBe('Codex: limit reached')
-  expect(failureText({ provider_name: 'Paid', failure: 'credits_exhausted', failure_resets_at: null })).toBe('Paid: out of credits')
-  expect(failureText({ provider_name: null, failure: 'cli_crashed', failure_resets_at: null })).toBe('Its provider: the CLI stopped without finishing')
-  expect(failureText({ provider_name: 'Codex', failure: 'empty_output', failure_resets_at: null })).toBe('Codex: it ended without an answer')
+  expect(failureText({ provider_name: 'Paid', failure: 'credits_exhausted', failure_resets_at: null })).toBe(
+    'Paid: out of credits',
+  )
+  expect(failureText({ provider_name: null, failure: 'cli_crashed', failure_resets_at: null })).toBe(
+    'Its provider: the CLI stopped without finishing',
+  )
+  expect(failureText({ provider_name: 'Codex', failure: 'empty_output', failure_resets_at: null })).toBe(
+    'Codex: it ended without an answer',
+  )
   expect(failureText({ provider_name: 'Codex', failure: 'other', failure_resets_at: null })).toBeNull()
   expect(failureText({ provider_name: 'Codex', failure: null, failure_resets_at: null })).toBeNull()
 })

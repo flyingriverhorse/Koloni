@@ -54,7 +54,13 @@ const item = (number: number, title: string, over: Partial<RoomItem> = {}): Room
   ...over,
 })
 
-const post = (number: number, agentId: string | null, type: RoomPost['type'], text: string, over: Partial<RoomPost> = {}): RoomPost => ({
+const post = (
+  number: number,
+  agentId: string | null,
+  type: RoomPost['type'],
+  text: string,
+  over: Partial<RoomPost> = {},
+): RoomPost => ({
   id: `s${number}`,
   room_id: 'o',
   number,
@@ -69,12 +75,24 @@ const post = (number: number, agentId: string | null, type: RoomPost['type'], te
 })
 
 const member = (id: string, name: string, status: 'running' | 'waiting' | 'completed') =>
-  agent('r', status, { id, parent_agent_id: 'lead', role_name: name, name, task: 'Fix the greeting together', depth: 1, copy: { state: 'parent' } })
+  agent('r', status, {
+    id,
+    parent_agent_id: 'lead',
+    role_name: name,
+    name,
+    task: 'Fix the greeting together',
+    depth: 1,
+    copy: { state: 'parent' },
+  })
 
 const state = convState({
   runs: [run('r', 'running')],
   messages: [userMessage('r', 'Fix the greeting together')],
-  agents: [agent('r', 'waiting', { id: 'lead', copy: { state: 'own' } }), member('coder', 'Coder', 'running'), member('rev', 'Reviewer', 'waiting')],
+  agents: [
+    agent('r', 'waiting', { id: 'lead', copy: { state: 'own' } }),
+    member('coder', 'Coder', 'running'),
+    member('rev', 'Reviewer', 'waiting'),
+  ],
   rooms: [room()],
   roomItems: [
     item(1, 'Change the greeting', { paths: ['hello.py'], holder_agent_id: 'coder', status: 'taken' }),
@@ -105,7 +123,23 @@ const on: RequestHandlers = {
 }
 
 const panel = (s = state, over: Partial<Parameters<typeof RoomWindow>[0]> = {}) =>
-  render(<RoomWindow state={s} room={s.rooms[0]} on={on} roles={[]} providers={[]} onSay={noop} onEnd={noop} onMore={noop} onPause={noop} onFollow={noop} onShrink={() => {}} onClose={() => {}} {...over} />)
+  render(
+    <RoomWindow
+      state={s}
+      room={s.rooms[0]}
+      on={on}
+      roles={[]}
+      providers={[]}
+      onSay={noop}
+      onEnd={noop}
+      onMore={noop}
+      onPause={noop}
+      onFollow={noop}
+      onShrink={() => {}}
+      onClose={() => {}}
+      {...over}
+    />,
+  )
 
 beforeEach(() => {
   localStorage.clear()
@@ -134,7 +168,10 @@ test('a running room is a window of its own: its topic, who is in it and how eac
 test('running: ×’s title, nothing listed or said yet, no box while nothing waits, Pause’s title, a follow that stopped', () => {
   const bare = convState({ ...state, rooms: [room({ lead_follows: 'stopped' })], roomItems: [], roomPosts: [] })
   const { container } = panel(bare)
-  expect(screen.getByRole('button', { name: 'Close the room' })).toHaveAttribute('title', 'Close: while it runs it keeps its tab')
+  expect(screen.getByRole('button', { name: 'Close the room' })).toHaveAttribute(
+    'title',
+    'Close: while it runs it keeps its tab',
+  )
   expect(container.querySelector('.room-members')).toHaveTextContent('Coder · at work')
   expect(screen.getByRole('region', { name: 'Items' })).toHaveTextContent(/^Nothing is on the list yet\.$/)
   const talk = container.querySelectorAll('details.room-fold')
@@ -143,19 +180,37 @@ test('running: ×’s title, nothing listed or said yet, no box while nothing wa
   expect(talk[0]).toHaveTextContent(/^Said in the room 0 messagesNothing has been said yet\.$/)
   expect(screen.queryByRole('region', { name: 'Open questions' })).toBeNull()
   expect(container.querySelector('.room-asks')).not.toHaveAttribute('role')
-  expect(screen.getByRole('button', { name: 'Pause' })).toHaveAttribute('title', 'Its members finish the step at hand, then post nothing and spend nothing until you resume it')
+  expect(screen.getByRole('button', { name: 'Pause' })).toHaveAttribute(
+    'title',
+    'Its members finish the step at hand, then post nothing and spend nothing until you resume it',
+  )
   const follow = screen.getByRole('switch', { name: 'Let the Orchestrator follow' })
   expect(follow).toBeDisabled()
   expect(follow).toHaveAttribute('aria-describedby', 'follow-o-line follow-o-shown')
   expect(follow.closest('label')).toHaveAttribute('class', 'choice room-follow choice-disabled')
-  expect(screen.getByText('Stopped: answered, few steps left, or a CLI session.')).toHaveAttribute('id', 'follow-o-shown')
+  expect(screen.getByText('Stopped: answered, few steps left, or a CLI session.')).toHaveAttribute(
+    'id',
+    'follow-o-shown',
+  )
 })
 
 test('over: ×’s title, a member who left, a dropped item and one with nothing more, one message, a question left unanswered', () => {
   const over = convState({
     ...state,
-    rooms: [room({ status: 'ended', outcome: 'agreed', members: [{ agent_id: 'coder', role: 'Coder', status: 'done' }, { agent_id: 'rev', role: 'Reviewer', status: 'left' }] })],
-    roomItems: [item(1, 'Change the greeting', { paths: ['hello.py'], holder_agent_id: 'coder', status: 'dropped' }), item(2, 'Write the notes', { status: 'done' })],
+    rooms: [
+      room({
+        status: 'ended',
+        outcome: 'agreed',
+        members: [
+          { agent_id: 'coder', role: 'Coder', status: 'done' },
+          { agent_id: 'rev', role: 'Reviewer', status: 'left' },
+        ],
+      }),
+    ],
+    roomItems: [
+      item(1, 'Change the greeting', { paths: ['hello.py'], holder_agent_id: 'coder', status: 'dropped' }),
+      item(2, 'Write the notes', { status: 'done' }),
+    ],
     roomPosts: [post(1, 'coder', 'question', 'Which greeting?', { to_agent_id: 'rev', open: true })],
   })
   const { container } = panel(over)
@@ -170,7 +225,9 @@ test('over: ×’s title, a member who left, a dropped item and one with nothing
   const talk = container.querySelector('details.room-fold')
   expect(talk).not.toHaveAttribute('open')
   expect(talk?.querySelector('.room-fold-count')).toHaveTextContent(/^1 message$/)
-  expect(screen.getByRole('region', { name: 'Left unanswered' })).toHaveTextContent(/^Left unanswered1\. Coder to ReviewerWhich greeting\?$/)
+  expect(screen.getByRole('region', { name: 'Left unanswered' })).toHaveTextContent(
+    /^Left unanswered1\. Coder to ReviewerWhich greeting\?$/,
+  )
   expect(screen.queryByRole('switch')).toBeNull()
   expect(screen.queryByRole('textbox', { name: 'Say something in the room' })).toBeNull()
 })
@@ -205,7 +262,10 @@ test('K-oda-izle: a room you opened has an off-by-default switch that lets the L
   expect(off).not.toBeChecked()
   expect(off).toHaveAccessibleDescription(/^Off: the Orchestrator takes no part/)
   // Beside the switch, in sight, one line at most: what following spends while on, why it stopped once stopped (B-195).
-  const shown = () => screen.queryAllByText(/^(Its steps count toward the room’s tokens|Stopped: answered)/).map(line => line.textContent!.trim())
+  const shown = () =>
+    screen
+      .queryAllByText(/^(Its steps count toward the room’s tokens|Stopped: answered)/)
+      .map(line => line.textContent!.trim())
   expect(shown()).toEqual([])
   await userEvent.click(off)
   expect(onFollow).toHaveBeenCalledWith('o', true)
@@ -215,7 +275,9 @@ test('K-oda-izle: a room you opened has an off-by-default switch that lets the L
   panel(followed, { onFollow })
   const on = screen.getByRole('switch', { name: /Let the Orchestrator follow/ })
   expect(on).toBeChecked()
-  expect(on).toHaveAccessibleDescription(/^On: the Orchestrator reads what is said here.*Its steps count toward the room’s tokens\.$/)
+  expect(on).toHaveAccessibleDescription(
+    /^On: the Orchestrator reads what is said here.*Its steps count toward the room’s tokens\.$/,
+  )
   expect(on).toHaveAccessibleName('Let the Orchestrator follow')
   expect(shown()).toEqual(['Its steps count toward the room’s tokens.'])
   await userEvent.click(on)
@@ -227,17 +289,23 @@ test('K-oda-izle: a room you opened has an off-by-default switch that lets the L
   const stopped = screen.getByRole('switch', { name: /Let the Orchestrator follow/ })
   expect(stopped).toBeDisabled()
   expect(stopped).not.toBeChecked()
-  expect(stopped).toHaveAccessibleDescription(/^The Orchestrator stopped following.* Stopped: answered, few steps left, or a CLI session\.$/)
+  expect(stopped).toHaveAccessibleDescription(
+    /^The Orchestrator stopped following.* Stopped: answered, few steps left, or a CLI session\.$/,
+  )
   expect(shown()).toEqual(['Stopped: answered, few steps left, or a CLI session.'])
   cleanup()
 
   // a refusal is said in the window
-  panel(state, { onFollow: async () => Promise.reject(new ApiError(409, 'the room is still opening: try again in a moment')) })
+  panel(state, {
+    onFollow: async () => Promise.reject(new ApiError(409, 'the room is still opening: try again in a moment')),
+  })
   await userEvent.click(screen.getByRole('switch', { name: /Let the Orchestrator follow/ }))
   const refused = await screen.findByRole('alert')
   expect(refused).toHaveTextContent('still opening')
   // B-195: over the buttons, which it does not push from under the pointer; the switch's note behind its ⓘ
-  expect(refused.compareDocumentPosition(screen.getByRole('button', { name: 'End' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(
+    refused.compareDocumentPosition(screen.getByRole('button', { name: 'End' })) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy()
   expect(screen.getByText(/^Off: the Orchestrator takes no part/)).not.toBeVisible()
   cleanup()
 
@@ -256,7 +324,11 @@ test('B-167: paused, a member held once its step is over is "paused" in the tags
   // (The Coder's step is over and it waits for the Resume; the Tester still finishes its own.)
   const held = convState({
     ...state,
-    agents: [...state.agents.filter(a => a.id !== 'coder'), member('coder', 'Coder', 'waiting'), member('tester', 'Tester', 'running')],
+    agents: [
+      ...state.agents.filter(a => a.id !== 'coder'),
+      member('coder', 'Coder', 'waiting'),
+      member('tester', 'Tester', 'running'),
+    ],
     rooms: [room({ paused: true, members: [...room().members, { agent_id: 'tester', role: 'Tester', status: 'in' }] })],
   })
   panel(held)
@@ -273,16 +345,28 @@ test('B-167: paused, a member held once its step is over is "paused" in the tags
 test('paused, the room stops looking busy on the canvas: its card, and the lines of the members it holds; one still finishing its step keeps its moving line', () => {
   const held = convState({
     ...state,
-    agents: [...state.agents.filter(a => a.id !== 'coder'), member('coder', 'Coder', 'waiting'), member('tester', 'Tester', 'running')],
+    agents: [
+      ...state.agents.filter(a => a.id !== 'coder'),
+      member('coder', 'Coder', 'waiting'),
+      member('tester', 'Tester', 'running'),
+    ],
     rooms: [room({ paused: true, members: [...room().members, { agent_id: 'tester', role: 'Tester', status: 'in' }] })],
     toolCalls: [toolCall('9', 'r', 'wait_for_post', 'running', '{}', { agent_id: 'rev' })],
   })
   const { nodes, edges } = deriveGraph(held)
   expect(nodes.find(n => n.kind === 'room')!.data).toMatchObject({ running: false })
-  expect(edges.filter(e => e.target === 'room:o').map(e => [e.source, e.active])).toEqual([['agent:coder', false], ['agent:rev', false], ['agent:tester', true]])
+  expect(edges.filter(e => e.target === 'room:o').map(e => [e.source, e.active])).toEqual([
+    ['agent:coder', false],
+    ['agent:rev', false],
+    ['agent:tester', true],
+  ])
   const doing = (id: string) => (nodes.find(n => n.id === id)!.data as { activity: string }).activity
   // Its box says what the room's tags say: the Reviewer, "waiting for a post" there, is not one the Pause holds.
-  expect([doing('agent:coder'), doing('agent:rev'), doing('agent:lead')]).toEqual(['Paused with the room', 'Waiting for a post in the room', 'Waiting for the room'])
+  expect([doing('agent:coder'), doing('agent:rev'), doing('agent:lead')]).toEqual([
+    'Paused with the room',
+    'Waiting for a post in the room',
+    'Waiting for the room',
+  ])
   // Resumed, it is at work again.
   const resumed = deriveGraph(convState({ ...held, rooms: [room({ members: held.rooms[0].members })] }))
   expect(resumed.nodes.find(n => n.kind === 'room')!.data).toMatchObject({ running: true })
@@ -291,9 +375,11 @@ test('paused, the room stops looking busy on the canvas: its card, and the lines
 
 test('tokens no model reported are said to be none reported, not a zero', () => {
   expect(spentLines(room({ spent: { posts: 0, tokens: null, minutes: 0 } }))[1]).toBe('no tokens reported of 400000')
-  expect(spentLines(room({ budget: { posts: 40, tokens: null, minutes: 30 }, spent: { posts: 0, tokens: null, minutes: 0 } }))[1]).toBe(
-    'no tokens reported (no limit)',
-  )
+  expect(
+    spentLines(
+      room({ budget: { posts: 40, tokens: null, minutes: 30 }, spent: { posts: 0, tokens: null, minutes: 0 } }),
+    )[1],
+  ).toBe('no tokens reported (no limit)')
   // B-390: billed tokens, said so beside the agents' boxes (their context now); R185: no limit unless set
   expect(spentLines(room({ budget: { posts: 40, tokens: null, minutes: 30 } }))[1]).toBe(
     '1200 tokens sent and written (no limit) - each step resends its context',
@@ -301,11 +387,15 @@ test('tokens no model reported are said to be none reported, not a zero', () => 
 })
 
 test('a room that ended says why in its own words, and in short in its head', () => {
-  expect(roomLine(room({ status: 'ended', outcome: 'budget', why: 'posts' }))).toBe('Ended: its budget of posts was reached')
+  expect(roomLine(room({ status: 'ended', outcome: 'budget', why: 'posts' }))).toBe(
+    'Ended: its budget of posts was reached',
+  )
   expect(roomLine(room({ status: 'ended', outcome: 'too_few', why: 'unanswered' }))).toBe(
     'Ended: everybody’s work is over, and a question was left unanswered',
   )
-  expect(roomLine(room({ status: 'ended', outcome: 'too_few' }))).toBe('Ended: fewer than two members were still working')
+  expect(roomLine(room({ status: 'ended', outcome: 'too_few' }))).toBe(
+    'Ended: fewer than two members were still working',
+  )
   // the head's tag: how it ended, and how many of its items are done of all
   const tag = (over: Partial<Room>, items = state.roomItems) => roomTag({ roomItems: items }, room(over))
   expect(tag({ status: 'ended', outcome: 'agreed' })).toBe('done · 1 of 3')
@@ -319,7 +409,11 @@ test('a room that ended says why in its own words, and in short in its head', ()
 })
 
 test('a limit the room does not have is said as none, not as a number', () => {
-  expect(spentLines(room({ budget: { posts: null, tokens: 9000, minutes: null }, spent: { posts: 2, tokens: 0, minutes: 1 } }))).toEqual([
+  expect(
+    spentLines(
+      room({ budget: { posts: null, tokens: 9000, minutes: null }, spent: { posts: 2, tokens: 0, minutes: 1 } }),
+    ),
+  ).toEqual([
     '2 posts (no limit)',
     '0 of 9000 tokens sent and written - each step resends its context',
     '1 minutes (no limit)',
@@ -363,8 +457,17 @@ test('while it runs the talk is open; a member’s report is under Reports, with
 })
 
 test('a line of KOLONİ’s said again word for word shows once, with how many times', () => {
-  const posts = [post(1, 'rev', 'left', 'It failed: the model is gone.'), post(2, 'coder', 'result', 'ok'), post(3, 'rev', 'left', 'It failed: the model is gone.'), post(4, 'coder', 'result', 'ok')]
-  expect(once(posts).map(([post, times]) => [post.number, times])).toEqual([[1, 2], [2, 1], [4, 1]])
+  const posts = [
+    post(1, 'rev', 'left', 'It failed: the model is gone.'),
+    post(2, 'coder', 'result', 'ok'),
+    post(3, 'rev', 'left', 'It failed: the model is gone.'),
+    post(4, 'coder', 'result', 'ok'),
+  ]
+  expect(once(posts).map(([post, times]) => [post.number, times])).toEqual([
+    [1, 2],
+    [2, 1],
+    [4, 1],
+  ])
   panel(convState({ ...state, roomPosts: posts }))
   const said = screen.getByRole('group', { name: 'Said in the room' })
   expect(said).toHaveTextContent('1. Reviewer · left the room ×2')
@@ -383,7 +486,7 @@ test('while it runs you write into it, give it more and end it', async () => {
 
   await userEvent.click(screen.getByRole('button', { name: 'Give it more' }))
   const more = screen.getByRole('form', { name: 'Give it more' })
-  expect(within(more).getByRole('button', { name: 'Add' })).toBeDisabled()        // nothing to add yet
+  expect(within(more).getByRole('button', { name: 'Add' })).toBeDisabled() // nothing to add yet
   await userEvent.type(within(more).getByLabelText('More posts'), '5')
   await userEvent.type(within(more).getByLabelText('More minutes'), '10')
   await userEvent.click(within(more).getByRole('button', { name: 'Add' }))
@@ -412,7 +515,7 @@ test('what the server refuses is said, and nothing is added to a limit the room 
   await userEvent.type(screen.getByLabelText('Say something in the room'), 'late')
   await userEvent.click(screen.getByRole('button', { name: 'Post' }))
   expect(screen.getByRole('alert')).toHaveTextContent('this room is over')
-  expect(screen.getByLabelText('Say something in the room')).toHaveValue('late')    // not lost
+  expect(screen.getByLabelText('Say something in the room')).toHaveValue('late') // not lost
   await userEvent.click(screen.getByRole('button', { name: 'Give it more' }))
   expect(screen.getByLabelText('More posts')).toBeDisabled()
 })
@@ -420,8 +523,23 @@ test('what the server refuses is said, and nothing is added to a limit the room 
 const ended = (over: Partial<Room> = {}) =>
   convState({
     ...state,
-    rooms: [room({ status: 'ended', outcome: 'agreed', summary: 'hello.py prints yo. It prints yo, as asked.', members: [{ agent_id: 'coder', role: 'Coder', status: 'done' }, { agent_id: 'rev', role: 'Reviewer', status: 'done' }], ...over })],
-    roomItems: state.roomItems.map(i => ({ ...i, status: 'done' as const, holder_agent_id: i.holder_agent_id ?? 'coder' })),
+    rooms: [
+      room({
+        status: 'ended',
+        outcome: 'agreed',
+        summary: 'hello.py prints yo. It prints yo, as asked.',
+        members: [
+          { agent_id: 'coder', role: 'Coder', status: 'done' },
+          { agent_id: 'rev', role: 'Reviewer', status: 'done' },
+        ],
+        ...over,
+      }),
+    ],
+    roomItems: state.roomItems.map(i => ({
+      ...i,
+      status: 'done' as const,
+      holder_agent_id: i.holder_agent_id ?? 'coder',
+    })),
     roomPosts: state.roomPosts.map(p => ({ ...p, open: false })),
   })
 
@@ -460,7 +578,10 @@ test('K-oda-lead: a room its opener ended says so, its sentence is its line, and
   const s = ended({ agent_id: 'lead', outcome: 'ended_by_opener', summary: 'It prints yo; checked.' })
   panel({ ...s, roomPosts: [...s.roomPosts, post(9, 'lead', 'ended', 'It prints yo; checked.')] })
   const window = screen.getByRole('dialog', { name: 'Room: Fix the greeting together' })
-  expect(within(window).getByText('its opener ended it · 3 of 3')).toHaveAttribute('title', 'Ended: the agent that opened it ended it')
+  expect(within(window).getByText('its opener ended it · 3 of 3')).toHaveAttribute(
+    'title',
+    'Ended: the agent that opened it ended it',
+  )
   expect(window.querySelector('.room-summary')).toHaveTextContent('It prints yo; checked.')
   expect(screen.getByRole('group', { name: 'Said in the room' })).toHaveTextContent('9. Orchestrator · ended the room')
 })
@@ -470,7 +591,17 @@ const merge = (over: Partial<Merge> = {}): Merge => ({
   run_id: 'r',
   agent_id: 'lead',
   status: 'pending',
-  files: [{ path: 'hello.py', kind: 'changed', state: 'ready', diff: '--- a/hello.py\n+++ b/hello.py\n@@ -1 +1 @@\n-hi\n+yo', additions: 1, deletions: 1, note: null }],
+  files: [
+    {
+      path: 'hello.py',
+      kind: 'changed',
+      state: 'ready',
+      diff: '--- a/hello.py\n+++ b/hello.py\n@@ -1 +1 @@\n-hi\n+yo',
+      additions: 1,
+      deletions: 1,
+      note: null,
+    },
+  ],
   kept_in: null,
   check: null,
   commit: null,
@@ -482,7 +613,10 @@ const merge = (over: Partial<Merge> = {}): Merge => ({
 
 test('what a member waits on you for is in the room’s window: no call of the lead’s opened it', async () => {
   const onDecideCommand = vi.fn(noop)
-  const asks = convState({ ...state, commands: [command('k', 'r', { agent_id: 'coder', status: 'proposed', started_at: null, ended_at: null })] })
+  const asks = convState({
+    ...state,
+    commands: [command('k', 'r', { agent_id: 'coder', status: 'proposed', started_at: null, ended_at: null })],
+  })
   expect(waitsForYou(asks, asks.rooms[0])).toBe(true)
   expect(waitsForYou(state, state.rooms[0])).toBe(false)
   panel(asks, { on: { ...on, onDecideCommand } })
@@ -498,12 +632,24 @@ test('a message queued behind a member’s question says it waits in the room’
   const asked = convState({
     ...state,
     runs: [run('r', 'waiting_approval'), run('q2', 'queued', { started_at: null })],
-    messages: [userMessage('r', 'Fix the greeting together'), assistantMessage('m', 'r', ''), userMessage('q2', 'and then')],
+    messages: [
+      userMessage('r', 'Fix the greeting together'),
+      assistantMessage('m', 'r', ''),
+      userMessage('q2', 'and then'),
+    ],
     toolCalls: [toolCall('c1', 'r', 'open_room', 'succeeded', '{}', { agent_id: 'lead' })],
     rooms: [room({ agent_id: 'lead' })],
     questions: [question('q', 'r', { agent_id: 'coder', tool_call_id: 'cq', question: 'Shall the greeting stay hi?' })],
   })
-  render(<MessageList state={asked} onRemoveQueued={() => {}} onOpenChange={() => {}} onDecide={noop} onDecideCommand={noop} />)
+  render(
+    <MessageList
+      state={asked}
+      onRemoveQueued={() => {}}
+      onOpenChange={() => {}}
+      onDecide={noop}
+      onDecideCommand={noop}
+    />,
+  )
   expect(screen.queryByText('Shall the greeting stay hi?')).toBeNull()
   expect(screen.queryByText(queuedNote)).toBeNull()
   cleanup()
@@ -533,14 +679,26 @@ test('the room’s changes are asked about once, From you, on a card that says i
 })
 
 test('once the room’s changes are applied, From you goes on with their commit where it is offered', () => {
-  const applied = merge({ status: 'applied', files: [{ ...merge().files[0], state: 'applied' }], commit: { state: 'offered', message: 'Room: Fix the greeting together', sha: null } })
+  const applied = merge({
+    status: 'applied',
+    files: [{ ...merge().files[0], state: 'applied' }],
+    commit: { state: 'offered', message: 'Room: Fix the greeting together', sha: null },
+  })
   panel(convState({ ...ended(), merges: [applied] }))
-  expect(within(screen.getByRole('region', { name: 'From you' })).getByRole('group', { name: /Commit of/ })).toBeInTheDocument()
+  expect(
+    within(screen.getByRole('region', { name: 'From you' })).getByRole('group', { name: /Commit of/ }),
+  ).toBeInTheDocument()
 })
 
 test('only the room’s own copy is on its card: not another copy of its lead’s, with its files and its commit', () => {
   // the lead's recipe or earlier room: applied, its commit offered - and the room's own, still asked about
-  const other = merge({ id: 'g0', room_id: null, status: 'applied', files: [{ path: 'calc.py', kind: 'changed', state: 'applied', diff: '', additions: 1, deletions: 1, note: null }], commit: { state: 'offered', message: 'Room: Fix the greeting together', sha: null } })
+  const other = merge({
+    id: 'g0',
+    room_id: null,
+    status: 'applied',
+    files: [{ path: 'calc.py', kind: 'changed', state: 'applied', diff: '', additions: 1, deletions: 1, note: null }],
+    commit: { state: 'offered', message: 'Room: Fix the greeting together', sha: null },
+  })
   const over = convState({ ...ended(), merges: [other, merge()] })
   panel(over)
   const fromYou = screen.getByRole('region', { name: 'From you' })
@@ -570,7 +728,10 @@ test('the chat has no Room tab, and Channel is Talk', () => {
   useApp.setState({ conv: state, projectId: 'p' })
   render(<ChatPanel />)
   expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Chat', 'Talk', 'Notes'])
-  expect(screen.getByRole('tab', { name: 'Talk' })).toHaveAttribute('title', 'What the agents say to each other, to hand work on or ask one another')
+  expect(screen.getByRole('tab', { name: 'Talk' })).toHaveAttribute(
+    'title',
+    'What the agents say to each other, to hand work on or ask one another',
+  )
 })
 
 test('a running room with no window open is a tab at the canvas’s foot that opens it; — makes it a tab again, with the focus on it', async () => {
@@ -583,11 +744,16 @@ test('a running room with no window open is a tab at the canvas’s foot that op
   expect(screen.queryByRole('group', { name: 'Rooms' })).toBeNull()
   await userEvent.click(screen.getByRole('button', { name: 'Make the room small' }))
   expect(screen.queryByRole('dialog')).toBeNull()
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Room · Fix the greeting together · 3 posts' })).toHaveFocus())
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Room · Fix the greeting together · 3 posts' })).toHaveFocus(),
+  )
 })
 
 test('a question that comes while the room is small is said on its tab, in the accent colour, and opens nothing', () => {
-  const asks = convState({ ...state, commands: [command('k', 'r', { agent_id: 'coder', status: 'proposed', started_at: null, ended_at: null })] })
+  const asks = convState({
+    ...state,
+    commands: [command('k', 'r', { agent_id: 'coder', status: 'proposed', started_at: null, ended_at: null })],
+  })
   useApp.setState({ conv: asks, projectId: 'p', roomWindows: { o: 'small' } })
   render(<ChatPanel />)
   const tab = screen.getByRole('button', { name: 'Room · Fix the greeting together · 3 posts waits for you' })
@@ -615,7 +781,9 @@ test('in the chat a room is one line that opens its window, and an ended one clo
 test('a room not opened in this page that ended with its changes waiting has its tab, and the chat opens with Ready for you’s panel, which has its card', async () => {
   useApp.setState({ conv: convState({ ...ended(), merges: [merge()] }), projectId: 'p' })
   render(<ChatPanel />)
-  expect(screen.getByRole('button', { name: 'Room · Fix the greeting together · done · 3 of 3 waits for you' })).toHaveClass('asks')
+  expect(
+    screen.getByRole('button', { name: 'Room · Fix the greeting together · done · 3 of 3 waits for you' }),
+  ).toHaveClass('asks')
   await userEvent.click(screen.getByRole('button', { name: 'Hide chat' }))
   await userEvent.click(screen.getByRole('button', { name: /^Chat/ }))
   expect(screen.getByRole('tab', { name: 'Chat' })).toHaveAttribute('aria-selected', 'true')
@@ -623,13 +791,18 @@ test('a room not opened in this page that ended with its changes waiting has its
 })
 
 test('a member’s read outside the folder waits for you in the room, and what members said of their work stays once it is over', () => {
-  const outside = toolCall('x', 'r', 'read_file', 'pending', '{"path": "C:/elsewhere/a.txt"}', { agent_id: 'coder', started_at: 't' })
+  const outside = toolCall('x', 'r', 'read_file', 'pending', '{"path": "C:/elsewhere/a.txt"}', {
+    agent_id: 'coder',
+    started_at: 't',
+  })
   const asks = convState({ ...state, toolCalls: [outside] })
   expect(waitsForYou(asks, asks.rooms[0])).toBe(true)
   panel(asks)
   expect(screen.getByRole('region', { name: 'Waits for you' })).toHaveTextContent('Coder asks')
   // a member's word to another member, once the room is over: still there, with no box of what waits
-  const talk = toolCall('t', 'r', 'message_agent', 'succeeded', '{"to": "Reviewer", "message": "Look at line 2"}', { agent_id: 'coder' })
+  const talk = toolCall('t', 'r', 'message_agent', 'succeeded', '{"to": "Reviewer", "message": "Look at line 2"}', {
+    agent_id: 'coder',
+  })
   panel(convState({ ...ended(), toolCalls: [talk] }))
   expect(screen.getAllByRole('dialog')[1]).toHaveTextContent('Look at line 2')
   expect(screen.getAllByRole('dialog')[1].querySelector('.room-ask')).toBeNull()
@@ -637,7 +810,16 @@ test('a member’s read outside the folder waits for you in the room, and what m
 
 test('a room that ended with a member gone says who, and Esc leaves a word half written alone', async () => {
   const onShrink = vi.fn()
-  panel(ended({ outcome: 'too_few', members: [{ agent_id: 'coder', role: 'Coder', status: 'done' }, { agent_id: 'rev', role: 'Reviewer', status: 'left' }] }), { onShrink })
+  panel(
+    ended({
+      outcome: 'too_few',
+      members: [
+        { agent_id: 'coder', role: 'Coder', status: 'done' },
+        { agent_id: 'rev', role: 'Reviewer', status: 'left' },
+      ],
+    }),
+    { onShrink },
+  )
   expect(screen.getByRole('region', { name: 'The room' })).toHaveTextContent('Reviewer · left')
   expect(screen.getByText('fewer than two working · 3 of 3')).toBeInTheDocument()
   // (running: a draft in the say box)
@@ -653,9 +835,35 @@ test('a room that ended with a member gone says who, and Esc leaves a word half 
 // --- the form --------------------------------------------------------------------------------
 
 const role = (name: string): Role =>
-  ({ id: name, name, description: '', instructions: '', tools: [], builtin: true, created_by_agent: false, models: null, provider_id: null, model_id: null, tier: null, pick_from: null, max_steps: null, max_tokens: null, mcp: [], created_at: 't', updated_at: 't' }) as Role
+  ({
+    id: name,
+    name,
+    description: '',
+    instructions: '',
+    tools: [],
+    builtin: true,
+    created_by_agent: false,
+    models: null,
+    provider_id: null,
+    model_id: null,
+    tier: null,
+    pick_from: null,
+    max_steps: null,
+    max_tokens: null,
+    mcp: [],
+    created_at: 't',
+    updated_at: 't',
+  }) as Role
 const provider = (id: string, name: string, over: Partial<Provider> = {}): Provider =>
-  ({ id, name, kind: 'openai_compat', base_url: 'http://127.0.0.1:1/v1', default_model: 'its-default', mode: null, ...over }) as Provider
+  ({
+    id,
+    name,
+    kind: 'openai_compat',
+    base_url: 'http://127.0.0.1:1/v1',
+    default_model: 'its-default',
+    mode: null,
+    ...over,
+  }) as Provider
 
 const ROLES = [role('Lead'), role('Coder'), role('Tester'), role('Reviewer')]
 const PROVIDERS = [provider('p1', 'Local'), provider('p2', 'Codex', { kind: 'codex_cli', mode: 'native' })]
@@ -671,13 +879,13 @@ test('"Work together…" opens a room with a goal, two to six members and what i
   const onOpen = form()
   await userEvent.click(screen.getByRole('button', { name: /Work together/ }))
   const open = screen.getByRole('button', { name: 'Open the room' })
-  expect(open).toBeDisabled()                                                      // no goal yet
+  expect(open).toBeDisabled() // no goal yet
   // it starts from a Coder and a Reviewer, and from the conversation's own limits
   expect(screen.getByLabelText('Role of member 1')).toHaveValue('Coder')
   expect(screen.getByLabelText('Role of member 2')).toHaveValue('Reviewer')
   expect(screen.getByLabelText('Posts by its members')).toHaveValue('40')
-  expect(screen.getByLabelText('Minutes')).toHaveValue('')                         // none
-  expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull()               // two is the fewest
+  expect(screen.getByLabelText('Minutes')).toHaveValue('') // none
+  expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull() // two is the fewest
 
   await userEvent.type(screen.getByLabelText('Goal'), 'Fix the greeting together')
   await userEvent.click(screen.getByRole('button', { name: 'Add a member' }))
@@ -696,7 +904,7 @@ test('"Work together…" opens a room with a goal, two to six members and what i
     budget: { posts: 12, tokens: null, minutes: null },
     over_budget: false,
   })
-  expect(screen.queryByRole('form', { name: 'Work together' })).toBeNull()         // closed once it is open
+  expect(screen.queryByRole('form', { name: 'Work together' })).toBeNull() // closed once it is open
 })
 
 test('over the month’s budget the room waits for the user’s word, as a message does', async () => {
@@ -720,7 +928,9 @@ test('the limits written for one room are that room’s; the project’s are set
   const onOpen = form()
   await userEvent.click(screen.getByRole('button', { name: /Work together/ }))
   expect(screen.queryByLabelText(/Keep these limits/)).toBeNull()
-  expect(screen.getByText(/A room starts from the project’s limits: Settings › This project › New chats start with\./)).toBeInTheDocument()
+  expect(
+    screen.getByText(/A room starts from the project’s limits: Settings › This project › New chats start with\./),
+  ).toBeInTheDocument()
   await userEvent.type(screen.getByLabelText('Goal'), 'x')
   await userEvent.type(screen.getByLabelText('Minutes'), '15')
   await userEvent.click(screen.getByRole('button', { name: 'Open the room' }))
@@ -756,7 +966,7 @@ test('while a turn is at work no room is opened, and what the server refuses is 
   rerender(<WorkTogether roles={ROLES} providers={PROVIDERS} limits={LIMITS} busy={false} onOpen={onOpen} />)
   await userEvent.click(screen.getByRole('button', { name: 'Open the room' }))
   expect(screen.getByRole('alert')).toHaveTextContent('unknown role: Coder')
-  expect(screen.getByLabelText('Goal')).toHaveValue('x')                           // still there to send again
+  expect(screen.getByLabelText('Goal')).toHaveValue('x') // still there to send again
 })
 
 // --- the state, the canvas and a member's own record -----------------------------------------
@@ -766,14 +976,26 @@ test('a room, its items and its posts arrive as events and are kept by their ids
   s = applyEvent(s, 1, 'room.created', room({ status: 'sharing' }))
   s = applyEvent(s, 2, 'room.updated', room())
   s = applyEvent(s, 3, 'room_item.created', item(1, 'Change the greeting'))
-  s = applyEvent(s, 4, 'room_item.updated', item(1, 'Change the greeting', { status: 'taken', holder_agent_id: 'coder' }))
+  s = applyEvent(
+    s,
+    4,
+    'room_item.updated',
+    item(1, 'Change the greeting', { status: 'taken', holder_agent_id: 'coder' }),
+  )
   s = applyEvent(s, 5, 'room_post.created', post(1, 'coder', 'question', 'Which?', { open: true }))
   s = applyEvent(s, 6, 'room_post.updated', post(1, 'coder', 'question', 'Which?'))
   expect(s.rooms.map(r => r.status)).toEqual(['working'])
   expect(s.roomItems.map(i => [i.status, i.holder_agent_id])).toEqual([['taken', 'coder']])
   expect(s.roomPosts.map(p => p.open)).toEqual([false])
   // the page listens for every one of them
-  for (const type of ['room.created', 'room.updated', 'room_item.created', 'room_item.updated', 'room_post.created', 'room_post.updated']) {
+  for (const type of [
+    'room.created',
+    'room.updated',
+    'room_item.created',
+    'room_item.updated',
+    'room_post.created',
+    'room_post.updated',
+  ]) {
     expect(EVENT_TYPES).toContain(type)
   }
 })
@@ -809,8 +1031,13 @@ test('on the canvas the room is a node of its own, by the lead that waits for it
 })
 
 test('the Lead in a room is the Orchestrator on its card, as on its own node', () => {
-  const withLead = convState({ ...state, rooms: [room({ members: [...room().members, { agent_id: 'lead', role: 'Lead', status: 'in' }] })] })
-  expect(deriveGraph(withLead).nodes.find(n => n.kind === 'room')!.data).toMatchObject({ members: ['Coder · at work', 'Reviewer · waiting for a post', 'Orchestrator · at work'] })
+  const withLead = convState({
+    ...state,
+    rooms: [room({ members: [...room().members, { agent_id: 'lead', role: 'Lead', status: 'in' }] })],
+  })
+  expect(deriveGraph(withLead).nodes.find(n => n.kind === 'room')!.data).toMatchObject({
+    members: ['Coder · at work', 'Reviewer · waiting for a post', 'Orchestrator · at work'],
+  })
 })
 
 test('a team’s lead in a room is its coordinator in the side panel, as on the room’s card', () => {
@@ -827,7 +1054,9 @@ test('the room’s node opens a panel that says where it stands, and a way into 
   expect(screen.getByText('Fix the greeting together')).toBeInTheDocument()
   expect(screen.getByText('Coder · at work · Reviewer · waiting for a post')).toBeInTheDocument()
   expect(
-    screen.getByText('3 of 40 posts · 1200 of 400000 tokens sent and written - each step resends its context · 2.5 of 30 minutes'),
+    screen.getByText(
+      '3 of 40 posts · 1200 of 400000 tokens sent and written - each step resends its context · 2.5 of 30 minutes',
+    ),
   ).toBeInTheDocument()
   expect(screen.getByText('Looked at it: fine.')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Open the room' }))
@@ -835,17 +1064,35 @@ test('the room’s node opens a panel that says where it stands, and a way into 
 })
 
 test('a post handed to a member is on its own record as handed from the room', () => {
-  const handed = { ...assistantMessage('h', 'r', 'Said in the room - post 2. the user: "Tests first!"'), role: 'agent' as const, agent_id: 'rev', room_post_id: 's2', delivered_at: 't' }
-  render(<AgentSteps state={convState({ ...state, messages: [handed] })} agent={state.agents[2]} onOpenChange={() => {}} onSelectAgent={() => {}} />)
+  const handed = {
+    ...assistantMessage('h', 'r', 'Said in the room - post 2. the user: "Tests first!"'),
+    role: 'agent' as const,
+    agent_id: 'rev',
+    room_post_id: 's2',
+    delivered_at: 't',
+  }
+  render(
+    <AgentSteps
+      state={convState({ ...state, messages: [handed] })}
+      agent={state.agents[2]}
+      onOpenChange={() => {}}
+      onSelectAgent={() => {}}
+    />,
+  )
   expect(screen.getByText('handed to it from the room')).toBeInTheDocument()
   expect(screen.getByText(/Tests first!/)).toBeInTheDocument()
-  expect(screen.queryByText('from Agent')).toBeNull()                              // nobody is made its sender
+  expect(screen.queryByText('from Agent')).toBeNull() // nobody is made its sender
 })
 
 test('"Work together…" stands under More, in the row under the message box with the model, which is drawn once', async () => {
   // (It once had the model picker's key: two children of one key in one row are drawn twice. 0.1.5: the model is on the
   // line over the box while the chat is ready.)
-  useApp.setState({ conv: { ...state, runs: [run('r', 'completed')] }, projectId: 'p', providers: PROVIDERS, roles: ROLES })
+  useApp.setState({
+    conv: { ...state, runs: [run('r', 'completed')] },
+    projectId: 'p',
+    providers: PROVIDERS,
+    roles: ROLES,
+  })
   render(<ChatPanel />)
   await userEvent.click(screen.getByRole('button', { name: 'More' }))
   expect(screen.getAllByRole('button', { name: /^Model: / })).toHaveLength(1)
@@ -857,20 +1104,41 @@ test('"Work together…" stands under More, in the row under the message box wit
 test('an agent’s room: its members are asked for under its call, and then the call is the room, saying who opened it', async () => {
   const onDecideSpawn = vi.fn(noop)
   const asked = (id: string, name: string) =>
-    agent('r', 'proposed', { id, parent_agent_id: 'lead', tool_call_id: 'c1', role_name: name, name, task: 'Fix the greeting together', depth: 1 })
+    agent('r', 'proposed', {
+      id,
+      parent_agent_id: 'lead',
+      tool_call_id: 'c1',
+      role_name: name,
+      name,
+      task: 'Fix the greeting together',
+      depth: 1,
+    })
   const opening = convState({
     runs: [run('r', 'running')],
     messages: [userMessage('r', 'fix it'), assistantMessage('m', 'r', '')],
     agents: [agent('r', 'waiting', { id: 'lead' }), asked('coder', 'Coder'), asked('rev', 'Reviewer')],
     toolCalls: [toolCall('c1', 'r', 'open_room', 'running', '{}', { agent_id: 'lead' })],
   })
-  const list = (s: typeof opening) => <MessageList state={s} onRemoveQueued={() => {}} onOpenChange={() => {}} onDecide={noop} onDecideCommand={noop} onDecideSpawn={onDecideSpawn} />
+  const list = (s: typeof opening) => (
+    <MessageList
+      state={s}
+      onRemoveQueued={() => {}}
+      onOpenChange={() => {}}
+      onDecide={noop}
+      onDecideCommand={noop}
+      onDecideSpawn={onDecideSpawn}
+    />
+  )
   const { rerender } = render(list(opening))
   expect(screen.getAllByText('Open this sub-agent?')).toHaveLength(2)
   await userEvent.click(screen.getAllByRole('button', { name: 'Open agent' })[1])
   expect(onDecideSpawn).toHaveBeenCalledWith('rev', 'approve')
 
-  const open = convState({ ...opening, agents: [opening.agents[0], member('coder', 'Coder', 'running'), member('rev', 'Reviewer', 'waiting')], rooms: [room({ agent_id: 'lead' })] })
+  const open = convState({
+    ...opening,
+    agents: [opening.agents[0], member('coder', 'Coder', 'running'), member('rev', 'Reviewer', 'waiting')],
+    rooms: [room({ agent_id: 'lead' })],
+  })
   rerender(list(open))
   expect(screen.queryByText('Open this sub-agent?')).toBeNull()
   // once, under the call that opened it - not under the user's message as well
@@ -880,13 +1148,26 @@ test('an agent’s room: its members are asked for under its call, and then the 
 
 test('in its window an agent’s room says who opened it, and one a member asks in waits there for your word', async () => {
   const onDecideSpawn = vi.fn(noop)
-  const tester = agent('r', 'proposed', { id: 'tester', parent_agent_id: 'lead', tool_call_id: 'i1', role_name: 'Tester', name: 'Tester', depth: 1 })
+  const tester = agent('r', 'proposed', {
+    id: 'tester',
+    parent_agent_id: 'lead',
+    tool_call_id: 'i1',
+    role_name: 'Tester',
+    name: 'Tester',
+    depth: 1,
+  })
   const opened = convState({ ...state, rooms: [room({ agent_id: 'lead' })] })
-  const invited = convState({ ...opened, agents: [...opened.agents, tester], toolCalls: [toolCall('i1', 'r', 'invite_to_room', 'running', '{}', { agent_id: 'coder' })] })
+  const invited = convState({
+    ...opened,
+    agents: [...opened.agents, tester],
+    toolCalls: [toolCall('i1', 'r', 'invite_to_room', 'running', '{}', { agent_id: 'coder' })],
+  })
   expect(waitsForYou(opened, opened.rooms[0])).toBe(false)
   expect(waitsForYou(invited, invited.rooms[0])).toBe(true)
   panel(invited, { on: { ...on, onDecideSpawn } })
-  expect(screen.getByRole('region', { name: 'The room' })).toHaveTextContent('Coder · Reviewer · opened by Orchestrator')
+  expect(screen.getByRole('region', { name: 'The room' })).toHaveTextContent(
+    'Coder · Reviewer · opened by Orchestrator',
+  )
   const waiting = screen.getByRole('region', { name: 'Waits for you' })
   expect(waiting).toHaveTextContent('Tester')
   await userEvent.click(within(waiting).getByRole('button', { name: 'Open agent' }))
@@ -894,19 +1175,41 @@ test('in its window an agent’s room says who opened it, and one a member asks 
 })
 
 test('K-oda-lead: one its opener asks in while it follows the room waits for your word there too', () => {
-  const tester = agent('r', 'proposed', { id: 'tester', parent_agent_id: 'lead', tool_call_id: 'i1', role_name: 'Tester', name: 'Tester', depth: 1 })
+  const tester = agent('r', 'proposed', {
+    id: 'tester',
+    parent_agent_id: 'lead',
+    tool_call_id: 'i1',
+    role_name: 'Tester',
+    name: 'Tester',
+    depth: 1,
+  })
   const opened = convState({ ...state, rooms: [room({ agent_id: 'lead' })] })
-  const invited = convState({ ...opened, agents: [...opened.agents, tester], toolCalls: [toolCall('i1', 'r', 'invite_to_room', 'running', '{}', { agent_id: 'lead' })] })
+  const invited = convState({
+    ...opened,
+    agents: [...opened.agents, tester],
+    toolCalls: [toolCall('i1', 'r', 'invite_to_room', 'running', '{}', { agent_id: 'lead' })],
+  })
   expect(waitsForYou(invited, invited.rooms[0])).toBe(true)
   panel(invited)
   expect(screen.getByRole('region', { name: 'Waits for you' })).toHaveTextContent('Tester')
 })
 
 test('an open_room call that was refused is not shown as the room a later call opened', () => {
-  const refused = toolCall('c1', 'r', 'open_room', 'failed', '{}', { agent_id: 'lead', seq: 1, result: 'error: the user turned down the Coder' })
+  const refused = toolCall('c1', 'r', 'open_room', 'failed', '{}', {
+    agent_id: 'lead',
+    seq: 1,
+    result: 'error: the user turned down the Coder',
+  })
   const opened = toolCall('c2', 'r', 'open_room', 'succeeded', '{}', { agent_id: 'lead', seq: 2 })
-  const s = convState({ ...state, messages: [userMessage('r', 'fix it'), assistantMessage('m', 'r', '')], toolCalls: [refused, opened], rooms: [room({ agent_id: 'lead' })] })
-  render(<MessageList state={s} onRemoveQueued={() => {}} onOpenChange={() => {}} onDecide={noop} onDecideCommand={noop} />)
+  const s = convState({
+    ...state,
+    messages: [userMessage('r', 'fix it'), assistantMessage('m', 'r', '')],
+    toolCalls: [refused, opened],
+    rooms: [room({ agent_id: 'lead' })],
+  })
+  render(
+    <MessageList state={s} onRemoveQueued={() => {}} onOpenChange={() => {}} onDecide={noop} onDecideCommand={noop} />,
+  )
   expect(screen.getAllByRole('button', { name: /^Room · Fix the greeting together/ })).toHaveLength(1)
 })
 
@@ -918,14 +1221,22 @@ test('the Observer is not offered as a member', async () => {
 })
 
 test('R178: the Orchestrator watching a room is said on its window and its card, and its own post is marked', () => {
-  const watched = convState({ ...state, rooms: [room({ agent_id: 'lead', lead_follows: 'on' })], roomPosts: [...state.roomPosts, post(5, 'lead', 'said', 'Keep it short.')] })
+  const watched = convState({
+    ...state,
+    rooms: [room({ agent_id: 'lead', lead_follows: 'on' })],
+    roomPosts: [...state.roomPosts, post(5, 'lead', 'said', 'Keep it short.')],
+  })
   panel(watched)
   const said = 'Watched by Orchestrator · can post, invite, end'
   expect(screen.getByRole('region', { name: 'The room' })).toHaveTextContent(said)
   expect(screen.getAllByText('watching')).toHaveLength(1) // (its post, not a member's)
   const node = deriveGraph(watched).nodes.find(n => n.kind === 'room')!
   // (Its card shows its goal, whole as far as it fits; who opened it is on the line under it and in its window.)
-  expect(node.data).toMatchObject({ goal: 'Fix the greeting together', watched: said, last: [expect.anything(), { who: 'Orchestrator (watching)', text: 'Keep it short.' }] })
+  expect(node.data).toMatchObject({
+    goal: 'Fix the greeting together',
+    watched: said,
+    last: [expect.anything(), { who: 'Orchestrator (watching)', text: 'Keep it short.' }],
+  })
   cleanup()
   panel() // (nobody follows it: nothing is said)
   expect(screen.queryByText(/Watched by/)).toBeNull()

@@ -9,7 +9,9 @@ test.afterEach(async ({ page }) => {
 })
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`Stop everything, ${theme}: it asks, stops the turn, lists it, the bar says Held, and Resume lets go`, async ({ page }) => {
+  test(`Stop everything, ${theme}: it asks, stops the turn, lists it, the bar says Held, and Resume lets go`, async ({
+    page,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     // (Ends in "slowly": the scripted Lead asks to run a command, and its turn waits for the answer.)
     const title = `hold ${theme} ${Date.now()} run it slowly`
@@ -54,9 +56,28 @@ for (const theme of ['light', 'dark'] as const) {
       // (By time, not by request: the page reads the Board more than once as it opens; it then reads it every 5 s.)
       first ??= Date.now()
       const at = Math.min(Math.floor((Date.now() - first) / 4000), steps.length - 1)
-      const turn = { id: `t${at >> 1}`, status: steps[at], started_at: null, ended_at: null, agents: 0, provider_name: null, model_id: null, tokens: null, plan_waits: false }
-      const chat = { conversation_id: 'out-of-sight', title: 'Nightly look', agents: [], merges_pending: 0, turn, project_id: null }
-      await route.fulfill({ json: { backlog_waiting: 0, limit: null, running: 0, conversations: [chat], conflicts: [] } })
+      const turn = {
+        id: `t${at >> 1}`,
+        status: steps[at],
+        started_at: null,
+        ended_at: null,
+        agents: 0,
+        provider_name: null,
+        model_id: null,
+        tokens: null,
+        plan_waits: false,
+      }
+      const chat = {
+        conversation_id: 'out-of-sight',
+        title: 'Nightly look',
+        agents: [],
+        merges_pending: 0,
+        turn,
+        project_id: null,
+      }
+      await route.fulfill({
+        json: { backlog_waiting: 0, limit: null, running: 0, conversations: [chat], conflicts: [] },
+      })
     })
     await openFreshConversation(page)
     const toasts = page.locator('.toasts')

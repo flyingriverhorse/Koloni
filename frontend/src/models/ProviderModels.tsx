@@ -38,9 +38,39 @@ interface Props extends Pick<PageProps, 'onFacts' | 'onSave'> {
 }
 
 /** The models agents and you can pick here, and how strong each is: read first, each change saved at once. */
-export function ProviderModels({ provider, rows, setRows, savedRows, listed, usual, avail, used, onFacts, onSave, onCheck, persist, adding, setAdding, add, listId, propose, busy, run, draft, noCatalogue, setNoCatalogue, leftOut, setLeftOut, modelsError, setModelsError, toast, setToast }: Props) {
+export function ProviderModels({
+  provider,
+  rows,
+  setRows,
+  savedRows,
+  listed,
+  usual,
+  avail,
+  used,
+  onFacts,
+  onSave,
+  onCheck,
+  persist,
+  adding,
+  setAdding,
+  add,
+  listId,
+  propose,
+  busy,
+  run,
+  draft,
+  noCatalogue,
+  setNoCatalogue,
+  leftOut,
+  setLeftOut,
+  modelsError,
+  setModelsError,
+  toast,
+  setToast,
+}: Props) {
   const marks = new Map(avail?.models.map(m => [m.name, m]) ?? [])
-  const setRow = (index: number, change: Partial<GuideRow>) => rows.map((row, at) => (at === index ? { ...row, ...change } : row))
+  const setRow = (index: number, change: Partial<GuideRow>) =>
+    rows.map((row, at) => (at === index ? { ...row, ...change } : row))
   // What 30 days of the record say of a model of this provider; null where that is not known.
   // shortcut: K-model-puan's taken in / turned down / cost are on the Agents page's per-role table
   // only (its table is per role, not per model); add a per-model line here when the page loads /record.
@@ -59,7 +89,8 @@ export function ProviderModels({ provider, rows, setRows, savedRows, listed, usu
     leftOut !== null && (
       <div role="status" className="muted provider-note">
         Proposed from the catalogue and the provider’s own list, not saved yet: look it over, then save it.
-        {leftOut > 0 && ` ${leftOut} left out: models that cannot chat, or past the ${MAX_MODELS} the list holds (the strongest are kept).`}
+        {leftOut > 0 &&
+          ` ${leftOut} left out: models that cannot chat, or past the ${MAX_MODELS} the list holds (the strongest are kept).`}
         {provider && (
           <span className="role-actions">
             <button
@@ -109,14 +140,17 @@ export function ProviderModels({ provider, rows, setRows, savedRows, listed, usu
                 <th scope="col">Thinking</th>
                 <th scope="col">Price in / out (1M)</th>
                 <th scope="col" aria-label="Agents may use">
-                  Agents may use <Hint doc={GUIDE.providerModels}>On: agents may pick this model by themselves (tiers, Auto). Off: only you pick it in a chat.</Hint>
+                  Agents may use{' '}
+                  <Hint doc={GUIDE.providerModels}>
+                    On: agents may pick this model by themselves (tiers, Auto). Off: only you pick it in a chat.
+                  </Hint>
                 </th>
                 <th scope="col" aria-label="On">
                   On{' '}
                   <Hint doc={GUIDE.providerModels}>
-                    Off: nobody uses this model, not you, not agents, not the tiers. KOLONİ switches a model off itself when Copilot
-                    says it can’t use it on your account (the reason shows beside it). The provider’s own switch turns all its models
-                    off.
+                    Off: nobody uses this model, not you, not agents, not the tiers. KOLONİ switches a model off itself
+                    when Copilot says it can’t use it on your account (the reason shows beside it). The provider’s own
+                    switch turns all its models off.
                   </Hint>
                 </th>
                 <th scope="col">
@@ -142,15 +176,25 @@ export function ProviderModels({ provider, rows, setRows, savedRows, listed, usu
                   }
                   onInputs={inputs => void persist(setRow(index, { inputs }), `What ${row.name} takes is saved.`)}
                   onContext={context =>
-                    void persist(setRow(index, { context }), `${row.name}: ${context === 'long_context' ? 'long' : 'default'} context.`)
+                    void persist(
+                      setRow(index, { context }),
+                      `${row.name}: ${context === 'long_context' ? 'long' : 'default'} context.`,
+                    )
                   }
-                  onRouting={routing => void persist(setRow(index, { routing }), `${row.name}: ${routing ?? 'default'} routing.`)}
+                  onRouting={routing =>
+                    void persist(setRow(index, { routing }), `${row.name}: ${routing ?? 'default'} routing.`)
+                  }
                   onNote={text => setRows(setRow(index, { note: text }))}
                   onNoteDone={() =>
                     row.note.trim() !== (provider?.models.find(m => m.name === row.name)?.note ?? '') &&
                     void persist(rows, `The note of ${row.name} is saved.`)
                   }
-                  onRemove={() => void persist(rows.filter((_, at) => at !== index), `${row.name} removed.`)}
+                  onRemove={() =>
+                    void persist(
+                      rows.filter((_, at) => at !== index),
+                      `${row.name} removed.`,
+                    )
+                  }
                 />
               ))}
             </tbody>
@@ -188,7 +232,12 @@ export function ProviderModels({ provider, rows, setRows, savedRows, listed, usu
       )}
       <div className="role-actions">
         {adding === null && (
-          <button type="button" className="btn btn-small" disabled={rows.length >= MAX_MODELS} onClick={() => setAdding('')}>
+          <button
+            type="button"
+            className="btn btn-small"
+            disabled={rows.length >= MAX_MODELS}
+            onClick={() => setAdding('')}
+          >
             <Plus size={13} />
             Add a model
           </button>
@@ -209,7 +258,16 @@ export function ProviderModels({ provider, rows, setRows, savedRows, listed, usu
                 setNoCatalogue(none ? draft : null)
                 // A model already listed keeps whether agents may use it; one more joins the provider's way.
                 const had = new Map(rows.map(row => [row.name, row.agents]))
-                setRows(offer.models.map(m => ({ name: m.name, note: m.note ?? '', tier: m.tier ?? null, agents: had.get(m.name) ?? usual, ...(m.context && { context: m.context }), ...(m.routing && { routing: m.routing }) })))
+                setRows(
+                  offer.models.map(m => ({
+                    name: m.name,
+                    note: m.note ?? '',
+                    tier: m.tier ?? null,
+                    agents: had.get(m.name) ?? usual,
+                    ...(m.context && { context: m.context }),
+                    ...(m.routing && { routing: m.routing }),
+                  })),
+                )
                 setLeftOut(none ? null : offer.left_out)
               })
             }
@@ -234,7 +292,9 @@ export function ProviderModels({ provider, rows, setRows, savedRows, listed, usu
         </Hint>
       </div>
       {noCatalogue === draft && (
-        <span className="muted provider-note">No catalogue for this address; the models will be listed once it is added.</span>
+        <span className="muted provider-note">
+          No catalogue for this address; the models will be listed once it is added.
+        </span>
       )}
       {rows.some(row => marks.get(row.name)?.retired) && (
         <span className="muted provider-note">

@@ -34,7 +34,8 @@ interface Props {
 const answers = (health: Health | null) => health !== null && health.model_reachable && !health.not_listed
 
 /** The provider whose reading says it does not answer, by name (null: it does, or the user wrote - then the banner says it). */
-const downOf = (health: Health | null, wrote: boolean) => (!wrote && health && !health.model_reachable && health.provider_name) || null
+const downOf = (health: Health | null, wrote: boolean) =>
+  (!wrote && health && !health.model_reachable && health.provider_name) || null
 
 type NoteProps = Pick<Props, 'health' | 'providers' | 'pinned' | 'onUse'> & { name: string }
 
@@ -86,7 +87,18 @@ function UseOther({ other, onUse }: { other: Provider; onUse: Props['onUse'] }) 
 
 /** The folder step's words: what a folder is, or - done - the open chat's folder (a plain chat: only that one is added). */
 const folderText = (project: boolean, folder: string | null) =>
-  !project ? 'A folder: the project your agents work in.' : folder ? <>Project folder: <span className="mono" title={folder}>{folder}</span></> : 'A project folder is added.'
+  !project ? (
+    'A folder: the project your agents work in.'
+  ) : folder ? (
+    <>
+      Project folder:{' '}
+      <span className="mono" title={folder}>
+        {folder}
+      </span>
+    </>
+  ) : (
+    'A project folder is added.'
+  )
 
 /**
  * The first run's one path (0.1.0-ilk-calistirma), in the middle of the canvas: a provider, a folder, a message -
@@ -94,7 +106,20 @@ const folderText = (project: boolean, folder: string | null) =>
  * done is the current one and the only one with a button - and, where the default does not answer, one more that offers
  * another provider as the default. Hidden by hand, they come back only from Help.
  */
-export function FirstSteps({ health, project, folder, wrote, turn, again, providers, pinned, onProvider, onUse, onHidden, onSaysProvider }: Props) {
+export function FirstSteps({
+  health,
+  project,
+  folder,
+  wrote,
+  turn,
+  again,
+  providers,
+  pinned,
+  onProvider,
+  onUse,
+  onHidden,
+  onSaysProvider,
+}: Props) {
   const [hidden, setHidden] = useState(() => {
     try {
       return localStorage.getItem(KEY) === 'hidden'

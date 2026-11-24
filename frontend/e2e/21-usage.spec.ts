@@ -8,7 +8,9 @@ test.afterEach(async ({ request }) => {
   await request.delete('/api/prices?model_id=fake-qwen', { headers: OWN })
 })
 
-test('a turn’s tokens are on the Usage page, its conversation opens from there, and a price you write becomes a cost', async ({ page }) => {
+test('a turn’s tokens are on the Usage page, its conversation opens from there, and a price you write becomes a cost', async ({
+  page,
+}) => {
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   // One model step: the scripted model reports 120 tokens sent and 18 written for it.
@@ -33,7 +35,9 @@ test('a turn’s tokens are on the Usage page, its conversation opens from there
   await expect(local.getByRole('cell').last()).toHaveText('–')
   await expect(page.getByText(/^Cost shows for a model with a price: yours, or else models\.dev’s/)).toBeVisible()
   await expect(page.getByRole('button', { name: 'set prices' })).toHaveCount(1)
-  await expect(page.getByRole('table', { name: 'Usage by who sent the message' }).getByRole('row', { name: /^You/ })).toBeVisible()
+  await expect(
+    page.getByRole('table', { name: 'Usage by who sent the message' }).getByRole('row', { name: /^You/ }),
+  ).toBeVisible()
   await shot(page, '21-usage')
 
   // A price for the model the agents ran on is written on the same page, under the tables: the Cost box opens it.
@@ -49,10 +53,17 @@ test('a turn’s tokens are on the Usage page, its conversation opens from there
   // The usage is read again: the cost is there without leaving the page.
   // (The row adds up every spec's turns of today: one that was stopped mid-step makes it "at least".)
   await expect(local.getByRole('cell').last()).toHaveText(/^[≈≥] [\d,.]+ USD$/)
-  await expect(page.getByText(/from the prices you entered\. Cache reads and writes are counted at the cache prices you gave/)).toBeVisible()
+  await expect(
+    page.getByText(/from the prices you entered\. Cache reads and writes are counted at the cache prices you gave/),
+  ).toBeVisible()
   await shot(page, '21-usage-with-a-cost')
 
   // The row opens its conversation.
-  await page.getByRole('table', { name: 'Usage by conversation' }).getByRole('button', { name: 'hello from the usage spec' }).click()
-  await expect(page.getByRole('region', { name: 'Chat' }).getByText('Hello! Ask me to read or change a file.')).toBeVisible()
+  await page
+    .getByRole('table', { name: 'Usage by conversation' })
+    .getByRole('button', { name: 'hello from the usage spec' })
+    .click()
+  await expect(
+    page.getByRole('region', { name: 'Chat' }).getByText('Hello! Ask me to read or change a file.'),
+  ).toBeVisible()
 })

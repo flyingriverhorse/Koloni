@@ -43,7 +43,9 @@ export function when(iso: string, now = new Date()): string {
   const at = new Date(iso)
   if (Number.isNaN(at.getTime())) return ''
   const time = at.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-  return at.toDateString() === now.toDateString() ? time : `${at.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${time}`
+  return at.toDateString() === now.toDateString()
+    ? time
+    : `${at.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${time}`
 }
 
 /** How much of the message a row shows (and Undo's card, of each turn's request). */
@@ -79,8 +81,13 @@ export function turnOf(state: Pick<ConvState, 'runs'>, runId: string): string {
 }
 
 /** What these runs did that is work, not only words: the sub-agents opened, and the files changed in the project. */
-export function workOf(state: Pick<ConvState, 'agents' | 'fileChanges'>, runIds: string[]): { agents: number; files: number } {
-  const changed = state.fileChanges.filter(f => runIds.includes(f.run_id) && (f.status === 'applied' || f.status === 'merged') && !inScratch(f.path))
+export function workOf(
+  state: Pick<ConvState, 'agents' | 'fileChanges'>,
+  runIds: string[],
+): { agents: number; files: number } {
+  const changed = state.fileChanges.filter(
+    f => runIds.includes(f.run_id) && (f.status === 'applied' || f.status === 'merged') && !inScratch(f.path),
+  )
   return {
     agents: state.agents.filter(a => runIds.includes(a.run_id) && a.depth > 0 && a.started_at).length,
     files: new Set(changed.map(f => f.path)).size,
@@ -90,7 +97,9 @@ export function workOf(state: Pick<ConvState, 'agents' | 'fileChanges'>, runIds:
 /** "2 agents · 3 files" ("3 files changed"), or "" for a message with no work. */
 export function workText({ agents, files }: { agents: number; files: number }, changed = false): string {
   const count = (n: number, one: string) => (n > 0 ? `${n} ${one}${n === 1 ? '' : 's'}` : null)
-  return [count(agents, 'agent'), files > 0 && `${count(files, 'file')}${changed ? ' changed' : ''}`].filter(Boolean).join(' · ')
+  return [count(agents, 'agent'), files > 0 && `${count(files, 'file')}${changed ? ' changed' : ''}`]
+    .filter(Boolean)
+    .join(' · ')
 }
 
 const endedOf = (run: Run): TurnEnded =>
@@ -103,7 +112,11 @@ export function turnRows(state: ConvState): TurnRow[] {
     .map(run => {
       const sides = run.compare_id ? state.runs.filter(one => one.compare_id === run.compare_id) : [run]
       const asked = state.messages.find(m => m.run_id === run.id && (m.role === 'user' || m.role === 'trigger'))
-      const line = (asked?.content ?? '').split('\n').map(part => part.trim()).find(Boolean) ?? ''
+      const line =
+        (asked?.content ?? '')
+          .split('\n')
+          .map(part => part.trim())
+          .find(Boolean) ?? ''
       // At work while a side is, or one waits for the other; else as the first that did not end well ended.
       const each = sides.map(endedOf)
       return {
@@ -111,7 +124,10 @@ export function turnRows(state: ConvState): TurnRow[] {
         unattended: run.unattended,
         text: line.length > TEXT_CHARS ? `${line.slice(0, TEXT_CHARS)}…` : line,
         triggerName: run.unattended ? run.trigger_name : null,
-        ...workOf(state, sides.map(side => side.id)),
+        ...workOf(
+          state,
+          sides.map(side => side.id),
+        ),
         ended:
           each.includes('working') || (each.includes('queued') && each.some(e => e !== 'queued'))
             ? 'working'
@@ -131,7 +147,13 @@ export function turnRows(state: ConvState): TurnRow[] {
  */
 export function frontTurn(rows: TurnRow[]): string | null {
   const own = rows.filter(row => !row.unattended)
-  return (own.findLast(row => row.waits) ?? own.findLast(row => row.ended === 'working') ?? own.findLast(row => row.agents > 0 || row.files > 0))?.runId ?? null
+  return (
+    (
+      own.findLast(row => row.waits) ??
+      own.findLast(row => row.ended === 'working') ??
+      own.findLast(row => row.agents > 0 || row.files > 0)
+    )?.runId ?? null
+  )
 }
 
 /**

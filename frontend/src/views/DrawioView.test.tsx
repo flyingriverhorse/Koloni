@@ -8,7 +8,12 @@ import { DrawioView } from './DrawioView'
 import { kindOf } from './views'
 
 const XML = '<mxfile><diagram name="P"><mxGraphModel><root/></mxGraphModel></diagram></mxfile>'
-beforeEach(() => vi.stubGlobal('fetch', vi.fn(async () => new Response(XML))))
+beforeEach(() =>
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(XML)),
+  ),
+)
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
@@ -52,7 +57,11 @@ test('Save as PNG asks the frame, and what it draws is written beside the diagra
   say({ saved: 'png', data: 'data:image/png;base64,QUJD' }, frame.contentWindow, location.origin)
   expect(written).not.toHaveBeenCalled()
   say({ saved: 'png', data: 'data:image/png;base64,QUJD' })
-  expect(written).toHaveBeenCalledWith('/projects/p1/diagram-picture', { path: 'docs/flow.drawio', format: 'png', data: 'QUJD' })
+  expect(written).toHaveBeenCalledWith('/projects/p1/diagram-picture', {
+    path: 'docs/flow.drawio',
+    format: 'png',
+    data: 'QUJD',
+  })
   expect(await screen.findByRole('status')).toHaveTextContent('Saved as docs/flow.png.')
   // once: the same answer again, unasked, writes nothing
   say({ saved: 'png', data: 'data:image/png;base64,QUJD' })
@@ -75,7 +84,11 @@ test('an SVG goes as its UTF-8 bytes, and why the frame could not draw is said',
   say({ shown: true })
   await userEvent.click(screen.getByRole('button', { name: 'Save as SVG' }))
   say({ saved: 'svg', data: '<svg>ş</svg>' })
-  expect(written).toHaveBeenCalledWith('/projects/p1/diagram-picture', { path: 'docs/flow.drawio', format: 'svg', data: btoa('<svg>\xc5\x9f</svg>') })
+  expect(written).toHaveBeenCalledWith('/projects/p1/diagram-picture', {
+    path: 'docs/flow.drawio',
+    format: 'svg',
+    data: btoa('<svg>\xc5\x9f</svg>'),
+  })
   expect(await screen.findByText('Saved as docs/flow.svg.')).toBeInTheDocument()
   say({ failed: 'This is not a draw.io file: its XML could not be read.' })
   expect(screen.getByRole('status')).toHaveTextContent('its XML could not be read')

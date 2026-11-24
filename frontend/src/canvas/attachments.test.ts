@@ -7,9 +7,20 @@ import { FILE_H, layoutGraph, NODE_H, ROW_GAP } from './layout'
 
 function file(id: string, over: Partial<Attachment> = {}): Attachment {
   return {
-    id, conversation_id: 'c', message_id: 'u-r', frame_of: null, name: `${id}.ts`, kind: 'text',
-    mime: 'text/plain', size: 10, summary: '1 line', given_to: [], shown_to: {}, keep_in_project: false,
-    created_at: '2026-10-05T10:00:00Z', ...over,
+    id,
+    conversation_id: 'c',
+    message_id: 'u-r',
+    frame_of: null,
+    name: `${id}.ts`,
+    kind: 'text',
+    mime: 'text/plain',
+    size: 10,
+    summary: '1 line',
+    given_to: [],
+    shown_to: {},
+    keep_in_project: false,
+    created_at: '2026-10-05T10:00:00Z',
+    ...over,
   }
 }
 
@@ -17,12 +28,20 @@ const withFiles = (files: Attachment[]) =>
   convState({
     runs: [run('r')],
     messages: [userMessage('r', 'see these')],
-    agents: [agent('r', 'running', { depth: 0 }), agent('k', 'running', { id: 'k', run_id: 'r', parent_agent_id: 'r', depth: 1 })],
+    agents: [
+      agent('r', 'running', { depth: 0 }),
+      agent('k', 'running', { id: 'k', run_id: 'r', parent_agent_id: 'r', depth: 1 }),
+    ],
     attachments: files,
   })
 
 test('a file of the message is a small node under its request, with a dashed line to whom it was handed', () => {
-  const shot = file('shot', { kind: 'image', mime: 'image/png', name: 'shot.png', shown_to: { r: 'shown to sonnet on Claude Code' } })
+  const shot = file('shot', {
+    kind: 'image',
+    mime: 'image/png',
+    name: 'shot.png',
+    shown_to: { r: 'shown to sonnet on Claude Code' },
+  })
   const g = deriveGraph(withFiles([file('cart', { given_to: ['k'] }), shot, file('f', { frame_of: 'x' })]))
   const files = g.nodes.filter(n => n.kind === 'attachment')
   expect(files.map(n => (n.data as AttachmentData).name)).toEqual(['cart.ts', 'shot.png']) // (not a frame)
@@ -38,7 +57,9 @@ test('a file of the message is a small node under its request, with a dashed lin
 test('more than four fold into one "N files" box, opened by the user', () => {
   const g = deriveGraph(withFiles(Array.from({ length: 6 }, (_, at) => file(`f${at}`, { given_to: ['k'] }))))
   const folded = foldGraph(g, {})
-  expect(folded.nodes.filter(n => n.kind === 'files').map(n => (n.data as { summary: string }).summary)).toEqual(['6 files'])
+  expect(folded.nodes.filter(n => n.kind === 'files').map(n => (n.data as { summary: string }).summary)).toEqual([
+    '6 files',
+  ])
   expect(folded.nodes.some(n => n.kind === 'attachment')).toBe(false)
   // Closed, it keeps their lines (21 Nov): one dashed line from the box to each agent handed files, as a folded round does.
   expect(folded.edges.filter(e => e.handed).map(e => [e.source, e.target])).toEqual([['files:r', 'agent:k']])

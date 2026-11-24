@@ -21,8 +21,13 @@ export async function e2eProject(page: Page): Promise<string> {
 export async function dropKnowledge(request: APIRequestContext, topic: string) {
   const made = await request.post('/api/projects', { data: { root_path: PROJECT_DIR }, headers: OWN })
   const pid: string = (await made.json()).id
-  for (const one of (await (await request.get(`/api/projects/${pid}/knowledge`)).json()) as { id: string; project_id: string | null; knowledge: { topic: string } }[])
-    if (one.project_id === pid && one.knowledge.topic === topic) expect((await request.delete(`/api/knowledge/${one.id}?project_id=${pid}`, { headers: OWN })).ok()).toBe(true)
+  for (const one of (await (await request.get(`/api/projects/${pid}/knowledge`)).json()) as {
+    id: string
+    project_id: string | null
+    knowledge: { topic: string }
+  }[])
+    if (one.project_id === pid && one.knowledge.topic === topic)
+      expect((await request.delete(`/api/knowledge/${one.id}?project_id=${pid}`, { headers: OWN })).ok()).toBe(true)
 }
 
 /** The e2e project's settings, as Settings › This project saves them (tek-ev: a chat follows them, and is refused them). */
@@ -32,7 +37,10 @@ export async function setProject(page: Page, data: Record<string, unknown>) {
   const { check_command: check, ...rest } = data
   if (typeof check === 'string') {
     const set = check.trim()
-      ? await page.request.put(`/api/projects/${id}/map/test`, { data: { path: './', command: check.trim() }, headers: OWN })
+      ? await page.request.put(`/api/projects/${id}/map/test`, {
+          data: { path: './', command: check.trim() },
+          headers: OWN,
+        })
       : await page.request.delete(`/api/projects/${id}/map/test?path=./`, { headers: OWN })
     expect(set.ok()).toBe(true)
   }
@@ -42,8 +50,17 @@ export async function setProject(page: Page, data: Record<string, unknown>) {
 
 /** A project's sub-agent settings as a new one had them before 0158 (`Project`, 0147): every spec starts with each card waiting. */
 const SUB_AGENT_DEFAULTS = {
-  spawn_approval: 'auto', spawn_max_depth: 2, spawn_max_agents: 6, spawn_max_parallel: 2, when_away: 'waits', away_minutes: 10,
-  discussion_budget: null, room_posts: 40, room_tokens: null, room_minutes: 30, room_min_tokens: 60000,
+  spawn_approval: 'auto',
+  spawn_max_depth: 2,
+  spawn_max_agents: 6,
+  spawn_max_parallel: 2,
+  when_away: 'waits',
+  away_minutes: 10,
+  discussion_budget: null,
+  room_posts: 40,
+  room_tokens: null,
+  room_minutes: 30,
+  room_min_tokens: 60000,
   // (Kanıtlı bitiş: the specs written before it count the commands and cards of turns that change files; its own sets it.)
   after_change: 'nothing',
 }
@@ -68,7 +85,10 @@ export async function openFreshConversation(page: Page, { leadWrites = true } = 
     expect(patched.ok()).toBe(true)
     // The open chat is the one whose views are listed: a plain GET of a chat is no sign, the page reads every
     // other chat where something waits too (Ready for you) - and a spec once took one of those for its own.
-    const opened = page.waitForResponse(r => r.request().method() === 'GET' && /^\/api\/conversations\/[0-9a-f]{32}\/views$/.test(new URL(r.url()).pathname))
+    const opened = page.waitForResponse(
+      r =>
+        r.request().method() === 'GET' && /^\/api\/conversations\/[0-9a-f]{32}\/views$/.test(new URL(r.url()).pathname),
+    )
     // (Away first: on the app already, the link differs only by its #key and would not load the page again.)
     await page.goto('about:blank')
     await page.goto(LINK)
@@ -181,7 +201,9 @@ export async function openTurns(page: Page) {
  * chat (slice 38b). The canvas fits and centres its turn there.
  */
 export async function freeOfChat(page: Page) {
-  const [stage, chat, buttons] = await Promise.all(['.canvas-flow', '.chat', '.react-flow__controls'].map(async s => (await page.locator(s).boundingBox())!))
+  const [stage, chat, buttons] = await Promise.all(
+    ['.canvas-flow', '.chat', '.react-flow__controls'].map(async s => (await page.locator(s).boundingBox())!),
+  )
   const right = chat.x + chat.width
   const pieces = [
     { x: right, y: stage.y, width: buttons.x - right, height: stage.height },
@@ -193,16 +215,25 @@ export async function freeOfChat(page: Page) {
 
 /** A click on the empty canvas, at its top just right of the chat: open, the chat is a column over its left edge (0.1.4). */
 export async function clickCanvas(page: Page) {
-  const [canvas, chat] = await Promise.all(['.canvas-flow', '.chat'].map(async s => (await page.locator(s).boundingBox())!))
+  const [canvas, chat] = await Promise.all(
+    ['.canvas-flow', '.chat'].map(async s => (await page.locator(s).boundingBox())!),
+  )
   await page.locator('.canvas-flow').click({ position: { x: chat.x + chat.width - canvas.x + 5, y: 5 } })
 }
 
-export const rail = (page: Page, name: 'Memory' | 'Canvas' | 'Chats' | 'Triggers' | 'Models' | 'Tools' | 'Usage' | 'Ready' | 'Board' | 'To-do') =>
-  page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name, exact: true })
+export const rail = (
+  page: Page,
+  name: 'Memory' | 'Canvas' | 'Chats' | 'Triggers' | 'Models' | 'Tools' | 'Usage' | 'Ready' | 'Board' | 'To-do',
+) => page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name, exact: true })
 
 /** On the Agents page (slice 63b): a role's row in the library, or the Lead's strip. */
 export const roleRow = (page: Page, name: string) =>
-  name === 'Lead' ? page.getByRole('button', { name: 'Open the Lead' }) : page.getByRole('complementary', { name: 'Roles' }).getByRole('button', { name: new RegExp(`^${name}`) }).first()
+  name === 'Lead'
+    ? page.getByRole('button', { name: 'Open the Lead' })
+    : page
+        .getByRole('complementary', { name: 'Roles' })
+        .getByRole('button', { name: new RegExp(`^${name}`) })
+        .first()
 
 /**
  * On the Agents page (slice 81b): a role opened, then one part of its form - its model, reasoning
@@ -249,7 +280,9 @@ export async function shot(target: Page | Locator, name: string) {
 export function contrasts(root: Element) {
   type Rgba = [number, number, number, number]
   const parse = (value: string): Rgba => {
-    const numbers = (value.match(/-?\d*\.?\d+(e-?\d+)?%?/g) ?? []).map(n => (n.endsWith('%') ? Number(n.slice(0, -1)) / 100 : Number(n)))
+    const numbers = (value.match(/-?\d*\.?\d+(e-?\d+)?%?/g) ?? []).map(n =>
+      n.endsWith('%') ? Number(n.slice(0, -1)) / 100 : Number(n),
+    )
     // "color(srgb r g b / a)" is how the browser resolves color-mix(): channels from 0 to 1.
     if (value.startsWith('color(srgb')) return [numbers[0] * 255, numbers[1] * 255, numbers[2] * 255, numbers[3] ?? 1]
     if (value.startsWith('rgb')) return [numbers[0], numbers[1], numbers[2], numbers[3] ?? 1]
@@ -270,13 +303,18 @@ export function contrasts(root: Element) {
   }
   const backgroundOf = (element: Element): Rgba => {
     const layers: Rgba[] = []
-    for (let at: Element | null = element; at; at = at.parentElement) layers.push(parse(getComputedStyle(at).backgroundColor))
+    for (let at: Element | null = element; at; at = at.parentElement)
+      layers.push(parse(getComputedStyle(at).backgroundColor))
     // From the page outwards in: the canvas is white where nothing at all is painted.
     return layers.reverse().reduce<Rgba>((under, layer) => over(layer, under), [255, 255, 255, 1])
   }
   const found: { text: string; cls: string; color: string; background: string; ratio: number }[] = []
   for (const element of [root, ...root.querySelectorAll('*')]) {
-    const text = Array.from(element.childNodes).filter(node => node.nodeType === Node.TEXT_NODE).map(node => node.textContent ?? '').join('').trim()
+    const text = Array.from(element.childNodes)
+      .filter(node => node.nodeType === Node.TEXT_NODE)
+      .map(node => node.textContent ?? '')
+      .join('')
+      .trim()
     // A control that is switched off is not text to be read (WCAG 1.4.3 leaves it out).
     if (!text || element.closest(':disabled') || !(element as HTMLElement).offsetParent) continue
     const background = backgroundOf(element)
@@ -300,8 +338,12 @@ export function contrasts(root: Element) {
 export function ownColours(css: string): string[] {
   const plain = css.replace(/\/\*[\s\S]*?\*\//g, '')
   const fixed = plain.match(/#[0-9a-f]{3,8}\b|\b(rgba?|hsla?|oklch|oklab|color)\([^)]*\)/gi) ?? []
-  const values = Array.from(plain.matchAll(/(?:^|[\s;{])(?:color|background(?:-color)?|border(?:-[a-z]+)?|box-shadow|outline)\s*:\s*([^;}]+)/g)).map(m => m[1])
-  const named = values.filter(value => /\b(white|black|gr[ae]y|red|green|blue|yellow|orange|purple|silver)\b/.test(value.replace(/var\(--[\w-]+\)/g, '')))
+  const values = Array.from(
+    plain.matchAll(/(?:^|[\s;{])(?:color|background(?:-color)?|border(?:-[a-z]+)?|box-shadow|outline)\s*:\s*([^;}]+)/g),
+  ).map(m => m[1])
+  const named = values.filter(value =>
+    /\b(white|black|gr[ae]y|red|green|blue|yellow|orange|purple|silver)\b/.test(value.replace(/var\(--[\w-]+\)/g, '')),
+  )
   return [...fixed, ...named]
 }
 
@@ -312,7 +354,8 @@ export async function windowFromPanel(page: Page): Promise<Locator> {
 }
 
 /** One of an agent's folds, in the panel or its window, by the words its own line starts with (not a fold inside it). */
-export const agentFold = (root: Locator, name: string) => root.locator('details.agent-fold > summary', { hasText: name }).locator('..')
+export const agentFold = (root: Locator, name: string) =>
+  root.locator('details.agent-fold > summary', { hasText: name }).locator('..')
 
 /** That fold, opened if it is not: what is in it is seen. One inside the window's Details (its raw steps) opens Details first. */
 export async function openAgentFold(root: Locator, name: string) {

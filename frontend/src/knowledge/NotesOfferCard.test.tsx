@@ -6,7 +6,11 @@ import type { NotesOffer } from '../api/types'
 import { NotesOfferCard } from './NotesOfferCard'
 
 // K-bilgi 6: "Add to Project notes?" under a turn - answered whenever you like, every item ticked at first.
-const LINES = ["Coder's report (its words): the total skipped tax - fixed: added it", 'docs/api.md was changed', "Coder's report (its words): a typo - fixed: spelled"]
+const LINES = [
+  "Coder's report (its words): the total skipped tax - fixed: added it",
+  'docs/api.md was changed',
+  "Coder's report (its words): a typo - fixed: spelled",
+]
 const OFFER: NotesOffer = { id: 'o1', run_id: 'r1', lines: LINES, status: 'waiting', answer: null }
 
 test('a tick for each item; Add sends the lines shown and the ticked ones, Not now none', async () => {
@@ -23,7 +27,9 @@ test('a tick for each item; Add sends the lines shown and the ticked ones, Not n
 })
 
 test('a tick follows its item, not its place, when the offer grows; a refusal is said', async () => {
-  const onAnswer = vi.fn().mockRejectedValue(new ApiError(409, 'the offer changed since your card showed it: look at it again'))
+  const onAnswer = vi
+    .fn()
+    .mockRejectedValue(new ApiError(409, 'the offer changed since your card showed it: look at it again'))
   const { rerender } = render(<NotesOfferCard offer={OFFER} onAnswer={onAnswer} />)
   await userEvent.click(screen.getByLabelText('docs/api.md was changed'))
   const grown = { ...OFFER, lines: ['docs/new.md was changed', ...LINES] }
@@ -36,7 +42,9 @@ test('a tick follows its item, not its place, when the offer grows; a refusal is
 })
 
 test('an answered offer is one line', () => {
-  const { rerender } = render(<NotesOfferCard offer={{ ...OFFER, status: 'added', answer: 'added 2 of 3' }} onAnswer={vi.fn()} />)
+  const { rerender } = render(
+    <NotesOfferCard offer={{ ...OFFER, status: 'added', answer: 'added 2 of 3' }} onAnswer={vi.fn()} />,
+  )
   expect(screen.getByText('Project notes: added 2 of 3.')).toBeInTheDocument()
   expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
   rerender(<NotesOfferCard offer={{ ...OFFER, status: 'discarded', answer: 'not now' }} onAnswer={vi.fn()} />)

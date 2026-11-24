@@ -33,7 +33,9 @@ test.afterEach(async ({ request }) => {
 })
 
 for (const theme of ['light', 'dark'] as const)
-  test(`each CLI's row says what it said and as of when, and what was never read says so, in the ${theme} theme`, async ({ page }) => {
+  test(`each CLI's row says what it said and as of when, and what was never read says so, in the ${theme} theme`, async ({
+    page,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page)
     await rail(page, 'Usage').click()
@@ -53,6 +55,8 @@ for (const theme of ['light', 'dark'] as const)
       await expect(row.getByRole('meter')).toHaveCount(0)
       await expect(row).not.toContainText('as of')
     }
-    await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(theme === 'dark')
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.classList.contains('dark')))
+      .toBe(theme === 'dark')
     await limits.screenshot({ path: path.join(SHOTS, `89l-plan-limits-${theme}.png`) })
   })

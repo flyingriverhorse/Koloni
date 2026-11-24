@@ -37,7 +37,12 @@ const made = [
   view('chart.png', 'image'),
   view('flow.drawio', 'drawio'),
 ]
-const state = () => convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed', { name: 'Designer' })], messages: [userMessage('r', 'make a deck')] })
+const state = () =>
+  convState({
+    runs: [run('r', 'completed')],
+    agents: [agent('r', 'completed', { name: 'Designer' })],
+    messages: [userMessage('r', 'make a deck')],
+  })
 
 test('a note, the browser’s own screenshots and what no agent made are no outputs', () => {
   expect(made.every(isOutput)).toBe(true)
@@ -53,8 +58,16 @@ test('one card an agent, joined to its box, folded to three and unfolded in plac
   const data = card.data as SharedData
   expect(data.who).toBe('Designer · 5 outputs')
   expect(data.rows.map(r => r.text)).toEqual(['deck.html', 'report.pdf', 'logo.svg', '+2 more outputs'])
-  expect(data.rows[0]).toMatchObject({ kind: 'output', what: 'html', path: 'deck.html', title: 'deck.html · the pitch' })
-  expect(g.edges.find(e => e.target === card.id)).toMatchObject({ source: 'agent:r', shared: { colour: 'var(--accent)' } })
+  expect(data.rows[0]).toMatchObject({
+    kind: 'output',
+    what: 'html',
+    path: 'deck.html',
+    title: 'deck.html · the pitch',
+  })
+  expect(g.edges.find(e => e.target === card.id)).toMatchObject({
+    source: 'agent:r',
+    shared: { colour: 'var(--accent)' },
+  })
   // Laid out as the shared cards are: right of the turn, its line from the box.
   const shut = foldGraph(g, {})
   const placed = layoutGraph(shut.nodes, shut.edges)
@@ -70,7 +83,9 @@ test('one card an agent, joined to its box, folded to three and unfolded in plac
     'Fewer',
   ])
   // Another agent's, or none made: no card.
-  expect(deriveGraph(state(), [], [], [view('a.png', 'image', { agent_id: 'other' })]).nodes.some(n => n.kind === 'shared')).toBe(false)
+  expect(
+    deriveGraph(state(), [], [], [view('a.png', 'image', { agent_id: 'other' })]).nodes.some(n => n.kind === 'shared'),
+  ).toBe(false)
 })
 
 test('a row opens the Workspace on its preview; “+N more” unfolds the card', async () => {
@@ -79,7 +94,13 @@ test('a row opens the Workspace on its preview; “+N more” unfolds the card',
   render(
     <ReactFlowProvider>
       <ToggleGroup.Provider value={toggle}>
-        <SharedNode {...({ id: 'output:r:r', data: g.nodes.find(n => n.id === 'output:r:r')!.data, selected: false } as unknown as NodeProps<Node<SharedData & Record<string, unknown>>>)} />
+        <SharedNode
+          {...({
+            id: 'output:r:r',
+            data: g.nodes.find(n => n.id === 'output:r:r')!.data,
+            selected: false,
+          } as unknown as NodeProps<Node<SharedData & Record<string, unknown>>>)}
+        />
       </ToggleGroup.Provider>
     </ReactFlowProvider>,
   )

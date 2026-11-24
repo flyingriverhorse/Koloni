@@ -10,7 +10,11 @@ export const SAID_LINES = 30
 const SAID_CHARS = 200
 
 /** Findings, as what each is ("- what | kind: … | role: …" on record). */
-const findingsOf = (content: string) => content.split('\n').filter(line => line.startsWith('- ')).map(line => line.slice(2).split(' | ')[0])
+const findingsOf = (content: string) =>
+  content
+    .split('\n')
+    .filter(line => line.startsWith('- '))
+    .map(line => line.slice(2).split(' | ')[0])
 const clock = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 
 interface Props {
@@ -54,7 +58,12 @@ export function SaidBox({ position, style, title, said, nameOf, colourOf, right,
       aria-live="polite"
     >
       <div className="canvas-said-head" {...move.header}>
-        <span className="move-grip" aria-label="Move this box" title="Move this box: drag, or the arrow keys; a double click or Enter puts it back" {...move.handle}>
+        <span
+          className="move-grip"
+          aria-label="Move this box"
+          title="Move this box: drag, or the arrow keys; a double click or Enter puts it back"
+          {...move.handle}
+        >
           <DotsSixVertical size={12} />
         </span>
         <b className="canvas-said-title">{title}</b>
@@ -64,14 +73,30 @@ export function SaidBox({ position, style, title, said, nameOf, colourOf, right,
       </div>
       <ol ref={list} className="canvas-said-list">
         {said.map(message => (
-          <Bubble key={message.id} message={message} who={nameOf(message.from_agent_id)} colour={colourOf(message)} right={right(message)} />
+          <Bubble
+            key={message.id}
+            message={message}
+            who={nameOf(message.from_agent_id)}
+            colour={colourOf(message)}
+            right={right(message)}
+          />
         ))}
       </ol>
     </Panel>
   )
 }
 
-function Bubble({ message, who, colour, right }: { message: ChannelMessage; who: string; colour: string; right: boolean }) {
+function Bubble({
+  message,
+  who,
+  colour,
+  right,
+}: {
+  message: ChannelMessage
+  who: string
+  colour: string
+  right: boolean
+}) {
   const [more, setMore] = useState(false)
   const long = message.kind !== 'findings' && message.content.length > SAID_CHARS
   return (

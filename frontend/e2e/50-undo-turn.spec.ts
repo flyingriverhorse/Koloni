@@ -6,7 +6,9 @@ import { PROJECT_DIR } from './paths.mjs'
 
 const hello = () => readFileSync(path.join(PROJECT_DIR, 'hello.py'), 'utf8')
 
-test('a message’s changes are undone from ↺ beside it, and the conversation restored to before a message from Recent', async ({ page }) => {
+test('a message’s changes are undone from ↺ beside it, and the conversation restored to before a message from Recent', async ({
+  page,
+}) => {
   const before = hello()
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })

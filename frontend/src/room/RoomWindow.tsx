@@ -12,7 +12,24 @@ import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
 import { inFront } from '../shell/move'
 import type { ConvState } from '../state/applyEvent'
-import { ITEM, allDone, byWatcher, inRoom, invitedTo, isRunning, memberName, memberTag, nameIn, once, postHead, roomLine, roomTag, spentLines, waitsForYou, watchedBy } from './roomText'
+import {
+  ITEM,
+  allDone,
+  byWatcher,
+  inRoom,
+  invitedTo,
+  isRunning,
+  memberName,
+  memberTag,
+  nameIn,
+  once,
+  postHead,
+  roomLine,
+  roomTag,
+  spentLines,
+  waitsForYou,
+  watchedBy,
+} from './roomText'
 
 interface Props {
   state: ConvState
@@ -56,7 +73,20 @@ const FOLLOW_SHOWN: Partial<Record<Room['lead_follows'], string>> = {
  * word ("From you"), the items, and what was said and reported, folded. It holds no focus: the
  * canvas stays usable around it. What its members wrote is shown as text.
  */
-export function RoomWindow({ state, room, on, roles, providers, onSay, onEnd, onMore, onPause, onFollow, onShrink, onClose }: Props) {
+export function RoomWindow({
+  state,
+  room,
+  on,
+  roles,
+  providers,
+  onSay,
+  onEnd,
+  onMore,
+  onPause,
+  onFollow,
+  onShrink,
+  onClose,
+}: Props) {
   const [draft, setDraft] = useState('')
   const [giving, setGiving] = useState(false)
   const [more, setMore] = useState({ posts: '', tokens: '', minutes: '' })
@@ -160,11 +190,23 @@ export function RoomWindow({ state, room, on, roles, providers, onSay, onEnd, on
       </span>
       <span className="changes-spacer" />
       {running && (
-        <button type="button" className="icon-btn" aria-label="Make the room small" title="Make it small: a tab at the canvas's foot" onClick={onShrink}>
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label="Make the room small"
+          title="Make it small: a tab at the canvas's foot"
+          onClick={onShrink}
+        >
           <Minus size={14} />
         </button>
       )}
-      <button type="button" className="icon-btn" aria-label="Close the room" title={running ? 'Close: while it runs it keeps its tab' : 'Close'} onClick={close}>
+      <button
+        type="button"
+        className="icon-btn"
+        aria-label="Close the room"
+        title={running ? 'Close: while it runs it keeps its tab' : 'Close'}
+        onClick={close}
+      >
         <X size={14} />
       </button>
     </div>
@@ -174,7 +216,8 @@ export function RoomWindow({ state, room, on, roles, providers, onSay, onEnd, on
   const about = () => (
     <section aria-label="The room">
       <div className="mono muted">
-        {room.members.map(m => memberName(state, m)).join(' · ')} · opened by {room.agent_id ? nameIn(state, room.agent_id) : 'you'}
+        {room.members.map(m => memberName(state, m)).join(' · ')} · opened by{' '}
+        {room.agent_id ? nameIn(state, room.agent_id) : 'you'}
       </div>
       {watchedBy(state, room) && <div className="mono muted">{watchedBy(state, room)}</div>}
       {showMembers && (
@@ -189,7 +232,11 @@ export function RoomWindow({ state, room, on, roles, providers, onSay, onEnd, on
       <div className="mono room-spent" role="group" aria-label="Spent of its budget">
         {spentLines(room).join(' · ')}
       </div>
-      {!running && room.summary && <p className="room-summary" title={room.summary}>{room.summary}</p>}
+      {!running && room.summary && (
+        <p className="room-summary" title={room.summary}>
+          {room.summary}
+        </p>
+      )}
     </section>
   )
 
@@ -215,7 +262,11 @@ export function RoomWindow({ state, room, on, roles, providers, onSay, onEnd, on
   /* What its agents wait on you for, and what they said or left of their own work: they were opened by no call of the
      lead's, so it is brought here - its only place - while the room runs and after. The box only while something waits. */
   const asksBox = () => (
-    <div aria-label={asks ? 'Waits for you' : undefined} role={asks ? 'region' : undefined} className={asks ? 'room-ask' : 'room-asks'}>
+    <div
+      aria-label={asks ? 'Waits for you' : undefined}
+      role={asks ? 'region' : undefined}
+      className={asks ? 'room-ask' : 'room-asks'}
+    >
       {asks && <div className="kicker">Waits for you</div>}
       {members.map(member => (
         <SubtreeRequests key={member.id} root={member} state={state} on={on} known={{ roles, providers }} />
@@ -235,7 +286,8 @@ export function RoomWindow({ state, room, on, roles, providers, onSay, onEnd, on
 
   /** Give it more: posts, tokens or minutes added to its limits, while it runs. */
   const giveForm = () =>
-    running && giving && (
+    running &&
+    giving && (
       <form className="room-more" aria-label="Give it more" onSubmit={give}>
         {MORE.map(key => (
           <Fragment key={key}>
@@ -280,12 +332,21 @@ export function RoomWindow({ state, room, on, roles, providers, onSay, onEnd, on
           type="button"
           className="btn btn-small"
           disabled={busy}
-          title={paused ? 'Its members go on where they stopped' : 'Its members finish the step at hand, then post nothing and spend nothing until you resume it'}
+          title={
+            paused
+              ? 'Its members go on where they stopped'
+              : 'Its members finish the step at hand, then post nothing and spend nothing until you resume it'
+          }
           onClick={() => void act(() => onPause(room.id, !paused))}
         >
           {paused ? 'Resume' : 'Pause'}
         </button>
-        <button type="button" className="btn btn-small btn-danger" disabled={busy} onClick={() => void act(() => onEnd(room.id))}>
+        <button
+          type="button"
+          className="btn btn-small btn-danger"
+          disabled={busy}
+          onClick={() => void act(() => onEnd(room.id))}
+        >
           End
         </button>
       </form>
@@ -293,8 +354,12 @@ export function RoomWindow({ state, room, on, roles, providers, onSay, onEnd, on
 
   /** The switch that lets the Lead follow a room you opened. (A room an agent opened is followed - or not - by its own word.) */
   const followSwitch = () =>
-    running && room.agent_id === null && (
-      <label className={`choice room-follow${room.lead_follows === 'stopped' ? ' choice-disabled' : ''}`} htmlFor={`follow-${room.id}`}>
+    running &&
+    room.agent_id === null && (
+      <label
+        className={`choice room-follow${room.lead_follows === 'stopped' ? ' choice-disabled' : ''}`}
+        htmlFor={`follow-${room.id}`}
+      >
         <input
           id={`follow-${room.id}`}
           type="checkbox"
@@ -308,7 +373,10 @@ export function RoomWindow({ state, room, on, roles, providers, onSay, onEnd, on
         {/* (Its note behind ⓘ, but for what it spends or why it stopped - on the same line, one at a time: the switch
             keeps to one line at the window's foot, B-195.) */}
         <span>
-          Let the Orchestrator follow <Hint doc={GUIDE.roomWindow} id={`follow-${room.id}-line`}>{FOLLOW_NOTE[room.lead_follows]}</Hint>
+          Let the Orchestrator follow{' '}
+          <Hint doc={GUIDE.roomWindow} id={`follow-${room.id}-line`}>
+            {FOLLOW_NOTE[room.lead_follows]}
+          </Hint>
           {FOLLOW_SHOWN[room.lead_follows] && (
             <span id={`follow-${room.id}-shown`} className="muted">
               {' '}
@@ -366,10 +434,16 @@ export function RoomWindow({ state, room, on, roles, providers, onSay, onEnd, on
                 <span className="room-item-title">
                   <span className="mono muted">{item.number}.</span> {item.title}
                 </span>
-                {item.holder_agent_id && <span className="muted room-item-who">{nameIn(state, item.holder_agent_id)}</span>}
+                {item.holder_agent_id && (
+                  <span className="muted room-item-who">{nameIn(state, item.holder_agent_id)}</span>
+                )}
               </summary>
               {item.paths.length > 0 && <div className="mono muted">{item.paths.join(' · ')}</div>}
-              {item.result ? <div className="channel-body">{item.result}</div> : item.paths.length === 0 && <div className="muted">Nothing more on it.</div>}
+              {item.result ? (
+                <div className="channel-body">{item.result}</div>
+              ) : (
+                item.paths.length === 0 && <div className="muted">Nothing more on it.</div>
+              )}
             </details>
           ))}
         </section>
@@ -377,7 +451,10 @@ export function RoomWindow({ state, room, on, roles, providers, onSay, onEnd, on
         {/* While it runs the talk is open; once it is over it is folded, as the reports are. */}
         <details className="room-fold" open={running} aria-label="Said in the room">
           <summary>
-            Said in the room <span className="muted room-fold-count">{talk.length} {talk.length === 1 ? 'message' : 'messages'}</span>
+            Said in the room{' '}
+            <span className="muted room-fold-count">
+              {talk.length} {talk.length === 1 ? 'message' : 'messages'}
+            </span>
           </summary>
           {talk.length === 0 && <p className="muted">Nothing has been said yet.</p>}
           {talk.map(([post, times]) => line(post, times))}
@@ -385,7 +462,10 @@ export function RoomWindow({ state, room, on, roles, providers, onSay, onEnd, on
         {reports.length > 0 && (
           <details className="room-fold" aria-label="Reports">
             <summary>
-              Reports <span className="muted room-fold-count">{[...new Set(reports.map(([post]) => nameIn(state, post.agent_id)))].join(' · ')}</span>
+              Reports{' '}
+              <span className="muted room-fold-count">
+                {[...new Set(reports.map(([post]) => nameIn(state, post.agent_id)))].join(' · ')}
+              </span>
             </summary>
             {reports.map(([post, times]) => line(post, times))}
           </details>
@@ -414,9 +494,20 @@ export function RoomWindow({ state, room, on, roles, providers, onSay, onEnd, on
  * canvas's foot - "Room · <topic> · 3 posts", and "waits for you" in the accent colour when
  * something of it does. A click opens its window again; nothing opens it by itself.
  */
-export function RoomTabs({ state, windows, onOpen }: { state: ConvState; windows: Record<string, 'open' | 'small'>; onOpen: (roomId: string) => void }) {
+export function RoomTabs({
+  state,
+  windows,
+  onOpen,
+}: {
+  state: ConvState
+  windows: Record<string, 'open' | 'small'>
+  onOpen: (roomId: string) => void
+}) {
   // (A room not opened in this page - after a reload, in another chat - has its tab too while it runs or waits for you.)
-  const small = state.rooms.filter(room => windows[room.id] === 'small' || ((isRunning(room) || waitsForYou(state, room)) && windows[room.id] !== 'open'))
+  const small = state.rooms.filter(
+    room =>
+      windows[room.id] === 'small' || ((isRunning(room) || waitsForYou(state, room)) && windows[room.id] !== 'open'),
+  )
   if (small.length === 0) return null
   return (
     <div className="room-tabs" role="group" aria-label="Rooms">
@@ -434,9 +525,17 @@ export function RoomTabs({ state, windows, onOpen }: { state: ConvState; windows
             <UsersThree size={13} className={isRunning(room) && !room.paused ? 'pulse' : undefined} />
             <span className="room-tab-topic">Room · {room.goal}</span>{' '}
             <span className="mono">
-              · {isRunning(room) ? `${room.spent.posts ?? 0} ${room.spent.posts === 1 ? 'post' : 'posts'}${room.paused ? ' · paused' : ''}` : roomTag(state, room)}
+              ·{' '}
+              {isRunning(room)
+                ? `${room.spent.posts ?? 0} ${room.spent.posts === 1 ? 'post' : 'posts'}${room.paused ? ' · paused' : ''}`
+                : roomTag(state, room)}
             </span>
-            {asks && <>{' '}<span className="tag tag-accent">waits for you</span></>}
+            {asks && (
+              <>
+                {' '}
+                <span className="tag tag-accent">waits for you</span>
+              </>
+            )}
           </button>
         )
       })}

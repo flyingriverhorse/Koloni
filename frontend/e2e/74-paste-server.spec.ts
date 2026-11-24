@@ -10,7 +10,11 @@ const TOKEN = 'ghp_e2eFakeToken0123456789'
 const BLOCK = `// Claude Desktop\n${JSON.stringify(
   {
     mcpServers: {
-      github: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-github'], env: { GITHUB_PERSONAL_ACCESS_TOKEN: TOKEN } },
+      github: {
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-github'],
+        env: { GITHUB_PERSONAL_ACCESS_TOKEN: TOKEN },
+      },
       fetch: { command: 'uvx', args: ['mcp-server-fetch'] },
     },
   },
@@ -21,15 +25,27 @@ const BLOCK = `// Claude Desktop\n${JSON.stringify(
 /** The token is nowhere in the page: not its text, not a field's value, not an attribute. */
 async function nowhere(page: Page) {
   expect(await page.content()).not.toContain(TOKEN)
-  const values = await page.locator('input, textarea').evaluateAll(fields => fields.map(field => (field as HTMLInputElement).value))
+  const values = await page
+    .locator('input, textarea')
+    .evaluateAll(fields => fields.map(field => (field as HTMLInputElement).value))
   expect(values.join('\n')).not.toContain(TOKEN)
 }
 
 for (const theme of ['light', 'dark'] as const)
-  test(`a pasted block: compact cards, one opened, the token never shown, one server added and nothing started (${theme})`, async ({ page, request }) => {
+  test(`a pasted block: compact cards, one opened, the token never shown, one server added and nothing started (${theme})`, async ({
+    page,
+    request,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     // One of the two is already added.
-    expect((await request.post('/api/mcp-servers', { headers: OWN, data: { name: 'fetch', command: ['uvx', 'mcp-server-fetch'] } })).status()).toBe(201)
+    expect(
+      (
+        await request.post('/api/mcp-servers', {
+          headers: OWN,
+          data: { name: 'fetch', command: ['uvx', 'mcp-server-fetch'] },
+        })
+      ).status(),
+    ).toBe(201)
     try {
       await openFreshConversation(page)
       await rail(page, 'Tools').click()
@@ -74,7 +90,10 @@ for (const theme of ['light', 'dark'] as const)
       await expect(card('fetch')).toContainText('already added — will be skipped')
       await expect(panel.getByRole('checkbox', { name: 'Add fetch' })).toBeDisabled()
       // what was pasted and what was read, side by side
-      const [left, right] = [await text.boundingBox(), await panel.getByRole('heading', { name: '2 · What KOLONİ read from it' }).boundingBox()]
+      const [left, right] = [
+        await text.boundingBox(),
+        await panel.getByRole('heading', { name: '2 · What KOLONİ read from it' }).boundingBox(),
+      ]
       expect(right!.x).toBeGreaterThan(left!.x + left!.width - 1)
       await shot(page, `74-paste-${theme}`)
 
@@ -95,7 +114,10 @@ for (const theme of ['light', 'dark'] as const)
       expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false)
       expect(await page.locator('.tools-page').evaluate(box => box.scrollWidth > box.clientWidth)).toBe(false)
       await page.setViewportSize({ width: 720, height: 900 })
-      const [narrowLeft, narrowRight] = [await text.boundingBox(), await panel.getByRole('heading', { name: '2 · What KOLONİ read from it' }).boundingBox()]
+      const [narrowLeft, narrowRight] = [
+        await text.boundingBox(),
+        await panel.getByRole('heading', { name: '2 · What KOLONİ read from it' }).boundingBox(),
+      ]
       expect(narrowRight!.y).toBeGreaterThan(narrowLeft!.y + narrowLeft!.height - 1)
       expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)).toBe(false)
       await page.setViewportSize({ width: 1440, height: 900 })
@@ -126,15 +148,26 @@ for (const theme of ['light', 'dark'] as const)
       expect(await at()).toBe(first)
       await expect(page.getByRole('button', { name: /^github/ })).toHaveAttribute('aria-expanded', 'true')
       expect((await form.boundingBox())!.width).toBeGreaterThan(1000)
-      await expect(page.locator('#tools-panel-servers .tools-lead')).toContainText('Programs that give agents more tools.')
+      await expect(page.locator('#tools-panel-servers .tools-lead')).toContainText(
+        'Programs that give agents more tools.',
+      )
       await shot(page, `74b-server-open-${theme}`)
       const serverAll = await page.locator('.tools-page').evaluate(contrasts)
       expect(serverAll.filter(piece => piece.ratio < 4.5)).toEqual([])
-      const servers: { name: string; command: string[]; env_names: string[]; read_at: string | null; tools: unknown[] }[] = await (
-        await request.get('/api/mcp-servers')
-      ).json()
+      const servers: {
+        name: string
+        command: string[]
+        env_names: string[]
+        read_at: string | null
+        tools: unknown[]
+      }[] = await (await request.get('/api/mcp-servers')).json()
       expect(servers.map(s => s.name)).toEqual(['fetch', 'github'])
-      expect(servers[1]).toMatchObject({ command: ['npx', '-y', '@modelcontextprotocol/server-github'], env_names: ['GITHUB_PERSONAL_ACCESS_TOKEN'], read_at: null, tools: [] })
+      expect(servers[1]).toMatchObject({
+        command: ['npx', '-y', '@modelcontextprotocol/server-github'],
+        env_names: ['GITHUB_PERSONAL_ACCESS_TOKEN'],
+        read_at: null,
+        tools: [],
+      })
       expect(servers[0]).toMatchObject({ read_at: null, tools: [] })
     } finally {
       // Put back, so that the specs after start from an empty Tools page.

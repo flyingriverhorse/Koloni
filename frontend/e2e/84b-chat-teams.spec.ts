@@ -4,7 +4,8 @@ import { contrasts, openFreshConversation, shot } from './helpers'
 // Slice 84b-1: "Teams for this chat", over the canvas's top right. In Manual the user picks a team and its recipe; the
 // pick stays over a reload, and the Lead may then open only that team's roles - a Coder, which Docs has not, is
 // refused, and the chat says why. Nothing leaves the machine: the fake model asks for the Coder.
-const lowContrast = async (page: Page) => (await page.locator('.chat-teams-panel').evaluate(contrasts)).filter(piece => piece.ratio < 4.5)
+const lowContrast = async (page: Page) =>
+  (await page.locator('.chat-teams-panel').evaluate(contrasts)).filter(piece => piece.ratio < 4.5)
 const window = (page: Page) => page.getByRole('dialog', { name: 'Teams for this chat' })
 const open = (page: Page) => page.getByRole('button', { name: /^Teams for this chat/ }).click()
 
@@ -17,7 +18,9 @@ for (const theme of ['light', 'dark'] as const) {
     await openFreshConversation(page, { leadWrites: false })
 
     await page.getByRole('button', { name: 'Teams for this chat: No teams' }).click()
-    await window(page).getByRole('radio', { name: /Manual/ }).click()
+    await window(page)
+      .getByRole('radio', { name: /Manual/ })
+      .click()
     await expect(window(page)).toContainText('No team picked: the Orchestrator calls any role')
     await window(page).getByRole('button', { name: '+ Add a team with a recipe' }).click()
     await window(page).getByLabel('Team 1').selectOption({ label: 'Docs' })
@@ -32,7 +35,9 @@ for (const theme of ['light', 'dark'] as const) {
     await page.getByLabel('Message').waitFor()
     await open(page)
     await expect(window(page).getByLabel('Team 1').locator('option:checked')).toHaveText('Docs')
-    await expect(window(page).getByLabel('Recipe for Docs').locator('option:checked')).toHaveText('Feature · 6–16 agents')
+    await expect(window(page).getByLabel('Recipe for Docs').locator('option:checked')).toHaveText(
+      'Feature · 6–16 agents',
+    )
     await page.keyboard.press('Escape')
 
     // The Lead asks for a Coder: Docs runs Feature (84b-2), whose first step is the Spec writer's, so it is refused
@@ -41,7 +46,9 @@ for (const theme of ['light', 'dark'] as const) {
     await page.getByLabel('Message').fill('make farewell')
     await page.getByRole('button', { name: 'Send' }).click()
     const chat = page.getByRole('region', { name: 'Chat' })
-    await expect(chat.locator('details.turn-steps > summary')).toHaveText(/^Completed \d+ steps.*\d+ failed/, { timeout: 20_000 })
+    await expect(chat.locator('details.turn-steps > summary')).toHaveText(/^Completed \d+ steps.*\d+ failed/, {
+      timeout: 20_000,
+    })
     const why = chat.locator('.turn-steps-why')
     await expect(why).toBeVisible()
     await expect(why).toContainText(/Feature recipe of Docs is at its Write the spec step/)

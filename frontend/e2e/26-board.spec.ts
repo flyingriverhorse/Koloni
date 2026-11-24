@@ -49,7 +49,9 @@ test('two conversations of one project: the limit, the board, and the file both 
   await rail(page, 'Board').click()
   await expect(page.getByText('0 of 1 agents at work')).toBeVisible()
   await expect(page.getByText(/^“Re-run the ones that failed” sends a new message/)).toBeVisible()
-  await expect(page.getByRole('list', { name: 'Two conversations want one file' }).locator('li > span')).toHaveText(WANTED)
+  await expect(page.getByRole('list', { name: 'Two conversations want one file' }).locator('li > span')).toHaveText(
+    WANTED,
+  )
   // What the first asks is on Ready for you: one line here leads there.
   await expect(page.getByRole('button', { name: 'Open Ready for you →' })).toBeVisible()
   // Both at work: the first waits for you, holding the file; the second waits for the file.

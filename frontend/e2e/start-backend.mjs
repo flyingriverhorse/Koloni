@@ -5,7 +5,22 @@ import { spawn } from 'node:child_process'
 import { appendFileSync, createWriteStream, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import zlib from 'node:zlib'
-import { APP_PORT, E2E_ROOT, FAKE_AGY, FAKE_CLAUDE, FAKE_LLAMA, LLAMA_PORT, LOG_DIR, MCP_PLAN, MCP_RECORD, MODEL_URL, PAGE_KEY, PROJECT_DIR, PYTHON, REPO_ROOT } from './paths.mjs'
+import {
+  APP_PORT,
+  E2E_ROOT,
+  FAKE_AGY,
+  FAKE_CLAUDE,
+  FAKE_LLAMA,
+  LLAMA_PORT,
+  LOG_DIR,
+  MCP_PLAN,
+  MCP_RECORD,
+  MODEL_URL,
+  PAGE_KEY,
+  PROJECT_DIR,
+  PYTHON,
+  REPO_ROOT,
+} from './paths.mjs'
 
 rmSync(E2E_ROOT, { recursive: true, force: true })
 mkdirSync(PROJECT_DIR, { recursive: true })
@@ -26,7 +41,7 @@ writeFileSync(
   path.join(PROJECT_DIR, 'serve42.py'),
   [
     'import http.server, sys',
-    'PAGE = b"<h1 id=t>not run</h1><script>document.getElementById(\'t\').textContent = \'Served live\'</script>"',
+    "PAGE = b\"<h1 id=t>not run</h1><script>document.getElementById('t').textContent = 'Served live'</script>\"",
     'class Page(http.server.BaseHTTPRequestHandler):',
     '    def do_GET(self):',
     '        self.send_response(200)',
@@ -104,12 +119,23 @@ writeFileSync(
         tool: 'Agent',
         id: 'toolu_sub',
         open: true,
-        input: { description: 'Look around', subagent_type: 'koloni-checker', prompt: 'Read hello.py and say what it prints' },
+        input: {
+          description: 'Look around',
+          subagent_type: 'koloni-checker',
+          prompt: 'Read hello.py and say what it prints',
+        },
       },
       { system: { subtype: 'task_started', tool_use_id: 'toolu_sub', is_backgrounded: false } },
       { tool: 'Read', input: { file_path: 'hello.py' }, result: "print('hi')", ...SUB },
       { tool: 'Bash', input: { command: 'python hello.py' }, result: 'hi', ...SUB },
-      { system: { subtype: 'task_notification', tool_use_id: 'toolu_sub', status: 'completed', summary: 'It prints hi.' } },
+      {
+        system: {
+          subtype: 'task_notification',
+          tool_use_id: 'toolu_sub',
+          status: 'completed',
+          summary: 'It prints hi.',
+        },
+      },
       { result_for: 'toolu_sub', result: 'It prints hi.' },
       { say: 'The helper says it prints hi.' },
     ],

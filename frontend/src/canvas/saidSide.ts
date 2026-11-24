@@ -12,7 +12,12 @@ const rectOf = (selector: string) => document.querySelector(selector)?.getBoundi
 /** Whether the box, its top left corner here, would lie over the chat or another window over the canvas. */
 const overWindow = (left: number, top: number) =>
   Array.from(document.querySelectorAll(WINDOWS), w => w.getBoundingClientRect()).some(
-    w => w.width > 0 && left < w.right && w.left < left + SAID_BOX.width && top < w.bottom && w.top < top + SAID_BOX.height,
+    w =>
+      w.width > 0 &&
+      left < w.right &&
+      w.left < left + SAID_BOX.width &&
+      top < w.bottom &&
+      w.top < top + SAID_BOX.height,
   )
 
 /** The user's (6 Nov): on the canvas's right, under the Teams button (by its right edge, so left of the inspector too)

@@ -14,12 +14,17 @@ test.afterEach(async ({ page, request }) => {
   await setProject(page, { measure_command: '' })
   for (const file of [MEASURE, 'ev2.py']) rmSync(path.join(PROJECT_DIR, file), { force: true })
   const { recipes } = (await (await request.get('/api/recipes')).json()) as { recipes: { id: string; name: string }[] }
-  for (const recipe of recipes) if (recipe.name === RECIPE) expect((await request.delete(`/api/recipes/${recipe.id}`, { headers: OWN })).ok()).toBe(true)
+  for (const recipe of recipes)
+    if (recipe.name === RECIPE)
+      expect((await request.delete(`/api/recipes/${recipe.id}`, { headers: OWN })).ok()).toBe(true)
 })
 
 const rect = async (one: Locator) => (await one.boundingBox())!
 
-test('Evolve’s rounds on the canvas: the first a line, the second under it in the frame - a card clicked with a jitter follows the layout', async ({ page, request }) => {
+test('Evolve’s rounds on the canvas: the first a line, the second under it in the frame - a card clicked with a jitter follows the layout', async ({
+  page,
+  request,
+}) => {
   test.setTimeout(90_000)
   await page.setViewportSize({ width: 1440, height: 900 })
   const id = await openFreshConversation(page, { leadWrites: false })
@@ -29,12 +34,19 @@ test('Evolve’s rounds on the canvas: the first a line, the second under it in 
     version: 1,
     steps: [{ id: 'build', name: 'Try it', who: { candidates: 'Coder', most: 2 } }],
     ends: [{ id: 'end', then: 'in' }],
-    arrows: [{ from: 'start', to: 'build' }, { from: 'build', to: 'end' }],
+    arrows: [
+      { from: 'start', to: 'build' },
+      { from: 'build', to: 'end' },
+    ],
     loops: [{ from: 'build', to: 'build', rounds: 1 }],
   }
   expect((await request.post('/api/recipes', { headers: OWN, data: { name: RECIPE, graph } })).ok()).toBe(true)
-  const recipe = ((await (await request.get('/api/recipes')).json()).recipes as { id: string; name: string }[]).find(r => r.name === RECIPE)
-  const web = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(t => t.name === 'Web app')
+  const recipe = ((await (await request.get('/api/recipes')).json()).recipes as { id: string; name: string }[]).find(
+    r => r.name === RECIPE,
+  )
+  const web = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(
+    t => t.name === 'Web app',
+  )
   const set = await request.patch(`/api/conversations/${id}`, {
     headers: OWN,
     data: { permission_mode: 'full_auto', teams_mode: 'manual', teams: [{ team_id: web!.id, recipe_id: recipe!.id }] },
@@ -46,7 +58,10 @@ test('Evolve’s rounds on the canvas: the first a line, the second under it in 
 
   const line = page.locator('.react-flow__node-round')
   const frame = page.locator('.react-flow__node-team')
-  const card = (name: string) => page.locator('.react-flow__node-agent').filter({ has: page.locator('.node-title, .node-chip-name', { hasText: new RegExp(`^${name}$`) }) })
+  const card = (name: string) =>
+    page
+      .locator('.react-flow__node-agent')
+      .filter({ has: page.locator('.node-title, .node-chip-name', { hasText: new RegExp(`^${name}$`) }) })
   await expect(line).toHaveCount(1)
   await expect(line).toContainText('Round 1 · Coder, Coder 2')
   await expect(card('Coder')).toHaveCount(0)
@@ -54,7 +69,9 @@ test('Evolve’s rounds on the canvas: the first a line, the second under it in 
   await shot(page, 'k-evrim-tuval-two-rounds')
   const inFrame = async (one: Locator) => {
     const [f, b] = [await rect(frame), await rect(one)]
-    return b.x >= f.x - 1 && b.y >= f.y - 1 && b.x + b.width <= f.x + f.width + 1 && b.y + b.height <= f.y + f.height + 1
+    return (
+      b.x >= f.x - 1 && b.y >= f.y - 1 && b.x + b.width <= f.x + f.width + 1 && b.y + b.height <= f.y + f.height + 1
+    )
   }
   // Right under the line, in the frame.
   for (const name of ['Coder 3', 'Coder 4']) {

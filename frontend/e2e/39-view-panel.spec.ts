@@ -32,7 +32,9 @@ async function rejectWaiting(page: Page, id: string) {
     if (change.status === 'proposed') await page.request.post(`/api/file-changes/${change.id}/reject`, { headers: OWN })
 }
 
-test('a page an agent writes is drawn beside the chat - while it waits, as it will be - runs its script once asked to, reaches nothing, and is drawn anew when written again', async ({ page }) => {
+test('a page an agent writes is drawn beside the chat - while it waits, as it will be - runs its script once asked to, reaches nothing, and is drawn anew when written again', async ({
+  page,
+}) => {
   test.setTimeout(90_000)
   // A page not there yet: kept by an earlier run of this test, the same write would change nothing.
   rmSync(path.join(PROJECT_DIR, 'view39.html'), { force: true })
@@ -98,7 +100,9 @@ test('a page an agent writes is drawn beside the chat - while it waits, as it wi
   }
 })
 
-test('a picture an agent shows opens Workspace by itself, the focus left in the message box; Esc closes the window back on its button; it expands over the canvas and shrinks again', async ({ page }) => {
+test('a picture an agent shows opens Workspace by itself, the focus left in the message box; Esc closes the window back on its button; it expands over the canvas and shrinks again', async ({
+  page,
+}) => {
   test.setTimeout(60_000)
   await openFreshConversation(page)
   const chat = chatOf(page)
@@ -118,7 +122,9 @@ test('a picture an agent shows opens Workspace by itself, the focus left in the 
 
   // Beside the open chat's column, from under the Teams button down to 14px above the chat's foot (0.1.4), half
   // the canvas wide; over the canvas, not the chat.
-  const [stage, box, chatBox, teams] = await Promise.all(['.stage', '.view-panel', '.chat', '.chat-teams'].map(async one => (await page.locator(one).boundingBox())!))
+  const [stage, box, chatBox, teams] = await Promise.all(
+    ['.stage', '.view-panel', '.chat', '.chat-teams'].map(async one => (await page.locator(one).boundingBox())!),
+  )
   expect(box.x).toBeGreaterThanOrEqual(chatBox.x + chatBox.width)
   expect(box.y).toBeGreaterThanOrEqual(teams.y + teams.height)
   expect(Math.round(box.y + box.height)).toBe(Math.round(chatBox.y + chatBox.height - 14))
@@ -145,7 +151,11 @@ test('a picture an agent shows opens Workspace by itself, the focus left in the 
   // over it, at least 240px wide, inside the canvas.
   await page.setViewportSize({ width: 700, height: 900 })
   await button.click()
-  const [narrow, inStage, column] = [(await panel.boundingBox())!, (await page.locator('.stage').boundingBox())!, (await chat.boundingBox())!]
+  const [narrow, inStage, column] = [
+    (await panel.boundingBox())!,
+    (await page.locator('.stage').boundingBox())!,
+    (await chat.boundingBox())!,
+  ]
   expect(narrow.width).toBeGreaterThanOrEqual(239)
   expect(narrow.x).toBeGreaterThanOrEqual(column.x + column.width - 1)
   // (Its 240px may take the stage's right margin: never past the stage.)
@@ -154,9 +164,13 @@ test('a picture an agent shows opens Workspace by itself, the focus left in the 
 
 /** Whether `a` and `b` do not overlap; and whether `inner` lies wholly inside `outer`. */
 type Box = { x: number; y: number; width: number; height: number }
-const apart = (a: Box, b: Box) => a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y
+const apart = (a: Box, b: Box) =>
+  a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y
 const inside = (inner: Box, outer: Box) =>
-  inner.x >= outer.x - 1 && inner.y >= outer.y - 1 && inner.x + inner.width <= outer.x + outer.width + 1 && inner.y + inner.height <= outer.y + outer.height + 1
+  inner.x >= outer.x - 1 &&
+  inner.y >= outer.y - 1 &&
+  inner.x + inner.width <= outer.x + outer.width + 1 &&
+  inner.y + inner.height <= outer.y + outer.height + 1
 
 test('with the panel open, the nodes at work stay on the canvas, clear of it and of the chat', async ({ page }) => {
   test.setTimeout(60_000)
@@ -174,22 +188,34 @@ test('with the panel open, the nodes at work stay on the canvas, clear of it and
   await page.getByRole('button', { name: 'Send' }).click()
   try {
     const running = page.locator('.react-flow__node').filter({ has: page.locator('.node-running') })
-    await expect(page.locator('.react-flow__node-agent .node-running', { hasText: 'slow.py' })).toHaveCount(1, { timeout: 15_000 })
+    await expect(page.locator('.react-flow__node-agent .node-running', { hasText: 'slow.py' })).toHaveCount(1, {
+      timeout: 15_000,
+    })
     await expect
       .poll(async () => {
-        const [stage, over, beside] = [(await page.locator('.canvas-flow').boundingBox())!, (await panel.boundingBox())!, (await chat.boundingBox())!]
+        const [stage, over, beside] = [
+          (await page.locator('.canvas-flow').boundingBox())!,
+          (await panel.boundingBox())!,
+          (await chat.boundingBox())!,
+        ]
         const nodes = await Promise.all((await running.all()).map(node => node.boundingBox()))
-        return nodes.length > 0 && nodes.every(node => node !== null && inside(node, stage) && apart(node, over) && apart(node, beside))
+        return (
+          nodes.length > 0 &&
+          nodes.every(node => node !== null && inside(node, stage) && apart(node, over) && apart(node, beside))
+        )
       })
       .toBe(true)
   } finally {
     // (Stopped, so that nothing runs on into the next test.)
-    if (await chat.getByRole('button', { name: 'Stop' }).isVisible()) await chat.getByRole('button', { name: 'Stop' }).click()
+    if (await chat.getByRole('button', { name: 'Stop' }).isVisible())
+      await chat.getByRole('button', { name: 'Stop' }).click()
     await expect(page.getByText('STOPPED', { exact: true })).toBeVisible({ timeout: 15_000 })
   }
 })
 
-test('a page that goes elsewhere by itself once its script runs is taken off the panel, and the user told', async ({ page }) => {
+test('a page that goes elsewhere by itself once its script runs is taken off the panel, and the user told', async ({
+  page,
+}) => {
   test.setTimeout(60_000)
   const id = await openFreshConversation(page)
   const chat = chatOf(page)
@@ -213,7 +239,9 @@ test('a page that goes elsewhere by itself once its script runs is taken off the
 })
 
 for (const theme of ['light', 'dark'] as const)
-  test(`in the ${theme} theme every text of the view panel and its button stands out from what it is on (contrast 4.5 or more)`, async ({ page }) => {
+  test(`in the ${theme} theme every text of the view panel and its button stands out from what it is on (contrast 4.5 or more)`, async ({
+    page,
+  }) => {
     test.setTimeout(60_000)
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     const id = await openFreshConversation(page)
@@ -278,7 +306,9 @@ for (const theme of ['light', 'dark'] as const)
       await page.getByLabel('Message').fill('show the chart')
       await page.getByRole('button', { name: 'Send' }).click()
       await expect(chat.getByText('There is the chart.')).toBeVisible({ timeout: 20_000 })
-      await panelOf(page).getByRole('treeitem', { name: /^chart39\.png/ }).click()
+      await panelOf(page)
+        .getByRole('treeitem', { name: /^chart39\.png/ })
+        .click()
       await expect(panelOf(page).getByRole('img', { name: 'chart39.png' })).toBeVisible()
       await settled(page)
       await snap('picture')

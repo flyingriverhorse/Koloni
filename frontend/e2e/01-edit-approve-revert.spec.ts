@@ -37,16 +37,21 @@ test('ask the agent for an edit, approve it, see it on disk, then revert it', as
   // Dragging one node by hand moves that node; the other stays, and both stay in sight.
   const nodes = page.locator('.react-flow__node')
   const placed = () =>
-    nodes.evaluateAll(all => all.map(n => `${(n as HTMLElement).style.visibility}|${(n as HTMLElement).style.transform}`))
+    nodes.evaluateAll(all =>
+      all.map(n => `${(n as HTMLElement).style.visibility}|${(n as HTMLElement).style.transform}`),
+    )
   const viewport = () => page.locator('.react-flow__viewport').evaluate(el => (el as HTMLElement).style.transform)
   // Wait until the view has finished fitting itself to the work.
   let last = ''
   await expect
-    .poll(async () => {
-      const [was, now] = [last, await viewport()]
-      last = now
-      return was === now
-    }, { intervals: [300] })
+    .poll(
+      async () => {
+        const [was, now] = [last, await viewport()]
+        last = now
+        return was === now
+      },
+      { intervals: [300] },
+    )
     .toBe(true)
   const before = await placed()
   const grabbed = await nodes.nth(1).boundingBox()

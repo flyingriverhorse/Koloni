@@ -6,9 +6,25 @@ import { languageOf } from './highlight'
 
 const numbered = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => ` line ${from + i}`)
 /** A file of 30 lines, its 15th changed: all of it, as the server sends it when asked (slice 42a). */
-const whole = ['--- a/a.txt', '+++ b/a.txt', '@@ -1,30 +1,30 @@', ...numbered(1, 14), '-line 15', '+line fifteen', ...numbered(16, 30)].join('\n')
+const whole = [
+  '--- a/a.txt',
+  '+++ b/a.txt',
+  '@@ -1,30 +1,30 @@',
+  ...numbered(1, 14),
+  '-line 15',
+  '+line fifteen',
+  ...numbered(16, 30),
+].join('\n')
 /** The same change as events carry it: three lines around it. */
-const hunks = ['--- a/a.txt', '+++ b/a.txt', '@@ -12,7 +12,7 @@', ...numbered(12, 14), '-line 15', '+line fifteen', ...numbered(16, 18)].join('\n')
+const hunks = [
+  '--- a/a.txt',
+  '+++ b/a.txt',
+  '@@ -12,7 +12,7 @@',
+  ...numbered(12, 14),
+  '-line 15',
+  '+line fifteen',
+  ...numbered(16, 18),
+].join('\n')
 const rowOf = (text: string) => screen.getByText(text).closest('.diff-row, .diff-line')!
 
 test('an added and a removed line say so in words too, not only in colour: a sign, and "added" / "removed" for a screen reader', () => {
@@ -86,11 +102,18 @@ test('what lies between the changes as they are sent is counted; a click reads t
 })
 
 test('code is coloured by the language its name says; an unknown one is plain text; what is coloured is never run', () => {
-  const { container, unmount } = render(<DiffView diff={['@@ -0,0 +1,2 @@', '+def f():', '+    return "x"'].join('\n')} path="src/a.py" />)
+  const { container, unmount } = render(
+    <DiffView diff={['@@ -0,0 +1,2 @@', '+def f():', '+    return "x"'].join('\n')} path="src/a.py" />,
+  )
   expect(container.querySelector('.hljs-keyword')).toHaveTextContent('def')
   expect(container.querySelector('.hljs-string')).toHaveTextContent('"x"')
   unmount()
-  const page = render(<DiffView diff={['@@ -0,0 +1 @@', '+<script>window.ran = 1</script><svg onload="window.ran = 2"></svg>'].join('\n')} path="p.html" />)
+  const page = render(
+    <DiffView
+      diff={['@@ -0,0 +1 @@', '+<script>window.ran = 1</script><svg onload="window.ran = 2"></svg>'].join('\n')}
+      path="p.html"
+    />,
+  )
   expect(page.container.querySelector('script, svg')).toBeNull()
   expect(page.container.querySelector('.hljs-tag')).not.toBeNull()
   expect(page.container.querySelector('.diff-add .diff-text')).toHaveTextContent('<script>window.ran = 1</script>')
@@ -103,8 +126,11 @@ test('code is coloured by the language its name says; an unknown one is plain te
 test('a string over several lines is coloured on each of them, on each side apart (K-42a)', () => {
   const diff = ['@@ -1,4 +1,4 @@', ' x = """one', '-two < three', '+two <b>', ' four"""', ' y = 1'].join('\n')
   const { container } = render(<DiffView diff={diff} path="a.py" split />)
-  const [before, after] = [0, 1].map(side => Array.from(container.querySelectorAll('.diff-row'), row => row.querySelectorAll('.diff-half')[side]))
-  for (const half of [...before.slice(0, 3), ...after.slice(0, 3)]) expect(half.querySelector('.hljs-string')).not.toBeNull()
+  const [before, after] = [0, 1].map(side =>
+    Array.from(container.querySelectorAll('.diff-row'), row => row.querySelectorAll('.diff-half')[side]),
+  )
+  for (const half of [...before.slice(0, 3), ...after.slice(0, 3)])
+    expect(half.querySelector('.hljs-string')).not.toBeNull()
   // after it closes, code again; what is coloured is escaped
   expect(before[3].querySelector('.hljs-string')).toBeNull()
   expect(before[1]).toHaveTextContent('two < three')
@@ -119,11 +145,15 @@ test('a name that is not a language is plain text, whatever it is called', () =>
 })
 
 test('a file over 5 000 lines is not coloured, and says so - counted by the file, not by what is shown of it; nor is a line over 2 000 characters', () => {
-  const far = render(<DiffView diff={['@@ -6000,2 +6000,2 @@', ' x = 1', '-y = 2', '+y = 3'].join('\n')} path="far.py" />)
+  const far = render(
+    <DiffView diff={['@@ -6000,2 +6000,2 @@', ' x = 1', '-y = 2', '+y = 3'].join('\n')} path="far.py" />,
+  )
   expect(screen.getByText('plain text, file too large to colour')).toBeInTheDocument()
   expect(far.container.querySelector('[class^="hljs"]')).toBeNull()
   far.unmount()
-  const long = render(<DiffView diff={['@@ -0,0 +1,2 @@', '+import os', `+x = "${'a'.repeat(2001)}"`].join('\n')} path="long.py" />)
+  const long = render(
+    <DiffView diff={['@@ -0,0 +1,2 @@', '+import os', `+x = "${'a'.repeat(2001)}"`].join('\n')} path="long.py" />,
+  )
   expect(long.container.querySelector('.hljs-keyword')).toHaveTextContent('import')
   expect(long.container.querySelector('.hljs-string')).toBeNull()
   long.unmount()

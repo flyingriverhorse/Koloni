@@ -1582,12 +1582,20 @@ button.shared-row:hover,
   overflow: hidden;
   border: 1px dashed var(--muted);
   border-radius: 3px;
-  background: repeating-linear-gradient(135deg, transparent 0 4px, color-mix(in srgb, var(--muted) 30%, transparent) 4px 6px);
+  background: repeating-linear-gradient(
+    135deg,
+    transparent 0 4px,
+    color-mix(in srgb, var(--muted) 30%, transparent) 4px 6px
+  );
 }
 
 .tl-wait-you {
   border-color: var(--warn);
-  background: repeating-linear-gradient(135deg, transparent 0 4px, color-mix(in srgb, var(--warn) 35%, transparent) 4px 6px);
+  background: repeating-linear-gradient(
+    135deg,
+    transparent 0 4px,
+    color-mix(in srgb, var(--warn) 35%, transparent) 4px 6px
+  );
 }
 
 .tl-wait .tag {
@@ -1642,7 +1650,10 @@ button.shared-row:hover,
    the top bar if that is met. */
 .stage:has(> .agent-window) > .chat-teams {
   --room: calc(100% - var(--inspector-w, 0px));
-  right: calc(22px + var(--inspector-w, 0px) + max(min(320px, calc(var(--room) - 28px)), min(520px, calc(var(--room) - min(480px, var(--room) - 28px) - 42px))));
+  right: calc(
+    22px + var(--inspector-w, 0px) +
+      max(min(320px, calc(var(--room) - 28px)), min(520px, calc(var(--room) - min(480px, var(--room) - 28px) - 42px)))
+  );
 }
 
 .chat-teams > .btn {

@@ -28,7 +28,9 @@ const conversation: Conversation = {
   room_tokens: 400000,
   room_minutes: 30,
   room_min_tokens: 60000,
-  also_in: [], read_in: [], part: null,
+  also_in: [],
+  read_in: [],
+  part: null,
   created_at: 't',
   updated_at: 't',
   teams_mode: 'none',
@@ -112,10 +114,19 @@ test('records are upserted by id and the cursor advances', () => {
 })
 
 test('a turn sent again after a restart moves under the others in every open tab: by when it was sent', () => {
-  let s = applyEvent(base(), 1, 'run.started', { ...run, id: 'a', status: 'interrupted', started_at: null, created_at: '2026-11-21T10:00:00Z' })
+  let s = applyEvent(base(), 1, 'run.started', {
+    ...run,
+    id: 'a',
+    status: 'interrupted',
+    started_at: null,
+    created_at: '2026-11-21T10:00:00Z',
+  })
   s = applyEvent(s, 2, 'run.started', { ...run, id: 'b', status: 'completed', created_at: '2026-11-21T10:01:00Z' })
   s = applyEvent(s, 3, 'run.updated', { ...run, id: 'a', created_at: '2026-11-21T10:02:00Z' })
-  expect(s.runs.map(r => [r.id, r.status])).toEqual([['b', 'completed'], ['a', 'running']])
+  expect(s.runs.map(r => [r.id, r.status])).toEqual([
+    ['b', 'completed'],
+    ['a', 'running'],
+  ])
   s = applyEvent(s, 4, 'run.updated', { ...run, id: 'b', model_id: 'q', created_at: '2026-11-21T10:01:00Z' })
   expect(s.runs.map(r => r.id)).toEqual(['b', 'a']) // (an update that moves nothing keeps its place)
 })
@@ -152,8 +163,18 @@ test('message.sync replaces the text of a streaming message after a reconnect', 
 
 test('89j: agent.live keeps the latest its CLI said, whole, and nothing once it has ended', () => {
   const context = { used: 34000, window: 100000 }
-  let s = applyEvent(base(), null, 'agent.live', { agent_id: 'a', context: { used: 1, window: 100000 }, plan: null, queue: null })
-  s = applyEvent(s, null, 'agent.live', { agent_id: 'a', context, plan: [{ step: 'Fix', status: 'inProgress' }], queue: null })
+  let s = applyEvent(base(), null, 'agent.live', {
+    agent_id: 'a',
+    context: { used: 1, window: 100000 },
+    plan: null,
+    queue: null,
+  })
+  s = applyEvent(s, null, 'agent.live', {
+    agent_id: 'a',
+    context,
+    plan: [{ step: 'Fix', status: 'inProgress' }],
+    queue: null,
+  })
   expect(s.live).toEqual({ a: { context, plan: [{ step: 'Fix', status: 'inProgress' }], queue: null } })
   expect(s.lastEventId).toBe(base().lastEventId) // (on no record)
   s = applyEvent(s, null, 'agent.live', { agent_id: 'a', context: null, plan: null, queue: null })
@@ -217,7 +238,21 @@ test('allowed_commands.updated replaces the rule list', () => {
 })
 
 test('a search or a request that is asked about is kept, and so is what is allowed without asking', () => {
-  const asked = { id: 'w', run_id: 'r', agent_id: 'a', tool_call_id: 't', kind: 'search', method: null, target: 'python docs', host: null, headers: [], body_chars: null, status: 'proposed', created_at: 't', decided_at: null }
+  const asked = {
+    id: 'w',
+    run_id: 'r',
+    agent_id: 'a',
+    tool_call_id: 't',
+    kind: 'search',
+    method: null,
+    target: 'python docs',
+    host: null,
+    headers: [],
+    body_chars: null,
+    status: 'proposed',
+    created_at: 't',
+    decided_at: null,
+  }
   let s = applyEvent(base(), 1, 'web_request.updated', asked)
   s = applyEvent(s, 2, 'web_request.updated', { ...asked, status: 'approved' })
   expect(s.webRequests).toEqual([{ ...asked, status: 'approved' }])
@@ -227,7 +262,10 @@ test('a search or a request that is asked about is kept, and so is what is allow
   expect(applyEvent(s, 4, 'allowed_web.updated', { rules: [] }).allowedWeb).toEqual([])
   // a server from before the web tools sends neither
   expect(base()).toMatchObject({ webRequests: [], allowedWeb: [] })
-  expect(fromSnapshot({ ...snapshot, web_requests: [asked], allowed_web: [rule] } as Snapshot)).toMatchObject({ webRequests: [asked], allowedWeb: [rule] })
+  expect(fromSnapshot({ ...snapshot, web_requests: [asked], allowed_web: [rule] } as Snapshot)).toMatchObject({
+    webRequests: [asked],
+    allowedWeb: [rule],
+  })
 })
 
 test('a command update without output keeps the output streamed so far', () => {
@@ -291,11 +329,27 @@ test('agents are upserted and thinking names the agent', () => {
 })
 
 test('channel messages are kept and a role request comes and goes', () => {
-  const message = { id: 'm1', run_id: 'r', from_agent_id: 'a', to_agent_id: 'b', kind: 'task' as const, content: 'do it', created_at: 't' }
+  const message = {
+    id: 'm1',
+    run_id: 'r',
+    from_agent_id: 'a',
+    to_agent_id: 'b',
+    kind: 'task' as const,
+    content: 'do it',
+    created_at: 't',
+  }
   let s = applyEvent(base(), 1, 'channel.created', message)
   s = applyEvent(s, 1, 'channel.created', message)
   expect(s.channelMessages).toEqual([message])
-  const request = { tool_call_id: 't1', run_id: 'r', agent_id: 'a', name: 'Documenter', description: '', instructions: '', tools: ['read_file'] }
+  const request = {
+    tool_call_id: 't1',
+    run_id: 'r',
+    agent_id: 'a',
+    name: 'Documenter',
+    description: '',
+    instructions: '',
+    tools: ['read_file'],
+  }
   s = applyEvent(s, 2, 'role_request.created', request)
   expect(s.pendingRoles).toEqual([request])
   s = applyEvent(s, 3, 'role_request.resolved', { tool_call_id: 't1' })
@@ -303,7 +357,18 @@ test('channel messages are kept and a role request comes and goes', () => {
 })
 
 test('a question arrives pending and is updated when answered', () => {
-  const asked = { id: 'q', run_id: 'r', agent_id: 'a', tool_call_id: 't', question: 'Which?', options: ['x', 'y'], status: 'pending' as const, answer: null, created_at: 't', answered_at: null }
+  const asked = {
+    id: 'q',
+    run_id: 'r',
+    agent_id: 'a',
+    tool_call_id: 't',
+    question: 'Which?',
+    options: ['x', 'y'],
+    status: 'pending' as const,
+    answer: null,
+    created_at: 't',
+    answered_at: null,
+  }
   let s = applyEvent(base(), 1, 'question.created', asked)
   s = applyEvent(s, 2, 'question.updated', { ...asked, status: 'answered', answer: 'x' })
   expect(s.questions.map(q => [q.status, q.answer])).toEqual([['answered', 'x']])
@@ -323,7 +388,10 @@ test('a conversation’s topics come with its snapshot; a new one and a new name
   expect(s.topics).toEqual([first])
   s = applyEvent(s, 1, 'topic.created', { ...first, id: 't2', title: 'Another thing' })
   s = applyEvent(s, 2, 'topic.updated', { ...first, title: 'The greeting' })
-  expect(s.topics.map(t => [t.id, t.title])).toEqual([['t1', 'The greeting'], ['t2', 'Another thing']])
+  expect(s.topics.map(t => [t.id, t.title])).toEqual([
+    ['t1', 'The greeting'],
+    ['t2', 'Another thing'],
+  ])
   // a snapshot from before topics has none, not nothing
   const { topics: _none, ...old } = snapshot
   expect(fromSnapshot(old as Snapshot).topics).toEqual([])
@@ -332,7 +400,8 @@ test('a conversation’s topics come with its snapshot; a new one and a new name
 // --- every event, and what it leaves as it was ----------------------------------------------------
 
 /** The slices an event made anew: every other is the very object it was (a selector on it draws nothing again). */
-const changed = (was: ConvState, now: ConvState) => (Object.keys(now) as (keyof ConvState)[]).filter(key => now[key] !== was[key])
+const changed = (was: ConvState, now: ConvState) =>
+  (Object.keys(now) as (keyof ConvState)[]).filter(key => now[key] !== was[key])
 
 test('each record’s event puts it in its own list - added at the end, replaced in its place - and makes no other list anew', () => {
   const lists: [string[], keyof ConvState][] = [
@@ -355,12 +424,32 @@ test('each record’s event puts it in its own list - added at the end, replaced
   ]
   for (const [types, key] of lists) {
     for (const type of types) {
-      const start = { ...base(), [key]: [{ id: 'a', n: 0 }, { id: 'b', n: 0 }] } as ConvState
+      const start = {
+        ...base(),
+        [key]: [
+          { id: 'a', n: 0 },
+          { id: 'b', n: 0 },
+        ],
+      } as ConvState
       const added = applyEvent(start, 1, type, { id: 'c', n: 1 })
-      expect([type, added[key]]).toEqual([type, [{ id: 'a', n: 0 }, { id: 'b', n: 0 }, { id: 'c', n: 1 }]])
+      expect([type, added[key]]).toEqual([
+        type,
+        [
+          { id: 'a', n: 0 },
+          { id: 'b', n: 0 },
+          { id: 'c', n: 1 },
+        ],
+      ])
       expect([type, changed(start, added)]).toEqual([type, [key, 'lastEventId']])
       const replaced = applyEvent(added, 2, type, { id: 'a', n: 2 })
-      expect([type, replaced[key]]).toEqual([type, [{ id: 'a', n: 2 }, { id: 'b', n: 0 }, { id: 'c', n: 1 }]])
+      expect([type, replaced[key]]).toEqual([
+        type,
+        [
+          { id: 'a', n: 2 },
+          { id: 'b', n: 0 },
+          { id: 'c', n: 1 },
+        ],
+      ])
       expect([type, changed(added, replaced), replaced.lastEventId]).toEqual([type, [key, 'lastEventId'], 2])
       // (With no id - never stored - it is applied as it arrives, and the cursor stays.)
       expect([type, changed(start, applyEvent(start, null, type, { id: 'c', n: 1 }))]).toEqual([type, [key]])
@@ -369,10 +458,26 @@ test('each record’s event puts it in its own list - added at the end, replaced
 })
 
 test('an event that changes nothing hands back the very state it was given', () => {
-  const s = applyEvent(applyEvent(base(), 4, 'message.created', { ...msg, status: 'complete' }), 5, 'command.created', command('k', 'r', { status: 'exited' }))
+  const s = applyEvent(
+    applyEvent(base(), 4, 'message.created', { ...msg, status: 'complete' }),
+    5,
+    'command.created',
+    command('k', 'r', { status: 'exited' }),
+  )
   expect(applyEvent(s, 5, 'run.started', run)).toBe(s)
   expect(applyEvent(s, 3, 'view.shown', {})).toBe(s)
-  for (const type of ['role.created', 'skill.created', 'memory.changed', 'backlog.changed', 'triggers.changed', 'notes.offered', 'constructor', 'toString', '']) expect(applyEvent(s, null, type, {})).toBe(s)
+  for (const type of [
+    'role.created',
+    'skill.created',
+    'memory.changed',
+    'backlog.changed',
+    'triggers.changed',
+    'notes.offered',
+    'constructor',
+    'toString',
+    '',
+  ])
+    expect(applyEvent(s, null, type, {})).toBe(s)
   // A message that is not being written, a command that does not run, one not known.
   for (const id of ['m', 'none']) {
     expect(applyEvent(s, null, 'message.delta', { message_id: id, text: 'x' })).toBe(s)
@@ -390,16 +495,43 @@ test('an event that changes nothing hands back the very state it was given', () 
 })
 
 test('a turn’s, a message’s and a command’s events change their own slices and no other', () => {
-  const s = { ...base(), thinkingRunId: 'r', thinkingAgentId: 'a', thinkingAgents: ['a', 'b'], summarisingAgents: ['a'] }
+  const s = {
+    ...base(),
+    thinkingRunId: 'r',
+    thinkingAgentId: 'a',
+    thinkingAgents: ['a', 'b'],
+    summarisingAgents: ['a'],
+  }
   const finished = applyEvent(s, 1, 'run.finished', run)
-  expect(changed(s, finished)).toEqual(['runs', 'lastEventId', 'thinkingRunId', 'thinkingAgentId', 'thinkingAgents', 'summarisingAgents'])
-  expect(finished).toMatchObject({ runs: [run], thinkingRunId: null, thinkingAgentId: null, thinkingAgents: [], summarisingAgents: [] })
+  expect(changed(s, finished)).toEqual([
+    'runs',
+    'lastEventId',
+    'thinkingRunId',
+    'thinkingAgentId',
+    'thinkingAgents',
+    'summarisingAgents',
+  ])
+  expect(finished).toMatchObject({
+    runs: [run],
+    thinkingRunId: null,
+    thinkingAgentId: null,
+    thinkingAgents: [],
+    summarisingAgents: [],
+  })
   // Thinking with no agent named: who thinks stays as it was, the very list.
   const thinking = applyEvent(s, null, 'run.thinking', { run_id: 'q' })
   expect(changed(s, thinking)).toEqual(['thinkingRunId', 'thinkingAgentId'])
   expect(thinking).toMatchObject({ thinkingRunId: 'q', thinkingAgentId: null })
-  expect(applyEvent(s, null, 'run.thinking', { run_id: 'q', summarising: true })).toMatchObject({ thinkingRunId: 'q', thinkingAgentId: null, summarisingAgents: ['a'] })
-  expect(changed(s, applyEvent(s, null, 'run.thinking', { run_id: 'q', agent_id: 'c' }))).toEqual(['thinkingRunId', 'thinkingAgentId', 'thinkingAgents'])
+  expect(applyEvent(s, null, 'run.thinking', { run_id: 'q', summarising: true })).toMatchObject({
+    thinkingRunId: 'q',
+    thinkingAgentId: null,
+    summarisingAgents: ['a'],
+  })
+  expect(changed(s, applyEvent(s, null, 'run.thinking', { run_id: 'q', agent_id: 'c' }))).toEqual([
+    'thinkingRunId',
+    'thinkingAgentId',
+    'thinkingAgents',
+  ])
   expect(applyEvent(s, null, 'run.thinking', { run_id: 'q', agent_id: 'a' }).thinkingAgents).toEqual(['a', 'b'])
   const summarising = applyEvent(s, null, 'run.thinking', { run_id: 'q', agent_id: 'c', summarising: true })
   expect(changed(s, summarising)).toEqual(['summarisingAgents'])
@@ -417,10 +549,15 @@ test('a turn’s, a message’s and a command’s events change their own slices
   const delta = applyEvent(writing, null, 'message.delta', { message_id: 'm', text: 'Hi' })
   expect(changed(writing, delta)).toEqual(['messages', 'thinkingRunId', 'thinkingAgentId'])
   expect(delta).toMatchObject({ messages: [{ ...msg, content: 'Hi' }], thinkingRunId: null, thinkingAgentId: null })
-  expect(changed(delta, applyEvent(delta, null, 'message.sync', { message_id: 'm', content: 'Hello' }))).toEqual(['messages'])
+  expect(changed(delta, applyEvent(delta, null, 'message.sync', { message_id: 'm', content: 'Hello' }))).toEqual([
+    'messages',
+  ])
   const ran = applyEvent(s, null, 'command.created', command('k', 'r', { status: 'running', output: 'a' }))
   expect(changed(s, ran)).toEqual(['commands'])
-  for (const [type, payload, output] of [['command.output', { command_id: 'k', text: 'b' }, 'ab'], ['command.sync', { command_id: 'k', output: 'z' }, 'z']] as const) {
+  for (const [type, payload, output] of [
+    ['command.output', { command_id: 'k', text: 'b' }, 'ab'],
+    ['command.sync', { command_id: 'k', output: 'z' }, 'z'],
+  ] as const) {
     const now = applyEvent(ran, null, type, payload)
     expect([changed(ran, now), now.commands[0].output]).toEqual([['commands'], output])
   }
@@ -432,12 +569,18 @@ test('a turn’s, a message’s and a command’s events change their own slices
 
 test('requests for a role or a skill, files taken off, warnings, what was shown and who holds what', () => {
   const s = base()
-  for (const [kind, key] of [['role_request', 'pendingRoles'], ['skill_request', 'pendingSkills']] as const) {
+  for (const [kind, key] of [
+    ['role_request', 'pendingRoles'],
+    ['skill_request', 'pendingSkills'],
+  ] as const) {
     let now = applyEvent(s, 1, `${kind}.created`, { tool_call_id: 't1', name: 'A' })
     now = applyEvent(now, 2, `${kind}.created`, { tool_call_id: 't2', name: 'B' })
     // Asked again by the same call: its request once, the newest, at the end.
     const again = applyEvent(now, 3, `${kind}.created`, { tool_call_id: 't1', name: 'A2' })
-    expect(again[key]).toEqual([{ tool_call_id: 't2', name: 'B' }, { tool_call_id: 't1', name: 'A2' }])
+    expect(again[key]).toEqual([
+      { tool_call_id: 't2', name: 'B' },
+      { tool_call_id: 't1', name: 'A2' },
+    ])
     expect(changed(now, again)).toEqual([key, 'lastEventId'])
     const resolved = applyEvent(again, 4, `${kind}.resolved`, { tool_call_id: 't2' })
     expect(resolved[key]).toEqual([{ tool_call_id: 't1', name: 'A2' }])
@@ -452,15 +595,22 @@ test('requests for a role or a skill, files taken off, warnings, what was shown 
   expect(warned.warnings).toEqual([{ rule: 'orders', where: 'a.md', id: 7 }])
   expect(changed(s, warned)).toEqual(['warnings', 'lastEventId'])
   const known = { ...s, warnings: warned.warnings }
-  expect(changed(known, applyEvent(known, 7, 'injection.warned', { rule: 'orders', where: 'a.md' }))).toEqual(['lastEventId'])
-  expect(applyEvent(warned, 8, 'injection.warned', { rule: 'more', where: 'b.md' }).warnings.map(w => w.id)).toEqual([7, 8])
+  expect(changed(known, applyEvent(known, 7, 'injection.warned', { rule: 'orders', where: 'a.md' }))).toEqual([
+    'lastEventId',
+  ])
+  expect(applyEvent(warned, 8, 'injection.warned', { rule: 'more', where: 'b.md' }).warnings.map(w => w.id)).toEqual([
+    7, 8,
+  ])
   const shown = applyEvent(applyEvent(s, null, 'view.shown', {}), null, 'view.shown', {})
   expect([shown.shown, changed(s, shown)]).toEqual([2, ['shown']])
   const held = [{ path: 'a.py', agent_id: 'a' }]
   const claimed = applyEvent(s, null, 'claims.changed', { claims: held })
   expect(claimed.claims).toBe(held)
   expect(changed(s, claimed)).toEqual(['claims'])
-  for (const [type, key] of [['allowed_commands.updated', 'allowedCommands'], ['allowed_web.updated', 'allowedWeb']] as const) {
+  for (const [type, key] of [
+    ['allowed_commands.updated', 'allowedCommands'],
+    ['allowed_web.updated', 'allowedWeb'],
+  ] as const) {
     const rules = [{ id: 'r1' }]
     const now = applyEvent(s, null, type, { rules })
     expect(now[key]).toBe(rules)
@@ -469,7 +619,17 @@ test('requests for a role or a skill, files taken off, warnings, what was shown 
 })
 
 test('conversation.updated: a turn keeps its teams’ rows as last seen; a turn none of the rows is of stays the very record', () => {
-  const state = { run_id: 'r', team: 'Web app', recipe: 'Feature', status: 'running' as const, why: null, steps: [], agents: [], ended_ready: null, passes: [] }
+  const state = {
+    run_id: 'r',
+    team: 'Web app',
+    recipe: 'Feature',
+    status: 'running' as const,
+    why: null,
+    steps: [],
+    agents: [],
+    ended_ready: null,
+    passes: [],
+  }
   const other = { ...run, id: 'q' }
   const s = { ...base(), runs: [run, other] }
   const teams = [{ team_id: 'web', recipe_id: null, no_recipe: false, picked_by: 'user' as const, why: null, state }]
@@ -478,8 +638,25 @@ test('conversation.updated: a turn keeps its teams’ rows as last seen; a turn 
   expect(now.runs[0]).toEqual({ ...run, teams })
   expect(now.runs[1]).toBe(other)
   expect(now.conversation.teams).toBe(teams)
-  const live = applyEvent(s, null, 'agent.live', { agent_id: 'a', context: { used: 1, window: 2 }, plan: null, queue: null })
-  expect([changed(s, live), live.live]).toEqual([['live'], { a: { context: { used: 1, window: 2 }, plan: null, queue: null } }])
-  expect(applyEvent(live, null, 'agent.live', { agent_id: 'a', context: null, plan: null, queue: null }).live).toEqual({})
-  expect(applyEvent(live, null, 'agent.live', { agent_id: 'b', context: null, plan: null, queue: { elapsed_s: 1, max_s: null, available: null } }).live).toMatchObject({ a: {}, b: {} })
+  const live = applyEvent(s, null, 'agent.live', {
+    agent_id: 'a',
+    context: { used: 1, window: 2 },
+    plan: null,
+    queue: null,
+  })
+  expect([changed(s, live), live.live]).toEqual([
+    ['live'],
+    { a: { context: { used: 1, window: 2 }, plan: null, queue: null } },
+  ])
+  expect(applyEvent(live, null, 'agent.live', { agent_id: 'a', context: null, plan: null, queue: null }).live).toEqual(
+    {},
+  )
+  expect(
+    applyEvent(live, null, 'agent.live', {
+      agent_id: 'b',
+      context: null,
+      plan: null,
+      queue: { elapsed_s: 1, max_s: null, available: null },
+    }).live,
+  ).toMatchObject({ a: {}, b: {} })
 })

@@ -21,7 +21,11 @@ const provider = (over: Partial<Provider>): Provider => ({
   note: null,
   models: [],
   only_listed: false,
-  max_running: null, plan: false, step_down_at: null, day_limit: null, month_limit: null,
+  max_running: null,
+  plan: false,
+  step_down_at: null,
+  day_limit: null,
+  month_limit: null,
   has_key: false,
   position: 0,
   created_at: 't',
@@ -44,7 +48,14 @@ const window_ = (minutes: number, used: number | null, stale = false): Limits['w
   resets_at: null,
   stale,
 })
-const limits = (windows: Limits['windows']): Limits => ({ unknown: null, read_at: null, source: null, plan: null, windows, credits: null })
+const limits = (windows: Limits['windows']): Limits => ({
+  unknown: null,
+  read_at: null,
+  source: null,
+  plan: null,
+  windows,
+  credits: null,
+})
 const row = (provider_name: string, model_id: string, amount: number | null): Usage['by_model'][number] => ({
   provider_name,
   provider_id: ({ Local: 'p1', DeepSeek: 'ds' } as Record<string, string>)[provider_name] ?? null,
@@ -67,10 +78,20 @@ test('a gauge says only what is known: what is left of a plan’s narrowest wind
     label: 'left this week',
     more: '5 hours 91% left',
   })
-  expect(readingOf(codex, { limits: limits([window_(10080, 70), window_(300, 18)]) })).toMatchObject({ value: '30%', label: 'left this week' })
+  expect(readingOf(codex, { limits: limits([window_(10080, 70), window_(300, 18)]) })).toMatchObject({
+    value: '30%',
+    label: 'left this week',
+  })
   // A stale one or one not said is never shown as a number.
-  expect(readingOf(codex, { limits: limits([window_(300, 18, true), window_(10080, 70)]) })).toMatchObject({ value: '30%', more: '5 hours –' })
-  expect(readingOf(claude, { limits: limits([window_(10080, null)]) })).toEqual({ share: null, value: '–', label: 'plan use not known' })
+  expect(readingOf(codex, { limits: limits([window_(300, 18, true), window_(10080, 70)]) })).toMatchObject({
+    value: '30%',
+    more: '5 hours –',
+  })
+  expect(readingOf(claude, { limits: limits([window_(10080, null)]) })).toEqual({
+    share: null,
+    value: '–',
+    label: 'plan use not known',
+  })
   expect(readingOf(claude, { limits: null })).toEqual({ share: null, value: '–', label: 'plan use not known' })
   expect(readingOf(claude, {}).value).toBe('…')
   // Why it is not known, in short (slice 81a-2).
@@ -79,31 +100,64 @@ test('a gauge says only what is known: what is left of a plan’s narrowest wind
   expect(readingOf(claude, { limits: notRun }).label).toBe('Known after its first run here')
   expect(readingOf(codex, { limits: unknown('not read yet') }).label).toBe('Not read yet')
   // A reading that failed just now: the last one kept, and why under it; with none kept, why alone.
-  expect(readingOf(codex, { limits: { ...limits([window_(300, 18)]), failed: 'Codex did not answer' } })).toMatchObject({
-    label: 'left of 5 hours',
-    failed: 'not read now: Codex did not answer',
-  })
-  expect(readingOf(codex, { limits: { ...unknown('not read yet'), failed: 'refused' } }).label).toBe('Could not be read: refused')
-  expect(readingOf(codex, { limits: unknown('Codex did not answer within 15 seconds') }).label).toBe('Codex did not answer within 15 seconds')
+  expect(readingOf(codex, { limits: { ...limits([window_(300, 18)]), failed: 'Codex did not answer' } })).toMatchObject(
+    {
+      label: 'left of 5 hours',
+      failed: 'not read now: Codex did not answer',
+    },
+  )
+  expect(readingOf(codex, { limits: { ...unknown('not read yet'), failed: 'refused' } }).label).toBe(
+    'Could not be read: refused',
+  )
+  expect(readingOf(codex, { limits: unknown('Codex did not answer within 15 seconds') }).label).toBe(
+    'Codex did not answer within 15 seconds',
+  )
   // An API key: what it spent today, by the record; nothing on record is none, a cost not known is a dash.
-  const today = [row('DeepSeek', 'deepseek-chat', 1.25), row('DeepSeek', 'deepseek-reasoner', 0.6), row('Other', 'x', 9)]
+  const today = [
+    row('DeepSeek', 'deepseek-chat', 1.25),
+    row('DeepSeek', 'deepseek-reasoner', 0.6),
+    row('Other', 'x', 9),
+  ]
   // (No arc without a daily limit: its amount stands in the gauge's place; with one, the gauge fills to it.)
   expect(readingOf(deepseek, { today })).toEqual({ share: null, value: '$1.85', label: 'today', plain: true })
-  expect(readingOf({ ...deepseek, day_limit: 5 }, { today })).toEqual({ share: 0.37, value: '$1.85 / $5', label: 'today' })
+  expect(readingOf({ ...deepseek, day_limit: 5 }, { today })).toEqual({
+    share: 0.37,
+    value: '$1.85 / $5',
+    label: 'today',
+  })
   expect(readingOf(deepseek, { today: [] }).value).toBe('$0')
   expect(readingOf(deepseek, { today: [row('DeepSeek', 'deepseek-chat', null)] }).value).toBe('–')
   expect(readingOf(deepseek, { today: [...today, row('DeepSeek', 'other', null)] }).value).toBe('≥ $1.85')
   // Matched by the provider, not its name: another provider of the same name is not its.
-  expect(readingOf(deepseek, { today: [{ ...row('DeepSeek', 'deepseek-chat', 3), provider_id: 'gone' }] }).value).toBe('$0')
+  expect(readingOf(deepseek, { today: [{ ...row('DeepSeek', 'deepseek-chat', 3), provider_id: 'gone' }] }).value).toBe(
+    '$0',
+  )
   // A key that is a plan counts no money.
-  expect(readingOf({ ...deepseek, plan: true }, { today })).toEqual({ share: null, value: 'plan', label: 'no money counted', plain: true })
+  expect(readingOf({ ...deepseek, plan: true }, { today })).toEqual({
+    share: null,
+    value: 'plan',
+    label: 'no money counted',
+    plain: true,
+  })
   // Its quota last seen used up (its 429): when, here - the time today, else the date too; what is left is never said.
   const usedUp = (read_at: string) => ({ today, limits: { ...limits([]), read_at, used_up: true } })
   const now = new Date().toISOString()
   const clock = new Date(now).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-  expect(readingOf({ ...deepseek, plan: true }, usedUp(now))).toEqual({ share: null, value: 'plan', label: `quota used up, seen ${clock}`, plain: true })
-  const before = new Date('2026-09-24T11:02:00Z').toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-  expect(readingOf({ ...deepseek, plan: true }, usedUp('2026-09-24T11:02:00Z')).label).toBe(`quota used up, seen ${before}`)
+  expect(readingOf({ ...deepseek, plan: true }, usedUp(now))).toEqual({
+    share: null,
+    value: 'plan',
+    label: `quota used up, seen ${clock}`,
+    plain: true,
+  })
+  const before = new Date('2026-09-24T11:02:00Z').toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+  expect(readingOf({ ...deepseek, plan: true }, usedUp('2026-09-24T11:02:00Z')).label).toBe(
+    `quota used up, seen ${before}`,
+  )
   expect(readingOf({ ...deepseek, plan: true }, { today, limits: limits([]) }).label).toBe('no money counted')
   expect(readingOf(deepseek, { today: null }).value).toBe('–')
   // A server on this machine: running, or not and why.
@@ -116,9 +170,20 @@ test('a gauge says only what is known: what is left of a plan’s narrowest wind
 test('a card says it is open, the default and a state in the way louder; a plan’s other windows behind ⓘ, a key’s in sight', () => {
   const reading = { share: 0.5, value: '50%', label: 'left this week', more: 'This week 80% left' }
   const card = (over: Partial<Parameters<typeof ProviderCard>[0]>) => (
-    <ProviderCard provider={codex} isDefault={false} state={['ok', 'signed in']} reading={reading} open={false} onOpen={vi.fn()} onSwitch={vi.fn()} {...over} />
+    <ProviderCard
+      provider={codex}
+      isDefault={false}
+      state={['ok', 'signed in']}
+      reading={reading}
+      open={false}
+      onOpen={vi.fn()}
+      onSwitch={vi.fn()}
+      {...over}
+    />
   )
-  const { container, rerender } = render(card({ open: true, isDefault: true, state: ['bad', 'not installed'], onCheck: vi.fn() }))
+  const { container, rerender } = render(
+    card({ open: true, isDefault: true, state: ['bad', 'not installed'], onCheck: vi.fn() }),
+  )
   const button = () => container.querySelector('#provider-card-cx')
   expect(button()).toHaveAttribute('aria-current', 'true')
   expect(button()).toHaveTextContent('subscription · default')
@@ -133,8 +198,15 @@ test('a card says it is open, the default and a state in the way louder; a plan�
   expect(screen.getByText('signed in')).toHaveClass('provider-card-status')
   expect(screen.getByRole('button', { name: 'Check Codex' })).toHaveTextContent('Checking…')
   // An API key's `more` is a limit it cannot keep: on the card; with nothing to do or say, no foot.
-  const { container: key } = render(card({ provider: deepseek, reading: { share: null, value: '$1', label: 'today', plain: true, more: 'cannot be kept' } }))
-  expect(within(within(key).getByRole('button', { name: /^DeepSeek/ })).getByText('cannot be kept')).toHaveClass('provider-card-state')
+  const { container: key } = render(
+    card({
+      provider: deepseek,
+      reading: { share: null, value: '$1', label: 'today', plain: true, more: 'cannot be kept' },
+    }),
+  )
+  expect(within(within(key).getByRole('button', { name: /^DeepSeek/ })).getByText('cannot be kept')).toHaveClass(
+    'provider-card-state',
+  )
   expect(key.querySelector('.provider-card-foot')).toBeNull()
 })
 
@@ -146,8 +218,17 @@ test('a provider’s window heads with its state, how it is paid, the default an
         kept = resolve
       }),
   )
-  const onCatalogue = vi.fn().mockResolvedValue({ providers: 6, models: 300, updated_at: null, local: null, keep_fresh: false })
-  render(<ModelsPage providers={[provider({}), { ...deepseek, enabled: false }]} {...handlers()} onUpdateCatalogue={onUpdateCatalogue} onCatalogue={onCatalogue} />)
+  const onCatalogue = vi
+    .fn()
+    .mockResolvedValue({ providers: 6, models: 300, updated_at: null, local: null, keep_fresh: false })
+  render(
+    <ModelsPage
+      providers={[provider({}), { ...deepseek, enabled: false }]}
+      {...handlers()}
+      onUpdateCatalogue={onUpdateCatalogue}
+      onCatalogue={onCatalogue}
+    />,
+  )
   expect(await screen.findByText('Catalogue: models.dev · 6 services')).toHaveAttribute('role', 'status')
   await userEvent.click(screen.getByRole('button', { name: 'Update catalogue' }))
   expect(screen.getByRole('button', { name: 'Updating…' })).toBeDisabled()
@@ -169,9 +250,19 @@ test('a provider’s window heads with its state, how it is paid, the default an
 test('a gauge still read says so, a spend not read says why, and a plan’s credits unlimited are said behind ⓘ', () => {
   expect(readingOf(provider({}), {})).toEqual({ share: null, value: '…', label: 'looking…' })
   expect(readingOf(deepseek, {})).toEqual({ share: null, value: '…', label: 'looking…', plain: true })
-  expect(readingOf(deepseek, { today: null })).toEqual({ share: null, value: '–', label: 'spent today: not known', plain: true })
+  expect(readingOf(deepseek, { today: null })).toEqual({
+    share: null,
+    value: '–',
+    label: 'spent today: not known',
+    plain: true,
+  })
   const unlimited = { ...limits([window_(300, 18)]), credits: { unlimited: true, balance: null, has_credits: true } }
-  expect(readingOf(codex, { limits: unlimited })).toEqual({ share: 0.82, value: '82%', label: 'left of 5 hours', more: 'credits unlimited' })
+  expect(readingOf(codex, { limits: unlimited })).toEqual({
+    share: 0.82,
+    value: '82%',
+    label: 'left of 5 hours',
+    more: 'credits unlimited',
+  })
 })
 
 test('each card says its kind, the default and its models by tier; the last one adds a provider', async () => {
@@ -183,11 +274,20 @@ test('each card says its kind, the default and its models by tier; the last one 
     ],
   })
   const onLimits = vi.fn().mockResolvedValue(limits([window_(10080, 42)]))
-  render(<ModelsPage providers={[tiered, claude, deepseek]} {...handlers()} onLimits={onLimits} onUsage={vi.fn().mockResolvedValue({ by_model: [], by_conversation: [], by_start: [] })} />)
+  render(
+    <ModelsPage
+      providers={[tiered, claude, deepseek]}
+      {...handlers()}
+      onLimits={onLimits}
+      onUsage={vi.fn().mockResolvedValue({ by_model: [], by_conversation: [], by_start: [] })}
+    />,
+  )
   const local = screen.getByRole('button', { name: /^Local/ })
   expect(local).toHaveTextContent(/this machine · default/)
   expect(local).toHaveTextContent(/1 strongest\s*1 fast\s*of 3 models/)
-  expect(await screen.findByRole('button', { name: /Claude Code.*subscription.*58%.*left this week/ })).toBeInTheDocument()
+  expect(
+    await screen.findByRole('button', { name: /Claude Code.*subscription.*58%.*left this week/ }),
+  ).toBeInTheDocument()
   expect(await screen.findByRole('button', { name: /DeepSeek.*API key.*\$0.*today/ })).toBeInTheDocument()
   // Never asked afresh: that would start Codex.
   expect(onLimits.mock.calls).toEqual([['cc', false]])
@@ -207,7 +307,9 @@ test('Codex’s card reads its plan afresh on its own button, as the Usage page�
   render(<ModelsPage providers={[codex, claude, deepseek]} {...handlers()} onLimits={onLimits} />)
   const card = await screen.findByRole('button', { name: /^Codex.*Not read yet/ })
   const read = screen.getByRole('button', { name: 'Read Codex’s plan now' })
-  expect(screen.getAllByRole('button', { name: /plan now$/ }).map(button => button.getAttribute('aria-label'))).toEqual(['Read Codex’s plan now', 'Read Claude Code’s plan now'])
+  expect(screen.getAllByRole('button', { name: /plan now$/ }).map(button => button.getAttribute('aria-label'))).toEqual(
+    ['Read Codex’s plan now', 'Read Claude Code’s plan now'],
+  )
   await userEvent.click(read)
   await waitFor(() => expect(card).toHaveTextContent(/82%\s*left of 5 hours/))
   expect(onLimits.mock.calls.filter(([, afresh]) => afresh)).toEqual([['cx', true]])
@@ -222,7 +324,9 @@ test('Codex’s card reads its plan afresh on its own button, as the Usage page�
 test('each card is busy on its own: one Read now ending leaves another’s going, and that one is not started twice', async () => {
   const pending: Record<string, (told: Limits) => void> = {}
   const onLimits = vi.fn((id: string, afresh: boolean) =>
-    afresh ? new Promise<Limits>(done => (pending[id] = done)) : Promise.resolve({ ...limits([]), unknown: 'not read yet' }),
+    afresh
+      ? new Promise<Limits>(done => (pending[id] = done))
+      : Promise.resolve({ ...limits([]), unknown: 'not read yet' }),
   )
   render(<ModelsPage providers={[codex, claude]} {...handlers()} onLimits={onLimits} />)
   const codexRead = await screen.findByRole('button', { name: 'Read Codex’s plan now' })
@@ -236,7 +340,10 @@ test('each card is busy on its own: one Read now ending leaves another’s going
   expect(codexRead).toBeDisabled()
   // A second click while it reads starts nothing: Claude Code's would be a second paid turn.
   fireEvent.click(codexRead)
-  expect(onLimits.mock.calls.filter(([, afresh]) => afresh)).toEqual([['cx', true], ['cc', true]])
+  expect(onLimits.mock.calls.filter(([, afresh]) => afresh)).toEqual([
+    ['cx', true],
+    ['cc', true],
+  ])
   pending.cx(limits([window_(300, 18)]))
   await waitFor(() => expect(codexRead).toBeEnabled())
 })
@@ -250,18 +357,31 @@ const tiers = (): Tiers => ({
   balanced: [],
   fast: [{ provider_id: 'cc', provider_name: 'Claude Code', model: 'haiku', agents: true }],
 })
-const names = (tier: string) => within(screen.getByRole('region', { name: tier })).getAllByRole('listitem').map(item => item.textContent)
+const names = (tier: string) =>
+  within(screen.getByRole('region', { name: tier }))
+    .getAllByRole('listitem')
+    .map(item => item.textContent)
 
 test('a tier’s models are moved by their arrows and by dragging, and each order is saved at once', async () => {
   const onSaveTiers = vi.fn(async (order: Tiers) => order)
   const onTiers = vi.fn().mockResolvedValue(tiers())
-  render(<ModelsPage providers={[provider({}), claude, deepseek]} {...handlers()} onTiers={onTiers} onSaveTiers={onSaveTiers} />)
+  render(
+    <ModelsPage
+      providers={[provider({}), claude, deepseek]}
+      {...handlers()}
+      onTiers={onTiers}
+      onSaveTiers={onSaveTiers}
+    />,
+  )
   expect(await screen.findByText('big')).toBeInTheDocument()
   expect(names('Strongest')).toEqual(['1bigLocal', '2opusClaude Code', '3deepDeepSeek'])
   expect(screen.getByRole('button', { name: 'Move big up' })).toBeDisabled()
   await userEvent.click(screen.getByRole('button', { name: 'Move big down' }))
   expect(names('Strongest')).toEqual(['1opusClaude Code', '2bigLocal', '3deepDeepSeek'])
-  expect(onSaveTiers).toHaveBeenLastCalledWith({ ...tiers(), strongest: [tiers().strongest[1], tiers().strongest[0], tiers().strongest[2]] })
+  expect(onSaveTiers).toHaveBeenLastCalledWith({
+    ...tiers(),
+    strongest: [tiers().strongest[1], tiers().strongest[0], tiers().strongest[2]],
+  })
   // deep dragged onto the first place
   const items = within(screen.getByRole('region', { name: 'Strongest' })).getAllByRole('listitem')
   fireEvent.dragStart(items[2])
@@ -278,9 +398,20 @@ test('a tier’s models are moved by their arrows and by dragging, and each orde
 
 test('an order that is refused goes back as it was and says why', async () => {
   const { ApiError } = await import('../api/client')
-  const onSaveTiers = vi.fn().mockRejectedValue(new ApiError(422, 'the strongest list has to be exactly the models whose tier is strongest, each once'))
+  const onSaveTiers = vi
+    .fn()
+    .mockRejectedValue(
+      new ApiError(422, 'the strongest list has to be exactly the models whose tier is strongest, each once'),
+    )
   const onTiers = vi.fn().mockResolvedValue(tiers())
-  render(<ModelsPage providers={[provider({}), claude, deepseek]} {...handlers()} onTiers={onTiers} onSaveTiers={onSaveTiers} />)
+  render(
+    <ModelsPage
+      providers={[provider({}), claude, deepseek]}
+      {...handlers()}
+      onTiers={onTiers}
+      onSaveTiers={onSaveTiers}
+    />,
+  )
   await userEvent.click(await screen.findByRole('button', { name: 'Move opus up' }))
   expect(await screen.findByRole('alert')).toHaveTextContent(/exactly the models whose tier is strongest/)
   expect(names('Strongest')[0]).toBe('1bigLocal')
@@ -291,11 +422,23 @@ test('an order that is refused goes back as it was and says why', async () => {
 test('a tier that cannot be read says so in a line; a model moved to an end keeps the keyboard', async () => {
   const { ApiError } = await import('../api/client')
   const { unmount } = render(
-    <ModelsPage providers={[provider({})]} {...handlers()} onTiers={vi.fn().mockRejectedValue(new ApiError(500, 'the server broke'))} onSaveTiers={vi.fn()} />,
+    <ModelsPage
+      providers={[provider({})]}
+      {...handlers()}
+      onTiers={vi.fn().mockRejectedValue(new ApiError(500, 'the server broke'))}
+      onSaveTiers={vi.fn()}
+    />,
   )
   expect(await screen.findByRole('alert')).toHaveTextContent('The tiers could not be read: the server broke')
   unmount()
-  render(<ModelsPage providers={[provider({}), claude, deepseek]} {...handlers()} onTiers={vi.fn().mockResolvedValue(tiers())} onSaveTiers={vi.fn(async (order: Tiers) => order)} />)
+  render(
+    <ModelsPage
+      providers={[provider({}), claude, deepseek]}
+      {...handlers()}
+      onTiers={vi.fn().mockResolvedValue(tiers())}
+      onSaveTiers={vi.fn(async (order: Tiers) => order)}
+    />,
+  )
   await userEvent.click(await screen.findByRole('button', { name: 'Move opus up' }))
   await waitFor(() => expect(screen.getByRole('button', { name: 'Move opus down' })).toHaveFocus())
   // (opus, big, deep: big goes to the end)
@@ -305,9 +448,19 @@ test('a tier that cannot be read says so in a line; a model moved to an end keep
 
 test('a model whose provider does not run now is faded and said off', async () => {
   const onAvailability = vi.fn(async (id: string) =>
-    id === 'p1' ? { installed: null, models: [{ name: 'big', state: 'unusable', why: 'unreachable' }] } : { installed: true, models: [] },
+    id === 'p1'
+      ? { installed: null, models: [{ name: 'big', state: 'unusable', why: 'unreachable' }] }
+      : { installed: true, models: [] },
   ) as never
-  render(<ModelsPage providers={[provider({}), claude, deepseek]} {...handlers()} onAvailability={onAvailability} onTiers={vi.fn().mockResolvedValue(tiers())} onSaveTiers={vi.fn()} />)
+  render(
+    <ModelsPage
+      providers={[provider({}), claude, deepseek]}
+      {...handlers()}
+      onAvailability={onAvailability}
+      onTiers={vi.fn().mockResolvedValue(tiers())}
+      onSaveTiers={vi.fn()}
+    />,
+  )
   const big = (await screen.findByText('big')).closest('li')!
   await waitFor(() => expect(big).toHaveClass('tier-item-down'))
   // As it looked when this page read it: said, and passed over by a pick (see the Hint).
@@ -318,7 +471,14 @@ test('a model whose provider does not run now is faded and said off', async () =
 test('with no model in any tier the slots say so in one calm line, and the red box is gone', async () => {
   const empty = { strongest: [], balanced: [], fast: [] }
   render(
-    <ModelsPage providers={[provider({})]} {...handlers()} onTiers={vi.fn().mockResolvedValue(empty)} onSaveTiers={vi.fn()} onFillAll={vi.fn()} onSaveFillAll={vi.fn()} />,
+    <ModelsPage
+      providers={[provider({})]}
+      {...handlers()}
+      onTiers={vi.fn().mockResolvedValue(empty)}
+      onSaveTiers={vi.fn()}
+      onFillAll={vi.fn()}
+      onSaveFillAll={vi.fn()}
+    />,
   )
   expect(await screen.findByText('No model has a tier yet. Fill the tiers from the catalogue')).toBeInTheDocument()
   expect(screen.queryByText(/so the Orchestrator cannot pick one/)).not.toBeInTheDocument()
@@ -327,8 +487,18 @@ test('with no model in any tier the slots say so in one calm line, and the red b
 })
 
 test('the head’s Fill tiers opens the preview in a window, also once models have tiers; Escape leaves it', async () => {
-  const onFillAll = vi.fn().mockResolvedValue({ providers: [{ id: 'p1', name: 'Local', kind: 'openai_compat', catalogued: false, for_agents: true, models: [] }], notes: {} })
-  render(<ModelsPage providers={[provider({ models: [{ name: 'q', note: null, tier: 'fast', agents: true }] })]} {...handlers()} onFillAll={onFillAll} onSaveFillAll={vi.fn()} />)
+  const onFillAll = vi.fn().mockResolvedValue({
+    providers: [{ id: 'p1', name: 'Local', kind: 'openai_compat', catalogued: false, for_agents: true, models: [] }],
+    notes: {},
+  })
+  render(
+    <ModelsPage
+      providers={[provider({ models: [{ name: 'q', note: null, tier: 'fast', agents: true }] })]}
+      {...handlers()}
+      onFillAll={onFillAll}
+      onSaveFillAll={vi.fn()}
+    />,
+  )
   const button = screen.getByRole('button', { name: 'Fill tiers' })
   await userEvent.click(button)
   const preview = screen.getByRole('dialog', { name: 'Tiers from the catalogue' })
@@ -392,7 +562,12 @@ test('a Save draws the form anew on the tab it was on, and Escape still closes t
 })
 
 test('a model’s row unfolds to every fact known of it, each with where it came from, its note and its use', async () => {
-  const listed = provider({ models: [{ name: 'big', note: 'mine', tier: 'strongest', agents: true }, { name: 'old', note: null, tier: null, agents: true }] })
+  const listed = provider({
+    models: [
+      { name: 'big', note: 'mine', tier: 'strongest', agents: true },
+      { name: 'old', note: null, tier: null, agents: true },
+    ],
+  })
   const onFacts = vi.fn(async (_id: string, model: string) =>
     model === 'big'
       ? facts({
@@ -406,7 +581,9 @@ test('a model’s row unfolds to every fact known of it, each with where it came
       : facts({}),
   )
   const month = { by_model: [row('Local', 'big', null)], by_conversation: [], by_start: [] }
-  render(<ModelsPage providers={[listed]} {...handlers()} onFacts={onFacts} onUsage={vi.fn().mockResolvedValue(month)} />)
+  render(
+    <ModelsPage providers={[listed]} {...handlers()} onFacts={onFacts} onUsage={vi.fn().mockResolvedValue(month)} />,
+  )
   await userEvent.click(screen.getByRole('button', { name: /^Local/ }))
   const table = screen.getByRole('table', { name: 'Models agents and you can pick' })
   const [, first, second] = within(table).getAllByRole('row')
@@ -443,14 +620,23 @@ test('Find again has the server asked again and the facts read again; a CLI’s 
   await waitFor(() => expect(known).toHaveTextContent('Context window80,128 tokens'))
   await userEvent.click(screen.getByRole('button', { name: /^Claude Code/ }))
   await userEvent.click(screen.getByRole('button', { name: 'What is known of sonnet' }))
-  expect(within(document.querySelector('.model-facts') as HTMLElement).queryByRole('button', { name: 'Find again' })).not.toBeInTheDocument()
+  expect(
+    within(document.querySelector('.model-facts') as HTMLElement).queryByRole('button', { name: 'Find again' }),
+  ).not.toBeInTheDocument()
   post.mockRestore()
 })
 
 test('a tier that is not the catalogue’s is marked “you”; the catalogue’s, as a fill saved it, is not', async () => {
-  const listed = provider({ models: [{ name: 'mine', note: null, tier: 'strongest', agents: true }, { name: 'filled', note: null, tier: 'fast', agents: true }] })
+  const listed = provider({
+    models: [
+      { name: 'mine', note: null, tier: 'strongest', agents: true },
+      { name: 'filled', note: null, tier: 'fast', agents: true },
+    ],
+  })
   const onFacts = vi.fn(async (_id: string, model: string) =>
-    model === 'mine' ? facts({ tier: 'strongest', sources: { tier: 'you' } }) : facts({ tier: 'fast', sources: { tier: 'catalog' } }),
+    model === 'mine'
+      ? facts({ tier: 'strongest', sources: { tier: 'you' } })
+      : facts({ tier: 'fast', sources: { tier: 'catalog' } }),
   )
   render(<ModelsPage providers={[listed]} {...handlers()} onFacts={onFacts} />)
   await userEvent.click(screen.getByRole('button', { name: /^Local/ }))
@@ -466,13 +652,34 @@ test('a tier that is not the catalogue’s is marked “you”; the catalogue’
 test('a CLI’s model is on its plan, one that takes no levels says none, Copilot’s shows the catalogue’s window, and what was tried can be forgotten', async () => {
   const { api } = await import('../api/client')
   const forget = vi.spyOn(api, 'delete').mockResolvedValue(undefined)
-  const onFacts = vi.fn(async () => facts({ efforts: [], context_window: 200000, price: { input: 3, output: 15, currency: 'USD' }, inputs: [{ kind: 'image', takes: false, source: 'tried' }] }))
+  const onFacts = vi.fn(async () =>
+    facts({
+      efforts: [],
+      context_window: 200000,
+      price: { input: 3, output: 15, currency: 'USD' },
+      inputs: [{ kind: 'image', takes: false, source: 'tried' }],
+    }),
+  )
   const sonnet: GuideRow = { name: 'sonnet', note: '', tier: 'fast', agents: true }
   const noop = vi.fn()
   const draw = (on: Provider, context: GuideRow['context'] = null) => (
     <table>
       <tbody>
-        <ModelRow row={{ ...sonnet, context }} provider={on} used={null} onFacts={onFacts} onTier={noop} onAgents={noop} onEnabled={noop} onInputs={noop} onContext={noop} onRouting={noop} onNote={noop} onNoteDone={noop} onRemove={noop} />
+        <ModelRow
+          row={{ ...sonnet, context }}
+          provider={on}
+          used={null}
+          onFacts={onFacts}
+          onTier={noop}
+          onAgents={noop}
+          onEnabled={noop}
+          onInputs={noop}
+          onContext={noop}
+          onRouting={noop}
+          onNote={noop}
+          onNoteDone={noop}
+          onRemove={noop}
+        />
       </tbody>
     </table>
   )
@@ -545,7 +752,14 @@ test('the Models tab is read first: a tier or agents switched is saved at once a
 test('a model agents may not use keeps its place in its tier, faded and said so', async () => {
   const off = tiers()
   off.strongest[1] = { ...off.strongest[1], agents: false }
-  render(<ModelsPage providers={[provider({}), claude, deepseek]} {...handlers()} onTiers={vi.fn().mockResolvedValue(off)} onSaveTiers={vi.fn()} />)
+  render(
+    <ModelsPage
+      providers={[provider({}), claude, deepseek]}
+      {...handlers()}
+      onTiers={vi.fn().mockResolvedValue(off)}
+      onSaveTiers={vi.fn()}
+    />,
+  )
   const opus = (await screen.findByText('opus')).closest('li')!
   expect(opus).toHaveClass('tier-item-down')
   expect(opus).toHaveTextContent('Claude Code · off for agents')
@@ -554,15 +768,35 @@ test('a model agents may not use keeps its place in its tier, faded and said so'
 
 test('a tier shows its first five; the rest on "+N more", their arrows working, and a model moved past five stays in sight', async () => {
   const many = tiers()
-  many.strongest = ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7'].map(model => ({ provider_id: 'p1', provider_name: 'Local', model, agents: true }))
+  many.strongest = ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7'].map(model => ({
+    provider_id: 'p1',
+    provider_name: 'Local',
+    model,
+    agents: true,
+  }))
   const onSaveTiers = vi.fn(async (order: Tiers) => order)
-  render(<ModelsPage providers={[provider({})]} {...handlers()} onTiers={vi.fn().mockResolvedValue(many)} onSaveTiers={onSaveTiers} />)
+  render(
+    <ModelsPage
+      providers={[provider({})]}
+      {...handlers()}
+      onTiers={vi.fn().mockResolvedValue(many)}
+      onSaveTiers={onSaveTiers}
+    />,
+  )
   const slot = await screen.findByRole('region', { name: 'Strongest' })
   expect(names('Strongest')).toHaveLength(5)
   await userEvent.click(within(slot).getByRole('button', { name: '+2 more' }))
   expect(names('Strongest')).toHaveLength(7)
   await userEvent.click(within(slot).getByRole('button', { name: 'Move m7 up' }))
-  expect(onSaveTiers.mock.lastCall![0].strongest.map(one => one.model)).toEqual(['m1', 'm2', 'm3', 'm4', 'm5', 'm7', 'm6'])
+  expect(onSaveTiers.mock.lastCall![0].strongest.map(one => one.model)).toEqual([
+    'm1',
+    'm2',
+    'm3',
+    'm4',
+    'm5',
+    'm7',
+    'm6',
+  ])
   await userEvent.click(within(slot).getByRole('button', { name: 'Show fewer' }))
   expect(names('Strongest')).toHaveLength(5)
   // The fifth moved down: it is sixth now, and shown with the rest.
@@ -576,7 +810,9 @@ test('a provider’s models from before 81a, its agents off, read off in its win
   // (The rows as the API gives them after migration 0064: each says what its provider said.)
   const old = provider({ for_agents: false, models: [{ name: 'big', note: null, tier: 'strongest', agents: false }] })
   const off = { ...tiers(), strongest: [{ provider_id: 'p1', provider_name: 'Local', model: 'big', agents: false }] }
-  render(<ModelsPage providers={[old]} {...handlers()} onTiers={vi.fn().mockResolvedValue(off)} onSaveTiers={vi.fn()} />)
+  render(
+    <ModelsPage providers={[old]} {...handlers()} onTiers={vi.fn().mockResolvedValue(off)} onSaveTiers={vi.fn()} />,
+  )
   expect((await screen.findByText('big')).closest('li')).toHaveTextContent('Local · off for agents')
   await userEvent.click(screen.getByRole('button', { name: /^Local/ }))
   expect(screen.getByRole('switch', { name: 'Agents may use big' })).not.toBeChecked()
@@ -584,18 +820,23 @@ test('a provider’s models from before 81a, its agents off, read off in its win
 
 test('a change the Models tab saves keeps what is typed on Connection and not saved yet', async () => {
   const h = handlers()
-  const listed = (updated_at: string) => provider({ for_agents: true, updated_at, models: [{ name: 'big', note: null, tier: null, agents: true }] })
+  const listed = (updated_at: string) =>
+    provider({ for_agents: true, updated_at, models: [{ name: 'big', note: null, tier: null, agents: true }] })
   const { rerender } = render(<ModelsPage providers={[listed('t')]} {...h} />)
   await userEvent.click(screen.getByRole('button', { name: /^Local/ }))
   await userEvent.click(screen.getByRole('tab', { name: 'Connection' }))
   await userEvent.type(screen.getByLabelText('What it is good for'), 'not saved yet')
   await userEvent.click(screen.getByRole('tab', { name: 'Models' }))
   await userEvent.selectOptions(screen.getByLabelText('Tier of big'), 'fast')
-  rerender(<ModelsPage providers={[{ ...listed('t2'), models: [{ name: 'big', note: null, tier: 'fast', agents: true }] }]} {...h} />)
+  rerender(
+    <ModelsPage
+      providers={[{ ...listed('t2'), models: [{ name: 'big', note: null, tier: 'fast', agents: true }] }]}
+      {...h}
+    />,
+  )
   await userEvent.click(screen.getByRole('tab', { name: 'Connection' }))
   expect(screen.getByLabelText('What it is good for')).toHaveValue('not saved yet')
 })
-
 
 test('a provider with no list says itself whether agents may use it, on Connection', async () => {
   const h = handlers()
@@ -633,7 +874,12 @@ test('closing the window asks before what is typed and not saved is thrown away'
 test('a model change that fails shows the provider as last saved, and why', async () => {
   const { ApiError } = await import('../api/client')
   const h = { ...handlers(), onSave: vi.fn().mockRejectedValue(new ApiError(422, 'refused')) }
-  render(<ModelsPage providers={[provider({ for_agents: true, models: [{ name: 'big', note: null, tier: null, agents: true }] })]} {...h} />)
+  render(
+    <ModelsPage
+      providers={[provider({ for_agents: true, models: [{ name: 'big', note: null, tier: null, agents: true }] })]}
+      {...h}
+    />,
+  )
   await userEvent.click(screen.getByRole('button', { name: /^Local/ }))
   await userEvent.selectOptions(screen.getByLabelText('Tier of big'), 'fast')
   expect(await screen.findByRole('alert')).toHaveTextContent('refused')

@@ -17,7 +17,9 @@ interface Props {
 /** A plan that was decided, on record: approved, or rejected with why. */
 const decided = (plan: NonNullable<Run['plan']>) => (
   <div role="note" className="muted cmd-approval-note">
-    {plan.status === 'approved' ? 'Plan approved: its work starts as a new turn.' : `Plan rejected${plan.why ? `: ${plan.why}` : '.'}`}
+    {plan.status === 'approved'
+      ? 'Plan approved: its work starts as a new turn.'
+      : `Plan rejected${plan.why ? `: ${plan.why}` : '.'}`}
     <div className="mono">{plannedBy(plan)}</div>
   </div>
 )
@@ -84,7 +86,12 @@ export function PlanCard({ run, stale = false, onDecide }: Props) {
           Edit
         </button>
       )}
-      <button type="button" className="btn btn-small" disabled={busy} onClick={() => (why === null ? setWhy('') : decide('reject', why.trim() || undefined))}>
+      <button
+        type="button"
+        className="btn btn-small"
+        disabled={busy}
+        onClick={() => (why === null ? setWhy('') : decide('reject', why.trim() || undefined))}
+      >
         <X size={13} />
         {why === null ? 'Reject' : 'Reject plan'}
       </button>
@@ -96,14 +103,33 @@ export function PlanCard({ run, stale = false, onDecide }: Props) {
       <div className="kicker cmd-approval-kicker">{stale ? 'This plan was not decided' : 'Approve this plan?'}</div>
       <div className="muted mono">{plannedBy(plan)}</div>
       <div className="muted cmd-approval-note">
-        {stale ? 'A later message has started since this plan: reject it, or ask again.' : 'Approve here — a new message plans again.'}
+        {stale
+          ? 'A later message has started since this plan: reject it, or ask again.'
+          : 'Approve here — a new message plans again.'}
       </div>
       {/* shortcut: a model's plan longer than the server takes (20000) is cut when edited; raise both if plans grow so. */}
       {editing !== null && !stale && (
-        <textarea aria-label="Plan" className="input" rows={8} maxLength={20000} value={editing} disabled={busy} onChange={e => setEditing(e.target.value)} />
+        <textarea
+          aria-label="Plan"
+          className="input"
+          rows={8}
+          maxLength={20000}
+          value={editing}
+          disabled={busy}
+          onChange={e => setEditing(e.target.value)}
+        />
       )}
       {why !== null && (
-        <input autoFocus className="input" aria-label="Why not (optional)" placeholder="Why not, in a sentence (optional)" maxLength={500} value={why} disabled={busy} onChange={e => setWhy(e.target.value)} />
+        <input
+          autoFocus
+          className="input"
+          aria-label="Why not (optional)"
+          placeholder="Why not, in a sentence (optional)"
+          maxLength={500}
+          value={why}
+          disabled={busy}
+          onChange={e => setWhy(e.target.value)}
+        />
       )}
       {words(plan.text)}
       {error && (
@@ -114,7 +140,12 @@ export function PlanCard({ run, stale = false, onDecide }: Props) {
       {over && (
         <div role="group" aria-label={over} className="composer-warning composer-budget">
           <span role="alert">{over}. Start the work anyway?</span>
-          <button type="button" className="btn btn-small" autoFocus onClick={() => void decide('approve', editing ?? undefined, true)}>
+          <button
+            type="button"
+            className="btn btn-small"
+            autoFocus
+            onClick={() => void decide('approve', editing ?? undefined, true)}
+          >
             Go on anyway
           </button>
           <button

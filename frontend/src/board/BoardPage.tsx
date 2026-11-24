@@ -95,7 +95,8 @@ interface RowProps {
 }
 
 /** How a chat's last turn broke, said beside its facts (null: it did not, or the chat is at work). */
-const brokeOf = (turn: BoardConversation['turn'], column: Column) => (turn && column !== 'work' && BROKE.has(turn.status) ? ENDED[turn.status] : null)
+const brokeOf = (turn: BoardConversation['turn'], column: Column) =>
+  turn && column !== 'work' && BROKE.has(turn.status) ? ENDED[turn.status] : null
 
 /**
  * A chat's row: its title opens it; under it when it last did something, or for one that ended how and when, with
@@ -133,7 +134,13 @@ function ChatRow({ conversation, column, current, onOpen, onRerun }: RowProps) {
   const title = `board-title-${conversation.conversation_id}`
   return (
     <li className="board-card" aria-labelledby={title}>
-      <button id={title} type="button" className="usage-open board-title" aria-current={current ? 'true' : undefined} onClick={() => onOpen(conversation.conversation_id)}>
+      <button
+        id={title}
+        type="button"
+        className="usage-open board-title"
+        aria-current={current ? 'true' : undefined}
+        onClick={() => onOpen(conversation.conversation_id)}
+      >
         {conversation.title}
       </button>
       <p className="board-facts muted">
@@ -230,23 +237,27 @@ export function BoardPage({ board, error, currentId, onLoad, onOpen, waiting = 0
       onRerun={onRerun}
     />
   )
-  const chatTitle = (id: string) => board?.conversations.find(c => c.conversation_id === id)?.title ?? 'another conversation'
+  const chatTitle = (id: string) =>
+    board?.conversations.find(c => c.conversation_id === id)?.title ?? 'another conversation'
   return (
     <div className="memory-page">
       <div className="conv-head board-head">
         <h2>Board</h2>
         {board && (
           <span className="muted" role="status">
-            {board.limit === null ? `${count(board.running, 'agent')} at work · no limit` : `${board.running} of ${board.limit} agents at work`}
+            {board.limit === null
+              ? `${count(board.running, 'agent')} at work · no limit`
+              : `${board.running} of ${board.limit} agents at work`}
           </span>
         )}
       </div>
       <p className="muted memory-hint">
-        “Re-run the ones that failed” sends a new message asking its Orchestrator to open just those again, each with its role and task.{' '}
+        “Re-run the ones that failed” sends a new message asking its Orchestrator to open just those again, each with
+        its role and task.{' '}
         <Hint>
-          For when several conversations work in one project at the same time. A sub-agent of a conversation’s last message that did nothing,
-          timed out, went silent or failed is tagged so. What waits for your word is on Ready for you; what a chat changed, in its Workspace;
-          the day’s numbers, on Usage.
+          For when several conversations work in one project at the same time. A sub-agent of a conversation’s last
+          message that did nothing, timed out, went silent or failed is tagged so. What waits for your word is on Ready
+          for you; what a chat changed, in its Workspace; the day’s numbers, on Usage.
         </Hint>
       </p>
       {error && (
@@ -265,7 +276,12 @@ export function BoardPage({ board, error, currentId, onLoad, onOpen, waiting = 0
           {board.conflicts.map(conflict => (
             <li key={`${conflict.path} ${conflict.holder.conversation_id}`} className="board-conflict">
               <span>{conflictLine(board, conflict)}</span>
-              <button type="button" className="btn btn-small" aria-label={`Open «${chatTitle(conflict.holder.conversation_id)}»`} onClick={() => void open(conflict.holder.conversation_id)}>
+              <button
+                type="button"
+                className="btn btn-small"
+                aria-label={`Open «${chatTitle(conflict.holder.conversation_id)}»`}
+                onClick={() => void open(conflict.holder.conversation_id)}
+              >
                 Open
               </button>
             </li>
@@ -281,7 +297,11 @@ export function BoardPage({ board, error, currentId, onLoad, onOpen, waiting = 0
               <h3 className="kicker">
                 <StatusLabel color={color}>{`${name} · ${placed[column].length}`}</StatusLabel>
               </h3>
-              {placed[column].length > 0 ? <ul className="board-cards">{placed[column].map(c => row(c, column))}</ul> : <p className="muted">{empty}</p>}
+              {placed[column].length > 0 ? (
+                <ul className="board-cards">{placed[column].map(c => row(c, column))}</ul>
+              ) : (
+                <p className="muted">{empty}</p>
+              )}
               {column === 'today' && placed.older.length > 0 && (
                 <details className="more board-older">
                   <summary>{placed.older.length} older</summary>

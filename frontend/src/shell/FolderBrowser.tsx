@@ -107,7 +107,14 @@ export function FolderBrowser({ start, onBrowse, onOpen, onCancel, adding = fals
 
   return createPortal(
     <div className="dialog-back">
-      <div ref={dialog} tabIndex={-1} className="provider-dialog folder-browser" role="dialog" aria-modal="true" aria-labelledby="folder-browser-title">
+      <div
+        ref={dialog}
+        tabIndex={-1}
+        className="provider-dialog folder-browser"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="folder-browser-title"
+      >
         <h3 id="folder-browser-title">{adding ? 'Add a folder' : 'Open a folder'}</h3>
         {at && (
           <nav className="folder-crumbs" aria-label="Where">
@@ -119,7 +126,12 @@ export function FolderBrowser({ start, onBrowse, onOpen, onCancel, adding = fals
             <ol className="folder-path mono">
               {at.parts.map((part, index) => (
                 <li key={part.path}>
-                  <button type="button" className="folder-crumb" aria-current={index === at.parts.length - 1 ? 'location' : undefined} onClick={() => setPath(part.path)}>
+                  <button
+                    type="button"
+                    className="folder-crumb"
+                    aria-current={index === at.parts.length - 1 ? 'location' : undefined}
+                    onClick={() => setPath(part.path)}
+                  >
                     {part.name}
                   </button>
                 </li>
@@ -141,7 +153,11 @@ export function FolderBrowser({ start, onBrowse, onOpen, onCancel, adding = fals
                   type="button"
                   className={`folder-row${entry.blocked ? ' folder-blocked' : ''}${entry.hidden ? ' folder-hidden' : ''}`}
                   aria-pressed={entry.blocked ? undefined : chosen?.path === entry.path}
-                  title={entry.blocked ? 'KOLONİ never opens this as a project. Double-click to look inside it, where KOLONİ may list it' : undefined}
+                  title={
+                    entry.blocked
+                      ? 'KOLONİ never opens this as a project. Double-click to look inside it, where KOLONİ may list it'
+                      : undefined
+                  }
                   onClick={() => !entry.blocked && setChosen(entry)}
                   onDoubleClick={() => setPath(entry.path)}
                   onKeyDown={event => onRowKey(event, entry)}

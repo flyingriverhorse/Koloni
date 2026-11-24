@@ -48,7 +48,12 @@ export interface SlashOn {
 /** The built-in commands, each off with why where it cannot be chosen now (`closed`: the chat is closed). */
 function builtIn(on: SlashOn, closed: string | null): SlashCommand[] {
   return [
-    { name: 'new', what: 'Start a new topic with the next message', off: on.noTopic || on.fresh ? 'it starts one anyway' : null, run: on.startTopic },
+    {
+      name: 'new',
+      what: 'Start a new topic with the next message',
+      off: on.noTopic || on.fresh ? 'it starts one anyway' : null,
+      run: on.startTopic,
+    },
     {
       name: 'room',
       what: 'Open a room: agents work on one goal together',
@@ -56,7 +61,12 @@ function builtIn(on: SlashOn, closed: string | null): SlashCommand[] {
       press: ['.composer-more > button', '.composer-beside button'],
     },
     { name: 'stop', what: 'Stop the work in progress', off: on.running ? null : 'nothing is at work', run: on.onStop },
-    { name: 'model', what: 'Choose this conversation’s model', off: closed ?? (on.model ? null : 'no model to choose yet'), press: ['.model-picker-button'] },
+    {
+      name: 'model',
+      what: 'Choose this conversation’s model',
+      off: closed ?? (on.model ? null : 'no model to choose yet'),
+      press: ['.model-picker-button'],
+    },
     // Only the chooser: a higher level is still the user's own pick, sent from this page.
     { name: 'mode', what: 'Choose the permission level', off: closed, press: ['.composer-level'] },
     {
@@ -77,20 +87,33 @@ function builtIn(on: SlashOn, closed: string | null): SlashCommand[] {
 /** The user's own command (slice 53): its text filled in with what follows its name; a role's, as that role's chip. */
 function ownCommand(c: OwnCommand, draft: string, roles: Role[]): SlashCommand {
   // Its name, then a space or a new line: what follows may take more lines.
-  const called = fold(draft.slice(0, c.name.length + 1)) === fold(`/${c.name}`) && /\s/.test(draft.charAt(c.name.length + 1))
+  const called =
+    fold(draft.slice(0, c.name.length + 1)) === fold(`/${c.name}`) && /\s/.test(draft.charAt(c.name.length + 1))
   const typed = called ? draft.slice(c.name.length + 2).trim() : ''
   const line = c.template.split('\n')[0]
   // (split/join, not replace: a `$&` typed stays as it was typed.)
-  const filled = c.template.includes('{args}') ? c.template.split('{args}').join(typed) : [c.template, typed].filter(Boolean).join(' ')
+  const filled = c.template.includes('{args}')
+    ? c.template.split('{args}').join(typed)
+    : [c.template, typed].filter(Boolean).join(' ')
   // As the role's chip; a role gone since leaves the text, not a "/Ghost" sent as words.
   const chip = c.role === null ? undefined : roles.find(r => fold(r.name) === fold(c.role!))
-  return { name: c.name, what: c.description || (line.length > 80 ? `${line.slice(0, 79)}…` : line), off: null, fill: chip ? `/${chip.name} ${filled}` : filled, called }
+  return {
+    name: c.name,
+    what: c.description || (line.length > 80 ? `${line.slice(0, 79)}…` : line),
+    off: null,
+    fill: chip ? `/${chip.name} ${filled}` : filled,
+    called,
+  }
 }
 
 /** A role named at the start ("/coder fix it", any case), the longest name first: none where Esc left it as text (`kept`). */
 function roleOf(draft: string, kept: string | null, roles: Role[]): Role | null {
   if (kept && draft.startsWith(kept)) return null
-  return [...roles].sort((a, b) => b.name.length - a.name.length).find(r => fold(draft.slice(0, r.name.length + 2)) === fold(`/${r.name} `)) ?? null
+  return (
+    [...roles]
+      .sort((a, b) => b.name.length - a.name.length)
+      .find(r => fold(draft.slice(0, r.name.length + 2)) === fold(`/${r.name} `)) ?? null
+  )
 }
 
 /** What the menu is asked for: the box holds one line that starts with `/`, or names an own command in full; null: no menu. */
@@ -127,8 +150,12 @@ export function useSlash(on: SlashOn) {
   // shortcut: while an own command's text takes more lines, the arrows move in the menu, not between the lines; Esc frees them.
   const wanted = wantedOf(draft, role, shut, commands)
   // Named in full first ("/mode" is not "/model"), then those it starts, then those holding it.
-  const rank = (command: SlashCommand) => (command.called || fold(command.name) === wanted ? 0 : fold(command.name).startsWith(wanted ?? '') ? 1 : 2)
-  const shown = wanted === null ? [] : commands.filter(c => c.called || fold(c.name).includes(wanted)).sort((a, b) => rank(a) - rank(b))
+  const rank = (command: SlashCommand) =>
+    command.called || fold(command.name) === wanted ? 0 : fold(command.name).startsWith(wanted ?? '') ? 1 : 2
+  const shown =
+    wanted === null
+      ? []
+      : commands.filter(c => c.called || fold(c.name).includes(wanted)).sort((a, b) => rank(a) - rank(b))
   const active = Math.min(at, shown.length - 1)
 
   function choose(command: SlashCommand) {
@@ -168,5 +195,16 @@ export function useSlash(on: SlashOn) {
     return false
   }
 
-  return { role, head, text: draft.slice(head.length), shown, menu: shown.length > 0, active, choose, menuKey, setShut, setAt }
+  return {
+    role,
+    head,
+    text: draft.slice(head.length),
+    shown,
+    menu: shown.length > 0,
+    active,
+    choose,
+    menuKey,
+    setShut,
+    setAt,
+  }
 }

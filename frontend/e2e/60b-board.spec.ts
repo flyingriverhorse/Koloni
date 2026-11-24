@@ -11,17 +11,25 @@ const ASKS = 'run the slow job, 60b asks'
 const STOPPED = 'run the slow job, 60b stops'
 const WORKS = 'run slow.py for 60b'
 
-const lastRun = async (page: Page, id: string) => (await (await page.request.get(`/api/conversations/${id}`)).json()).runs.at(-1)
+const lastRun = async (page: Page, id: string) =>
+  (await (await page.request.get(`/api/conversations/${id}`)).json()).runs.at(-1)
 
 async function start(page: Page, message: string, fullAuto = false) {
   const id = await openFreshConversation(page)
-  if (fullAuto) expect((await page.request.patch(`/api/conversations/${id}`, { data: { permission_mode: 'full_auto' }, headers: OWN })).ok()).toBe(true)
+  if (fullAuto)
+    expect(
+      (
+        await page.request.patch(`/api/conversations/${id}`, { data: { permission_mode: 'full_auto' }, headers: OWN })
+      ).ok(),
+    ).toBe(true)
   await page.getByLabel('Message').fill(message)
   await page.getByRole('button', { name: 'Send' }).click()
   return id
 }
 
-test('the board is now: what works (an agent that asks you too), what ended today, a line to Ready for you; both themes read', async ({ page }) => {
+test('the board is now: what works (an agent that asks you too), what ended today, a line to Ready for you; both themes read', async ({
+  page,
+}) => {
   test.setTimeout(90_000)
   const chat = page.getByRole('region', { name: 'Chat' })
   const done = await start(page, DONE)
@@ -58,7 +66,12 @@ test('the board is now: what works (an agent that asks you too), what ended toda
       // a finished row: its agents and when (its model is its chat's, its tokens are Usage's)
       await expect(card('Ended today', DONE).locator('.board-facts')).toHaveText(/^1 agent · .+$/)
       await expect(column('Ended today').locator('details.board-older > summary')).toHaveText(/^\d+ older$/)
-      await expect(column('Ended today').getByRole('list', { name: 'Older' }).getByRole('listitem', { name: 'New conversation' }).first()).toBeHidden()
+      await expect(
+        column('Ended today')
+          .getByRole('list', { name: 'Older' })
+          .getByRole('listitem', { name: 'New conversation' })
+          .first(),
+      ).toBeHidden()
       // The keyboard reaches a row's title, which opens it.
       await card('Ended today', DONE).getByRole('button', { name: DONE }).focus()
       await expect(card('Ended today', DONE).getByRole('button', { name: DONE })).toBeFocused()
@@ -70,7 +83,9 @@ test('the board is now: what works (an agent that asks you too), what ended toda
 
     // On a narrow window the sections stand one under another.
     await page.setViewportSize({ width: 600, height: 900 })
-    const [work, ended] = await Promise.all(['At work', 'Ended today'].map(name => page.getByRole('region', { name }).boundingBox()))
+    const [work, ended] = await Promise.all(
+      ['At work', 'Ended today'].map(name => page.getByRole('region', { name }).boundingBox()),
+    )
     expect(ended!.y).toBeGreaterThan(work!.y + work!.height - 1)
     await shot(page, '60b-board-narrow')
 
@@ -82,7 +97,8 @@ test('the board is now: what works (an agent that asks you too), what ended toda
     // Nothing is left at work, waiting or stopped for the specs after this one: each ends on a turn done.
     for (const id of [works, asks, stopped]) {
       const run = await lastRun(page, id)
-      if (!['completed', 'failed', 'cancelled', 'interrupted'].includes(run?.status)) await page.request.post(`/api/runs/${run.id}/cancel`, { headers: OWN })
+      if (!['completed', 'failed', 'cancelled', 'interrupted'].includes(run?.status))
+        await page.request.post(`/api/runs/${run.id}/cancel`, { headers: OWN })
       await page.request.post(`/api/conversations/${id}/messages`, { data: { content: 'hello again' }, headers: OWN })
       await expect.poll(async () => (await lastRun(page, id))?.status, { timeout: 20_000 }).toBe('completed')
     }

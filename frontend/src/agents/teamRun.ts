@@ -9,7 +9,8 @@ export const TEAMS_READY = "Teams' work is ready"
 /** KOLONİ's own Ready for you card: KOLONİ's (`leave`), and by its prefix - an agent's question that starts so is the agent's. */
 export const isReadyCard = (q: Pick<Question, 'question' | 'leave'>) => q.leave && q.question.startsWith(READY_FOR_YOU)
 /** A question's text as shown: KOLONİ's Ready for you card under its own title, its prefix left out. */
-export const shownQuestion = (q: Pick<Question, 'question' | 'leave'>) => (isReadyCard(q) ? `${TEAMS_READY}${q.question.slice(READY_FOR_YOU.length)}` : q.question)
+export const shownQuestion = (q: Pick<Question, 'question' | 'leave'>) =>
+  isReadyCard(q) ? `${TEAMS_READY}${q.question.slice(READY_FOR_YOU.length)}` : q.question
 /** KOLONİ's options shown in the one word for no (a leave for a tool says "Deny"); sent as they are. An agent's stand as it wrote them. */
 export const shownOption = (option: string, leave: boolean) => (leave && option === 'Deny' ? 'Reject' : option)
 
@@ -61,28 +62,41 @@ export const teamColour = (teamId: string): string => teamColours([teamId]).get(
  * B-103: the colours of a chat's teams - its rows now and every turn's - from one set, so a team has one colour on all
  * of the chat's screens, the canvas of any of its turns and its teams' window alike.
  */
-export const chatColours = (state: Pick<ConvState, 'conversation' | 'runs'>, after: string[] = []): Map<string, string> =>
-  teamColours([...new Set([...state.conversation.teams, ...state.runs.flatMap(run => run.teams ?? [])].map(row => row.team_id))], after)
+export const chatColours = (
+  state: Pick<ConvState, 'conversation' | 'runs'>,
+  after: string[] = [],
+): Map<string, string> =>
+  teamColours(
+    [...new Set([...state.conversation.teams, ...state.runs.flatMap(run => run.teams ?? [])].map(row => row.team_id))],
+    after,
+  )
 
 /**
  * B-107: a turn's chat teams as it left them - its own record (`Run.teams`), with the chat's rows still of that turn
  * over it - not as the chat's teams are now.
  */
-export function turnTeams(state: Pick<ConvState, 'conversation' | 'runs'>, runId: string): (ChatTeam & { state: ChatTeamState })[] {
+export function turnTeams(
+  state: Pick<ConvState, 'conversation' | 'runs'>,
+  runId: string,
+): (ChatTeam & { state: ChatTeamState })[] {
   const live = state.conversation.teams.filter(row => row.state?.run_id === runId)
   const kept = state.runs.find(run => run.id === runId)?.teams ?? []
-  return [...kept.map(row => live.find(one => one.team_id === row.team_id) ?? row), ...live.filter(one => !kept.some(row => row.team_id === one.team_id))].filter(
-    (row): row is ChatTeam & { state: ChatTeamState } => row.state?.run_id === runId,
-  )
+  return [
+    ...kept.map(row => live.find(one => one.team_id === row.team_id) ?? row),
+    ...live.filter(one => !kept.some(row => row.team_id === one.team_id)),
+  ].filter((row): row is ChatTeam & { state: ChatTeamState } => row.state?.run_id === runId)
 }
 
 /** The files a row's agents changed, by path once each. */
 export const filesOf = (state: Pick<ConvState, 'fileChanges'>, row: { state: ChatTeamState }) =>
-  new Set(state.fileChanges.filter(f => row.state.agents.includes(f.agent_id ?? '') && !inScratch(f.path)).map(f => f.path)).size
+  new Set(
+    state.fileChanges.filter(f => row.state.agents.includes(f.agent_id ?? '') && !inScratch(f.path)).map(f => f.path),
+  ).size
 
 /** How long a row's why is in the chat's one line; the card in full says all of it. */
 const WHY_CHARS = 60
-const shortWhy = (why: ChatTeamState['why']) => (why && why.length > WHY_CHARS ? `${why.slice(0, WHY_CHARS - 1)}…` : why)
+const shortWhy = (why: ChatTeamState['why']) =>
+  why && why.length > WHY_CHARS ? `${why.slice(0, WHY_CHARS - 1)}…` : why
 
 /** What a row has for Take in, by its files' count: a team with no recipe is kept apart. */
 function toTakeIn(recipe: string, count: number): string {
@@ -99,14 +113,22 @@ function toTakeIn(recipe: string, count: number): string {
  * K-r152: with a team that ended badly the line is no "Teams' work is ready" - each team says its own state, "Docs is
  * ready (1 file) · Web app failed (0 files)".
  */
-export function readyLine(state: Pick<ConvState, 'conversation' | 'runs' | 'fileChanges' | 'agents'>, runId: string, asked?: { at: string; open: boolean }): string {
+export function readyLine(
+  state: Pick<ConvState, 'conversation' | 'runs' | 'fileChanges' | 'agents'>,
+  runId: string,
+  asked?: { at: string; open: boolean },
+): string {
   const changes = asked ? state.fileChanges.filter(f => f.created_at <= asked.at) : state.fileChanges
   const rows = turnTeams(state, runId).filter(row => row.state.status !== 'waiting')
   // Ended badly: so on its row, or every agent of it ended and one failed, none finished (a lead that failed at once).
   const ended = (row: (typeof rows)[number]) => {
     const mine = state.agents.filter(a => row.state.agents.includes(a.id))
     if (['failed', 'stopped', 'interrupted'].includes(row.state.status)) return row.state.status
-    return mine.length > 0 && mine.some(a => a.status === 'failed') && mine.every(a => a.status === 'failed' || a.status === 'cancelled') ? 'failed' : null
+    return mine.length > 0 &&
+      mine.some(a => a.status === 'failed') &&
+      mine.every(a => a.status === 'failed' || a.status === 'cancelled')
+      ? 'failed'
+      : null
   }
   const anyEnded = rows.some(row => ended(row))
   const said = rows.map(row => {
@@ -117,11 +139,18 @@ export function readyLine(state: Pick<ConvState, 'conversation' | 'runs' | 'file
       const word = ended(row) ?? (['ready', 'done', 'in'].includes(status) ? 'is ready' : status)
       return `${team} ${word}${asked?.open !== false && short ? `: ${short}` : ''} (${what})`
     }
-    const stands = asked?.open !== false && (!['ready', 'done', 'in'].includes(status) || why) ? `${status}${short ? `: ${short}` : ''} · ` : ''
+    const stands =
+      asked?.open !== false && (!['ready', 'done', 'in'].includes(status) || why)
+        ? `${status}${short ? `: ${short}` : ''} · `
+        : ''
     return `${team} ${stands}${what}`
   })
   const { left } = endedEarly(rows, changes, runId)
-  return [...(anyEnded ? [] : ["Teams' work is ready"]), ...said, ...(left && asked?.open !== false ? [left] : [])].join(' · ')
+  return [
+    ...(anyEnded ? [] : ["Teams' work is ready"]),
+    ...said,
+    ...(left && asked?.open !== false ? [left] : []),
+  ].join(' · ')
 }
 
 /**
@@ -151,7 +180,12 @@ export function tokensLine({ tokens, unreported }: { tokens: number | null; unre
  */
 export function endedEarly(teams: ChatTeam[], changes: FileChange[], runId: string): { why: string[]; left: string } {
   const early = teams.flatMap(({ state }) =>
-    state?.run_id === runId && state.recipe && (state.status === 'failed' || state.status === 'stopped') && state.ended_ready === false ? [state] : [],
+    state?.run_id === runId &&
+    state.recipe &&
+    (state.status === 'failed' || state.status === 'stopped') &&
+    state.ended_ready === false
+      ? [state]
+      : [],
   )
   return {
     why: early.filter(state => state.why).map(state => `${state.team}: ${state.why}.`),

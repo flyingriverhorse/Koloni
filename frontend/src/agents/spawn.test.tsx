@@ -80,11 +80,27 @@ test('the spawn card says where the sub-agent would run, and who picked that', (
 
 test('the card of an agent that goes on from an earlier turn says when it stays where it ran before, and not where its role would run now', () => {
   const going = { ...coder, provider_name: 'Local', model_id: 'qwen' }
-  const { rerender } = render(<SpawnApproval agent={going} continuesTurn="10:01" stays={{ on: 'Local · qwen', role: 'Fast · deep' }} onDecide={async () => {}} />)
+  const { rerender } = render(
+    <SpawnApproval
+      agent={going}
+      continuesTurn="10:01"
+      stays={{ on: 'Local · qwen', role: 'Fast · deep' }}
+      onDecide={async () => {}}
+    />,
+  )
   expect(screen.getByText('continues Coder from the 10:01 message')).toBeInTheDocument()
-  expect(screen.getByText('It stays on Local · qwen, where it ran before. Its role would now run on Fast · deep.')).toBeInTheDocument()
+  expect(
+    screen.getByText('It stays on Local · qwen, where it ran before. Its role would now run on Fast · deep.'),
+  ).toBeInTheDocument()
   // what its role would get is not known: only the first sentence
-  rerender(<SpawnApproval agent={going} continuesTurn="10:01" stays={{ on: 'Local · qwen', role: null }} onDecide={async () => {}} />)
+  rerender(
+    <SpawnApproval
+      agent={going}
+      continuesTurn="10:01"
+      stays={{ on: 'Local · qwen', role: null }}
+      onDecide={async () => {}}
+    />,
+  )
   expect(screen.getByText('It stays on Local · qwen, where it ran before.')).toBeInTheDocument()
   expect(screen.queryByText(/Its role would now run/)).not.toBeInTheDocument()
   // the same place, or an agent that started clean: nothing is said
@@ -135,10 +151,17 @@ test('B-363: a spawn row shows the task’s own words, not the folder line it op
   const { rerender } = render(<SpawnRow agent={{ ...coder, task: brief }} onSelect={() => {}} />)
   expect(screen.getByRole('button')).toHaveTextContent('Write docs/setup.md for new users.')
   expect(screen.getByRole('button')).not.toHaveTextContent('Project folder')
-  rerender(<SpawnRow agent={{ ...coder, task: 'Project folder: ./ (git repo). Write docs/setup.md.' }} onSelect={() => {}} />)
+  rerender(
+    <SpawnRow agent={{ ...coder, task: 'Project folder: ./ (git repo). Write docs/setup.md.' }} onSelect={() => {}} />,
+  )
   expect(screen.getByRole('button')).toHaveTextContent('Write docs/setup.md.')
   expect(screen.getByRole('button')).not.toHaveTextContent('Project folder')
-  rerender(<SpawnRow agent={{ ...coder, task: 'KOLONİ opened you at the same time as Docs lead, beside your team’s, for …' }} onSelect={() => {}} />)
+  rerender(
+    <SpawnRow
+      agent={{ ...coder, task: 'KOLONİ opened you at the same time as Docs lead, beside your team’s, for …' }}
+      onSelect={() => {}}
+    />,
+  )
   expect(screen.getByRole('button')).not.toHaveTextContent('KOLONİ opened you')
   expect(screen.getByRole('button')).toHaveTextContent(/^Coder/)
 })

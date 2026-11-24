@@ -22,7 +22,7 @@ function piecesOf(lines: DiffLine[], opened: ReadonlySet<number>): Piece[] {
   const out: Piece[] = []
   // The next line before the change, by its number: what the next hunk skips is counted from it.
   let next = 1
-  for (let i = 0; i < lines.length; ) {
+  for (let i = 0; i < lines.length;) {
     const line = lines[i]
     if (line.kind === 'hunk') {
       const start = Number(HUNK.exec(line.text)?.[1] ?? 0)
@@ -64,7 +64,7 @@ function unchanged(lines: DiffLine[], i: number, end: number, opened: ReadonlySe
 function rowsOf(lines: DiffLine[], pieces: Piece[]): Row[] {
   const rows: Row[] = []
   const kind = (p: number) => (typeof pieces[p] === 'number' ? lines[pieces[p] as number].kind : null)
-  for (let p = 0; p < pieces.length; ) {
+  for (let p = 0; p < pieces.length;) {
     const piece = pieces[p]
     if (typeof piece !== 'number') rows.push(pieces[p++] as Fold)
     else if (lines[piece].kind === 'ctx') rows.push([piece, pieces[p++] as number])
@@ -128,7 +128,10 @@ export function DiffView({ diff, path, split = false, readWhole }: Props) {
     const out: (string | null)[] = lines.map(() => null)
     for (const changed of ['del', 'add']) {
       const side = lines.flatMap((line, i) => (line.kind === 'ctx' || line.kind === changed ? [i] : []))
-      const coloured = colourLines(side.map(i => (lines[i].text.length > LONGEST_COLOURED ? '' : lines[i].text)).join('\n'), language)
+      const coloured = colourLines(
+        side.map(i => (lines[i].text.length > LONGEST_COLOURED ? '' : lines[i].text)).join('\n'),
+        language,
+      )
       side.forEach((i, n) => {
         if (lines[i].text.length <= LONGEST_COLOURED) out[i] = coloured[n]
       })
@@ -161,7 +164,8 @@ export function DiffView({ diff, path, split = false, readWhole }: Props) {
       <span className="diff-text">{lines[i].text}</span>
     )
   // The first line a fold showed takes the focus (from the script only: not a tab stop).
-  const focusOf = (i: number | null) => (i !== null && lines[i].kind === 'ctx' && lines[i].oldNo === focus ? { 'data-focus': '', tabIndex: -1 } : {})
+  const focusOf = (i: number | null) =>
+    i !== null && lines[i].kind === 'ctx' && lines[i].oldNo === focus ? { 'data-focus': '', tabIndex: -1 } : {}
   const fold = (piece: Fold, key: number) =>
     piece.sent || readWhole ? (
       <button key={key} type="button" className="diff-fold" onClick={() => open(piece)}>

@@ -39,7 +39,8 @@ export function standingSaid(on?: BoardConversation): readonly [label: string, c
 }
 
 /** What waits for the user in every conversation of the project, and on its backlog: the rail's badge. */
-export const waitingTotal = (board: Board | null) => (board ? board.conversations.reduce((sum, c) => sum + waitCount(c), board.backlog_waiting) : 0)
+export const waitingTotal = (board: Board | null) =>
+  board ? board.conversations.reduce((sum, c) => sum + waitCount(c), board.backlog_waiting) : 0
 
 /** What waits for the user in one conversation, as the Board says it: the Workspace button's number (slices 42c, 42d). */
 export const waitingIn = (board: Board | null, conversationId: string | undefined) => {

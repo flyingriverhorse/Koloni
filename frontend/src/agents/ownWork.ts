@@ -39,7 +39,11 @@ export const NOT_WATCHED = 'Some of KOLONİ’s rules are not watched here'
  * shortcut: the provider by its name, as the agent's record keeps it (it has no provider id); a renamed one says nothing.
  */
 export function notWatched(
-  app: { providers: Pick<Provider, 'name' | 'not_watched' | 'not_watched_in_docker'>[]; projects: Pick<Project, 'id' | 'exec_location'>[]; projectId: string | null },
+  app: {
+    providers: Pick<Provider, 'name' | 'not_watched' | 'not_watched_in_docker'>[]
+    projects: Pick<Project, 'id' | 'exec_location'>[]
+    projectId: string | null
+  },
   agent: Pick<Agent, 'provider_name' | 'provider_mode'>,
 ): string[] | null {
   const mode = agent.provider_mode
@@ -106,7 +110,12 @@ export const OWN_MODELS = 'uses Claude Code’s own models, not KOLONİ’s team
  * for it when it opened it (each null when not said: the model is then the CLI's to choose,
  * and the record does not say which it was).
  */
-export function ownSubAgentBrief(call: Pick<ToolCall, 'arguments'>): { prompt: string; kind: string | null; model: string | null; role: string | null } {
+export function ownSubAgentBrief(call: Pick<ToolCall, 'arguments'>): {
+  prompt: string
+  kind: string | null
+  model: string | null
+  role: string | null
+} {
   const { prompt, subagent_type: kind, model, koloni_role: role } = given(call)
   return {
     prompt: typeof prompt === 'string' ? prompt : '',

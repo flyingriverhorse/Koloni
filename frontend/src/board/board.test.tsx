@@ -44,7 +44,8 @@ const board: Board = {
     {
       conversation_id: 'a',
       title: 'Docs',
-      merges_pending: 0, turn: null,
+      merges_pending: 0,
+      turn: null,
       agents: [
         agent({ holds: ['a.txt', 'docs/b.md'] }),
         agent({ name: 'Coder 2', role: 'Coder', status: 'queued', copy: { state: 'own' } }),
@@ -53,7 +54,8 @@ const board: Board = {
     {
       conversation_id: 'b',
       title: 'Tests',
-      merges_pending: 0, turn: null,
+      merges_pending: 0,
+      turn: null,
       agents: [agent({ status: 'blocked', waiting_for: { agent_id: 'x', agent_name: 'Lead', path: 'a.txt' } })],
     },
     { conversation_id: 'c', title: 'Old', merges_pending: 0, turn: null, agents: [] },
@@ -100,7 +102,9 @@ test('the board says how many agents are at work against the limit, and what eac
   expect(card('Docs')).not.toHaveTextContent('Local · qwen')
   expect(coder).not.toHaveTextContent('works in its own copy')
   // said by the one label a state has everywhere: its word, in its colour
-  expect([lead, coder].map(row => row.querySelector<HTMLElement>('.status')!).map(s => [s.textContent, s.style.color])).toEqual([
+  expect(
+    [lead, coder].map(row => row.querySelector<HTMLElement>('.status')!).map(s => [s.textContent, s.style.color]),
+  ).toEqual([
     ['working', 'var(--accent)'],
     ['waiting for a slot', 'var(--muted)'],
   ])
@@ -142,7 +146,15 @@ test('without a limit the board says so, and an agent that waits for the user is
     backlog_waiting: 0,
     limit: null,
     running: 1,
-    conversations: [{ conversation_id: 'a', title: 'Docs', merges_pending: 0, turn: null, agents: [agent({ status: 'waiting_approval' })] }],
+    conversations: [
+      {
+        conversation_id: 'a',
+        title: 'Docs',
+        merges_pending: 0,
+        turn: null,
+        agents: [agent({ status: 'waiting_approval' })],
+      },
+    ],
     conflicts: [],
   }
   render(<BoardPage {...page} board={asking} />)
@@ -154,7 +166,13 @@ test('without a limit the board says so, and an agent that waits for the user is
 })
 
 test('a board with nobody at work says so, and one that could not be read says why', () => {
-  const empty: Board = { backlog_waiting: 0, limit: null, running: 0, conversations: [{ conversation_id: 'c', title: 'Old', merges_pending: 0, turn: null, agents: [] }], conflicts: [] }
+  const empty: Board = {
+    backlog_waiting: 0,
+    limit: null,
+    running: 0,
+    conversations: [{ conversation_id: 'c', title: 'Old', merges_pending: 0, turn: null, agents: [] }],
+    conflicts: [],
+  }
   const { unmount } = render(<BoardPage {...page} board={empty} />)
   expect(screen.getByText('No agent is at work in this project.')).toBeInTheDocument()
   unmount()
@@ -192,7 +210,9 @@ test('a conversation that cannot be opened is said on the board, which is read a
   render(<BoardPage {...page} onLoad={onLoad} onOpen={onOpen} />)
   expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Old' }))
-  expect(await screen.findByRole('alert')).toHaveTextContent('That conversation could not be opened: conversation not found')
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'That conversation could not be opened: conversation not found',
+  )
   expect(onLoad).toHaveBeenCalledTimes(2)
   // The next one that opens takes the words away.
   await userEvent.click(screen.getByRole('button', { name: 'Tests' }))
@@ -230,9 +250,25 @@ const project: Project = {
   notify_format: 'slack',
   notify_desktop: false,
   turn_token_limit: null,
-  max_agents: null, continue_steps: 25,
+  max_agents: null,
+  continue_steps: 25,
   monthly_budget: null,
-  measure_command: null, after_change: 'check', fix_rounds: 2, stronger_model: true, check_kinds: {}, review_lines: 80, review_files: 3, after_change_from_off: false, tests_found: {}, tests_look: null, test_commands: {}, full_auto_check: 'ask', disposable_deletes: false, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small',
+  measure_command: null,
+  after_change: 'check',
+  fix_rounds: 2,
+  stronger_model: true,
+  check_kinds: {},
+  review_lines: 80,
+  review_files: 3,
+  after_change_from_off: false,
+  tests_found: {},
+  tests_look: null,
+  test_commands: {},
+  full_auto_check: 'ask',
+  disposable_deletes: false,
+  memory_links: [],
+  embedding_provider_id: null,
+  embedding_model: 'text-embedding-3-small',
   git_commit: false,
   finish_way: null,
   auto_notes: false,
@@ -240,8 +276,27 @@ const project: Project = {
   suggest_tasks: true,
   suggest_tier: 'fast',
   day_note_at: null,
-  also_in: [], read_in: [], teams_mode: 'none', teams: [],
-  hide_secrets: true, canary: true, lead_work: 'delegates', when_away: 'waits', away_minutes: 10, spawn_approval: 'auto', spawn_max_depth: 2, spawn_max_agents: 6, spawn_max_parallel: 2, discussion_budget: null, room_posts: 40, room_tokens: null, room_minutes: 30, room_min_tokens: 60000, pass_env: null, held_env: [], koloni: { settings_kept: false, rules_kept: false, rules: null, broken: [], asks: {} },
+  also_in: [],
+  read_in: [],
+  teams_mode: 'none',
+  teams: [],
+  hide_secrets: true,
+  canary: true,
+  lead_work: 'delegates',
+  when_away: 'waits',
+  away_minutes: 10,
+  spawn_approval: 'auto',
+  spawn_max_depth: 2,
+  spawn_max_agents: 6,
+  spawn_max_parallel: 2,
+  discussion_budget: null,
+  room_posts: 40,
+  room_tokens: null,
+  room_minutes: 30,
+  room_min_tokens: 60000,
+  pass_env: null,
+  held_env: [],
+  koloni: { settings_kept: false, rules_kept: false, rules: null, broken: [], asks: {} },
 }
 
 test('how many agents may be at work in the project is set in its settings: a whole number, or none', async () => {
@@ -283,7 +338,9 @@ test('K-devam-butce: how many more steps Continue gives is set beside it, a whol
   await userEvent.click(screen.getByRole('button', { name: /^Limits and money/ }))
   const field = screen.getByLabelText('Continue gives this many more steps')
   expect(field).toHaveValue('25')
-  expect(screen.getByText(/What Continue gives an agent stopped at a step limit.*a fresh app step limit instead/)).toBeInTheDocument()
+  expect(
+    screen.getByText(/What Continue gives an agent stopped at a step limit.*a fresh app step limit instead/),
+  ).toBeInTheDocument()
   // (left as it is, there is nothing to save)
   expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   for (const bad of ['', '0', '201', '2.5']) {
@@ -312,7 +369,11 @@ test('a provider’s own limit is set on the Models page and sent only when it w
     note: null,
     models: [],
     only_listed: false,
-    max_running: null, plan: false, step_down_at: null, day_limit: null, month_limit: null,
+    max_running: null,
+    plan: false,
+    step_down_at: null,
+    day_limit: null,
+    month_limit: null,
     has_key: false,
     position: 0,
     created_at: 't',
@@ -353,9 +414,28 @@ test('a provider’s own limit is set on the Models page and sent only when it w
 
 test('an empty provider limit says what it is by kind: a CLI 3, a service out there 8', async () => {
   const base: Provider = {
-    id: 'p1', name: 'X', kind: 'codex_cli', base_url: null, default_model: null, executable: null, mode: 'native', options: null,
-    for_agents: false, note: null, models: [], only_listed: false, max_running: null, most_at_once: 3, plan: false,
-    step_down_at: null, day_limit: null, month_limit: null, has_key: false, position: 0, created_at: 't', updated_at: 't',
+    id: 'p1',
+    name: 'X',
+    kind: 'codex_cli',
+    base_url: null,
+    default_model: null,
+    executable: null,
+    mode: 'native',
+    options: null,
+    for_agents: false,
+    note: null,
+    models: [],
+    only_listed: false,
+    max_running: null,
+    most_at_once: 3,
+    plan: false,
+    step_down_at: null,
+    day_limit: null,
+    month_limit: null,
+    has_key: false,
+    position: 0,
+    created_at: 't',
+    updated_at: 't',
   }
   const handlers = { onCreate: vi.fn(), onSave: vi.fn(), onDelete: vi.fn(), onTest: vi.fn() }
   const field = async (provider: Provider) => {
@@ -367,7 +447,13 @@ test('an empty provider limit says what it is by kind: a CLI 3, a service out th
   expect(cli).toHaveAttribute('placeholder', 'Default: 3')
   expect(cli).toHaveAccessibleDescription(/Empty: 3, the default for a CLI/)
   gone()
-  const [cloud] = await field({ ...base, kind: 'openai_compat', mode: null, base_url: 'https://openrouter.ai/api/v1', most_at_once: 8 })
+  const [cloud] = await field({
+    ...base,
+    kind: 'openai_compat',
+    mode: null,
+    base_url: 'https://openrouter.ai/api/v1',
+    most_at_once: 8,
+  })
   expect(cloud).toHaveAttribute('placeholder', 'Default: 8')
   expect(cloud).toHaveAccessibleDescription(/Empty: 8, the default for a service\./)
 })
@@ -395,9 +481,15 @@ test('Board is now: agents at work against the limit, one line to Ready for you,
 test('how the board works is one line in sight, what Re-run sends; the rest behind ⓘ', () => {
   render(<BoardPage {...page} />)
   expect(screen.queryByText('How this works')).toBeNull()
-  expect(screen.getByText(/^“Re-run the ones that failed” sends a new message asking its Orchestrator to open just those again/)).toBeVisible()
+  expect(
+    screen.getByText(
+      /^“Re-run the ones that failed” sends a new message asking its Orchestrator to open just those again/,
+    ),
+  ).toBeVisible()
   expect(screen.getByText(/^For when several conversations work in one project at the same time\./)).not.toBeVisible()
-  expect(screen.getByRole('button', { name: 'About this' })).toHaveAccessibleDescription(/did nothing, timed out, went silent or failed is tagged so/)
+  expect(screen.getByRole('button', { name: 'About this' })).toHaveAccessibleDescription(
+    /did nothing, timed out, went silent or failed is tagged so/,
+  )
 })
 
 // --- slice 60b: the cards ------------------------------------------------------------------------
@@ -408,8 +500,23 @@ test('a turn that ended today is a row of Ended today: how many agents, and when
   const done: Board = {
     ...board,
     conversations: [
-      { ...board.conversations[2], conversation_id: 'd', title: 'Done', turn: boardTurn('r1', 'completed', ended.toISOString(), { agents: 2, provider_name: 'Local', model_id: 'qwen', tokens: 9397 }) },
-      { ...board.conversations[2], conversation_id: 'u', title: 'Unknown', turn: boardTurn('r2', 'completed', ended.toISOString()) },
+      {
+        ...board.conversations[2],
+        conversation_id: 'd',
+        title: 'Done',
+        turn: boardTurn('r1', 'completed', ended.toISOString(), {
+          agents: 2,
+          provider_name: 'Local',
+          model_id: 'qwen',
+          tokens: 9397,
+        }),
+      },
+      {
+        ...board.conversations[2],
+        conversation_id: 'u',
+        title: 'Unknown',
+        turn: boardTurn('r2', 'completed', ended.toISOString()),
+      },
     ],
     conflicts: [],
   }
@@ -431,8 +538,18 @@ test('a turn that failed or was stopped today ended today, labelled so, with whe
     conversations: [
       { ...board.conversations[2], conversation_id: 'f', title: 'Failed', turn: boardTurn('r1', 'failed', now) },
       { ...board.conversations[2], conversation_id: 's', title: 'Stopped', turn: boardTurn('r2', 'cancelled', now) },
-      { ...board.conversations[2], conversation_id: 'o', title: 'Old failure', turn: boardTurn('r3', 'failed', yesterday) },
-      { ...board.conversations[2], conversation_id: 'y', title: 'Yesterday', turn: boardTurn('r4', 'completed', yesterday) },
+      {
+        ...board.conversations[2],
+        conversation_id: 'o',
+        title: 'Old failure',
+        turn: boardTurn('r3', 'failed', yesterday),
+      },
+      {
+        ...board.conversations[2],
+        conversation_id: 'y',
+        title: 'Yesterday',
+        turn: boardTurn('r4', 'completed', yesterday),
+      },
     ],
     conflicts: [],
   }
@@ -450,7 +567,12 @@ test('a turn whose plan waits for a yes ended today (the plan is on Ready for yo
   const plans: Board = {
     ...board,
     conversations: [
-      { ...board.conversations[2], conversation_id: 'p', title: 'Plan', turn: boardTurn('r1', 'completed', new Date().toISOString(), { plan_waits: true }) },
+      {
+        ...board.conversations[2],
+        conversation_id: 'p',
+        title: 'Plan',
+        turn: boardTurn('r1', 'completed', new Date().toISOString(), { plan_waits: true }),
+      },
       { ...board.conversations[2], conversation_id: 'q', title: 'Queued', turn: boardTurn('r2', 'queued', null) },
     ],
     conflicts: [],
@@ -464,7 +586,15 @@ test('a turn whose plan waits for a yes ended today (the plan is on Ready for yo
 test('a server older than the page sends a finished turn without its counts: the row says when, not a crash', () => {
   const ended = new Date().toISOString()
   const old = { id: 'r', status: 'completed', ended_at: ended } as unknown as Board['conversations'][number]['turn']
-  render(<BoardPage {...page} board={{ ...board, conversations: [{ conversation_id: 'x', title: 'Older server', merges_pending: 0, turn: old, agents: [] }] }} />)
+  render(
+    <BoardPage
+      {...page}
+      board={{
+        ...board,
+        conversations: [{ conversation_id: 'x', title: 'Older server', merges_pending: 0, turn: old, agents: [] }],
+      }}
+    />,
+  )
   expect(card('Older server').querySelector('.board-facts')).toHaveTextContent(when(ended))
   expect(card('Older server')).not.toHaveTextContent('undefined')
 })
@@ -484,32 +614,79 @@ const ended = (name: string, outcome: Outcome['outcome'], status: Outcome['statu
 })
 const ran = (outcomes: Outcome[]): Board => ({
   ...board,
-  conversations: [{ conversation_id: 'd', title: 'Greeting', merges_pending: 0, agents: [], turn: boardTurn('r', 'completed', new Date().toISOString(), { outcomes }) }],
+  conversations: [
+    {
+      conversation_id: 'd',
+      title: 'Greeting',
+      merges_pending: 0,
+      agents: [],
+      turn: boardTurn('r', 'completed', new Date().toISOString(), { outcomes }),
+    },
+  ],
   conflicts: [],
 })
 
 test('a sub-agent of the last turn that came to nothing, timed out, went silent or failed says so in a tag', () => {
-  render(<BoardPage {...page} board={ran([ended('Reviewer', 'nothing', 'completed'), ended('Coder', 'silent'), ended('Tester', 'timed_out'), ended('Writer', 'error')])} onRerun={vi.fn()} />)
+  render(
+    <BoardPage
+      {...page}
+      board={ran([
+        ended('Reviewer', 'nothing', 'completed'),
+        ended('Coder', 'silent'),
+        ended('Tester', 'timed_out'),
+        ended('Writer', 'error'),
+      ])}
+      onRerun={vi.fn()}
+    />,
+  )
   const rows = within(card('Greeting')).getAllByRole('listitem')
-  expect(rows.map(row => [row.querySelector('.board-agent-name')!.textContent, row.querySelector('.status')!.textContent, row.querySelector('.tag')!.textContent])).toEqual([
+  expect(
+    rows.map(row => [
+      row.querySelector('.board-agent-name')!.textContent,
+      row.querySelector('.status')!.textContent,
+      row.querySelector('.tag')!.textContent,
+    ]),
+  ).toEqual([
     ['Reviewer', 'done', 'did nothing'],
     ['Coder', 'failed', 'went silent'],
     ['Tester', 'failed', 'timed out'],
     ['Writer', 'failed', 'error'],
   ])
   // in the house's tags: a failure's red, a cut one's amber, one that did nothing plain
-  expect(rows.map(row => row.querySelector('.tag')!.className)).toEqual(['tag', 'tag tag-warn', 'tag tag-warn', 'tag tag-del'])
+  expect(rows.map(row => row.querySelector('.tag')!.className)).toEqual([
+    'tag',
+    'tag tag-warn',
+    'tag tag-warn',
+    'tag tag-del',
+  ])
 })
 
 test('"Re-run the ones that failed" is there only for a card with one that failed, and says why it could not', async () => {
-  const onRerun = vi.fn().mockRejectedValueOnce({ detail: 'this project is over this month’s budget' }).mockResolvedValue(undefined)
+  const onRerun = vi
+    .fn()
+    .mockRejectedValueOnce({ detail: 'this project is over this month’s budget' })
+    .mockResolvedValue(undefined)
   // Not for one that did nothing, nor one that finished with a report that starts with an error.
-  const { rerender } = render(<BoardPage {...page} board={ran([ended('Reviewer', 'nothing', 'completed'), ended('Writer', 'error', 'completed')])} onRerun={onRerun} />)
+  const { rerender } = render(
+    <BoardPage
+      {...page}
+      board={ran([ended('Reviewer', 'nothing', 'completed'), ended('Writer', 'error', 'completed')])}
+      onRerun={onRerun}
+    />,
+  )
   expect(screen.queryByRole('button', { name: 'Re-run the ones that failed' })).not.toBeInTheDocument()
-  rerender(<BoardPage {...page} board={ran([ended('Reviewer', 'nothing', 'completed'), ended('Coder', 'silent')])} onRerun={onRerun} />)
+  rerender(
+    <BoardPage
+      {...page}
+      board={ran([ended('Reviewer', 'nothing', 'completed'), ended('Coder', 'silent')])}
+      onRerun={onRerun}
+    />,
+  )
   await userEvent.click(screen.getByRole('button', { name: 'Re-run the ones that failed' }))
   expect(onRerun).toHaveBeenCalledWith('d')
-  expect(await within(card('Greeting')).findByRole('alert')).toHaveTextContent('They could not be re-run: this project is over this month’s budget')
+  expect(await within(card('Greeting')).findByRole('alert')).toHaveTextContent(
+    'They could not be re-run: this project is over this month’s budget',
+  )
   await userEvent.click(screen.getByRole('button', { name: 'Re-run the ones that failed' }))
   expect(within(card('Greeting')).queryByRole('alert')).not.toBeInTheDocument()
 })

@@ -17,7 +17,8 @@ export interface Near {
 }
 
 /** The windows used to NEAR_AT% or more now; one whose share is not known, or is stale, never is. */
-export const nearOf = (limits: Limits): Window[] => limits.windows.filter(w => !w.stale && w.used_percent !== null && w.used_percent >= NEAR_AT)
+export const nearOf = (limits: Limits): Window[] =>
+  limits.windows.filter(w => !w.stale && w.used_percent !== null && w.used_percent >= NEAR_AT)
 
 /** What the toast and Usage say of a window near its limit. */
 export const nearWords = (provider: string, w: Window) =>
@@ -80,15 +81,19 @@ export function limitsLine(limits: Limits): string {
     typeof w.limit === 'number' || typeof w.remaining === 'number'
       ? apiWindow(w, again)
       : w.stale
-      ? `${windowName(w)}: stale — ${again}`
-      : w.used_percent === null
-        ? `${windowName(w)}: ${w.resets_at ? `resets ${dayAndTime(w.resets_at)}; ` : ''}how much is used was not said`
-        : `${w.used_percent}% of ${windowName(w)} used${w.resets_at ? `, resets ${dayAndTime(w.resets_at)}` : ''}${
-            // (one the last reading did not name: when it was read itself, B-74)
-            w.read_at ? `, ${readAgo(w.read_at)}` : ''
-          }`,
+        ? `${windowName(w)}: stale — ${again}`
+        : w.used_percent === null
+          ? `${windowName(w)}: ${w.resets_at ? `resets ${dayAndTime(w.resets_at)}; ` : ''}how much is used was not said`
+          : `${w.used_percent}% of ${windowName(w)} used${w.resets_at ? `, resets ${dayAndTime(w.resets_at)}` : ''}${
+              // (one the last reading did not name: when it was read itself, B-74)
+              w.read_at ? `, ${readAgo(w.read_at)}` : ''
+            }`,
   )
-  const credits = limits.credits?.unlimited ? ['credits unlimited'] : limits.credits?.balance ? [`credits ${balance(limits.credits.balance)}`] : []
+  const credits = limits.credits?.unlimited
+    ? ['credits unlimited']
+    : limits.credits?.balance
+      ? [`credits ${balance(limits.credits.balance)}`]
+      : []
   return [...(limits.plan ? [limits.plan] : []), ...windows, ...credits].join(' · ') || 'not known'
 }
 

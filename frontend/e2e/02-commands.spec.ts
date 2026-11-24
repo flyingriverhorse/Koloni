@@ -55,7 +55,9 @@ test('"Always run" adds a rule, the next run does not ask, and the rule can be r
 
   // Removed in Settings › This project › Runs without asking, under the chat's title (tek-ev); ⚙ Chat links there.
   await (await chatSheet(page)).getByRole('button', { name: '1 run without asking →' }).click()
-  const rules = page.getByRole('form', { name: 'Project settings' }).getByRole('region', { name: 'Commands and requests by chat' })
+  const rules = page
+    .getByRole('form', { name: 'Project settings' })
+    .getByRole('region', { name: 'Commands and requests by chat' })
   await rules.getByRole('button', { name: 'Remove rule python check.py' }).click()
   await expect(rules.getByRole('button', { name: 'Remove rule python check.py' })).toHaveCount(0)
   await page.getByRole('button', { name: 'Close settings' }).click()

@@ -15,8 +15,24 @@ test('hand-offs are listed in order with who wrote to whom', () => {
       agent('r', 'completed', { id: 'kid', parent_agent_id: 'lead', role_name: 'Reviewer', depth: 1 }),
     ],
     channelMessages: [
-      { id: '1', run_id: 'r', from_agent_id: 'lead', to_agent_id: 'kid', kind: 'task', content: 'Review hello.py', created_at: '2026-10-05T10:00:00Z' },
-      { id: '2', run_id: 'r', from_agent_id: 'kid', to_agent_id: 'lead', kind: 'report', content: 'Looks fine.', created_at: '2026-10-05T10:00:05Z' },
+      {
+        id: '1',
+        run_id: 'r',
+        from_agent_id: 'lead',
+        to_agent_id: 'kid',
+        kind: 'task',
+        content: 'Review hello.py',
+        created_at: '2026-10-05T10:00:00Z',
+      },
+      {
+        id: '2',
+        run_id: 'r',
+        from_agent_id: 'kid',
+        to_agent_id: 'lead',
+        kind: 'report',
+        content: 'Looks fine.',
+        created_at: '2026-10-05T10:00:05Z',
+      },
     ],
   })
   const { container } = render(<ChannelPanel state={state} />)

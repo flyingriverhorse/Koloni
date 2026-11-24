@@ -16,10 +16,17 @@ test.beforeEach(putBack)
 test.afterEach(putBack)
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`the top bar's context opens each agent's, and Compact now summarises the lead (${theme})`, async ({ page, request }) => {
+  test(`the top bar's context opens each agent's, and Compact now summarises the lead (${theme})`, async ({
+    page,
+    request,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     // A window the fake model's 120 tokens fill to 12%.
-    expect((await request.patch(`/api/roles/${(await lead(request)).id}`, { data: { context_window: 1000 }, headers: OWN })).ok()).toBe(true)
+    expect(
+      (
+        await request.patch(`/api/roles/${(await lead(request)).id}`, { data: { context_window: 1000 }, headers: OWN })
+      ).ok(),
+    ).toBe(true)
     await openFreshConversation(page)
     await say(page, 'Compact me.', 'It prints hi.')
 

@@ -13,7 +13,13 @@ afterEach(() => {
 })
 
 const line = (n: number, text: string, stream: RawLine['stream'] = 'stdout'): RawLine => ({ n, stream, text })
-const told = (lines: RawLine[], over: Partial<RawLines> = {}): RawLines => ({ available: true, dropped: 0, more: false, lines, ...over })
+const told = (lines: RawLine[], over: Partial<RawLines> = {}): RawLines => ({
+  available: true,
+  dropped: 0,
+  more: false,
+  lines,
+  ...over,
+})
 
 /** The backend answers with these, in order, and with no new line after them. */
 function answers(...inOrder: RawLines[]) {
@@ -32,7 +38,9 @@ function clipboard() {
 /** The agent's window as the app holds it: open for the agent the store names. */
 function Opened({ state }: { state: ConvState }) {
   const agentId = useApp(s => s.agentWindowId)
-  return agentId ? <AgentWindow state={state} agentId={agentId} onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} /> : null
+  return agentId ? (
+    <AgentWindow state={state} agentId={agentId} onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />
+  ) : null
 }
 
 /** The window's Details fold, where Copy raw is. */
@@ -45,7 +53,10 @@ const cli = convState({
 
 test('K-inspector: under Details the raw stream is not drawn - no CLI init blob, no whole files - and Copy raw takes every line kept', async () => {
   const INIT = '{"type":"system","subtype":"init","tools":["Read"],"slash_commands":["review"]}'
-  const read = answers(told([line(1, INIT), line(2, '{"type":"user"}', 'stdin')], { more: true }), told([line(3, 'warning: slow', 'stderr')]))
+  const read = answers(
+    told([line(1, INIT), line(2, '{"type":"user"}', 'stdin')], { more: true }),
+    told([line(3, 'warning: slow', 'stderr')]),
+  )
   const copied = clipboard()
   render(<AgentWindow state={cli} agentId="lead" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />)
   await userEvent.click(within(more()).getByText('Details'))
@@ -56,9 +67,14 @@ test('K-inspector: under Details the raw stream is not drawn - no CLI init blob,
 
   await userEvent.click(within(more()).getByRole('button', { name: 'Copy raw' }))
   // What one answer does not carry is asked for at once, after the last line it had.
-  expect(read.mock.calls.map(([id, after]) => [id, after])).toEqual([['lead', 0], ['lead', 2]])
+  expect(read.mock.calls.map(([id, after]) => [id, after])).toEqual([
+    ['lead', 0],
+    ['lead', 2],
+  ])
   expect(copied).toHaveBeenCalledWith(`${INIT}\n{"type":"user"}\nwarning: slow`)
-  expect(within(more().querySelector('.raw-copy') as HTMLElement).getByRole('status')).toHaveTextContent('Copied 3 lines')
+  expect(within(more().querySelector('.raw-copy') as HTMLElement).getByRole('status')).toHaveTextContent(
+    'Copied 3 lines',
+  )
   expect(document.body).not.toHaveTextContent('slash_commands')
   // What it is, said once, under the button.
   expect(within(more()).getByText(/Kept in memory only: it is gone when KOLONİ restarts\./)).toBeInTheDocument()
@@ -67,13 +83,19 @@ test('K-inspector: under Details the raw stream is not drawn - no CLI init blob,
 test('Copy raw says where there is nothing to copy, and why it could not', async () => {
   const copied = clipboard()
   answers(told([], { available: false }), told([]))
-  const { unmount } = render(<AgentWindow state={cli} agentId="lead" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />)
+  const { unmount } = render(
+    <AgentWindow state={cli} agentId="lead" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />,
+  )
   await openAgentFold('Details')
   const button = within(more()).getByRole('button', { name: 'Copy raw' })
   await userEvent.click(button)
-  expect(within(more().querySelector('.raw-copy') as HTMLElement).getByRole('status')).toHaveTextContent('Its model is not a CLI: there is no raw stream.')
+  expect(within(more().querySelector('.raw-copy') as HTMLElement).getByRole('status')).toHaveTextContent(
+    'Its model is not a CLI: there is no raw stream.',
+  )
   await userEvent.click(button)
-  expect(within(more().querySelector('.raw-copy') as HTMLElement).getByRole('status')).toHaveTextContent('Nothing its CLI wrote is kept.')
+  expect(within(more().querySelector('.raw-copy') as HTMLElement).getByRole('status')).toHaveTextContent(
+    'Nothing its CLI wrote is kept.',
+  )
   expect(copied).not.toHaveBeenCalled()
   unmount()
 

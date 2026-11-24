@@ -15,7 +15,19 @@ import typescript from 'highlight.js/lib/languages/typescript'
 import xml from 'highlight.js/lib/languages/xml'
 import yaml from 'highlight.js/lib/languages/yaml'
 
-for (const [name, language] of Object.entries({ bash, css, javascript, json, markdown, python, sql, typescript, xml, yaml })) hljs.registerLanguage(name, language)
+for (const [name, language] of Object.entries({
+  bash,
+  css,
+  javascript,
+  json,
+  markdown,
+  python,
+  sql,
+  typescript,
+  xml,
+  yaml,
+}))
+  hljs.registerLanguage(name, language)
 
 const BY_ENDING: Record<string, string> = {
   py: 'python',

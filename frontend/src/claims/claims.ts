@@ -12,7 +12,11 @@ import type { ConvState } from '../state/applyEvent'
 const ELSEWHERE = 'an agent of another conversation'
 
 /** What an agent that waits for a file says on its box: "waits for Coder · cart.py" (`teams`: a team's lead is its coordinator). */
-export function waitLine(agent: Pick<Agent, 'status' | 'waiting_for'>, cid?: string, teams: Team[] = []): string | null {
+export function waitLine(
+  agent: Pick<Agent, 'status' | 'waiting_for'>,
+  cid?: string,
+  teams: Team[] = [],
+): string | null {
   const wait = agent.status === 'blocked' ? agent.waiting_for : null
   return wait ? `waits for ${holder(wait, cid, teams)} · ${wait.path}` : null
 }
@@ -30,7 +34,10 @@ const sameFile = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
  * agent that waits does nothing else. (The path is the one the agent waits for: the call
  * may have written it another way.)
  */
-export function callWaits(state: Pick<ConvState, 'agents'> & Partial<Pick<ConvState, 'conversation'>>, call: ToolCall): string | null {
+export function callWaits(
+  state: Pick<ConvState, 'agents'> & Partial<Pick<ConvState, 'conversation'>>,
+  call: ToolCall,
+): string | null {
   if (call.status !== 'running') return null
   if (call.name !== 'write_file' && call.name !== 'edit_file') return null
   const agent = state.agents.find(a => a.id === call.agent_id)

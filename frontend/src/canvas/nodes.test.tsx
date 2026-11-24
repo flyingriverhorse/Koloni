@@ -3,7 +3,15 @@ import userEvent from '@testing-library/user-event'
 import { type Node, type NodeProps, ReactFlowProvider } from '@xyflow/react'
 import type { ReactNode } from 'react'
 import { expect, test, vi } from 'vitest'
-import { type AgentData, type DiscussionData, type PoData, type RequestData, type RoomData, type RoundData, statusWords } from './deriveGraph'
+import {
+  type AgentData,
+  type DiscussionData,
+  type PoData,
+  type RequestData,
+  type RoomData,
+  type RoundData,
+  statusWords,
+} from './deriveGraph'
 import { AgentNode, AttachmentNode, DiscussionNode, PlanNode, PoNode, RequestNode, RoomNode, RoundNode } from './nodes'
 import { useApp } from '../state/store'
 import { NodeActions, ToggleGroup } from './toggleGroup'
@@ -20,7 +28,12 @@ const props = <T,>(id: string, data: T) =>
 const lines = () => Array.from(document.querySelectorAll('.node-head, .node-body > *'), line => line.textContent)
 
 test('what started a turn says who: you, or a trigger by its name with nobody watching', () => {
-  const asked: RequestData = { text: 'Look the project over', time: '2026-10-05T10:00:00Z', queued: false, trigger: null }
+  const asked: RequestData = {
+    text: 'Look the project over',
+    time: '2026-10-05T10:00:00Z',
+    queued: false,
+    trigger: null,
+  }
   draw(<RequestNode {...props('request:a', asked)} />)
   expect(screen.getByText('You')).toBeInTheDocument()
   expect(screen.queryByText(/nobody watching/)).not.toBeInTheDocument()
@@ -30,8 +43,25 @@ test('what started a turn says who: you, or a trigger by its name with nobody wa
 })
 
 const coder: AgentData = {
-  role: 'Coder', name: 'Coder 3', parentId: 'lead', provider: 'Codex', modelId: 'gpt-6.1', modelFrom: null, status: 'completed', activity: 'Completed', since: null,
-  wrote: null, kind: null, sign: null, signStopped: false, findings: null, inside: 0, summary: '3 tools · 2 commands · 1 file', attention: false, finished: true, open: true,
+  role: 'Coder',
+  name: 'Coder 3',
+  parentId: 'lead',
+  provider: 'Codex',
+  modelId: 'gpt-6.1',
+  modelFrom: null,
+  status: 'completed',
+  activity: 'Completed',
+  since: null,
+  wrote: null,
+  kind: null,
+  sign: null,
+  signStopped: false,
+  findings: null,
+  inside: 0,
+  summary: '3 tools · 2 commands · 1 file',
+  attention: false,
+  finished: true,
+  open: true,
 }
 
 test('the user’s (5 Nov): an agent’s node is three lines - name and model, its state in plain words, what it did counted', () => {
@@ -48,7 +78,9 @@ test('the user’s (5 Nov): an agent’s node is three lines - name and model, i
   draw(<AgentNode {...props('agent:kid', { ...coder, summary: '', provider: null, modelId: null })} />)
   expect(lines()).toEqual(['Coder 3 · model unknown', 'Done ✓'])
   // (Its one button: its window's.)
-  expect(screen.getAllByRole('button').map(button => button.getAttribute('aria-label'))).toEqual(["Open Coder 3's window"])
+  expect(screen.getAllByRole('button').map(button => button.getAttribute('aria-label'))).toEqual([
+    "Open Coder 3's window",
+  ])
   expect(document.body).not.toHaveTextContent(/tokens|balanced|Raw/)
   // what it spent, where its provider counts so, ends the counts
   cleanup()
@@ -56,7 +88,9 @@ test('the user’s (5 Nov): an agent’s node is three lines - name and model, i
   expect(lines()[2]).toBe('3 tools · 2 commands · 1 file · 0.45 AI credits')
   // asked for Copilot's auto: the model it picked, as that
   cleanup()
-  draw(<AgentNode {...props('agent:kid', { ...coder, provider: 'Copilot', modelId: 'gpt-6-luna', modelFrom: 'auto' })} />)
+  draw(
+    <AgentNode {...props('agent:kid', { ...coder, provider: 'Copilot', modelId: 'gpt-6-luna', modelFrom: 'auto' })} />,
+  )
   expect(lines()[0]).toBe('Coder 3 · Copilot · auto → gpt-6-luna')
 })
 
@@ -84,18 +118,27 @@ test('the user’s (21 Nov): an agent’s node opens its window from an icon at 
   expect(picked).not.toHaveBeenCalled()
   cleanup()
   // A finished agent's chip has it too, beside its button.
-  draw(<AgentNode {...props('agent:rev2', { ...coder, name: 'Reviewer 2', chip: { said: '1 blocking', colour: 'var(--warn)' } })} />)
+  draw(
+    <AgentNode
+      {...props('agent:rev2', { ...coder, name: 'Reviewer 2', chip: { said: '1 blocking', colour: 'var(--warn)' } })}
+    />,
+  )
   await userEvent.click(screen.getByRole('button', { name: "Open Reviewer 2's window" }))
   expect(useApp.getState().agentWindowId).toBe('rev2')
   cleanup()
   // Nothing but an agent has one.
-  draw(<RequestNode {...props('request:a', { text: 'Look', time: '2026-10-05T10:00:00Z', queued: false, trigger: null })} />)
+  draw(
+    <RequestNode
+      {...props('request:a', { text: 'Look', time: '2026-10-05T10:00:00Z', queued: false, trigger: null })}
+    />,
+  )
   expect(screen.queryByRole('button', { name: /window/ })).toBeNull()
   useApp.setState({ agentWindowId: null })
 })
 
 test('its state in plain words: working at what, waiting for your OK (lit), done with what it found, failed with why, stopped', () => {
-  const said = (status: AgentData['status'], activity: string, findings: AgentData['findings'] = null) => statusWords({ status, activity, findings })
+  const said = (status: AgentData['status'], activity: string, findings: AgentData['findings'] = null) =>
+    statusWords({ status, activity, findings })
   expect(said('running', 'editing a.py')).toBe('Working · editing a.py')
   expect(said('running', 'Thinking…')).toBe('Working · thinking…')
   expect(said('waiting_approval', 'Waits for your approval')).toBe('Waits for your OK')
@@ -107,20 +150,49 @@ test('its state in plain words: working at what, waiting for your OK (lit), done
   expect(said('failed', 'Stopped at its step limit')).toBe('Stopped at its step limit')
   expect(said('cancelled', 'Stopped')).toBe('Stopped')
   expect(said('waiting', 'Waiting for Coder')).toBe('Waiting for Coder')
-  draw(<AgentNode {...props('agent:kid', { ...coder, status: 'waiting_approval', activity: 'Waits for your approval', attention: true, finished: false })} />)
+  draw(
+    <AgentNode
+      {...props('agent:kid', {
+        ...coder,
+        status: 'waiting_approval',
+        activity: 'Waits for your approval',
+        attention: true,
+        finished: false,
+      })}
+    />,
+  )
   expect(document.querySelector('.node')).toHaveClass('node-approval')
   expect(screen.getByText('Waits for your OK')).toBeInTheDocument()
   // Waiting for your answer it says so; what it asks is under the pointer (0.1.4).
   cleanup()
   const asks = 'Should mean() of an empty list raise ZeroDivisionError, or return 0?'
-  draw(<AgentNode {...props('agent:kid', { ...coder, status: 'waiting_approval', activity: 'Waits for your answer', asks, attention: true, finished: false })} />)
+  draw(
+    <AgentNode
+      {...props('agent:kid', {
+        ...coder,
+        status: 'waiting_approval',
+        activity: 'Waits for your answer',
+        asks,
+        attention: true,
+        finished: false,
+      })}
+    />,
+  )
   expect(screen.getByTitle(asks)).toHaveTextContent(/^Waits for your answer$/)
 })
 
 test('an agent at work says what it does, how long it has worked, the tokens it wrote and its tier, each fact its own piece: they give way before the command', () => {
   vi.useFakeTimers({ now: Date.parse('2026-10-05T10:00:15Z') })
   try {
-    const at = { ...coder, status: 'running' as const, finished: false, activity: 'pytest tests/test_mail.py', since: '2026-10-05T10:00:03Z', wrote: 1234, kind: 'Fast' }
+    const at = {
+      ...coder,
+      status: 'running' as const,
+      finished: false,
+      activity: 'pytest tests/test_mail.py',
+      since: '2026-10-05T10:00:03Z',
+      wrote: 1234,
+      kind: 'Fast',
+    }
     draw(<AgentNode {...props('agent:kid', at)} />)
     // (In full under the pointer, with the same facts as the line.)
     const line = screen.getByTitle('Working · pytest tests/test_mail.py · 12s · ↓ 1.2k tokens · Fast')
@@ -128,14 +200,20 @@ test('an agent at work says what it does, how long it has worked, the tokens it 
     expect(line).toHaveTextContent(/^pytest tests\/test_mail\.py · 12s · ↓ 1\.2k tokens · Fast$/)
     // The facts after what it does are pieces, the tier last: where the box is narrow, they go before it is cut.
     expect(line.querySelector('.node-live-what')).toHaveTextContent(/^pytest tests\/test_mail\.py$/)
-    expect(Array.from(line.querySelectorAll('.live-facts > span'), piece => piece.textContent)).toEqual([' · 12s', ' · ↓ 1.2k tokens', ' · Fast'])
+    expect(Array.from(line.querySelectorAll('.live-facts > span'), piece => piece.textContent)).toEqual([
+      ' · 12s',
+      ' · ↓ 1.2k tokens',
+      ' · Fast',
+    ])
     act(() => void vi.advanceTimersByTime(50_000))
     expect(line).toHaveTextContent(/ · 1m 02s · /)
     expect(line).toHaveAttribute('title', 'Working · pytest tests/test_mail.py · 1m 02s · ↓ 1.2k tokens · Fast')
     // A CLI that does not say its tokens: no count, never a made-up one.
     cleanup()
     draw(<AgentNode {...props('agent:kid', { ...at, wrote: null })} />)
-    expect(screen.getByTitle(/^Working · pytest tests\/test_mail\.py · \d+m? ?\d+s · Fast$/)).not.toHaveTextContent(/tokens/)
+    expect(screen.getByTitle(/^Working · pytest tests\/test_mail\.py · \d+m? ?\d+s · Fast$/)).not.toHaveTextContent(
+      /tokens/,
+    )
     cleanup()
     draw(<AgentNode {...props('agent:kid', coder)} />)
     expect(screen.getByTitle('Done ✓')).not.toHaveClass('node-now')
@@ -146,14 +224,30 @@ test('an agent at work says what it does, how long it has worked, the tokens it 
 })
 
 test('a discussion and a room are three lines too: what about, then who speaks or takes part - or that it waits for you', () => {
-  const data: DiscussionData = { topic: 'Keep hi?', line: 'Ended: agreed', members: ['Lead', 'Web app lead', 'Docs lead'], last: [{ who: 'Lead', text: 'yes' }], speaking: null, running: false }
+  const data: DiscussionData = {
+    topic: 'Keep hi?',
+    line: 'Ended: agreed',
+    members: ['Lead', 'Web app lead', 'Docs lead'],
+    last: [{ who: 'Lead', text: 'yes' }],
+    speaking: null,
+    running: false,
+  }
   draw(<DiscussionNode {...props('discussion:t', data)} />)
   expect(lines()).toEqual(['DiscussionEnded: agreed', 'Keep hi?', 'Lead · Web app lead · Docs lead'])
   cleanup()
   draw(<DiscussionNode {...props('discussion:t', { ...data, speaking: 'Docs lead' })} />)
   expect(lines()[2]).toBe('Docs lead is speaking…')
   cleanup()
-  const room: RoomData = { goal: 'Ship it', line: 'round 2', members: ['Coder', 'Tester'], watched: 'Lead watches', items: '1 of 3 items done', last: [], running: true, attention: false }
+  const room: RoomData = {
+    goal: 'Ship it',
+    line: 'round 2',
+    members: ['Coder', 'Tester'],
+    watched: 'Lead watches',
+    items: '1 of 3 items done',
+    last: [],
+    running: true,
+    attention: false,
+  }
   draw(<RoomNode {...props('room:r', room)} />)
   expect(lines()).toEqual(['Roomround 2', 'Ship it', '1 of 3 items done'])
   cleanup()
@@ -162,7 +256,10 @@ test('a discussion and a room are three lines too: what about, then who speaks o
   draw(<RoomNode {...props('room:r', { ...room, line: long, goal: 'Review the cart flow and its tests together' })} />)
   expect(screen.getByText(long)).toHaveAttribute('title', long)
   expect(screen.getByText('Room')).toHaveAttribute('title', 'Room')
-  expect(screen.getByText('Review the cart flow and its tests together')).toHaveAttribute('title', 'Review the cart flow and its tests together')
+  expect(screen.getByText('Review the cart flow and its tests together')).toHaveAttribute(
+    'title',
+    'Review the cart flow and its tests together',
+  )
   cleanup()
   draw(<DiscussionNode {...props('discussion:t', data)} />)
   expect(screen.getByText('Keep hi?')).toHaveAttribute('title', 'Keep hi?')
@@ -172,7 +269,11 @@ test('a discussion and a room are three lines too: what about, then who speaks o
 })
 
 test('the user’s (4 Nov): a finished agent of a step’s newest round is a chip - a button named by it and how it ended -, an earlier round a line that opens and folds', async () => {
-  draw(<AgentNode {...props('agent:rev2', { ...coder, name: 'Reviewer 2', chip: { said: '1 blocking', colour: 'var(--warn)' } })} />)
+  draw(
+    <AgentNode
+      {...props('agent:rev2', { ...coder, name: 'Reviewer 2', chip: { said: '1 blocking', colour: 'var(--warn)' } })}
+    />,
+  )
   const chip = screen.getByRole('button', { name: 'Reviewer 2: 1 blocking' })
   expect(chip).toHaveTextContent(/^Reviewer 21 blocking$/)
   expect(screen.getByText('1 blocking').style.color).toBe('var(--warn)')
@@ -180,7 +281,16 @@ test('the user’s (4 Nov): a finished agent of a step’s newest round is a chi
   expect(screen.queryByText('Local · qwen')).toBeNull()
   cleanup()
   const toggle = vi.fn()
-  const round: RoundData = { said: 'Round 2 · 4 reviewed', result: '2 blocking', colour: 'var(--warn)', inside: 4, summary: '', attention: false, finished: true, open: false }
+  const round: RoundData = {
+    said: 'Round 2 · 4 reviewed',
+    result: '2 blocking',
+    colour: 'var(--warn)',
+    inside: 4,
+    summary: '',
+    attention: false,
+    finished: true,
+    open: false,
+  }
   render(
     <ReactFlowProvider>
       <ToggleGroup.Provider value={toggle}>
@@ -199,22 +309,59 @@ test('the user’s (4 Nov): a finished agent of a step’s newest round is a chi
       <RoundNode {...props('round:x', { ...round, attention: true, open: true })} />
     </ReactFlowProvider>,
   )
-  expect(screen.getByRole('button', { name: 'Round 2 · 4 reviewed · waits for you · 2 blocking' })).toHaveAttribute('aria-expanded', 'true')
+  expect(screen.getByRole('button', { name: 'Round 2 · 4 reviewed · waits for you · 2 blocking' })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  )
   expect(screen.getByText('waits for you · 2 blocking').style.color).toBe('var(--warn)')
 })
 
 test('a card shows only the dots a line uses (21 Nov): every dot kept, the unused one hidden', () => {
   /** The sides of the dots that show (`found-handle`: one hidden). */
-  const shown = () => Array.from(document.querySelectorAll('.react-flow__handle:not(.found-handle)'), dot => dot.getAttribute('data-handlepos'))
+  const shown = () =>
+    Array.from(document.querySelectorAll('.react-flow__handle:not(.found-handle)'), dot =>
+      dot.getAttribute('data-handlepos'),
+    )
   const asked: RequestData = { text: 'Look', time: '2026-10-05T10:00:00Z', queued: false, trigger: null }
-  const talk: DiscussionData = { topic: 'Keep hi?', line: 'Ended', members: ['Lead'], last: [], speaking: null, running: false }
-  const room: RoomData = { goal: 'Ship it', line: 'round 2', members: ['Coder'], watched: '', items: '', last: [], running: false, attention: false }
-  const po: PoData = { provider_name: 'Fast', model_id: 'gpt-6-luna', heard: true, input_tokens: 2900, output_tokens: 200, proposed: 2, dropped: [], dropped_more: 0 }
+  const talk: DiscussionData = {
+    topic: 'Keep hi?',
+    line: 'Ended',
+    members: ['Lead'],
+    last: [],
+    speaking: null,
+    running: false,
+  }
+  const room: RoomData = {
+    goal: 'Ship it',
+    line: 'round 2',
+    members: ['Coder'],
+    watched: '',
+    items: '',
+    last: [],
+    running: false,
+    attention: false,
+  }
+  const po: PoData = {
+    provider_name: 'Fast',
+    model_id: 'gpt-6-luna',
+    heard: true,
+    input_tokens: 2900,
+    output_tokens: 200,
+    proposed: 2,
+    dropped: [],
+    dropped_more: 0,
+  }
   const cards: [ReactNode, string[]][] = [
     // (Nothing comes into a message or a file; every line to a discussion or a room goes into it; a plan and the Scout have
     // their straight line.)
     [<RequestNode key="request" {...props('request:a', asked)} />, ['right']],
-    [<AttachmentNode key="file" {...props('attachment:f', { name: 'a.ts', label: 'TS', colour: '--file-code', meta: '1 line' })} />, ['right']],
+    [
+      <AttachmentNode
+        key="file"
+        {...props('attachment:f', { name: 'a.ts', label: 'TS', colour: '--file-code', meta: '1 line' })}
+      />,
+      ['right'],
+    ],
     [<DiscussionNode key="discussion" {...props('discussion:t', talk)} />, ['left']],
     [<RoomNode key="room" {...props('room:r', room)} />, ['left']],
     [<PlanNode key="plan" {...props('plan:p', { status: 'proposed', by: null })} />, []],
@@ -230,7 +377,16 @@ test('a card shows only the dots a line uses (21 Nov): every dot kept, the unuse
 })
 
 test('the user’s (7 Nov): the Scout’s node says the model, what came of it and what it spent, and opens the To-do page', async () => {
-  const po: PoData = { provider_name: 'Fast', model_id: 'gpt-6-luna', heard: true, input_tokens: 2900, output_tokens: 200, proposed: 2, dropped: [], dropped_more: 0 }
+  const po: PoData = {
+    provider_name: 'Fast',
+    model_id: 'gpt-6-luna',
+    heard: true,
+    input_tokens: 2900,
+    output_tokens: 200,
+    proposed: 2,
+    dropped: [],
+    dropped_more: 0,
+  }
   const openTodo = vi.fn()
   render(
     <ReactFlowProvider>
@@ -247,7 +403,11 @@ test('the user’s (7 Nov): the Scout’s node says the model, what came of it a
   draw(<PoNode {...props('po:r', { ...po, dropped: [{ title: 'Docs', why: 'like the open task' }] })} />)
   expect(lines()[1]).toBe('2 proposed · 1 dropped')
   cleanup()
-  draw(<PoNode {...props('po:r', { ...po, heard: false, model_id: null, input_tokens: null, output_tokens: null, proposed: 0 })} />)
+  draw(
+    <PoNode
+      {...props('po:r', { ...po, heard: false, model_id: null, input_tokens: null, output_tokens: null, proposed: 0 })}
+    />,
+  )
   expect(lines()).toEqual(['Scoutmodel not known', 'Sent, not heard out', '– tokens To-do →'])
   expect(screen.getByText('Sent, not heard out').style.color).toBe('var(--warn)')
 })

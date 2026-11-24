@@ -20,7 +20,9 @@ export function WouldHaveAsked({ refused, onAllow }: Props) {
     // (A card that only tells: nothing waits on it.)
     <div className="cmd-approval card-tell would-ask" role="group" aria-label="It would have asked you">
       <div className="kicker cmd-approval-kicker">Nobody was here to ask</div>
-      <p className="card-said">It would have asked you for these. Each was refused, and nothing was done in its place.</p>
+      <p className="card-said">
+        It would have asked you for these. Each was refused, and nothing was done in its place.
+      </p>
       <ul>
         {refused.map(request => (
           <li key={request.id}>
@@ -33,7 +35,9 @@ export function WouldHaveAsked({ refused, onAllow }: Props) {
           </li>
         ))}
       </ul>
-      {onAllow && refused.some(request => request.allow) && <CardMore>Allowing one opens the trigger’s form; it is yours to save.</CardMore>}
+      {onAllow && refused.some(request => request.allow) && (
+        <CardMore>Allowing one opens the trigger’s form; it is yours to save.</CardMore>
+      )}
     </div>
   )
 }

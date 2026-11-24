@@ -17,7 +17,10 @@ const GLB = path.join(PROJECT_DIR, 'part58.glb')
 const windowOf = (page: Page) => page.locator('.view-panel')
 const figureOf = (page: Page, name: string) => windowOf(page).getByRole('figure', { name })
 /** Whether the 3D view's own code was asked for. */
-const threeAsked = (page: Page) => page.evaluate(() => performance.getEntriesByType('resource').some(entry => /\/ModelView-[\w-]+\.js$/.test(entry.name)))
+const threeAsked = (page: Page) =>
+  page.evaluate(() =>
+    performance.getEntriesByType('resource').some(entry => /\/ModelView-[\w-]+\.js$/.test(entry.name)),
+  )
 /** What the view draws, as a picture: the camera moved, it is another. */
 const drawn = (figure: Locator) => figure.locator('canvas').screenshot()
 
@@ -42,7 +45,9 @@ async function rejectWaiting(page: Page, id: string) {
 test.beforeAll(() => writeFileSync(GLB, triangleGlb()))
 test.afterAll(() => [STL, GLB].forEach(file => rmSync(file, { force: true })))
 
-test('a part an agent writes opens Files on its 3D view - three.js asked for only then; its box in words; the keys, Fit, Reset view and Wireframe; written again it is drawn anew, seen from where it was', async ({ page }) => {
+test('a part an agent writes opens Files on its 3D view - three.js asked for only then; its box in words; the keys, Fit, Reset view and Wireframe; written again it is drawn anew, seen from where it was', async ({
+  page,
+}) => {
   test.setTimeout(90_000)
   let id = ''
   try {
@@ -115,7 +120,9 @@ test('a GLB an agent shows opens Files on it, read from the project as it is', a
 })
 
 for (const theme of ['light', 'dark'] as const)
-  test(`in the ${theme} theme the 3D view's buttons and words stand out from what they are on (contrast 4.5 or more), on the theme's own ground`, async ({ page }) => {
+  test(`in the ${theme} theme the 3D view's buttons and words stand out from what they are on (contrast 4.5 or more), on the theme's own ground`, async ({
+    page,
+  }) => {
     test.setTimeout(60_000)
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await freshListed(page)

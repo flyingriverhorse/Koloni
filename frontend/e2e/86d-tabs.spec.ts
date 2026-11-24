@@ -17,7 +17,9 @@ async function namedChat(page: Page, name: string, projectId: string | null) {
   const made = await page.request.post('/api/conversations', { data: { project_id: projectId }, headers: OWN })
   expect(made.ok()).toBe(true)
   const id: string = (await made.json()).id
-  expect((await page.request.patch(`/api/conversations/${id}`, { data: { title: name }, headers: OWN })).ok()).toBe(true)
+  expect((await page.request.patch(`/api/conversations/${id}`, { data: { title: name }, headers: OWN })).ok()).toBe(
+    true,
+  )
   return id
 }
 
@@ -31,7 +33,9 @@ async function folder(page: Page, name: string) {
 }
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`a tab per project: gone back to by its tab, closed by ×, brought back by "+", kept across a reload, orange while one of its chats waits (${theme})`, async ({ page }) => {
+  test(`a tab per project: gone back to by its tab, closed by ×, brought back by "+", kept across a reload, orange while one of its chats waits (${theme})`, async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     const [one, two] = [`make the tab file of slice 86d ${theme} ${Date.now()}`, `tabs two ${theme} ${Date.now()}`]
@@ -102,7 +106,9 @@ for (const theme of ['light', 'dark'] as const) {
   })
 }
 
-test('switching the main folder after a turn opens a new chat in that folder’s tab, the old one left in its own; an empty chat moves, its tab with it', async ({ page }) => {
+test('switching the main folder after a turn opens a new chat in that folder’s tab, the old one left in its own; an empty chat moves, its tab with it', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   const name = `other86e-${Date.now()}`
   const other = await folder(page, name)
@@ -114,13 +120,20 @@ test('switching the main folder after a turn opens a new chat in that folder’s
   await page.getByRole('button', { name: /^Folder: project/ }).click()
   const panel = page.getByRole('dialog', { name: 'This chat’s folders' })
   await panel.getByRole('button', { name: /^Change/ }).click()
-  await panel.getByRole('region', { name: 'Switch the main folder' }).getByRole('button', { name: new RegExp(`^${name}`) }).click()
+  await panel
+    .getByRole('region', { name: 'Switch the main folder' })
+    .getByRole('button', { name: new RegExp(`^${name}`) })
+    .click()
   await expect(page.getByRole('button', { name: `Folder: ${name}` })).toBeVisible()
   await expect(tab(page, name)).toHaveAttribute('aria-selected', 'true')
   await expect(tabs(page).getByRole('tab')).toHaveCount(2)
   await expect(title(page)).toHaveText('New conversation')
-  expect((await (await page.request.get(`/api/conversations/${oldId}`)).json()).conversation.project_id).toBe(await e2eProject(page))
-  const listed: { id: string; project_id: string | null }[] = await (await page.request.get('/api/conversations')).json()
+  expect((await (await page.request.get(`/api/conversations/${oldId}`)).json()).conversation.project_id).toBe(
+    await e2eProject(page),
+  )
+  const listed: { id: string; project_id: string | null }[] = await (
+    await page.request.get('/api/conversations')
+  ).json()
   const fresh = listed.filter(c => c.project_id === other)
   expect(fresh).toHaveLength(1)
   // The old chat's tab still opens it.
@@ -131,15 +144,22 @@ test('switching the main folder after a turn opens a new chat in that folder’s
   // An empty chat, with no turn yet, moves: its tab, the only one of its folder, becomes the new folder's.
   await page.getByRole('button', { name: `Folder: ${name}` }).click()
   await panel.getByRole('button', { name: /^Change/ }).click()
-  await panel.getByRole('region', { name: 'Switch the main folder' }).getByRole('button', { name: /^No folder/ }).click()
+  await panel
+    .getByRole('region', { name: 'Switch the main folder' })
+    .getByRole('button', { name: /^No folder/ })
+    .click()
   await expect(page.getByRole('button', { name: 'Folder: No folder' })).toBeVisible()
   await expect(tab(page, 'No folder')).toHaveAttribute('aria-selected', 'true')
   await expect(tab(page, name)).toHaveCount(0)
-  expect((await (await page.request.get(`/api/conversations/${fresh[0].id}`)).json()).conversation.project_id).toBeNull()
+  expect(
+    (await (await page.request.get(`/api/conversations/${fresh[0].id}`)).json()).conversation.project_id,
+  ).toBeNull()
 })
 
 for (const theme of ['light', 'dark'] as const)
-  test(`at 700 px the tabs keep to the window: names cut short, the rest in "+N", the top bar as it was (${theme})`, async ({ page }) => {
+  test(`at 700 px the tabs keep to the window: names cut short, the rest in "+N", the top bar as it was (${theme})`, async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 700, height: 800 })
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     const stamp = Date.now()
@@ -162,18 +182,25 @@ for (const theme of ['light', 'dark'] as const)
     expect(await row.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true)
     const add = page.getByRole('button', { name: 'Go to another folder' })
     const [bar, strip] = [(await page.locator('.topbar').boundingBox())!, (await row.boundingBox())!]
-    for (const each of [bar, strip, (await more.boundingBox())!, (await add.boundingBox())!]) expect(each.x + each.width).toBeLessThanOrEqual(700)
+    for (const each of [bar, strip, (await more.boundingBox())!, (await add.boundingBox())!])
+      expect(each.x + each.width).toBeLessThanOrEqual(700)
     // (the row under the bar, not over it)
     expect(bar.y + bar.height).toBeLessThanOrEqual(strip.y + 1)
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(700)
     // a name too long for its tab is cut short
-    expect(await page.locator('.open-chat-title').first().evaluate(el => el.scrollWidth > el.clientWidth)).toBe(true)
+    expect(
+      await page
+        .locator('.open-chat-title')
+        .first()
+        .evaluate(el => el.scrollWidth > el.clientWidth),
+    ).toBe(true)
     await shot(page, `86e-tabs-700-${theme}`)
 
     // One from the list opens, and has a tab in the row.
     await more.click()
     const list = page.getByRole('dialog', { name: 'More open projects' })
-    for (const each of [row, list]) expect((await each.evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])
+    for (const each of [row, list])
+      expect((await each.evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])
     // (a line each, not a tab's width tall)
     expect((await list.getByRole('button').first().boundingBox())!.height).toBeLessThan(40)
     await shot(page, `86e-tabs-700-more-${theme}`)

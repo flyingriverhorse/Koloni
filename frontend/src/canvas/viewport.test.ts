@@ -155,16 +155,30 @@ test('as the stage narrows, the selected node and the nodes at work stay in view
 
 test('B-149: beside a tall chat the Lead and the night’s report are kept in the strip above it, not left under the inspector', () => {
   // (Live, 1219 px, the chat open: the inspector narrowed the stage to 839 px and nothing moved; the report lay under it.)
-  const [stage, chat] = [{ width: 839, height: 613 }, { x: 14, y: 200, width: 480, height: 399 }]
-  const [lead, report] = [{ x: 290, y: 0, width: 248, height: 222 }, { x: 898, y: 0, width: 560, height: 397 }]
+  const [stage, chat] = [
+    { width: 839, height: 613 },
+    { x: 14, y: 200, width: 480, height: 399 },
+  ]
+  const [lead, report] = [
+    { x: 290, y: 0, width: 248, height: 222 },
+    { x: 898, y: 0, width: 560, height: 397 },
+  ]
   const view = keepWork({ x: 522, y: 230, zoom: 0.387 }, stage, lead, report, [chat])
   for (const rect of [lead, report]) {
     const box = drawn(view, rect)
-    expect([box.left >= 0, box.right <= stage.width, box.top >= 0, box.bottom <= chat.y]).toEqual([true, true, true, true])
+    expect([box.left >= 0, box.right <= stage.width, box.top >= 0, box.bottom <= chat.y]).toEqual([
+      true,
+      true,
+      true,
+      true,
+    ])
   }
   // Where even the least zoom cannot hold both: the report wholly in view, the selected node beside it as far as it goes.
   const tight = { width: 500, height: 600 }
-  const [selected, far] = [{ x: 0, y: 0, width: 400, height: 200 }, { x: 1500, y: 0, width: 400, height: 200 }]
+  const [selected, far] = [
+    { x: 0, y: 0, width: 400, height: 200 },
+    { x: 1500, y: 0, width: 400, height: 200 },
+  ]
   const least = keepWork({ x: 0, y: 0, zoom: 1 }, tight, selected, far)
   expect(least.zoom).toBe(MIN_ZOOM)
   expect(drawn(least, far).left >= 0 && drawn(least, far).right <= tight.width).toBe(true)
@@ -180,7 +194,9 @@ test('a fit into a part of the stage - beside the chat - is drawn in that part, 
   const view = fitNarrowed(turn, part, full.width, coder)
   expect(drawn(view, coder).left).toBeGreaterThanOrEqual(494)
   expect(drawn(view, coder).right).toBeLessThanOrEqual(494 + narrow.width)
-  expect(drawn(fitNarrowed(turn, part, full.width, null), turn).left - 494).toBeCloseTo(494 + narrow.width - drawn(fitNarrowed(turn, part, full.width, null), turn).right)
+  expect(drawn(fitNarrowed(turn, part, full.width, null), turn).left - 494).toBeCloseTo(
+    494 + narrow.width - drawn(fitNarrowed(turn, part, full.width, null), turn).right,
+  )
 })
 
 test('two windows in opposite corners: the free part is a large one between them, not a strip beside both (slice 38e)', () => {
@@ -190,7 +206,12 @@ test('two windows in opposite corners: the free part is a large one between them
   const free = freePart({ width: 1384, height: 848 }, [view, chat])
   // clear of both
   for (const cover of [view, chat])
-    expect(free.x + free.width <= cover.x || cover.x + cover.width <= free.x || free.y + free.height <= cover.y || cover.y + cover.height <= free.y).toBe(true)
+    expect(
+      free.x + free.width <= cover.x ||
+        cover.x + cover.width <= free.x ||
+        free.y + free.height <= cover.y ||
+        cover.y + cover.height <= free.y,
+    ).toBe(true)
   // and as large as a third of the stage, not a strip
   expect(free.width * free.height).toBeGreaterThan((1384 * 848) / 3)
   expect(Math.min(free.width, free.height)).toBeGreaterThan(300)

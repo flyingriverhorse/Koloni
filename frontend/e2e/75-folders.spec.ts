@@ -15,7 +15,9 @@ for (const theme of ['light', 'dark'] as const) {
     // The places never opened are shown with why.
     await settings.getByText(/places no agent ever opens/).click()
     const never = settings.getByRole('list', { name: 'Always blocked' })
-    await expect(never.getByRole('listitem').filter({ hasText: '.ssh' }).first()).toContainText("it holds the user's settings and secrets")
+    await expect(never.getByRole('listitem').filter({ hasText: '.ssh' }).first()).toContainText(
+      "it holds the user's settings and secrets",
+    )
     await expect(settings.getByText('In every project')).toHaveCount(0)
 
     const pieces = await settings.evaluate(contrasts)

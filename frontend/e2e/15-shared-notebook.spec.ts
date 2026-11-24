@@ -17,7 +17,9 @@ async function overlapping(page: Page) {
   })
 }
 
-test('two agents at work leave notes, you leave one too, and the notebook is on its tab and on the canvas', async ({ page }) => {
+test('two agents at work leave notes, you leave one too, and the notebook is on its tab and on the canvas', async ({
+  page,
+}) => {
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   const notes = chat.locator('.channel-message')
@@ -83,7 +85,9 @@ test('two agents at work leave notes, you leave one too, and the notebook is on 
   await page.screenshot({ path: path.join(B26, 'cards-no-teams-light.png') })
 
   // A note's row opens the Notes tab at that note.
-  await block('Reviewer 2').getByRole('button', { name: /check\.py is mine\.” - open it on the Notes tab$/ }).click()
+  await block('Reviewer 2')
+    .getByRole('button', { name: /check\.py is mine\.” - open it on the Notes tab$/ })
+    .click()
   await expect(chat.getByRole('tab', { name: /^Notes/ })).toHaveAttribute('aria-selected', 'true')
   await expect(chat.locator('.channel-message').filter({ hasText: 'check.py is mine.' })).toBeInViewport()
 
@@ -91,7 +95,10 @@ test('two agents at work leave notes, you leave one too, and the notebook is on 
   // who wrote it - not as a message sent to it. (The lead is selected first, so that the double
   // click lands twice on a node that has stopped moving.)
   const inspector = page.getByRole('complementary', { name: 'Inspector' })
-  const lead = page.locator('.react-flow__node-agent').filter({ has: page.locator('.node-title', { hasText: /^Orchestrator$/ }) }).locator('.node-title')
+  const lead = page
+    .locator('.react-flow__node-agent')
+    .filter({ has: page.locator('.node-title', { hasText: /^Orchestrator$/ }) })
+    .locator('.node-title')
   await lead.click()
   await expect(inspector).toContainText('Orchestrator')
   await lead.dblclick()
@@ -103,7 +110,10 @@ test('two agents at work leave notes, you leave one too, and the notebook is on 
   // A reload shows the same notebook from the records. (In the dark theme: its picture too.)
   await page.evaluate(() => localStorage.setItem('koloni-theme', 'dark'))
   await page.reload()
-  await page.getByRole('region', { name: 'Chat' }).getByRole('tab', { name: /^Notes/ }).click()
+  await page
+    .getByRole('region', { name: 'Chat' })
+    .getByRole('tab', { name: /^Notes/ })
+    .click()
   const again = page.getByRole('region', { name: 'Chat' }).locator('.channel-message')
   // (and KOLONİ's own, written as the turn ended)
   await expect(again).toHaveCount(4)
@@ -116,11 +126,15 @@ test('two agents at work leave notes, you leave one too, and the notebook is on 
   await page.screenshot({ path: path.join(B26, 'cards-no-teams-dark.png') })
 })
 
-test('with no turn at work there is nothing to write on, and a turn that used nothing has no card', async ({ page }) => {
+test('with no turn at work there is nothing to write on, and a turn that used nothing has no card', async ({
+  page,
+}) => {
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   await chat.getByRole('tab', { name: /^Notes/ }).click()
-  await expect(chat.getByText('Notes that agents and you leave for everyone working on a message show here.')).toBeVisible()
+  await expect(
+    chat.getByText('Notes that agents and you leave for everyone working on a message show here.'),
+  ).toBeVisible()
   await expect(chat.getByLabel('A note for every agent working on this request')).toBeDisabled()
   await expect(chat.getByText('Nothing is at work. A note can be written while something is.')).toBeVisible()
 

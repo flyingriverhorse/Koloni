@@ -13,14 +13,19 @@ const across = async (page: Page) => Math.round((await box(chatOf(page))).width)
 
 /** Drags the chat's right edge to `x` px from the stage's left edge (or past the most it may be). */
 async function dragTo(page: Page, x: number) {
-  const [edge, stage] = [await box(chatOf(page).getByRole('separator', { name: 'Chat width' })), await box(page.locator('.stage'))]
+  const [edge, stage] = [
+    await box(chatOf(page).getByRole('separator', { name: 'Chat width' })),
+    await box(page.locator('.stage')),
+  ]
   await page.mouse.move(edge.x + edge.width / 2, edge.y + edge.height / 2)
   await page.mouse.down()
   await page.mouse.move(stage.x + x, edge.y + edge.height / 2, { steps: 6 })
   await page.mouse.up()
 }
 
-test('open, the chat is a column at the canvas’s left edge, as tall as it, widened from its right edge between 340 and 760 px (0.1.4), remembered, and a small box again on Esc', async ({ page }) => {
+test('open, the chat is a column at the canvas’s left edge, as tall as it, widened from its right edge between 340 and 760 px (0.1.4), remembered, and a small box again on Esc', async ({
+  page,
+}) => {
   await openFreshConversation(page)
   const chat = chatOf(page)
   const [stage, open] = [await box(page.locator('.stage')), await box(chat)]
@@ -105,7 +110,10 @@ test('a card that waits for the user is said on the closed chat’s line, in hon
 
 /** Whether `inner` lies wholly inside `outer`. */
 const inside = (inner: { x: number; y: number; width: number; height: number }, outer: typeof inner) =>
-  inner.x >= outer.x - 1 && inner.y >= outer.y - 1 && inner.x + inner.width <= outer.x + outer.width + 1 && inner.y + inner.height <= outer.y + outer.height + 1
+  inner.x >= outer.x - 1 &&
+  inner.y >= outer.y - 1 &&
+  inner.x + inner.width <= outer.x + outer.width + 1 &&
+  inner.y + inner.height <= outer.y + outer.height + 1
 const apart = (a: { x: number; y: number; width: number; height: number }, b: typeof a) =>
   a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y
 
@@ -116,7 +124,9 @@ async function workInView(page: Page, nodes: Locator) {
   return boxes.length > 0 && boxes.every(node => node !== null && inside(node, stage) && apart(node, chat))
 }
 
-test('while the canvas works, its nodes at work stay in view as the chat grows and the inspector slides in', async ({ page }) => {
+test('while the canvas works, its nodes at work stay in view as the chat grows and the inspector slides in', async ({
+  page,
+}) => {
   await openFreshConversation(page)
   const running = page.locator('.react-flow__node').filter({ has: page.locator('.node-running') })
   const viewport = page.locator('.react-flow__viewport')
@@ -138,10 +148,16 @@ test('while the canvas works, its nodes at work stay in view as the chat grows a
   await reviewer.locator('.node-title').click()
   const inspector = page.getByRole('complementary', { name: 'Inspector' })
   await expect(inspector).toBeVisible()
-  await expect.poll(async () => Math.round((await box(page.locator('.canvas-flow'))).width)).toBe(Math.round((await box(page.locator('.stage'))).width))
+  await expect
+    .poll(async () => Math.round((await box(page.locator('.canvas-flow'))).width))
+    .toBe(Math.round((await box(page.locator('.stage'))).width))
   // (slid in: it stands right beside the canvas)
-  await expect.poll(async () => Math.round((await box(inspector)).x)).toBe(Math.round((await box(page.locator('.stage'))).x + (await box(page.locator('.stage'))).width))
-  await expect.poll(() => workInView(page, page.locator('.react-flow__node').filter({ has: page.locator('.node-selected') }))).toBe(true)
+  await expect
+    .poll(async () => Math.round((await box(inspector)).x))
+    .toBe(Math.round((await box(page.locator('.stage'))).x + (await box(page.locator('.stage'))).width))
+  await expect
+    .poll(() => workInView(page, page.locator('.react-flow__node').filter({ has: page.locator('.node-selected') })))
+    .toBe(true)
   // (Or out by a hair: with the rail's labels (slice 66) the stage is 8px narrower, and the reviewers at work
   // sometimes need that much more room beside the chat - keepWork goes out only as far as that needs.)
   await settled(page)
@@ -156,11 +172,15 @@ test('while the canvas works, its nodes at work stay in view as the chat grows a
   await inspector.getByRole('button', { name: 'Close inspector' }).focus()
   await page.keyboard.press('Escape')
   await expect(inspector).toHaveCount(0)
-  await expect.poll(async () => Math.round((await box(page.locator('.canvas-flow'))).width)).toBe(Math.round((await box(page.locator('.main'))).width))
+  await expect
+    .poll(async () => Math.round((await box(page.locator('.canvas-flow'))).width))
+    .toBe(Math.round((await box(page.locator('.main'))).width))
   await expect(page.getByText('DONE', { exact: true })).toBeVisible({ timeout: 20_000 })
 })
 
-test('as the inspector slides in and out over work in progress, every node at work stays in view; its Fit View draws the turn beside the chat, not under the inspector; Esc on a node closes it', async ({ page }) => {
+test('as the inspector slides in and out over work in progress, every node at work stays in view; its Fit View draws the turn beside the chat, not under the inspector; Esc on a node closes it', async ({
+  page,
+}) => {
   test.setTimeout(60_000)
   await openFreshConversation(page)
   const chat = chatOf(page)
@@ -172,7 +192,9 @@ test('as the inspector slides in and out over work in progress, every node at wo
   await page.getByRole('button', { name: 'Send' }).click()
   try {
     await dragTo(page, 480)
-    await expect(page.locator('.react-flow__node-agent .node-running', { hasText: 'slow.py' })).toHaveCount(1, { timeout: 15_000 })
+    await expect(page.locator('.react-flow__node-agent .node-running', { hasText: 'slow.py' })).toHaveCount(1, {
+      timeout: 15_000,
+    })
     await expect.poll(() => workInView(page, running)).toBe(true)
 
     // The request selected - not at work itself: the inspector slides in, and the nodes at
@@ -196,14 +218,17 @@ test('as the inspector slides in and out over work in progress, every node at wo
     await expect.poll(() => workInView(page, running)).toBe(true)
   } finally {
     // (Stopped, so that nothing runs on into the next test.)
-    if (await chat.getByRole('button', { name: 'Stop' }).isVisible()) await chat.getByRole('button', { name: 'Stop' }).click()
+    if (await chat.getByRole('button', { name: 'Stop' }).isVisible())
+      await chat.getByRole('button', { name: 'Stop' }).click()
     await expect(page.getByText('STOPPED', { exact: true })).toBeVisible({ timeout: 15_000 })
   }
 })
 
 // Slice 84d: what an agent does now, on its node - from its own records, never a made-up progress.
 for (const theme of ['light', 'dark'] as const) {
-  test(`an agent at work says the command it runs and for how long, its dot blinking and its line flowing - still for reduced motion; over, the line says so (${theme})`, async ({ page }) => {
+  test(`an agent at work says the command it runs and for how long, its dot blinking and its line flowing - still for reduced motion; over, the line says so (${theme})`, async ({
+    page,
+  }) => {
     test.setTimeout(60_000)
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page)
@@ -220,7 +245,10 @@ for (const theme of ['light', 'dark'] as const) {
       const moves = () =>
         Promise.all([
           now.locator('.status').evaluate(dot => getComputedStyle(dot, '::before').animationName),
-          page.locator('.react-flow__edge.animated .react-flow__edge-path').first().evaluate(path => getComputedStyle(path).animationName),
+          page
+            .locator('.react-flow__edge.animated .react-flow__edge-path')
+            .first()
+            .evaluate(path => getComputedStyle(path).animationName),
         ])
       expect(await moves()).toEqual(['pulse', 'dashdraw'])
       expect((await now.evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])
@@ -229,7 +257,8 @@ for (const theme of ['light', 'dark'] as const) {
       await page.emulateMedia({ reducedMotion: 'reduce' })
       expect(await moves()).toEqual(['none', 'none'])
     } finally {
-      if (await chat.getByRole('button', { name: 'Stop' }).isVisible()) await chat.getByRole('button', { name: 'Stop' }).click()
+      if (await chat.getByRole('button', { name: 'Stop' }).isVisible())
+        await chat.getByRole('button', { name: 'Stop' }).click()
       await expect(page.getByText('STOPPED', { exact: true })).toBeVisible({ timeout: 15_000 })
     }
     // over: no blinking, no time, and how it ended

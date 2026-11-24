@@ -14,21 +14,28 @@ const ELSEWHERE = 'Claude Code 87 elsewhere'
 // posted here is not left for whatever runs after.
 async function clean(request: APIRequestContext) {
   for (const provider of await (await request.get('/api/providers')).json())
-    if ([CLI, ELSEWHERE].includes(provider.name)) await request.delete(`/api/providers/${provider.id}`, { headers: OWN })
+    if ([CLI, ELSEWHERE].includes(provider.name))
+      await request.delete(`/api/providers/${provider.id}`, { headers: OWN })
 }
 
 test.beforeEach(async ({ request }) => clean(request))
 test.afterEach(async ({ request }) => clean(request))
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`your own Claude Code session keeps the card fresh, Read now reads it in a short run, and the window says what to add (${theme})`, async ({ page, request }) => {
+  test(`your own Claude Code session keeps the card fresh, Read now reads it in a short run, and the window says what to add (${theme})`, async ({
+    page,
+    request,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     const made = await request.post('/api/providers', { headers: OWN, data: { name: CLI, kind: 'claude_cli' } })
     expect(made.ok()).toBe(true)
     const id = (await made.json()).id as string
     // Nothing is left of an earlier run's reading.
     expect((await (await request.get(`/api/providers/${id}/limits`)).json()).unknown).toBeTruthy()
-    const other = await request.post('/api/providers', { headers: OWN, data: { name: ELSEWHERE, kind: 'claude_cli', executable: 'no-such-claude-for-87' } })
+    const other = await request.post('/api/providers', {
+      headers: OWN,
+      data: { name: ELSEWHERE, kind: 'claude_cli', executable: 'no-such-claude-for-87' },
+    })
     expect(other.ok()).toBe(true)
     const otherId = (await other.json()).id as string
     // The default command is the real claude: what the window would ask it is answered here.
@@ -62,7 +69,10 @@ for (const theme of ['light', 'dark'] as const) {
     const sent = await fetch(`${APP_URL}/api/limits/claude-session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Koloni-Key': key },
-      body: JSON.stringify({ five_hour: { used_percentage: 53, resets_at: soon }, seven_day: { used_percentage: 93, resets_at: soon + 3 * 86400 } }),
+      body: JSON.stringify({
+        five_hour: { used_percentage: 53, resets_at: soon },
+        seven_day: { used_percentage: 93, resets_at: soon + 3 * 86400 },
+      }),
     })
     expect(sent.status).toBe(204)
 
@@ -89,7 +99,9 @@ for (const theme of ['light', 'dark'] as const) {
     const part = dialog.getByRole('region', { name: 'Keep it fresh from your Claude Code sessions' })
     await expect(part).toContainText('"statusLine": {"type":"command","command":')
     await expect(part).toContainText(`koloni_statusline.py\\" --koloni http://127.0.0.1:${APP_PORT} --key ${key}`)
-    await expect(part).toContainText('Add this to your Claude Code settings yourself: open your Claude Code settings file')
+    await expect(part).toContainText(
+      'Add this to your Claude Code settings yourself: open your Claude Code settings file',
+    )
     await expect(part.getByRole('button', { name: 'Copy the status line setting' })).toBeVisible()
     await shot(page, `87-keep-fresh-${theme}`)
     expect((await part.evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])

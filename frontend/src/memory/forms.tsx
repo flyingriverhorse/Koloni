@@ -25,7 +25,12 @@ export function FolderRules({ rules, onUse }: { rules: string | null; onUse: (ru
       <p className="muted">{RULES_DIFFER}</p>
       <pre className="mono">{rules ?? ''}</pre>
       <div className="memory-actions">
-        <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => onUse(rules ?? ''))}>
+        <button
+          type="button"
+          className="btn btn-small"
+          disabled={busy}
+          onClick={() => void ask(() => onUse(rules ?? ''))}
+        >
           Use the folder’s rules here
         </button>
       </div>
@@ -58,7 +63,11 @@ export function RulesBox({ rules, onSave, what = 'rules' }: RulesProps) {
           rows={5}
           maxLength={MAX_RULES}
           value={draft}
-          placeholder={what === 'rules' ? 'For example: sign off every commit.' : 'For example: answer in Turkish; keep answers short.'}
+          placeholder={
+            what === 'rules'
+              ? 'For example: sign off every commit.'
+              : 'For example: answer in Turkish; keep answers short.'
+          }
           onChange={e => setDraft(e.target.value)}
         />
       </div>
@@ -94,7 +103,13 @@ const lineOf = (typed: string): number | null => (typed.trim() ? Number(typed) :
  * the words and subject it starts with (a note made a fact) - never the note's file, which it
  * does not rest on.
  */
-export function WriteBox({ onWrite, from }: { onWrite: (fact: NewFact) => Promise<void>; from?: { text: string; about: string; n: number } }) {
+export function WriteBox({
+  onWrite,
+  from,
+}: {
+  onWrite: (fact: NewFact) => Promise<void>
+  from?: { text: string; about: string; n: number }
+}) {
   const { busy, error, ask } = useAsk()
   const confirm = useConfirm()
   const [text, setText] = useState(from?.text ?? '')
@@ -177,16 +192,30 @@ export function WriteBox({ onWrite, from }: { onWrite: (fact: NewFact) => Promis
           </div>
           <div className="field memory-line">
             <label htmlFor="new-first">First line</label>
-            <input id="new-first" className="input mono" type="number" min={1} value={first} onChange={e => setFirst(e.target.value)} />
+            <input
+              id="new-first"
+              className="input mono"
+              type="number"
+              min={1}
+              value={first}
+              onChange={e => setFirst(e.target.value)}
+            />
           </div>
           <div className="field memory-line">
             <label htmlFor="new-last">Last line</label>
-            <input id="new-last" className="input mono" type="number" min={1} value={last} onChange={e => setLast(e.target.value)} />
+            <input
+              id="new-last"
+              className="input mono"
+              type="number"
+              min={1}
+              value={last}
+              onChange={e => setLast(e.target.value)}
+            />
           </div>
         </div>
         <p className="muted memory-hint">
-          With a file and lines, the fact is given to agents only while those lines read as they do now. Without
-          them it is kept as your own words, with no source.
+          With a file and lines, the fact is given to agents only while those lines read as they do now. Without them it
+          is kept as your own words, with no source.
         </p>
       </details>
       {confirm.shown()}

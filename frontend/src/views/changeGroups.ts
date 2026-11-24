@@ -7,7 +7,15 @@ import { fileName, keyOf } from './views'
  * The Workspace's Changes tab (sample A, 7 Nov): what changed, by what you have to do about it, top to bottom. Inside a
  * group, by the agent and your message it came from; each state in words, not git's letters.
  */
-export const GROUPS = ['Waits for you', 'At work', 'Kept', 'In the project', 'Not by an agent', 'Needs a look', 'Closed'] as const
+export const GROUPS = [
+  'Waits for you',
+  'At work',
+  'Kept',
+  'In the project',
+  'Not by an agent',
+  'Needs a look',
+  'Closed',
+] as const
 /** The group that starts shut: what is over. */
 export const CLOSED = 'Closed'
 
@@ -26,7 +34,13 @@ export const PLACE: Record<Status, [group: string, words: string]> = {
 }
 /** What a change did, and what git says of a file: in words. */
 export const DID: Record<FileChange['kind'], string> = { create: 'new', modify: 'changed', delete: 'deleted' }
-export const GIT_SAYS: Record<GitChange['status'], string> = { M: 'changed', A: 'new', D: 'deleted', R: 'renamed', '?': 'new, not in git' }
+export const GIT_SAYS: Record<GitChange['status'], string> = {
+  M: 'changed',
+  A: 'new',
+  D: 'deleted',
+  R: 'renamed',
+  '?': 'new, not in git',
+}
 const COPY_GROUP = { waits: 'Waits for you', kept: 'Kept', 'at work': 'At work' } as const
 
 /** A change that changed its file, or will: the others left it as it was. */
@@ -42,9 +56,15 @@ export function standsOn(changes: FileChange[], inCopy = false): Map<string, Fil
   const live = (change: FileChange) => Number(LIVE.includes(change.status) || (inCopy && change.status === 'in_copy'))
   const on = new Map<string, FileChange>()
   for (const change of changes) {
-    if ((change.status === 'in_copy' && !inCopy) || (!live(change) && !change.diff && change.kind !== 'delete')) continue
+    if ((change.status === 'in_copy' && !inCopy) || (!live(change) && !change.diff && change.kind !== 'delete'))
+      continue
     const was = on.get(keyOf(change.path))
-    if (!was || live(change) > live(was) || (live(change) === live(was) && Date.parse(change.created_at) >= Date.parse(was.created_at))) on.set(keyOf(change.path), change)
+    if (
+      !was ||
+      live(change) > live(was) ||
+      (live(change) === live(was) && Date.parse(change.created_at) >= Date.parse(was.created_at))
+    )
+      on.set(keyOf(change.path), change)
   }
   return on
 }
@@ -80,7 +100,8 @@ const outside = (path: string) => /^([a-z]:)?[\\/]/i.test(path)
 const part = (name: string) => name.replaceAll('/', '∕')
 const clock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 /** The message of yours a change's turn answered, if there is one. */
-const askedBy = (change: FileChange, messages: Message[]) => messages.find(m => m.run_id === change.run_id && m.role === 'user')
+const askedBy = (change: FileChange, messages: Message[]) =>
+  messages.find(m => m.run_id === change.run_id && m.role === 'user')
 
 /** "10:42 · Coder · “The login fails after…”": the agent, and the message of yours its turn answered (where there is one). */
 export function heading(change: FileChange, name: string, messages: Message[]): string {
@@ -91,7 +112,8 @@ export function heading(change: FileChange, name: string, messages: Message[]): 
 }
 
 /** What a change did and how it stands, in words: "changed, you said no", "new, outside the project". */
-const saidOf = (change: FileChange, words: string) => [DID[change.kind], words, outside(change.path) && 'outside the project'].filter(Boolean).join(', ')
+const saidOf = (change: FileChange, words: string) =>
+  [DID[change.kind], words, outside(change.path) && 'outside the project'].filter(Boolean).join(', ')
 
 /** The rows of the Changes tab, group by group in `GROUPS`' order. */
 export function changeRows({ changes, git, agents, merges, messages, name, branch }: Sources): ChangeRow[] {
@@ -102,10 +124,19 @@ export function changeRows({ changes, git, agents, merges, messages, name, branc
     // (no change of this chat's to it stands, yet git sees it changed: someone else changed it since)
     if (inScratch(change.path) || (group === CLOSED && seen.has(key))) continue
     const at = Date.parse((askedBy(change, messages) ?? change).created_at)
-    rows.push({ key, path: change.path, group, who: heading(change, name(change.agent_id), messages), at, words: saidOf(change, words) })
+    rows.push({
+      key,
+      path: change.path,
+      group,
+      who: heading(change, name(change.agent_id), messages),
+      at,
+      words: saidOf(change, words),
+    })
   }
   const others = branch ? `Changed on ${branch.replace(/^refs\/(heads|remotes)\//, '')}` : 'Not by an agent'
-  for (const [key, c] of seen) if (!rows.some(row => row.key === key)) rows.push({ key, path: c.path, group: others, who: null, at: 0, words: GIT_SAYS[c.status] })
+  for (const [key, c] of seen)
+    if (!rows.some(row => row.key === key))
+      rows.push({ key, path: c.path, group: others, who: null, at: 0, words: GIT_SAYS[c.status] })
   const order = (group: string) => (GROUPS as readonly string[]).indexOf(group)
   return [...rows, ...(branch ? [] : copyRows(agents, merges, name))].sort((a, b) => order(a.group) - order(b.group))
 }
@@ -114,12 +145,24 @@ export function changeRows({ changes, git, agents, merges, messages, name, branc
 function copyRows(agents: Agent[], merges: Merge[], name: (agentId: string) => string): ChangeRow[] {
   return agents.flatMap(agent => {
     const stands = copyStands({ merges }, agent)
-    return stands ? [{ key: `copy:${agent.id}`, path: `${name(agent.id)}'s copy`, group: COPY_GROUP[stands], who: null, at: 0, words: 'its working copy' }] : []
+    return stands
+      ? [
+          {
+            key: `copy:${agent.id}`,
+            path: `${name(agent.id)}'s copy`,
+            group: COPY_GROUP[stands],
+            who: null,
+            at: 0,
+            words: 'its working copy',
+          },
+        ]
+      : []
   })
 }
 
 /** "Changes · N": with git, what git lists - as the top bar counts it; without, this chat's changes that are not closed. */
-export const changesCount = (rows: ChangeRow[], git: GitChange[] | null) => git?.length ?? rows.filter(row => row.group !== CLOSED).length
+export const changesCount = (rows: ChangeRow[], git: GitChange[] | null) =>
+  git?.length ?? rows.filter(row => row.group !== CLOSED).length
 
 /**
  * The rows as the tree draws them: each group a folder that says its count, its lines folders in it in the order they
@@ -127,11 +170,18 @@ export const changesCount = (rows: ChangeRow[], git: GitChange[] | null) => git?
  */
 export function changeTree(rows: ChangeRow[], asTree: boolean): TreeFile[] {
   const groups = [...new Set(rows.map(row => row.group))]
-  const heads: TreeFile[] = groups.map(group => ({ id: `/${part(group)}`, path: part(group), folder: true, title: group, meta: String(rows.filter(row => row.group === group).length) }))
+  const heads: TreeFile[] = groups.map(group => ({
+    id: `/${part(group)}`,
+    path: part(group),
+    folder: true,
+    title: group,
+    meta: String(rows.filter(row => row.group === group).length),
+  }))
   const lines = new Map<string, TreeFile>()
   for (const { group, who, at } of rows) {
     const path = who && `${part(group)}/${part(who)}`
-    if (path && !lines.has(path)) lines.set(path, { id: `/${path}`, path, folder: true, title: who, meta: '', order: at })
+    if (path && !lines.has(path))
+      lines.set(path, { id: `/${path}`, path, folder: true, title: who, meta: '', order: at })
   }
   const files = rows.map(({ key, path, group, who, words }) => {
     const shown = key.startsWith('copy:') ? part(path) : path.replaceAll('\\', '/')
@@ -151,10 +201,17 @@ export function changeTree(rows: ChangeRow[], asTree: boolean): TreeFile[] {
  * What the Changes tab shows, in plain words: what the list is, with git or without - not what the tool is doing. `git`
  * undefined: not read yet. On a branch looked at, its banner says it.
  */
-export function changesSaid(git: { list: unknown[] | null; failed?: boolean } | undefined, rows: number, root: string, branch: string | null): string {
+export function changesSaid(
+  git: { list: unknown[] | null; failed?: boolean } | undefined,
+  rows: number,
+  root: string,
+  branch: string | null,
+): string {
   if (!git) return 'Looking for changes…'
   if (git.failed) return `The changes could not be read${rows ? ": this is what this chat's agents changed" : ''}.`
   if (rows === 0) return 'Nothing changed.'
   if (branch) return ''
-  return git.list ? `This chat's work, and what git sees changed in ${root} since the last commit.` : "No git here, or it did not answer in time: this is what this chat's agents changed."
+  return git.list
+    ? `This chat's work, and what git sees changed in ${root} since the last commit.`
+    : "No git here, or it did not answer in time: this is what this chat's agents changed."
 }

@@ -14,7 +14,13 @@ type Turns = ReturnType<typeof notebookRuns>
 type Turn = Turns[number] | ReturnType<typeof notebookRun>
 
 /** At the top, where more than one turn has a notebook: whose notes are shown, and the way to another's. */
-const turnPicker = (state: ConvState | null, run: Turn, turns: Turns, current: Turn, setPicked: (runId: string | null) => void) =>
+const turnPicker = (
+  state: ConvState | null,
+  run: Turn,
+  turns: Turns,
+  current: Turn,
+  setPicked: (runId: string | null) => void,
+) =>
   state &&
   run &&
   turns.length > 1 && (
@@ -36,7 +42,8 @@ const turnPicker = (state: ConvState | null, run: Turn, turns: Turns, current: T
   )
 
 /** No note can be posted: the notebook is closed, one is on its way, or nothing is written. */
-const cannotPost = (closed: ReturnType<typeof closedReason>, busy: boolean, draft: string) => closed !== null || busy || !draft.trim()
+const cannotPost = (closed: ReturnType<typeof closedReason>, busy: boolean, draft: string) =>
+  closed !== null || busy || !draft.trim()
 
 /**
  * The shared notebook of a turn: what its agents and you noted for everyone. It shows the

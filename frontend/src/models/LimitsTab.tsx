@@ -9,9 +9,11 @@ import { paidOf } from './cards'
 export type LimitsChange = Partial<Pick<Provider, 'plan' | 'step_down_at' | 'day_limit' | 'month_limit'>>
 
 // Empty: none. Undefined: as written it is no limit, and nothing is sent.
-const share = (typed: string) => (typed.trim() === '' ? null : /^\d{2,3}$/.test(typed.trim()) && +typed >= 50 && +typed <= 100 ? +typed : undefined)
+const share = (typed: string) =>
+  typed.trim() === '' ? null : /^\d{2,3}$/.test(typed.trim()) && +typed >= 50 && +typed <= 100 ? +typed : undefined
 // Plain decimals only: "1e3", "0x10" or "Infinity" are no amount anyone writes.
-const money = (typed: string) => (typed.trim() === '' ? null : /^\d+(\.\d+)?$/.test(typed.trim()) && +typed > 0 ? +typed : undefined)
+const money = (typed: string) =>
+  typed.trim() === '' ? null : /^\d+(\.\d+)?$/.test(typed.trim()) && +typed > 0 ? +typed : undefined
 const shown = (value: number | null) => (value === null ? '' : String(value))
 const PLAN_NOTE = 'Its runs then show no cost on Usage and count nothing in a project’s budget.'
 const PLAN_HINT = 'For a key paid in credits or a plan. Its runs are counted apart, as runs with no price are.'
@@ -41,7 +43,11 @@ export function LimitsTab({
   const values = { step_down_at: share(step), day_limit: money(day), month_limit: money(month) }
   const changed: LimitsChange = {
     ...(plan !== provider.plan ? { plan } : {}),
-    ...Object.fromEntries(Object.entries(values).filter(([name, value]) => value !== undefined && value !== provider[name as keyof typeof values])),
+    ...Object.fromEntries(
+      Object.entries(values).filter(
+        ([name, value]) => value !== undefined && value !== provider[name as keyof typeof values],
+      ),
+    ),
   }
   const wrong = Object.values(values).some(value => value === undefined)
   // A new edit is not what was saved.
@@ -68,9 +74,20 @@ export function LimitsTab({
   }
 
   if (paid === 'this machine')
-    return <p className="muted provider-note">A model server on this machine spends no money and has no plan: there is nothing to limit.</p>
+    return (
+      <p className="muted provider-note">
+        A model server on this machine spends no money and has no plan: there is nothing to limit.
+      </p>
+    )
   // "Step down a tier at [ ] % of the plan", "At most $[ ] a day": the words around the box are its label.
-  const field = (id: string, [before, after]: [string, string], value: string, set: (typed: string) => void, note: string, hint: string) => {
+  const field = (
+    id: string,
+    [before, after]: [string, string],
+    value: string,
+    set: (typed: string) => void,
+    note: string,
+    hint: string,
+  ) => {
     const bad = value.trim() !== '' && (id === 'limit-step' ? share(value) : money(value)) === undefined
     return (
       <div className="field">
@@ -111,7 +128,13 @@ export function LimitsTab({
         <>
           <label className="choice" htmlFor="limit-plan">
             {/* Named by all of its note, as the page shows it, and not by the hint's button. */}
-            <input id="limit-plan" type="checkbox" aria-label={`This key is a plan: count no money ${PLAN_NOTE} ${PLAN_HINT}`} checked={plan} onChange={e => editing(setPlan)(e.target.checked)} />
+            <input
+              id="limit-plan"
+              type="checkbox"
+              aria-label={`This key is a plan: count no money ${PLAN_NOTE} ${PLAN_HINT}`}
+              checked={plan}
+              onChange={e => editing(setPlan)(e.target.checked)}
+            />
             <span>
               This key is a plan: count no money
               <span className="choice-note">
@@ -126,8 +149,22 @@ export function LimitsTab({
                   {unkept}. A limit here is in dollars, and what is spent is counted at your prices.
                 </p>
               )}
-              {field('limit-day', ['At most $', 'a day'], day, setDay, 'Spent at your prices, in every project; empty for no limit. Past it, a new message whose Orchestrator runs here asks you first, a model picked by tier is the next one of its tier, and no sub-agent or room member is opened here.', 'It asks you as a project’s budget does.')}
-              {field('limit-month', ['At most $', 'a month'], month, setMonth, 'This calendar month, the same way.', 'As a day’s limit, counted from the first of the month.')}
+              {field(
+                'limit-day',
+                ['At most $', 'a day'],
+                day,
+                setDay,
+                'Spent at your prices, in every project; empty for no limit. Past it, a new message whose Orchestrator runs here asks you first, a model picked by tier is the next one of its tier, and no sub-agent or room member is opened here.',
+                'It asks you as a project’s budget does.',
+              )}
+              {field(
+                'limit-month',
+                ['At most $', 'a month'],
+                month,
+                setMonth,
+                'This calendar month, the same way.',
+                'As a day’s limit, counted from the first of the month.',
+              )}
             </>
           )}
         </>

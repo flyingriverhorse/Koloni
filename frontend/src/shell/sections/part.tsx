@@ -23,7 +23,12 @@ export interface Part {
 }
 
 /** A section whose Save sends `patch`: changed when there is anything in it, or when it cannot be sent. */
-export const part = (patch: ProjectSettingsValues, valid: boolean, view: ReactNode, more: Partial<Part> = {}): Part => ({
+export const part = (
+  patch: ProjectSettingsValues,
+  valid: boolean,
+  view: ReactNode,
+  more: Partial<Part> = {},
+): Part => ({
   patch,
   valid,
   changed: !valid || Object.keys(patch).length > 0,
@@ -44,18 +49,39 @@ export function within(text: string, min: number, max: number): number | undefin
 export const limitOf = (text: string, max: number) => (text.trim() === '' ? null : within(text, 1, max))
 export const typed = (value: number | null | undefined) => (value == null ? '' : String(value))
 /** Sent only where it can be and is not what is saved. */
-export const sent = <K extends string, T>(key: K, value: T | undefined, kept: T) => (value !== undefined && value !== kept ? ({ [key]: value } as Record<K, T>) : {})
+export const sent = <K extends string, T>(key: K, value: T | undefined, kept: T) =>
+  value !== undefined && value !== kept ? ({ [key]: value } as Record<K, T>) : {}
 
 /**
  * One setting on one line (tek-ev): its name, the why behind ⓘ, its control - and what it runs or spends in sight
  * under the control, never behind ⓘ.
  */
-export function Row({ label, htmlFor, why, whyId, doc, warn, children }: { label: string; htmlFor?: string; why?: ReactNode; whyId?: string; doc?: GuidePlace; warn?: ReactNode; children: ReactNode }) {
+export function Row({
+  label,
+  htmlFor,
+  why,
+  whyId,
+  doc,
+  warn,
+  children,
+}: {
+  label: string
+  htmlFor?: string
+  why?: ReactNode
+  whyId?: string
+  doc?: GuidePlace
+  warn?: ReactNode
+  children: ReactNode
+}) {
   return (
     <div className="set-row">
       <span className="set-name">
         {htmlFor ? <label htmlFor={htmlFor}>{label}</label> : label}
-        {why && <Hint id={whyId} doc={doc}>{why}</Hint>}
+        {why && (
+          <Hint id={whyId} doc={doc}>
+            {why}
+          </Hint>
+        )}
       </span>
       <span className="set-value">
         {children}

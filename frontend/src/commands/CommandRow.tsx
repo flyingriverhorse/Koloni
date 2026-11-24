@@ -11,9 +11,18 @@ import { outputPreview } from './outputPreview'
  * it a click further (the canvas's Command node had it - the user's, 5 Nov), and Stop while it runs. A CLI's own command
  * that failed is on record as ended with no exit code, its call as failed: it reads as failed.
  */
-export function CommandRow({ command, failed = false, live = false }: { command: Command; failed?: boolean; live?: boolean }) {
+export function CommandRow({
+  command,
+  failed = false,
+  live = false,
+}: {
+  command: Command
+  failed?: boolean
+  live?: boolean
+}) {
   const [picked, setOpen] = useState<boolean | null>(null)
-  const { label, tone } = failed && command.status === 'exited' && command.exit_code === null ? CLI_FAILED : commandStatus(command)
+  const { label, tone } =
+    failed && command.status === 'exited' && command.exit_code === null ? CLI_FAILED : commandStatus(command)
   const seconds = commandSeconds(command)
   // In the chat (`live`): open while output comes and when it failed, until a click says otherwise.
   const open = picked ?? (live && (tone === 'del' || (command.status === 'running' && command.output !== '')))
@@ -45,7 +54,8 @@ function OnYourWords({ judged }: { judged: Command['judged'] }) {
   if (!judged || judged.verdict === 'ask' || !judged.source) return null
   return (
     <div className="tool-row-note muted">
-      {judged.verdict === 'run' ? 'Ran without asking' : 'Not run'} · your rule: “{judged.quote}” ({JUDGED_FROM[judged.source]})
+      {judged.verdict === 'run' ? 'Ran without asking' : 'Not run'} · your rule: “{judged.quote}” (
+      {JUDGED_FROM[judged.source]})
     </div>
   )
 }
@@ -55,10 +65,16 @@ function RanDisposable({ command }: { command: Command }) {
   const disposable = command.disposable
   if (!disposable?.unasked) return null
   const failed =
-    command.status === 'failed_to_start' ? 'did not start' : command.exit_code !== null && command.exit_code !== 0 ? `failed: exit ${command.exit_code}` : null
+    command.status === 'failed_to_start'
+      ? 'did not start'
+      : command.exit_code !== null && command.exit_code !== 0
+        ? `failed: exit ${command.exit_code}`
+        : null
   return (
     <div className="tool-row-note muted">
-      {failed ? `Ran without asking as disposable (${disposable.what}) and ${failed}` : `Ran without asking · disposable: ${disposable.what}`}
+      {failed
+        ? `Ran without asking as disposable (${disposable.what}) and ${failed}`
+        : `Ran without asking · disposable: ${disposable.what}`}
     </div>
   )
 }

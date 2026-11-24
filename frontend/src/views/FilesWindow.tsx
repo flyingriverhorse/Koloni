@@ -75,7 +75,11 @@ const SPLIT_KEY = 'koloni-diff-split'
  */
 const SIDE_BY_SIDE = 560
 // three.js comes with it, only once a model opens (slice 58): the app's own bundle stays as it was.
-const ModelView = lazy(() => import('./ModelView').catch(() => ({ default: () => <p className="view-empty muted">The 3D view could not be loaded.</p> })))
+const ModelView = lazy(() =>
+  import('./ModelView').catch(() => ({
+    default: () => <p className="view-empty muted">The 3D view could not be loaded.</p>,
+  })),
+)
 const outside = (key: string) => /^([a-z]:)?\//i.test(key)
 const at = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 // K-dallar: what a question about the project's files adds to read a branch instead.
@@ -126,7 +130,23 @@ const frameOf = (expanded: boolean, moved: boolean, height: number, spot: CSSPro
  * On a `branch` (K-dallar) it shows that branch from git, read only: its tree, a file's code, and as Changes what
  * it changed since it left the project's branch - nothing of this conversation's, nothing checked out.
  */
-export function FilesWindow({ project, branch = null, changes: ours, views: shown, fresh, agents, open, at: asked, height, expanded, onExpand, onClose, onSeen, onDecide, onTouch }: Props) {
+export function FilesWindow({
+  project,
+  branch = null,
+  changes: ours,
+  views: shown,
+  fresh,
+  agents,
+  open,
+  at: asked,
+  height,
+  expanded,
+  onExpand,
+  onClose,
+  onSeen,
+  onDecide,
+  onTouch,
+}: Props) {
   const changes = branch ? NONE : ours
   const views = branch ? NONE : shown
   const rootName = project.root_path.split(/[\\/]/).filter(Boolean).at(-1) ?? 'project'
@@ -141,9 +161,16 @@ export function FilesWindow({ project, branch = null, changes: ours, views: show
   const merges = useApp(s => s.conv?.merges ?? NONE)
   const messages = useApp(s => s.conv?.messages ?? NONE)
   // B-165: the file the chat's last `show` put before the user, as its result names it - on record, so over a reload too.
-  const lastShown = useApp(s => /^shown: (.+) is in the view/.exec(s.conv?.toolCalls.filter(c => c.name === 'show' && c.status === 'succeeded').at(-1)?.result ?? '')?.[1] ?? null)
+  const lastShown = useApp(
+    s =>
+      /^shown: (.+) is in the view/.exec(
+        s.conv?.toolCalls.filter(c => c.name === 'show' && c.status === 'succeeded').at(-1)?.result ?? '',
+      )?.[1] ?? null,
+  )
   const folderKey = `koloni-files-folders-${project.id}`
-  const [folders, setFolders] = useState<Record<string, boolean>>(() => stored(folderKey, {}, read => typeof read === 'object' && read !== null && !Array.isArray(read)))
+  const [folders, setFolders] = useState<Record<string, boolean>>(() =>
+    stored(folderKey, {}, read => typeof read === 'object' && read !== null && !Array.isArray(read)),
+  )
   const [list, setList] = useState<List>(() => stored(LIST_KEY, 'files', read => LISTS.includes(read as List)))
   function chooseList(next: List) {
     setList(next)
@@ -155,7 +182,9 @@ export function FilesWindow({ project, branch = null, changes: ours, views: show
     keep(SHAPE_KEY, next)
   }
   // The groups and folders of Changes the user opened or shut, by their key - this browser's, whatever the project.
-  const [changesOpen, setChangesOpen] = useState<Record<string, boolean>>(() => stored(OPEN_KEY, {}, read => typeof read === 'object' && read !== null && !Array.isArray(read)))
+  const [changesOpen, setChangesOpen] = useState<Record<string, boolean>>(() =>
+    stored(OPEN_KEY, {}, read => typeof read === 'object' && read !== null && !Array.isArray(read)),
+  )
   const box = useRef<HTMLElement>(null)
   const tabList = useRef<HTMLDivElement>(null)
   const move = useMove('koloni-view-spot', box)
@@ -217,10 +246,12 @@ export function FilesWindow({ project, branch = null, changes: ours, views: show
   useEffect(() => {
     if (!open) return
     const n = ++gitAsk.current
-    api.get<GitChange[] | null>(`/projects/${project.id}/changes${branch ? `?ref=${encodeURIComponent(branch)}` : ''}`).then(
-      found => n === gitAsk.current && setGitList({ at: stamp, list: Array.isArray(found) ? found : null }),
-      () => n === gitAsk.current && setGitList({ at: stamp, list: null, failed: true }),
-    )
+    api
+      .get<GitChange[] | null>(`/projects/${project.id}/changes${branch ? `?ref=${encodeURIComponent(branch)}` : ''}`)
+      .then(
+        found => n === gitAsk.current && setGitList({ at: stamp, list: Array.isArray(found) ? found : null }),
+        () => n === gitAsk.current && setGitList({ at: stamp, list: null, failed: true }),
+      )
   }, [open, stamp, project.id, branch])
   const inGit = new Map((gitList?.list ?? []).map(c => [keyOf(c.path), c.status]))
 
@@ -246,13 +277,19 @@ export function FilesWindow({ project, branch = null, changes: ours, views: show
         dot: fresh.includes(v.id),
       })
     for (const a of agents.filter(a => !branch && a.copy?.state === 'own' && AT_WORK.has(a.status)))
-      entries.set(`copy:${a.id}`, { id: `copy:${a.id}`, path: `${COPIES}/${who(a.id)}'s copy`, title: `What ${who(a.id)} changed in its working copy so far`, meta: 'working copy' })
+      entries.set(`copy:${a.id}`, {
+        id: `copy:${a.id}`,
+        path: `${COPIES}/${who(a.id)}'s copy`,
+        title: `What ${who(a.id)} changed in its working copy so far`,
+        meta: 'working copy',
+      })
     entries.set(rootKey, { id: rootKey, path: rootName, folder: true, title: project.root_path, meta: '' })
     readInto(entries)
     for (const v of files) {
       const key = keyOf(v.path)
       const path = nameIn(key, v.path)
-      if (!entries.has(key)) entries.set(key, { id: key, path: inTree(path), title: path, meta: STATUS_WORDS[v.status] })
+      if (!entries.has(key))
+        entries.set(key, { id: key, path: inTree(path), title: path, meta: STATUS_WORDS[v.status] })
     }
     for (const [key, change] of latest) {
       const path = nameIn(key, change.path)
@@ -275,7 +312,9 @@ export function FilesWindow({ project, branch = null, changes: ours, views: show
   const { changeList, changedRows } = changesTab()
   function onListKey(event: KeyboardEvent<HTMLDivElement>) {
     const at = LISTS.indexOf(list)
-    const to = ({ ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: LISTS.length - 1 } as Record<string, number>)[event.key]
+    const to = ({ ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: LISTS.length - 1 } as Record<string, number>)[
+      event.key
+    ]
     if (to === undefined) return
     event.preventDefault()
     const next = LISTS[(to + LISTS.length) % LISTS.length]
@@ -285,9 +324,17 @@ export function FilesWindow({ project, branch = null, changes: ours, views: show
 
   // Open: what the user left open; till then the root, the Previews, and the folders of a changed file.
   const changedFolders = new Set(
-    [...entries.values()].filter(e => e.changed).flatMap(e => e.path.split('/').slice(0, -1).map((_, n, parts) => `/${parts.slice(0, n + 1).join('/')}`)),
+    [...entries.values()]
+      .filter(e => e.changed)
+      .flatMap(e =>
+        e.path
+          .split('/')
+          .slice(0, -1)
+          .map((_, n, parts) => `/${parts.slice(0, n + 1).join('/')}`),
+      ),
   )
-  const atFirst = (key: string) => key === rootKey || key === `/${PREVIEWS}` || key === `/${COPIES}` || changedFolders.has(key)
+  const atFirst = (key: string) =>
+    key === rootKey || key === `/${PREVIEWS}` || key === `/${COPIES}` || changedFolders.has(key)
   const isOpen = (key: string) => folders[key] ?? atFirst(key)
   function onFolder(key: string, opened: boolean) {
     setFolders(was => {
@@ -304,22 +351,28 @@ export function FilesWindow({ project, branch = null, changes: ours, views: show
     setChangesOpen(was => {
       if ((was[key] ?? key !== `/${CLOSED}`) === opened) return was
       // (what is no longer in the list is let go)
-      const next = Object.fromEntries(Object.entries({ ...was, [key]: opened }).filter(([at]) => changedRows.some(row => `/${row.path}/`.startsWith(`${at}/`))))
+      const next = Object.fromEntries(
+        Object.entries({ ...was, [key]: opened }).filter(([at]) =>
+          changedRows.some(row => `/${row.path}/`.startsWith(`${at}/`)),
+        ),
+      )
       keep(OPEN_KEY, next)
       return next
     })
   }
   // What the left pane lists: the project's files, or what changed - each with which of its folders are open.
-  const pane = list === 'changes' ? { files: changedRows, label: 'Changes', isOpen: isChangesOpen, onFolder: onChangesFolder, on: record } : { files: [...entries.values()], label: 'Files', isOpen, onFolder, on: latest }
+  const pane =
+    list === 'changes'
+      ? { files: changedRows, label: 'Changes', isOpen: isChangesOpen, onFolder: onChangesFolder, on: record }
+      : { files: [...entries.values()], label: 'Files', isOpen, onFolder, on: latest }
   // Each open folder of the project is read, one level, once a stamp.
   const foldersToRead = () =>
-    (
-      open
-        ? [rootKey, ...[...entries.values()].filter(e => e.folder).map(e => e.id)]
-            .filter(key => isOpen(key) && (key === rootKey || key.startsWith(`${rootKey}/`)))
-            .map(key => key.slice(rootKey.length + 1))
-            .filter(folder => read[folder]?.at !== stamp)
-        : []
+    (open
+      ? [rootKey, ...[...entries.values()].filter(e => e.folder).map(e => e.id)]
+          .filter(key => isOpen(key) && (key === rootKey || key.startsWith(`${rootKey}/`)))
+          .map(key => key.slice(rootKey.length + 1))
+          .filter(folder => read[folder]?.at !== stamp)
+      : []
     ).join('\n')
   const want = foldersToRead()
   useEffect(() => {
@@ -332,15 +385,20 @@ export function FilesWindow({ project, branch = null, changes: ours, views: show
         setRead(was => ({ ...was, [folder]: { at: stamp, list } }))
       }
       // (a folder that is not there - one a change will make, or took away - is empty)
-      api.get<ProjectEntry[]>(`/projects/${project.id}/files?path=${encodeURIComponent(folder)}${onBranch(branch)}`).then(
-        list => done(Array.isArray(list) ? list : null),
-        () => done(null),
-      )
+      api
+        .get<ProjectEntry[]>(`/projects/${project.id}/files?path=${encodeURIComponent(folder)}${onBranch(branch)}`)
+        .then(
+          list => done(Array.isArray(list) ? list : null),
+          () => done(null),
+        )
     }
   }, [want, stamp, project.id, branch])
 
   // The files whose change waits for you, by path: "Next waiting" goes through them.
-  const waiting = [...latest].filter(([, c]) => c.status === 'proposed').map(([key]) => key).sort()
+  const waiting = [...latest]
+    .filter(([, c]) => c.status === 'proposed')
+    .map(([key]) => key)
+    .sort()
   const next = () => show(waiting[(waiting.indexOf(chosen ?? '') + 1) % waiting.length])
   /**
    * A folder asked for (K-shared-bagli: the shared folder, from the canvas's column): it and the folders over it, open -
@@ -361,8 +419,13 @@ export function FilesWindow({ project, branch = null, changes: ours, views: show
     const fresher = views.find(v => fresh.includes(v.id))
     // (Else, as it first opens - after a reload too - what was last shown, while it is there: B-165. Its tab closed
     // later, it is not opened again.)
-    const shownLast = took === 0 && lastShown !== null && files.find(v => keyOf(v.path) === keyOf(lastShown) && (v.sha || v.too_large))
-    return waiting[0] ?? (fresher && (fresher.kind === 'server' ? `preview:${fresher.id}` : keyOf(fresher.path))) ?? (shownLast ? keyOf(shownLast.path) : null)
+    const shownLast =
+      took === 0 && lastShown !== null && files.find(v => keyOf(v.path) === keyOf(lastShown) && (v.sha || v.too_large))
+    return (
+      waiting[0] ??
+      (fresher && (fresher.kind === 'server' ? `preview:${fresher.id}` : keyOf(fresher.path))) ??
+      (shownLast ? keyOf(shownLast.path) : null)
+    )
   }
   const takeAsk = () => {
     const parts = revealAsked()
@@ -399,12 +462,18 @@ export function FilesWindow({ project, branch = null, changes: ours, views: show
     requestAnimationFrame(() => tabList.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus())
   }
   const nameOf = (key: string) =>
-    key.startsWith('copy:') ? `${who(key.slice(5))}'s copy` : key.startsWith('preview:') ? (servers.find(v => `preview:${v.id}` === key)?.path ?? key) : fileName(named.get(key) ?? key)
+    key.startsWith('copy:')
+      ? `${who(key.slice(5))}'s copy`
+      : key.startsWith('preview:')
+        ? (servers.find(v => `preview:${v.id}` === key)?.path ?? key)
+        : fileName(named.get(key) ?? key)
   // B-165: two tabs of one name ("index.html" at the root and in game/) - the one in a folder says its folder.
   // shortcut: only its own folder is said, so files in folders of one name (a/game, b/game) still read alike; say more of the path if met.
   const tabName = (key: string) => {
     const [name, path] = [nameOf(key), named.get(key) ?? key]
-    return path.includes('/') && tabs.some(other => other !== key && nameOf(other) === name) ? path.split('/').slice(-2).join('/') : name
+    return path.includes('/') && tabs.some(other => other !== key && nameOf(other) === name)
+      ? path.split('/').slice(-2).join('/')
+      : name
   }
   const change = chosen ? pane.on.get(chosen) : undefined
   const view = chosen ? viewOf(chosen) : undefined
@@ -414,7 +483,12 @@ export function FilesWindow({ project, branch = null, changes: ours, views: show
   const top = () => (
     <div className="view-top" {...(expanded ? {} : move.header)}>
       {!expanded && (
-        <span className="move-grip" aria-label="Move workspace" title="Move workspace: drag, or the arrow keys; a double click or Enter puts it back" {...move.handle}>
+        <span
+          className="move-grip"
+          aria-label="Move workspace"
+          title="Move workspace: drag, or the arrow keys; a double click or Enter puts it back"
+          {...move.handle}
+        >
           <DotsSixVertical size={14} />
         </span>
       )}
@@ -447,10 +521,22 @@ export function FilesWindow({ project, branch = null, changes: ours, views: show
         ))}
       </div>
       {/* At the right end, as a window's are (the user's, 6 Nov): Expand or Shrink, then Close last. */}
-      <button type="button" className="icon-btn" aria-label={expanded ? 'Shrink workspace' : 'Expand workspace'} title={expanded ? 'Shrink workspace' : 'Expand workspace'} onClick={onExpand}>
+      <button
+        type="button"
+        className="icon-btn"
+        aria-label={expanded ? 'Shrink workspace' : 'Expand workspace'}
+        title={expanded ? 'Shrink workspace' : 'Expand workspace'}
+        onClick={onExpand}
+      >
         {expanded ? <ArrowsIn size={14} /> : <ArrowsOut size={14} />}
       </button>
-      <button type="button" className="icon-btn" aria-label="Close workspace" title="Close workspace (Esc)" onClick={onClose}>
+      <button
+        type="button"
+        className="icon-btn"
+        aria-label="Close workspace"
+        title="Close workspace (Esc)"
+        onClick={onClose}
+      >
         <X size={14} />
       </button>
     </div>
@@ -460,7 +546,16 @@ export function FilesWindow({ project, branch = null, changes: ours, views: show
   const listTabs = () => (
     <div className="two-pane-tabs" role="tablist" aria-label="Show" onKeyDown={onListKey}>
       {LISTS.map(id => (
-        <button key={id} type="button" role="tab" data-list={id} aria-selected={list === id} tabIndex={list === id ? 0 : -1} className="two-pane-title" onClick={() => chooseList(id)}>
+        <button
+          key={id}
+          type="button"
+          role="tab"
+          data-list={id}
+          aria-selected={list === id}
+          tabIndex={list === id ? 0 : -1}
+          className="two-pane-title"
+          onClick={() => chooseList(id)}
+        >
           {/* (no count till git answered the first time: what it lists is not known yet) */}
           {id === 'files' ? 'Files' : gitList ? `Changes · ${changesCount(changeList, gitList.list)}` : 'Changes'}
         </button>
@@ -474,7 +569,8 @@ export function FilesWindow({ project, branch = null, changes: ours, views: show
       {branch && (
         <p className="files-waiting" role="status">
           <span>
-            <b className="mono">{branch.replace(/^refs\/(heads|remotes)\//, '')}</b> · read only{list === 'changes' && ', against your branch'}
+            <b className="mono">{branch.replace(/^refs\/(heads|remotes)\//, '')}</b> · read only
+            {list === 'changes' && ', against your branch'}
           </span>
           <button type="button" className="link-btn" onClick={() => useApp.getState().openFiles()}>
             Back to the project
@@ -487,7 +583,11 @@ export function FilesWindow({ project, branch = null, changes: ours, views: show
             {changesSaid(gitList?.at === stamp ? gitList : undefined, changeList.length, rootName, branch)}
           </p>
           <label className="files-waiting">
-            <input type="checkbox" checked={shape === 'tree'} onChange={event => chooseShape(event.target.checked ? 'tree' : 'flat')} />
+            <input
+              type="checkbox"
+              checked={shape === 'tree'}
+              onChange={event => chooseShape(event.target.checked ? 'tree' : 'flat')}
+            />
             Show folders as a tree
           </label>
         </>
@@ -508,7 +608,8 @@ export function FilesWindow({ project, branch = null, changes: ours, views: show
    * B-187: the page the chat last put before the user opens as it was shown, not on its diff - but a change
    * of it that waits for you opens on its diff. So does an output asked for from the canvas (K-belge-ciktilari).
    */
-  const asShown = (key: string) => ((lastShown !== null && keyOf(lastShown) === key) || previewAsk?.key === key) && change?.status !== 'proposed'
+  const asShown = (key: string) =>
+    ((lastShown !== null && keyOf(lastShown) === key) || previewAsk?.key === key) && change?.status !== 'proposed'
 
   /** The file chosen, opened. */
   const opened = (chosen: string) => (
@@ -538,7 +639,13 @@ export function FilesWindow({ project, branch = null, changes: ours, views: show
   const right = () => (
     <>
       {server && <Preview key={server.id} command={server.command} who={who(server.command.agent_id)} />}
-      {chosen?.startsWith('copy:') && <CopyChanges agentId={chosen.slice(5)} stamp={agents.find(a => a.id === chosen.slice(5))?.last_event_at ?? ''} group={changeList.find(row => row.key === chosen)?.group} />}
+      {chosen?.startsWith('copy:') && (
+        <CopyChanges
+          agentId={chosen.slice(5)}
+          stamp={agents.find(a => a.id === chosen.slice(5))?.last_event_at ?? ''}
+          group={changeList.find(row => row.key === chosen)?.group}
+        />
+      )}
       {!server && chosen && !chosen.startsWith('copy:') && opened(chosen)}
       {!chosen && <p className="view-empty muted">Pick a file in the tree.</p>}
     </>
@@ -590,14 +697,20 @@ function CopyChanges({ agentId, stamp, group }: { agentId: string; stamp: string
   const copy = useWorkingCopy(agentId, stamp)
   const body = useWidth()
   if (copy === undefined) return null
-  if (copy === null) return <p className="view-empty muted">Its working copy is not there any more: its work is over.</p>
+  if (copy === null)
+    return <p className="view-empty muted">Its working copy is not there any more: its work is over.</p>
   if (copy.files.length === 0) return <p className="view-empty muted">Nothing changed in its working copy yet.</p>
   const card = group && TO_ITS_CARD[group]
   return (
     <div ref={body.measure} className="changes-body">
       {card && (
         <p className="view-where">
-          <button type="button" className={`btn btn-small${group === 'Kept' ? '' : ' btn-primary'}`} title="Its card, in the agent's window: Take in or Discard there" onClick={() => useApp.getState().select(`agent:${agentId}`)}>
+          <button
+            type="button"
+            className={`btn btn-small${group === 'Kept' ? '' : ' btn-primary'}`}
+            title="Its card, in the agent's window: Take in or Discard there"
+            onClick={() => useApp.getState().select(`agent:${agentId}`)}
+          >
             {card}
           </button>
         </p>
@@ -605,8 +718,7 @@ function CopyChanges({ agentId, stamp, group }: { agentId: string; stamp: string
       {copy.files.map(file => (
         <section key={file.path} aria-label={file.path} className="copy-file" data-ask={file.path}>
           <p className="mono view-where">
-            {file.path}{' '}
-            <span style={{ color: 'var(--ok)' }}>+{file.additions}</span>{' '}
+            {file.path} <span style={{ color: 'var(--ok)' }}>+{file.additions}</span>{' '}
             <span style={{ color: 'var(--del)' }}>−{file.deletions}</span>
           </p>
           <DiffView diff={file.diff} path={file.path} split={(body.width ?? 0) >= SIDE_BY_SIDE} />
@@ -641,7 +753,14 @@ interface OpenedProps {
 }
 
 /** What a file opened is: its kind, gone from disk, shown with a diff, and whether it switches between its preview and its code. */
-function openedOf({ path, change, inGit, asChanged, view, branch }: Pick<OpenedProps, 'path' | 'change' | 'inGit' | 'asChanged' | 'view' | 'branch'>) {
+function openedOf({
+  path,
+  change,
+  inGit,
+  asChanged,
+  view,
+  branch,
+}: Pick<OpenedProps, 'path' | 'change' | 'inGit' | 'asChanged' | 'view' | 'branch'>) {
   // (a preview is drawn from the project's files, not the branch's)
   const kind = branch ? null : (view?.kind ?? kindOf(path))
   const gone = change?.kind === 'delete' || inGit === 'D'
@@ -652,14 +771,34 @@ function openedOf({ path, change, inGit, asChanged, view, branch }: Pick<OpenedP
 }
 
 // (a changed model opens on the model: its diff is numbers; a document's is no text at all)
-const firstAsCode = (diffed: boolean, kind: string | null, shown: boolean) => (diffed && !DRAWN.has(kind ?? '') && !shown) || !kind
+const firstAsCode = (diffed: boolean, kind: string | null, shown: boolean) =>
+  (diffed && !DRAWN.has(kind ?? '') && !shown) || !kind
 
 /** Where its preview is loaded from: the view's address (it has the text not on disk yet), else the project's. */
 const previewSrc = (view: View | undefined, path: string, projectId: string) =>
-  view ? srcOf(view) : outside(path) ? null : `/api/projects/${projectId}/raw/${path.split('/').map(encodeURIComponent).join('/')}`
+  view
+    ? srcOf(view)
+    : outside(path)
+      ? null
+      : `/api/projects/${projectId}/raw/${path.split('/').map(encodeURIComponent).join('/')}`
 
 /** A file opened: its latest change, its preview or its code - a page, a drawing or a note either of the two. */
-function Opened({ path, change, inGit, asChanged, gitStamp, view, shown, projectId, branch, who, live, always, onRun, onDecide }: OpenedProps) {
+function Opened({
+  path,
+  change,
+  inGit,
+  asChanged,
+  gitStamp,
+  view,
+  shown,
+  projectId,
+  branch,
+  who,
+  live,
+  always,
+  onRun,
+  onDecide,
+}: OpenedProps) {
   const [declined, setDeclined] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const runAlways = (on: boolean) => {
@@ -704,7 +843,11 @@ function Opened({ path, change, inGit, asChanged, gitStamp, view, shown, project
 
   /** B-168: once you said Run once or Don't run, a line says so and lets you change your mind. */
   const scriptSaid = () =>
-    !showsCode && kind === 'html' && !view?.too_large && !always && (live || declined) && (
+    !showsCode &&
+    kind === 'html' &&
+    !view?.too_large &&
+    !always &&
+    (live || declined) && (
       <div className="view-where" role="group" aria-label="Its script">
         <p className="muted">{live ? 'Script ran once.' : 'Script not run.'}</p>
         <button
@@ -722,9 +865,15 @@ function Opened({ path, change, inGit, asChanged, gitStamp, view, shown, project
 
   /** K-39-betik: the page is drawn; its script runs only if you say - once, or for every page of this chat. */
   const scriptAsk = () =>
-    !showsCode && kind === 'html' && !view?.too_large && (always || (!live && !declined)) && (
+    !showsCode &&
+    kind === 'html' &&
+    !view?.too_large &&
+    (always || (!live && !declined)) && (
       <div className="view-where" role="group" aria-label={always ? 'Its script' : 'Run its script?'}>
-        <p className="muted" title="A page's script can reach outside KOLONİ: its first step out and a WebRTC connection are not stopped">
+        <p
+          className="muted"
+          title="A page's script can reach outside KOLONİ: its first step out and a WebRTC connection are not stopped"
+        >
           {always ? 'Scripts run in this chat without asking.' : 'Its script runs only if you say.'}
         </p>
         {always ? (
@@ -758,7 +907,9 @@ function Opened({ path, change, inGit, asChanged, gitStamp, view, shown, project
           <span className="mono" style={{ color: 'var(--del)' }}>
             −{change.deletions}
           </span>
-          {(change.status === 'proposed' || change.status === 'applied') && <span className={CHANGE_LABEL[change.status][1]}>{CHANGE_LABEL[change.status][0]}</span>}
+          {(change.status === 'proposed' || change.status === 'applied') && (
+            <span className={CHANGE_LABEL[change.status][1]}>{CHANGE_LABEL[change.status][0]}</span>
+          )}
           <ChangeActions change={change} onDecide={onDecide} />
         </>
       )}
@@ -769,7 +920,11 @@ function Opened({ path, change, inGit, asChanged, gitStamp, view, shown, project
           aria-label="Side by side"
           aria-pressed={split}
           disabled={!wide}
-          title={wide ? 'Before and after side by side, or in one column' : 'Too narrow for two columns: hide the files, or expand the window'}
+          title={
+            wide
+              ? 'Before and after side by side, or in one column'
+              : 'Too narrow for two columns: hide the files, or expand the window'
+          }
           onClick={chooseSplit}
         >
           <Columns size={14} />
@@ -781,7 +936,12 @@ function Opened({ path, change, inGit, asChanged, gitStamp, view, shown, project
   /** Its diff - this conversation's change, or what git says changed - else its code. */
   const code = () =>
     change ? (
-      <DiffView diff={change.diff} path={path} split={split && wide} readWhole={() => api.get<{ diff: string }>(`/file-changes/${change.id}/diff`).then(read => read.diff)} />
+      <DiffView
+        diff={change.diff}
+        path={path}
+        split={split && wide}
+        readWhole={() => api.get<{ diff: string }>(`/file-changes/${change.id}/diff`).then(read => read.diff)}
+      />
     ) : asChanged && inGit ? (
       <GitDiff projectId={projectId} path={path} branch={branch} stamp={gitStamp} split={split && wide} />
     ) : (
@@ -833,7 +993,11 @@ function Opened({ path, change, inGit, asChanged, gitStamp, view, shown, project
       )}
       {diffed && changeInfo()}
       {/* (Selected code here can be asked about, by its path and lines: slice 80.) */}
-      <div ref={body.measure} className={showsCode ? 'changes-body' : 'view-body'} data-ask={showsCode ? path : undefined}>
+      <div
+        ref={body.measure}
+        className={showsCode ? 'changes-body' : 'view-body'}
+        data-ask={showsCode ? path : undefined}
+      >
         {showsCode ? code() : preview()}
       </div>
     </>
@@ -868,7 +1032,15 @@ function LastOnIt({ projectId, path, stamp }: { projectId: string; path: string;
         {told.map((one, i) => (
           <span key={`${one.agent_id} ${one.at}`}>
             {i > 0 && ' · '}
-            <button type="button" className="link-btn" onClick={() => (one.conversation_id === chat ? useApp.getState().select(`agent:${one.agent_id}`) : void useApp.getState().openConversation(one.conversation_id))}>
+            <button
+              type="button"
+              className="link-btn"
+              onClick={() =>
+                one.conversation_id === chat
+                  ? useApp.getState().select(`agent:${one.agent_id}`)
+                  : void useApp.getState().openConversation(one.conversation_id)
+              }
+            >
               {one.agent_name || one.agent_role} {at(one.at)}
             </button>
             {one.conversation_id !== chat && ` in chat ${one.conversation_title}`} ({LETTER[one.kind][2]}, {one.status})
@@ -880,14 +1052,28 @@ function LastOnIt({ projectId, path, stamp }: { projectId: string; path: string;
 }
 
 /** A file's diff against the project's git HEAD (K-degisenler), read whole: its folds open on a click. Why not, in a line. */
-function GitDiff({ projectId, path, branch, stamp, split }: { projectId: string; path: string; branch: string | null; stamp: string; split: boolean }) {
+function GitDiff({
+  projectId,
+  path,
+  branch,
+  stamp,
+  split,
+}: {
+  projectId: string
+  path: string
+  branch: string | null
+  stamp: string
+  split: boolean
+}) {
   const [read, setRead] = useState<{ diff: string } | { failed: string } | null>(null)
   useEffect(() => {
     let gone = false
-    api.get<{ diff: string }>(`/projects/${projectId}/changes/diff?path=${encodeURIComponent(path)}${onBranch(branch)}`).then(
-      found => !gone && setRead(found),
-      error => !gone && setRead({ failed: errorText(error) }),
-    )
+    api
+      .get<{ diff: string }>(`/projects/${projectId}/changes/diff?path=${encodeURIComponent(path)}${onBranch(branch)}`)
+      .then(
+        found => !gone && setRead(found),
+        error => !gone && setRead({ failed: errorText(error) }),
+      )
     return () => {
       gone = true
     }
@@ -918,14 +1104,20 @@ function Code({ projectId, path, branch }: { projectId: string; path: string; br
   const lines = read.text.replace(/\n$/, '').split('\n')
   const language = lines.length <= MOST_COLOURED ? languageOf(path) : null
   // As one text, so a string over several lines is one (a line too long to colour stands in it empty).
-  const coloured = language ? colourLines(lines.map(line => (line.length > LONGEST_COLOURED ? '' : line)).join('\n'), language) : null
+  const coloured = language
+    ? colourLines(lines.map(line => (line.length > LONGEST_COLOURED ? '' : line)).join('\n'), language)
+    : null
   return (
     <div className="diff mono">
       {lines.map((line, n) => (
         <div key={n} className="diff-line diff-ctx">
           <span className="diff-no">{n + 1}</span>
           {/* (highlight.js's own output, which escapes the text: the only HTML set here) */}
-          {coloured && line.length <= LONGEST_COLOURED ? <span className="diff-text" dangerouslySetInnerHTML={{ __html: coloured[n] }} /> : <span className="diff-text">{line}</span>}
+          {coloured && line.length <= LONGEST_COLOURED ? (
+            <span className="diff-text" dangerouslySetInnerHTML={{ __html: coloured[n] }} />
+          ) : (
+            <span className="diff-text">{line}</span>
+          )}
         </div>
       ))}
     </div>

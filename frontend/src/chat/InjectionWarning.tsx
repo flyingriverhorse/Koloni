@@ -22,7 +22,10 @@ export function InjectionWarning({ warning, agent }: { warning: Found; agent?: s
     <div role="note" aria-label={told} className="cmd-approval card-tell injection-warning">
       <div className="kicker cmd-approval-kicker">
         {/* (A webhook's is the one anybody on the internet could have sent: app.injection.SEVERITY.) */}
-        <Warning size={13} style={{ color: warning.source === 'webhook' ? 'var(--del)' : 'var(--warn)', flex: 'none' }} />
+        <Warning
+          size={13}
+          style={{ color: warning.source === 'webhook' ? 'var(--del)' : 'var(--warn)', flex: 'none' }}
+        />
         Text tried to give orders
       </div>
       <p className="card-said">

@@ -17,7 +17,8 @@ const row = (runId: string, over: Partial<TurnRow> = {}): TurnRow => ({
   at: '2026-10-05T10:00:00Z',
   ...over,
 })
-const nightly = (runId: string, over: Partial<TurnRow> = {}) => row(runId, { unattended: true, triggerName: 'Nightly look', ...over })
+const nightly = (runId: string, over: Partial<TurnRow> = {}) =>
+  row(runId, { unattended: true, triggerName: 'Nightly look', ...over })
 
 function list(rows: TurnRow[], current: string | null, over: Partial<Parameters<typeof TurnList>[0]> = {}) {
   return <TurnList rows={rows} current={current} onPick={() => {}} {...over} />
@@ -53,7 +54,10 @@ test('slice 107: Recent lists the last five messages, newest first - when, what 
 
 test('with five or fewer there is nothing older to point to; a message a trigger sent goes by the trigger’s name', () => {
   show(list([row('a'), nightly('n', { ended: 'working' })], 'a'))
-  expect(rows().map(b => b.textContent)).toEqual([`Nightly look${when('2026-10-05T10:00:00Z')}working`, `say a${when('2026-10-05T10:00:00Z')}done`])
+  expect(rows().map(b => b.textContent)).toEqual([
+    `Nightly look${when('2026-10-05T10:00:00Z')}working`,
+    `say a${when('2026-10-05T10:00:00Z')}done`,
+  ])
   expect(screen.queryByText(/Older ones/)).toBeNull()
 })
 
@@ -107,7 +111,22 @@ test('with no message the list says so', () => {
 })
 
 test('each row restores to before its message: the card, named by the message’s time, looks ahead first; Esc closes the card alone', async () => {
-  const asked = vi.fn(async (_url: string) => new Response(JSON.stringify({ turns: [], revert: ['a.txt'], skip: [], reject: [], copies: [], commands: [], stays: [], note: null }), { status: 200 }))
+  const asked = vi.fn(
+    async (_url: string) =>
+      new Response(
+        JSON.stringify({
+          turns: [],
+          revert: ['a.txt'],
+          skip: [],
+          reject: [],
+          copies: [],
+          commands: [],
+          stays: [],
+          note: null,
+        }),
+        { status: 200 },
+      ),
+  )
   vi.stubGlobal('fetch', asked)
   show(list([row('r1'), nightly('r2')], 'r2', { conversationId: 'c1' }))
   const [, older] = Array.from(panel().querySelectorAll<HTMLElement>('.recent-row'))
@@ -121,7 +140,9 @@ test('each row restores to before its message: the card, named by the message’
   expect(panel()).toBeInTheDocument()
   // a trigger's message is not the user's
   await userEvent.click(within(panel()).getAllByRole('button', { name: 'Restore to before this' })[0])
-  expect(screen.getByRole('region', { name: `Restore to before the ${when('2026-10-05T10:00:00Z')} message` })).toBeInTheDocument()
+  expect(
+    screen.getByRole('region', { name: `Restore to before the ${when('2026-10-05T10:00:00Z')} message` }),
+  ).toBeInTheDocument()
   vi.unstubAllGlobals()
 })
 
@@ -165,7 +186,10 @@ test('a name the server refuses stays in the box, with the reason; with no topic
 })
 
 test('slice 107: a message that waits for you further back than the last five is listed under them - the dot never points at nothing', () => {
-  const all = [row('old', { waits: true, text: 'approve this' }), ...Array.from({ length: 6 }, (_, n) => row(`m${n + 1}`))]
+  const all = [
+    row('old', { waits: true, text: 'approve this' }),
+    ...Array.from({ length: 6 }, (_, n) => row(`m${n + 1}`)),
+  ]
   render(list(all, 'm6'))
   const button = screen.getByRole('button', { name: /^Recent/ })
   expect(within(button).getByRole('img', { name: 'something waits for you' })).toBeInTheDocument()
@@ -180,6 +204,8 @@ test('slice 107: a message that waits for you further back than the last five is
 
 test('slice 107: a message still queued or at work has no Restore to before it', () => {
   show(list([row('a'), row('b', { ended: 'working' }), row('c', { ended: 'queued' })], 'b', { conversationId: 'c1' }))
-  const restores = Array.from(panel().querySelectorAll('.recent-row')).map(li => within(li as HTMLElement).queryByRole('button', { name: 'Restore to before this' }) !== null)
+  const restores = Array.from(panel().querySelectorAll('.recent-row')).map(
+    li => within(li as HTMLElement).queryByRole('button', { name: 'Restore to before this' }) !== null,
+  )
   expect(restores).toEqual([false, false, true])
 })

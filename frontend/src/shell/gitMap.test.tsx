@@ -43,7 +43,11 @@ const merge = (status: Merge['status'], over: Partial<Merge> = {}): Merge => ({
 test('the top bar says the branch, what is not committed, and the other worktrees', () => {
   expect(gitLabel(git())).toBe('⑂ main · 4 changed')
   expect(gitLabel(git({ changed: 0 }))).toBe('⑂ main')
-  expect(gitLabel(git({ branch: '', changed: 1, worktrees: [...git().worktrees, { path: 'C:/w', branch: 'fix', here: false }] }))).toBe('⑂ no branch · 1 changed · 1 worktree')
+  expect(
+    gitLabel(
+      git({ branch: '', changed: 1, worktrees: [...git().worktrees, { path: 'C:/w', branch: 'fix', here: false }] }),
+    ),
+  ).toBe('⑂ no branch · 1 changed · 1 worktree')
 })
 
 test('each copy says how it stands in words, and how it gets back to the project’s branch', () => {
@@ -51,9 +55,31 @@ test('each copy says how it stands in words, and how it gets back to the project
     runs: [run('r')],
     agents: [
       agent('r', 'running', { id: 'lead' }),
-      agent('r', 'running', { id: 'coder', parent_agent_id: 'lead', name: 'Coder', role_name: 'Coder', depth: 1, provider_name: 'Codex', copy: { state: 'own' } }),
-      agent('r', 'completed', { id: 'docs', parent_agent_id: 'lead', name: 'Docs writer', role_name: 'Writer', depth: 1, copy: { state: 'own' } }),
-      agent('r', 'failed', { id: 'tester', parent_agent_id: 'lead', name: 'Tester', role_name: 'Tester', depth: 1, copy: { state: 'own' } }),
+      agent('r', 'running', {
+        id: 'coder',
+        parent_agent_id: 'lead',
+        name: 'Coder',
+        role_name: 'Coder',
+        depth: 1,
+        provider_name: 'Codex',
+        copy: { state: 'own' },
+      }),
+      agent('r', 'completed', {
+        id: 'docs',
+        parent_agent_id: 'lead',
+        name: 'Docs writer',
+        role_name: 'Writer',
+        depth: 1,
+        copy: { state: 'own' },
+      }),
+      agent('r', 'failed', {
+        id: 'tester',
+        parent_agent_id: 'lead',
+        name: 'Tester',
+        role_name: 'Tester',
+        depth: 1,
+        copy: { state: 'own' },
+      }),
     ],
     fileChanges: [
       fileChange('c1', 'r', { agent_id: 'coder', path: 'a.ts', status: 'in_copy' }),
@@ -64,32 +90,102 @@ test('each copy says how it stands in words, and how it gets back to the project
   })
   const rows = gitRows(git({ commit: true }), state)
   expect(rows.map(r => [r.section, r.what, r.state, r.small, r.act?.label])).toEqual([
-    ['copies', 'Coder', 'working', '2 files so far · works in its own copy (Codex) · goes into main when you take it in · then offered for a commit on main', 'See changes'],
-    ['copies', 'Docs writer', 'finished, waits for you', 'works in its own copy · goes into main when you take it in · then offered for a commit on main', 'Take in…'],
+    [
+      'copies',
+      'Coder',
+      'working',
+      '2 files so far · works in its own copy (Codex) · goes into main when you take it in · then offered for a commit on main',
+      'See changes',
+    ],
+    [
+      'copies',
+      'Docs writer',
+      'finished, waits for you',
+      'works in its own copy · goes into main when you take it in · then offered for a commit on main',
+      'Take in…',
+    ],
     ['copies', 'Tester', 'kept', 'in its copy · nothing was taken · goes in only if you take it in', 'Look'],
   ])
   // A chat that does not ask: in by itself when it finishes.
   const unasked = { ...state, conversation: { ...conversation, permission_mode: 'full_auto' as const } }
-  expect(gitRows(git(), unasked)[0].small).toBe('2 files so far · works in its own copy (Codex) · goes into main when it finishes')
+  expect(gitRows(git(), unasked)[0].small).toBe(
+    '2 files so far · works in its own copy (Codex) · goes into main when it finishes',
+  )
 })
 
 test('other branches are compared with the project’s, and what an agent said is held against git', () => {
   const rows = gitRows(
     git({
       branches: [
-        { name: 'fix-login', ref: 'refs/heads/fix-login', remote: false, ahead: 3, behind: 0, joined: false, worktree: 'C:\\w\\fix', sha: null, subject: null, last_at: null },
-        { name: 'docs', ref: 'refs/heads/docs', remote: false, ahead: 0, behind: 2, joined: true, worktree: null, sha: 'd0c5', subject: 'docs', last_at: null },
-        { name: 'spike', ref: 'refs/remotes/origin/spike', remote: true, ahead: 1, behind: 1, joined: false, worktree: null, sha: null, subject: null, last_at: null },
+        {
+          name: 'fix-login',
+          ref: 'refs/heads/fix-login',
+          remote: false,
+          ahead: 3,
+          behind: 0,
+          joined: false,
+          worktree: 'C:\\w\\fix',
+          sha: null,
+          subject: null,
+          last_at: null,
+        },
+        {
+          name: 'docs',
+          ref: 'refs/heads/docs',
+          remote: false,
+          ahead: 0,
+          behind: 2,
+          joined: true,
+          worktree: null,
+          sha: 'd0c5',
+          subject: 'docs',
+          last_at: null,
+        },
+        {
+          name: 'spike',
+          ref: 'refs/remotes/origin/spike',
+          remote: true,
+          ahead: 1,
+          behind: 1,
+          joined: false,
+          worktree: null,
+          sha: null,
+          subject: null,
+          last_at: null,
+        },
       ],
       reports: [
-        { agent: 'Codex', branch: 'fix-login', worktree: null, commits: 3, merge_into: 'main', why: 'a fix', at: null, seen: true },
-        { agent: 'Coder', branch: 'gone', worktree: null, commits: null, merge_into: null, why: 'tried', at: null, seen: false },
+        {
+          agent: 'Codex',
+          branch: 'fix-login',
+          worktree: null,
+          commits: 3,
+          merge_into: 'main',
+          why: 'a fix',
+          at: null,
+          seen: true,
+        },
+        {
+          agent: 'Coder',
+          branch: 'gone',
+          worktree: null,
+          commits: null,
+          merge_into: null,
+          why: 'tried',
+          at: null,
+          seen: false,
+        },
       ],
     }),
     null,
   )
   expect(rows.map(r => [r.section, r.what, r.state, r.small])).toEqual([
-    ['branches', 'Codex said it made the branch fix-login', 'not joined', 'in its own folder C:\\w\\fix · 3 commits ahead of main · said by Codex: goes into main'],
+    [
+      'branches',
+      'Codex said it made the branch fix-login',
+      'not joined',
+      'in its own folder C:\\w\\fix · 3 commits ahead of main · said by Codex: goes into main',
+    ],
     ['branches', 'Branch docs', 'joined ✓', 'already in main · d0c5 docs'],
     ['branches', 'Remote branch spike', 'not joined', '1 commit ahead of main · 1 behind · nobody said where it goes'],
     ['said', 'Coder said it made the branch gone', 'not seen in git', 'tried'],
@@ -100,28 +196,68 @@ test('KOLONİ’s line on a turn’s git is said in the chat, with Show git', as
   const onShowGit = vi.fn()
   const state = convState({
     runs: [run('r', 'completed')],
-    messages: [{ id: 'g', conversation_id: 'c', run_id: 'r', agent_id: null, role: 'git', content: 'Codex switched the project to branch fix-login during this turn (it was on main). Not reported.', from_agent_id: null, delivered_at: null, discussion_id: null, created_at: '2026-10-21T21:52:00Z', status: 'complete' } as never],
+    messages: [
+      {
+        id: 'g',
+        conversation_id: 'c',
+        run_id: 'r',
+        agent_id: null,
+        role: 'git',
+        content: 'Codex switched the project to branch fix-login during this turn (it was on main). Not reported.',
+        from_agent_id: null,
+        delivered_at: null,
+        discussion_id: null,
+        created_at: '2026-10-21T21:52:00Z',
+        status: 'complete',
+      } as never,
+    ],
   })
-  render(<MessageList state={state} onRemoveQueued={() => {}} onOpenChange={() => {}} onDecide={async () => {}} onDecideCommand={async () => {}} onShowGit={onShowGit} />)
-  expect(screen.getByRole('note')).toHaveTextContent('Codex switched the project to branch fix-login during this turn (it was on main). Not reported.Show git')
+  render(
+    <MessageList
+      state={state}
+      onRemoveQueued={() => {}}
+      onOpenChange={() => {}}
+      onDecide={async () => {}}
+      onDecideCommand={async () => {}}
+      onShowGit={onShowGit}
+    />,
+  )
+  expect(screen.getByRole('note')).toHaveTextContent(
+    'Codex switched the project to branch fix-login during this turn (it was on main). Not reported.Show git',
+  )
   await userEvent.click(screen.getByRole('button', { name: 'Show git' }))
   expect(onShowGit).toHaveBeenCalled()
 })
 
 test('B-186: the top bar reads git again as a change reaches the project after its turn - a take in, an Undo', async () => {
   const read = vi.spyOn(api, 'get').mockResolvedValue(git())
-  const state = convState({ runs: [run('r', 'completed')], fileChanges: [fileChange('f1', 'r', { status: 'proposed' })], merges: [merge('pending')] })
+  const state = convState({
+    runs: [run('r', 'completed')],
+    fileChanges: [fileChange('f1', 'r', { status: 'proposed' })],
+    merges: [merge('pending')],
+  })
   useApp.setState({ conv: state })
   render(<GitStatus projectId="p" />)
   await screen.findByRole('button', { name: /main · 4 changed/ })
   const before = read.mock.calls.length
   // (a change written in a copy has not reached the project: nothing is read for it)
-  act(() => useApp.setState({ conv: { ...state, fileChanges: [fileChange('f1', 'r', { status: 'in_copy' }), fileChange('f2', 'r', { status: 'proposed' })] } }))
+  act(() =>
+    useApp.setState({
+      conv: {
+        ...state,
+        fileChanges: [fileChange('f1', 'r', { status: 'in_copy' }), fileChange('f2', 'r', { status: 'proposed' })],
+      },
+    }),
+  )
   await new Promise(resolve => setTimeout(resolve, 50))
   expect(read.mock.calls.length).toBe(before)
   act(() => useApp.setState({ conv: { ...state, merges: [merge('applied')] } }))
   await waitFor(() => expect(read.mock.calls.length).toBe(before + 1))
-  act(() => useApp.setState({ conv: { ...state, merges: [merge('applied')], fileChanges: [fileChange('f1', 'r', { status: 'reverted' })] } }))
+  act(() =>
+    useApp.setState({
+      conv: { ...state, merges: [merge('applied')], fileChanges: [fileChange('f1', 'r', { status: 'reverted' })] },
+    }),
+  )
   await waitFor(() => expect(read.mock.calls.length).toBe(before + 2))
   read.mockRestore()
 })
@@ -186,7 +322,12 @@ test('a read on its way as the branch is switched does not put the old branch ba
 
 test('a switch is a branch read after another one: not the first read, nor the same branch again after a read that failed', async () => {
   // (Seen 20 Nov: the first read as the page loaded made the Workspace anew - the file just picked in it gone.)
-  const read = vi.spyOn(api, 'get').mockResolvedValueOnce(git()).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(git()).mockResolvedValue(git({ branch: 'feature' }))
+  const read = vi
+    .spyOn(api, 'get')
+    .mockResolvedValueOnce(git())
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValueOnce(git())
+    .mockResolvedValue(git({ branch: 'feature' }))
   useApp.setState({ conv: null })
   const from = useApp.getState().gitSwitches
   render(<GitStatus projectId="p" />)
@@ -208,7 +349,10 @@ test('a switch is a branch read after another one: not the first read, nor the s
 })
 
 test('another project’s first branch read is no switch: its Workspace is new already', async () => {
-  const read = vi.spyOn(api, 'get').mockResolvedValueOnce(git()).mockResolvedValue(git({ branch: 'dev' }))
+  const read = vi
+    .spyOn(api, 'get')
+    .mockResolvedValueOnce(git())
+    .mockResolvedValue(git({ branch: 'dev' }))
   useApp.setState({ conv: null })
   const from = useApp.getState().gitSwitches
   const { rerender } = render(<GitStatus projectId="a" />)
@@ -234,8 +378,14 @@ const branch = (name: string, over: Partial<Git['branches'][number]> = {}): Git[
 })
 
 test('K-dallar: a branch is looked at read only, a local one switched to - and not while something holds the project', async () => {
-  const branches = [branch('feature'), branch('origin/feature', { ref: 'refs/remotes/origin/feature', remote: true }), branch('side', { worktree: 'C:\w\side' })]
-  const read = vi.spyOn(api, 'get').mockResolvedValue(git({ branches, current: branch('main', { ahead: 0, subject: 'as it was' }) }))
+  const branches = [
+    branch('feature'),
+    branch('origin/feature', { ref: 'refs/remotes/origin/feature', remote: true }),
+    branch('side', { worktree: 'C:\w\side' }),
+  ]
+  const read = vi
+    .spyOn(api, 'get')
+    .mockResolvedValue(git({ branches, current: branch('main', { ahead: 0, subject: 'as it was' }) }))
   // (switched, the project is on feature: what git is read as after it, too)
   const post = vi.spyOn(api, 'post').mockImplementation(async () => {
     read.mockResolvedValue(git({ branch: 'feature', changed: 0 }))
@@ -264,7 +414,9 @@ test('K-dallar: a branch is looked at read only, a local one switched to - and n
   await userEvent.click(screen.getByRole('button', { name: '⑂ feature' }))
   await userEvent.click(screen.getByRole('button', { name: '⑂ feature' }))
   expect(await screen.findByText(`Can't switch branches now: ${why}.`)).toBeInTheDocument()
-  expect(screen.getAllByRole('button', { name: 'Switch to' }).every(one => (one as HTMLButtonElement).disabled)).toBe(true)
+  expect(screen.getAllByRole('button', { name: 'Switch to' }).every(one => (one as HTMLButtonElement).disabled)).toBe(
+    true,
+  )
   expect(screen.getByRole('button', { name: '+ New branch' })).toBeDisabled()
   expect(screen.getByRole('button', { name: '+ New branch' })).toHaveAttribute('title', why)
   read.mockRestore()
@@ -272,8 +424,14 @@ test('K-dallar: a branch is looked at read only, a local one switched to - and n
 })
 
 test('K-dallar: a Take in card says its copy was made on another branch than the project is on now', () => {
-  const card = () => render(<MergeCard merge={merge('pending', { agent_id: 'coder', files: [] })} name="Coder" onDecide={async () => {}} />)
-  useApp.setState({ conv: convState({ agents: [agent('r', 'completed', { id: 'coder', copy: { state: 'own', branch: 'main' } })] }), gitBranch: 'main' })
+  const card = () =>
+    render(
+      <MergeCard merge={merge('pending', { agent_id: 'coder', files: [] })} name="Coder" onDecide={async () => {}} />,
+    )
+  useApp.setState({
+    conv: convState({ agents: [agent('r', 'completed', { id: 'coder', copy: { state: 'own', branch: 'main' } })] }),
+    gitBranch: 'main',
+  })
   card()
   expect(screen.queryByText(/made on/)).toBeNull()
   cleanup()
@@ -284,10 +442,15 @@ test('K-dallar: a Take in card says its copy was made on another branch than the
 
 test('K-dallar: New branch from here - a name, then the server makes it where the project stands; not while something holds the project', async () => {
   const read = vi.spyOn(api, 'get').mockResolvedValue(git())
-  const post = vi.spyOn(api, 'post').mockRejectedValueOnce(new ApiError(422, "'a..b' is not a name git takes for a branch", "'a..b' is not a name git takes for a branch")).mockImplementation(async () => {
-    read.mockResolvedValue(git({ branch: 'fix/login' }))
-    return git({ branch: 'fix/login' })
-  })
+  const post = vi
+    .spyOn(api, 'post')
+    .mockRejectedValueOnce(
+      new ApiError(422, "'a..b' is not a name git takes for a branch", "'a..b' is not a name git takes for a branch"),
+    )
+    .mockImplementation(async () => {
+      read.mockResolvedValue(git({ branch: 'fix/login' }))
+      return git({ branch: 'fix/login' })
+    })
   useApp.setState({ conv: null })
   render(<GitStatus projectId="p" />)
   await userEvent.click(await screen.findByRole('button', { name: /main · 4 changed/ }))
@@ -319,33 +482,61 @@ test('K-dallar: New branch from here - a name, then the server makes it where th
   post.mockRestore()
 })
 
-
 test('K-dal-takim D2: a koloni/ branch says the team working on it', () => {
   const state = convState({
     agents: [
       agent('r', 'completed', { id: 'lead', name: 'Lead', depth: 0 }),
-      agent('r', 'running', { id: 'tl', name: 'Team lead', parent_agent_id: 'lead', copy: { state: 'own', branch: 'main', on_branch: 'koloni/login' } }),
+      agent('r', 'running', {
+        id: 'tl',
+        name: 'Team lead',
+        parent_agent_id: 'lead',
+        copy: { state: 'own', branch: 'main', on_branch: 'koloni/login' },
+      }),
       agent('r', 'running', { id: 'c1', name: 'Coder 1', parent_agent_id: 'tl', copy: { state: 'parent' } }),
       agent('r', 'running', { id: 'c2', name: 'Coder 2', parent_agent_id: 'lead', copy: { state: 'own' } }),
     ],
   })
   const rows = gitRows(git({ branches: [branch('koloni/login'), branch('fix-login')] }), state)
-  expect(rows.find(r => r.key === 'b:refs/heads/koloni/login')?.what).toBe('Branch koloni/login · team Team lead, Coder 1')
+  expect(rows.find(r => r.key === 'b:refs/heads/koloni/login')?.what).toBe(
+    'Branch koloni/login · team Team lead, Coder 1',
+  )
   expect(rows.find(r => r.key === 'b:refs/heads/fix-login')?.what).toBe('Branch fix-login')
 })
 
 test('Where the work is: your branch, the agents’ copies of this chat, the other branches and what was said - each in words, no colour legend', async () => {
-  const said = { agent: 'Coder', branch: 'gone', worktree: null, commits: null, merge_into: null, why: 'tried', at: null, seen: false }
+  const said = {
+    agent: 'Coder',
+    branch: 'gone',
+    worktree: null,
+    commits: null,
+    merge_into: null,
+    why: 'tried',
+    at: null,
+    seen: false,
+  }
   const read = vi.spyOn(api, 'get').mockResolvedValue(git({ branches: [branch('feature')], reports: [said] }))
-  useApp.setState({ conv: convState({ agents: [agent('r', 'completed', { id: 'docs', name: 'Docs writer', copy: { state: 'own' } })], merges: [merge('pending')] }) })
+  useApp.setState({
+    conv: convState({
+      agents: [agent('r', 'completed', { id: 'docs', name: 'Docs writer', copy: { state: 'own' } })],
+      merges: [merge('pending')],
+    }),
+  })
   render(<GitStatus projectId="p" />)
   await userEvent.click(await screen.findByRole('button', { name: /main · 4 changed/ }))
   const map = screen.getByRole('region', { name: 'Where the work is' })
-  expect(within(map).getAllByRole('heading', { level: 4 }).map(h => h.textContent)).toEqual(['Your branch', 'Agents’ copies · this chat', 'Other branches', 'Said, not seen in git'])
+  expect(
+    within(map)
+      .getAllByRole('heading', { level: 4 })
+      .map(h => h.textContent),
+  ).toEqual(['Your branch', 'Agents’ copies · this chat', 'Other branches', 'Said, not seen in git'])
   expect(map).toHaveTextContent('From git, read only. KOLONİ changes nothing here but the branch you switch to.')
   expect(map).toHaveTextContent('main · now4 files not saved in git yet')
-  expect(within(map).getByRole('group', { name: 'Agents’ copies · this chat' })).toHaveTextContent('Docs writer · finished, waits for you')
-  expect(within(map).getByRole('group', { name: 'Other branches' })).toHaveTextContent('Branch feature · not joined1 commit ahead of main')
+  expect(within(map).getByRole('group', { name: 'Agents’ copies · this chat' })).toHaveTextContent(
+    'Docs writer · finished, waits for you',
+  )
+  expect(within(map).getByRole('group', { name: 'Other branches' })).toHaveTextContent(
+    'Branch feature · not joined1 commit ahead of main',
+  )
   expect(map.querySelector('.git-dot, .git-legend')).toBeNull()
   // (Take in… is on the copy's card, in the agent's window)
   await userEvent.click(within(map).getByRole('button', { name: 'Take in…' }))

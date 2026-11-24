@@ -16,8 +16,10 @@ const keep = async (page: Page, name: string) => {
 
 type Box = { x: number; y: number; width: number; height: number }
 const box = async (target: Locator) => (await target.boundingBox())!
-const meets = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
-const holds = (a: Box, b: Box) => a.x <= b.x && a.y <= b.y && a.x + a.width >= b.x + b.width && a.y + a.height >= b.y + b.height
+const meets = (a: Box, b: Box) =>
+  a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
+const holds = (a: Box, b: Box) =>
+  a.x <= b.x && a.y <= b.y && a.x + a.width >= b.x + b.width && a.y + a.height >= b.y + b.height
 
 for (const [width, height] of [
   [1024, 720],
@@ -28,7 +30,9 @@ for (const [width, height] of [
   // full height from 1400px only, so at 1024 the turn keeps the canvas above it.
   const roomy = width > 1024
   for (const theme of ['light', 'dark'] as const) {
-    test(`K-38b-sinirlar ${width}x${height} (${theme}): an agent's window opens ${roomy ? 'off the chat, not over Workspace' : 'in front, off the message box'}, and counts what came new`, async ({ page }) => {
+    test(`K-38b-sinirlar ${width}x${height} (${theme}): an agent's window opens ${roomy ? 'off the chat, not over Workspace' : 'in front, off the message box'}, and counts what came new`, async ({
+      page,
+    }) => {
       await page.setViewportSize({ width, height })
       await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
       await openFreshConversation(page)
@@ -48,14 +52,24 @@ for (const [width, height] of [
       const window = page.getByRole('region', { name: 'Agent window' })
       await expect(window).toBeVisible()
 
-      const [stage, own, under, other] = [await box(page.locator('.stage')), await box(window), await box(chat), await box(files)]
+      const [stage, own, under, other] = [
+        await box(page.locator('.stage')),
+        await box(window),
+        await box(chat),
+        await box(files),
+      ]
       expect(holds(own, other) || holds(other, own)).toBe(false)
       if (roomy) expect(meets(own, under)).toBe(false)
       else {
         await expect(window).toHaveAttribute('data-front', '')
         expect(meets(own, await box(chat.getByLabel('Message')))).toBe(false)
       }
-      expect(own.x >= stage.x && own.y >= stage.y && own.x + own.width <= stage.x + stage.width && own.y + own.height <= stage.y + stage.height).toBe(true)
+      expect(
+        own.x >= stage.x &&
+          own.y >= stage.y &&
+          own.x + own.width <= stage.x + stage.width &&
+          own.y + own.height <= stage.y + stage.height,
+      ).toBe(true)
       await keep(page, `k38b-${width}-${theme}-opened`)
 
       // Looking at the chat, the user lets the command run: the Lead's answer is one step more, said on the window's header.

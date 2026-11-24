@@ -9,13 +9,19 @@ const chatOf = (page: Page) => page.getByRole('region', { name: 'Chat' })
 const viewOf = (page: Page) => page.getByRole('region', { name: 'Workspace' })
 /** The Workspace window, opened by itself on the chart an agent showed. */
 async function openChart(page: Page) {
-  await expect(viewOf(page).getByRole('tab', { name: 'chart39.png' })).toHaveAttribute('aria-selected', 'true', { timeout: 10_000 })
+  await expect(viewOf(page).getByRole('tab', { name: 'chart39.png' })).toHaveAttribute('aria-selected', 'true', {
+    timeout: 10_000,
+  })
 }
 const box = async (target: Locator) => (await target.boundingBox())!
 type Box = { x: number; y: number; width: number; height: number }
 const inside = (inner: Box, outer: Box) =>
-  inner.x >= outer.x - 1 && inner.y >= outer.y - 1 && inner.x + inner.width <= outer.x + outer.width + 1 && inner.y + inner.height <= outer.y + outer.height + 1
-const apart = (a: Box, b: Box) => a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y
+  inner.x >= outer.x - 1 &&
+  inner.y >= outer.y - 1 &&
+  inner.x + inner.width <= outer.x + outer.width + 1 &&
+  inner.y + inner.height <= outer.y + outer.height + 1
+const apart = (a: Box, b: Box) =>
+  a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y
 
 /** Rejects the change the turn asks about and waits for the turn to end on it. (A bare click resolves before its
  * request leaves the page: the test ended, the page closed, and under load the Reject never reached the backend -
@@ -39,7 +45,9 @@ async function drag(page: Page, header: Locator, dx: number, dy: number) {
 test.describe('at the size of the user’s window', () => {
   test.use({ viewport: { width: 1017, height: 672 } })
 
-  test('in every tab, at the least width and the first, the message box and Send are inside the open chat (the user’s report)', async ({ page }) => {
+  test('in every tab, at the least width and the first, the message box and Send are inside the open chat (the user’s report)', async ({
+    page,
+  }) => {
     test.setTimeout(120_000)
     await openFreshConversation(page)
     const chat = chatOf(page)
@@ -57,8 +65,14 @@ test.describe('at the size of the user’s window', () => {
     const waiting = room.getByRole('region', { name: 'Waits for you' })
     await expect(waiting.getByText('Shall the greeting stay hi?')).toBeVisible({ timeout: 20_000 })
 
-    for (const [width, kept] of [['the least', '340'], ['the first', null]] as const) {
-      await page.evaluate(px => (px ? localStorage.setItem('koloni-chat-width', px) : localStorage.removeItem('koloni-chat-width')), kept)
+    for (const [width, kept] of [
+      ['the least', '340'],
+      ['the first', null],
+    ] as const) {
+      await page.evaluate(
+        px => (px ? localStorage.setItem('koloni-chat-width', px) : localStorage.removeItem('koloni-chat-width')),
+        kept,
+      )
       await page.reload()
       for (const tab of ['Chat', 'Talk', 'Notes']) {
         await chat.getByRole('tab', { name: new RegExp(`^${tab}`) }).click()
@@ -68,13 +82,25 @@ test.describe('at the size of the user’s window', () => {
           await expect(chat.getByText(/its notebook is closed/)).toBeVisible()
         }
         // (0.1.5: the model is on the line over the box while the chat is ready; the room keeps this turn at work.)
-        const [around, send, line, message] = await Promise.all([box(chat), box(chat.getByRole('button', { name: /^(Send|Queue)$/ })), box(chat.locator('.composer-status')), box(chat.getByLabel('Message'))])
-        for (const [what, part] of [['Send', send], ['the line over the box', line], ['the message box', message]] as const)
+        const [around, send, line, message] = await Promise.all([
+          box(chat),
+          box(chat.getByRole('button', { name: /^(Send|Queue)$/ })),
+          box(chat.locator('.composer-status')),
+          box(chat.getByLabel('Message')),
+        ])
+        for (const [what, part] of [
+          ['Send', send],
+          ['the line over the box', line],
+          ['the message box', message],
+        ] as const)
           expect(inside(part, around), `${what} inside the chat on its ${tab} tab at ${width} width`).toBe(true)
       }
     }
     // (The room is left over: the Coder answered, so that it ends. After the reload it is a tab at the canvas's foot.)
-    await page.getByRole('group', { name: 'Rooms' }).getByRole('button', { name: /^Room · Look at the greeting together/ }).click()
+    await page
+      .getByRole('group', { name: 'Rooms' })
+      .getByRole('button', { name: /^Room · Look at the greeting together/ })
+      .click()
     await waiting.getByLabel('Your answer').fill('Yes')
     await waiting.getByRole('button', { name: 'Send answer' }).click()
     await expect(room.getByText('done · 1 of 1')).toBeVisible({ timeout: 20_000 })
@@ -84,7 +110,9 @@ test.describe('at the size of the user’s window', () => {
 test.describe('on a large window', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test('closed, the chat is a small box to type in: Enter sends and it stays closed; a click on its line opens the chat itself with what was typed', async ({ page }) => {
+  test('closed, the chat is a small box to type in: Enter sends and it stays closed; a click on its line opens the chat itself with what was typed', async ({
+    page,
+  }) => {
     await openFreshConversation(page)
     const chat = chatOf(page)
     await chat.getByRole('button', { name: 'Hide chat' }).click()
@@ -108,12 +136,17 @@ test.describe('on a large window', () => {
     await chat.getByRole('tab', { name: 'Chat' }).click()
     const hits = async (target: Locator, inside: string) => {
       const at = await box(target)
-      return page.evaluate(([x, y, s]) => !!document.elementFromPoint(x as number, y as number)?.closest(s as string), [at.x + at.width / 2, at.y + at.height / 2, inside])
+      return page.evaluate(
+        ([x, y, s]) => !!document.elementFromPoint(x as number, y as number)?.closest(s as string),
+        [at.x + at.width / 2, at.y + at.height / 2, inside],
+      )
     }
     expect(await hits(chat.getByRole('button', { name: 'Send' }), '.composer-actions')).toBe(true)
   })
 
-  test('the Workspace window dragged over the canvas beside the chat’s column: the nodes at work stay on it, clear of both where they are; the one used last is in front', async ({ page }) => {
+  test('the Workspace window dragged over the canvas beside the chat’s column: the nodes at work stay on it, clear of both where they are; the one used last is in front', async ({
+    page,
+  }) => {
     test.setTimeout(90_000)
     await openFreshConversation(page)
     const chat = chatOf(page)
@@ -129,13 +162,18 @@ test.describe('on a large window', () => {
     await page.getByRole('button', { name: 'Send' }).click()
     try {
       const running = page.locator('.react-flow__node').filter({ has: page.locator('.node-running') })
-      await expect(page.locator('.react-flow__node-agent .node-running', { hasText: 'slow.py' })).toHaveCount(1, { timeout: 15_000 })
+      await expect(page.locator('.react-flow__node-agent .node-running', { hasText: 'slow.py' })).toHaveCount(1, {
+        timeout: 15_000,
+      })
       // The view window up to the top right of the canvas - over the nodes at work.
       await drag(page, view.locator('.view-top'), 170, -440)
       const clear = async () => {
         const [stage, over, beside] = [await box(page.locator('.canvas-flow')), await box(view), await box(chat)]
         const nodes = await Promise.all((await running.all()).map(node => node.boundingBox()))
-        return nodes.length > 0 && nodes.every(node => node !== null && inside(node, stage) && apart(node, over) && apart(node, beside))
+        return (
+          nodes.length > 0 &&
+          nodes.every(node => node !== null && inside(node, stage) && apart(node, over) && apart(node, beside))
+        )
       }
       await expect.poll(clear).toBe(true)
       // Whichever was pressed last lies over the other.
@@ -155,15 +193,23 @@ test.describe('on a large window', () => {
       // Moved as far into the bottom right as it goes, the view leaves the canvas's zoom buttons (slice 66) to be pressed.
       const zoomIn = page.getByRole('button', { name: 'Zoom In' })
       const at = await box(zoomIn)
-      expect(await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('.react-flow__controls'), [at.x + at.width / 2, at.y + at.height / 2])).toBe(true)
+      expect(
+        await page.evaluate(
+          ([x, y]) => !!document.elementFromPoint(x, y)?.closest('.react-flow__controls'),
+          [at.x + at.width / 2, at.y + at.height / 2],
+        ),
+      ).toBe(true)
     } finally {
       // (Stopped, so that nothing runs on into the next test.)
-      if (await chat.getByRole('button', { name: 'Stop' }).isVisible()) await chat.getByRole('button', { name: 'Stop' }).click()
+      if (await chat.getByRole('button', { name: 'Stop' }).isVisible())
+        await chat.getByRole('button', { name: 'Stop' }).click()
       await expect(page.getByText('STOPPED', { exact: true })).toBeVisible({ timeout: 15_000 })
     }
   })
 
-  test('the Workspace window: a tab each, × closes a tab, its button closes and opens it; dragged, it stays where it was put', async ({ page }) => {
+  test('the Workspace window: a tab each, × closes a tab, its button closes and opens it; dragged, it stays where it was put', async ({
+    page,
+  }) => {
     test.setTimeout(60_000)
     await openFreshConversation(page)
     const chat = chatOf(page)
@@ -246,7 +292,12 @@ async function oneLine(chat: Locator) {
       end: el.closest('.chat')!.getBoundingClientRect().right,
       parts: [...el.children]
         .filter(c => (c as HTMLElement).offsetParent !== null && getComputedStyle(c).position !== 'absolute')
-        .map(c => ({ name: c.getAttribute('aria-label') ?? c.className, top: c.getBoundingClientRect().top, bottom: c.getBoundingClientRect().bottom, right: c.getBoundingClientRect().right })),
+        .map(c => ({
+          name: c.getAttribute('aria-label') ?? c.className,
+          top: c.getBoundingClientRect().top,
+          bottom: c.getBoundingClientRect().bottom,
+          right: c.getBoundingClientRect().right,
+        })),
     }))
     for (const part of parts) {
       expect(part.top - around.top, `${row} ${part.name} on its one line`).toBeLessThan(12)
@@ -259,7 +310,9 @@ async function oneLine(chat: Locator) {
 
 for (const theme of ['light', 'dark'] as const)
   for (const width of [1440, 700, 600, 574])
-    test(`while a turn runs each row of the message box is one line, ${width}px wide, ${theme} theme`, async ({ page }) => {
+    test(`while a turn runs each row of the message box is one line, ${width}px wide, ${theme} theme`, async ({
+      page,
+    }) => {
       await page.setViewportSize({ width, height: 900 })
       await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
       await openFreshConversation(page)
@@ -282,7 +335,9 @@ async function chatWide(page: Page, width: number) {
 }
 
 for (const width of [574])
-  test('each row of the message box is one line in the narrowest chat, "Ask before changes" chosen', async ({ page }) => {
+  test('each row of the message box is one line in the narrowest chat, "Ask before changes" chosen', async ({
+    page,
+  }) => {
     await page.setViewportSize({ width, height: 900 })
     await openFreshConversation(page)
     const chat = chatOf(page)
@@ -294,7 +349,9 @@ for (const width of [574])
 // The model on the line over the box, one line, cut with "…" (B-400: in a 220px chat its name broke letter by letter) - and
 // at its narrowest its arrow alone, its name in its tooltip; the level's name read whole, Full auto too.
 for (const width of [480, 340])
-  test(`in a chat ${width}px wide the model is one line over the box, the level's name read whole`, async ({ page }) => {
+  test(`in a chat ${width}px wide the model is one line over the box, the level's name read whole`, async ({
+    page,
+  }) => {
     await chatWide(page, width)
     const chat = chatOf(page)
     await chat.getByRole('button', { name: /^Model: / }).click()
@@ -302,12 +359,18 @@ for (const width of [480, 340])
     await page.getByLabel('Model name').fill('fake-strong-with-a-long-name')
     await page.getByLabel(/Orchestrator model: automatic/).check()
     await chat.getByRole('button', { name: 'Use this model' }).click()
-    const model = chat.getByRole('button', { name: 'Model: Orchestrator: automatic · Local · fake-strong-with-a-long-name', exact: true })
+    const model = chat.getByRole('button', {
+      name: 'Model: Orchestrator: automatic · Local · fake-strong-with-a-long-name',
+      exact: true,
+    })
     await expect(model).toHaveAttribute('title', /^Orchestrator: automatic · Local · fake-strong-with-a-long-name: /)
     expect(await model.evaluate(el => el.closest('.composer-status') !== null)).toBe(true)
     const label = model.locator('.model-picker-label')
     if (width > 450) {
-      expect(await label.evaluate(el => [getComputedStyle(el).whiteSpace, getComputedStyle(el).textOverflow])).toEqual(['nowrap', 'ellipsis'])
+      expect(await label.evaluate(el => [getComputedStyle(el).whiteSpace, getComputedStyle(el).textOverflow])).toEqual([
+        'nowrap',
+        'ellipsis',
+      ])
       expect(Math.round((await box(label)).height)).toBeLessThan(20)
     } else await expect(label).toBeHidden()
     await expect(chat.locator('.composer-bar').getByRole('button', { name: 'Attach' })).toBeVisible()
@@ -331,13 +394,16 @@ async function askElsewhere(page: Page) {
 /** Answers what `askElsewhere` left waiting: no spec after is left with it. */
 async function answerElsewhere(page: Page, other: string) {
   for (const asked of (await (await page.request.get(`/api/conversations/${other}`)).json()).questions ?? [])
-    if (asked.status === 'pending') await page.request.post(`/api/questions/${asked.id}/answer`, { data: { answer: 'Stop here' }, headers: OWN })
+    if (asked.status === 'pending')
+      await page.request.post(`/api/questions/${asked.id}/answer`, { data: { answer: 'Stop here' }, headers: OWN })
 }
 
 // Full auto while a turn runs, a question waiting in another chat: Stop over the box, Queue in its row, and each row one
 // line inside the chat - what waits elsewhere in fewer words where the row has no room for more; Settings keeps its word.
 for (const width of [520, 480, 420, 340])
-  test(`Full auto while a turn runs in a chat ${width}px wide, a question waiting elsewhere: Stop and Queue, and each row one line`, async ({ page }) => {
+  test(`Full auto while a turn runs in a chat ${width}px wide, a question waiting elsewhere: Stop and Queue, and each row one line`, async ({
+    page,
+  }) => {
     test.setTimeout(60_000) // (two turns)
     const other = await askElsewhere(page)
     try {
@@ -350,7 +416,10 @@ for (const width of [520, 480, 420, 340])
       await expect(chat.getByRole('button', { name: 'Queue' })).toBeVisible()
       await expect(chat.getByRole('button', { name: /^Open Ready for you: \d+ more waits? elsewhere$/ })).toBeVisible()
       await expect(chat.getByRole('button', { name: 'This chat’s settings' })).toHaveText(/Settings/)
-      expect((await box(chat.locator('.chat-sheet-button .composer-words'))).width, 'Settings in words').toBeGreaterThan(30)
+      expect(
+        (await box(chat.locator('.chat-sheet-button .composer-words'))).width,
+        'Settings in words',
+      ).toBeGreaterThan(30)
       await oneLine(chat)
       if (process.env.KOLONI_SHOTS) await shot(chat.locator('.composer'), `38e-composer-full-auto-running-${width}`)
     } finally {
@@ -370,9 +439,13 @@ test('a long option of a question wraps inside the chat: nothing in it scrolls s
   await page.getByRole('button', { name: 'Send' }).click()
   // (0.1.5: an option is a row of the card over the message box, its radio in it.)
   const card = chat.getByRole('form', { name: 'Orchestrator asks' })
-  const long = card.locator('.ask-option', { has: page.getByRole('radio', { name: /^Go on with the whole plan as written/ }) })
+  const long = card.locator('.ask-option', {
+    has: page.getByRole('radio', { name: /^Go on with the whole plan as written/ }),
+  })
   await expect(long).toBeVisible()
-  expect((await box(long)).x + (await box(long)).width).toBeLessThanOrEqual((await box(chat)).x + (await box(chat)).width)
+  expect((await box(long)).x + (await box(long)).width).toBeLessThanOrEqual(
+    (await box(chat)).x + (await box(chat)).width,
+  )
   const sideways = await chat.evaluate(root =>
     [root, ...root.querySelectorAll('*')]
       .filter(el => ['auto', 'scroll'].includes(getComputedStyle(el).overflowX) && el.scrollWidth > el.clientWidth + 1)

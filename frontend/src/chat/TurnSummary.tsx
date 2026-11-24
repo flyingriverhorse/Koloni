@@ -20,7 +20,9 @@ const n = (value: number | null) => (value === null ? '–' : value.toLocaleStri
 
 /** What of the turn is left for you, in words ('': nothing). */
 const leftOpen = (merges: number, proposed: boolean, serving: boolean) =>
-  [merges > 0 && 'changes to take in or discard', proposed && 'changes to approve', serving && 'a server running'].filter(Boolean).join(', ')
+  [merges > 0 && 'changes to take in or discard', proposed && 'changes to approve', serving && 'a server running']
+    .filter(Boolean)
+    .join(', ')
 
 /**
  * The questions the turn's agents put to you ('': none). Not KOLONİ's own cards (leave for a tool, a recipe's Go on?),
@@ -61,7 +63,9 @@ export function TurnSummary({ state, run, onOpenChange, onUsage, prices = [] }: 
     }
   }, [open, onUsage, run.id, priced])
 
-  const changed = state.fileChanges.filter(f => f.run_id === run.id && (f.status === 'applied' || f.status === 'merged') && !inScratch(f.path))
+  const changed = state.fileChanges.filter(
+    f => f.run_id === run.id && (f.status === 'applied' || f.status === 'merged') && !inScratch(f.path),
+  )
   const work = workOf(state, [run.id])
   const { input_tokens: sent, output_tokens: wrote } = turnTokens(state, run)
   const merges = state.merges.filter(m => m.run_id === run.id && (m.status === 'pending' || isKept(m))).length

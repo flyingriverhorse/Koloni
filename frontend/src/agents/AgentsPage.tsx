@@ -4,7 +4,24 @@ import { type LoadFacts } from '../models/levels'
 import { Plus } from '@phosphor-icons/react'
 import { useEffect, useRef, useState } from 'react'
 import { errorText } from '../api/client'
-import { type Category, type Effort, type FillAll, type FilledProvider, type Knowledge, type KnowledgeItem, type Recipes, type RecordRow, type Provider, type Role, type RoleModel, type RolesActivity, type RolesHistory, type Skill, type Team, type Tier } from '../api/types'
+import {
+  type Category,
+  type Effort,
+  type FillAll,
+  type FilledProvider,
+  type Knowledge,
+  type KnowledgeItem,
+  type Recipes,
+  type RecordRow,
+  type Provider,
+  type Role,
+  type RoleModel,
+  type RolesActivity,
+  type RolesHistory,
+  type Skill,
+  type Team,
+  type Tier,
+} from '../api/types'
 import { drawn, kindName } from './chart'
 import { ExpertForm, type KnowledgeActions } from './KnowledgeTab'
 import { type PanelTab, type Part, type RoleChange, RolePanel } from './RolePanel'
@@ -15,7 +32,6 @@ import { type RecipeActions, RecipesTab } from './RecipesTab'
 import { NameForm, type TeamActions, TeamsBoard } from './TeamsBoard'
 import { RecordTable } from './RecordTable'
 import { RoleEditor } from './RoleEditor'
-
 
 export interface RoleValues {
   name: string
@@ -124,7 +140,6 @@ export const EMPTY: RoleValues = {
   inside_cli: false,
 }
 
-
 /** A role's model's window as found, and where from: the provider says it (Anthropic's Models API, llama-server's `/props`). */
 function foundOf(row: RoleModel | undefined, providers: Provider[]) {
   if (!row) return undefined
@@ -150,7 +165,35 @@ const TABS: [Tab, string][] = [
  * The Agents page (slices 81b, 63a, 84a, 63b): Teams & roles - the roles once, by category, on the left, the Lead and the
  * teams in the middle, one open; Recipes, the steps of a piece of work drawn. A role, or a team's lead, opened beside them.
  */
-export function AgentsPage({ roles, providers = NO_PROVIDERS, teams = NO_TEAMS, categories = NO_CATEGORIES, categoryActions, onModels, onRecord, onRoleModels, onFillAll, onSaveFillAll, teamActions, recipeActions, projectId = null, onPatch, onActivity, onHistory, onOpenConversation, onOpenTools, off, serversOff, skills, onOpenSkills, picked, knowledgeActions, knowledge: knowledgeItems, onOpenKnowledge, ...handlers }: Props) {
+export function AgentsPage({
+  roles,
+  providers = NO_PROVIDERS,
+  teams = NO_TEAMS,
+  categories = NO_CATEGORIES,
+  categoryActions,
+  onModels,
+  onRecord,
+  onRoleModels,
+  onFillAll,
+  onSaveFillAll,
+  teamActions,
+  recipeActions,
+  projectId = null,
+  onPatch,
+  onActivity,
+  onHistory,
+  onOpenConversation,
+  onOpenTools,
+  off,
+  serversOff,
+  skills,
+  onOpenSkills,
+  picked,
+  knowledgeActions,
+  knowledge: knowledgeItems,
+  onOpenKnowledge,
+  ...handlers
+}: Props) {
   const [selected, setSelected] = useState<string | null>(picked ?? null)
   // The tab a team's lead's link opens its panel on.
   const [panelTab, setPanelTab] = useState<PanelTab>('Overview')
@@ -237,7 +280,8 @@ export function AgentsPage({ roles, providers = NO_PROVIDERS, teams = NO_TEAMS, 
   const lead = roles.find(role => role.builtin && role.name === 'Lead')
   const library = drawn(roles)
   // A team's lead is in no list of roles: it is opened from its team.
-  const current = adding === null ? ([...roles, ...teams.map(one => one.lead)].find(role => role.id === selected) ?? null) : null
+  const current =
+    adding === null ? ([...roles, ...teams.map(one => one.lead)].find(role => role.id === selected) ?? null) : null
   // A role of the library open beside: the teams it is in are marked.
   const marked = current && library.some(role => role.id === current.id) ? current : null
   const known = models === 'failed' ? undefined : models
@@ -272,15 +316,20 @@ export function AgentsPage({ roles, providers = NO_PROVIDERS, teams = NO_TEAMS, 
     // Made: what follows is tried one by one, and what is refused is said - the form closes on the role either way, so
     // Create is never pressed again for a role that is there.
     const left: string[] = []
-    const tryIt = (what: string, work: Promise<void> | undefined) => work?.catch(err => void left.push(`${what} — ${errorText(err)}`))
+    const tryIt = (what: string, work: Promise<void> | undefined) =>
+      work?.catch(err => void left.push(`${what} — ${errorText(err)}`))
     // Asked from a stage: in that stage, not the one named as its category was.
-    if (adding?.team && adding.stage) await tryIt('its stage', teamActions?.placeRole(adding.team, made.id, adding.stage))
+    if (adding?.team && adding.stage)
+      await tryIt('its stage', teamActions?.placeRole(adding.team, made.id, adding.stage))
     // A copy's servers, skills and knowledge, which a new role is not made with (decision 6); not its teams.
     if (copy) {
       if (copy.mcp.length) await tryIt('its servers', onPatch?.(made.id, { mcp: copy.mcp }))
       if (copy.skills.length) await tryIt('its skills', onPatch?.(made.id, { skills: copy.skills }))
       for (const one of copy.knows ?? [])
-        await tryIt(knowledgeItems?.find(item => item.id === one.knowledge_id)?.knowledge.topic ?? 'a knowledge', knowledgeActions?.useKnowledge?.(one.knowledge_id, made.id, one.mode))
+        await tryIt(
+          knowledgeItems?.find(item => item.id === one.knowledge_id)?.knowledge.topic ?? 'a knowledge',
+          knowledgeActions?.useKnowledge?.(one.knowledge_id, made.id, one.mode),
+        )
     }
     setSelected(made.id)
     setError(left.length ? `Made ${made.name}; not given: ${left.join('; ')}` : null)
@@ -288,7 +337,8 @@ export function AgentsPage({ roles, providers = NO_PROVIDERS, teams = NO_TEAMS, 
   }
   // K-bilgi: an expert's knowledge is the project's (its Knowledge page); the role uses it in full.
   async function createExpert(name: string, knowledge: Knowledge) {
-    if (!projectId || !knowledgeActions?.createExpert) throw new Error('Open a folder first: knowledge is kept in a project.')
+    if (!projectId || !knowledgeActions?.createExpert)
+      throw new Error('Open a folder first: knowledge is kept in a project.')
     // (One request: the role, its knowledge and the role using it, or none of them.)
     const made = await knowledgeActions.createExpert(
       {
@@ -324,9 +374,18 @@ export function AgentsPage({ roles, providers = NO_PROVIDERS, teams = NO_TEAMS, 
     (tab === 'recipes' || naming) && (
       <div className="agents-bar">
         {tab === 'recipes' ? (
-          <span className="muted provider-note">A recipe says who does each step, what runs at once and how far it loops back. A chat’s team runs by the recipe picked for it, else by its team’s default.</span>
+          <span className="muted provider-note">
+            A recipe says who does each step, what runs at once and how far it loops back. A chat’s team runs by the
+            recipe picked for it, else by its team’s default.
+          </span>
         ) : (
-          <NameForm label="New team’s name" button="Add team" max={55} onSave={name => act(teamActions?.createTeam(name).then(() => setNaming(false)))} onCancel={() => setNaming(false)} />
+          <NameForm
+            label="New team’s name"
+            button="Add team"
+            max={55}
+            onSave={name => act(teamActions?.createTeam(name).then(() => setNaming(false)))}
+            onCancel={() => setNaming(false)}
+          />
         )}
       </div>
     )
@@ -348,7 +407,17 @@ export function AgentsPage({ roles, providers = NO_PROVIDERS, teams = NO_TEAMS, 
         }
       />
     ) : tab === 'recipes' ? (
-      <RecipesTab roles={library} teams={teams} list={recipes} projectId={projectId} actions={recipeActions} reload={() => readRecipes(n => n + 1)} models={known} providers={providers} onModels={onModels} />
+      <RecipesTab
+        roles={library}
+        teams={teams}
+        list={recipes}
+        projectId={projectId}
+        actions={recipeActions}
+        reload={() => readRecipes(n => n + 1)}
+        models={known}
+        providers={providers}
+        onModels={onModels}
+      />
     ) : (
       <>
         <RoleLibrary
@@ -359,7 +428,11 @@ export function AgentsPage({ roles, providers = NO_PROVIDERS, teams = NO_TEAMS, 
           onSwitch={(role, on) => act(onPatch?.(role.id, { enabled: on }))}
           onKind={(role, key) => {
             setSaid(null)
-            act(onPatch?.(role.id, { kind: key }).then(() => setSaid(`${role.name} is in ${kindName(categories, key)} now.`)))
+            act(
+              onPatch?.(role.id, { kind: key }).then(() =>
+                setSaid(`${role.name} is in ${kindName(categories, key)} now.`),
+              ),
+            )
           }}
           onDrag={setDragging}
           actions={categoryActions}
@@ -372,7 +445,13 @@ export function AgentsPage({ roles, providers = NO_PROVIDERS, teams = NO_TEAMS, 
         />
         <div className="agents-teams">
           {/* A narrow window's library, folded to this (slice 63b). */}
-          <button ref={drawerButton} type="button" className="btn btn-small role-lib-toggle" aria-expanded={drawer} onClick={() => setDrawer(!drawer)}>
+          <button
+            ref={drawerButton}
+            type="button"
+            className="btn btn-small role-lib-toggle"
+            aria-expanded={drawer}
+            onClick={() => setDrawer(!drawer)}
+          >
             Roles ▸ {library.length}
           </button>
           <TeamsBoard
@@ -418,7 +497,13 @@ export function AgentsPage({ roles, providers = NO_PROVIDERS, teams = NO_TEAMS, 
               ['copy', 'A copy'],
             ] as const
           ).map(([one, title]) => (
-            <button key={one} type="button" className="view-run" aria-pressed={start === one} onClick={() => setStart(one)}>
+            <button
+              key={one}
+              type="button"
+              className="view-run"
+              aria-pressed={start === one}
+              onClick={() => setStart(one)}
+            >
               {title}
             </button>
           ))}
@@ -506,7 +591,16 @@ export function AgentsPage({ roles, providers = NO_PROVIDERS, teams = NO_TEAMS, 
         }}
       >
         {TABS.map(([one, title]) => (
-          <button key={one} id={`agents-tab-${one}`} type="button" role="tab" className="tab" aria-selected={tab === one} tabIndex={tab === one ? 0 : -1} onClick={() => setTab(one)}>
+          <button
+            key={one}
+            id={`agents-tab-${one}`}
+            type="button"
+            role="tab"
+            className="tab"
+            aria-selected={tab === one}
+            tabIndex={tab === one ? 0 : -1}
+            onClick={() => setTab(one)}
+          >
             {title}
           </button>
         ))}
@@ -521,7 +615,11 @@ export function AgentsPage({ roles, providers = NO_PROVIDERS, teams = NO_TEAMS, 
       <span role="status" className="visually-hidden">
         {said}
       </span>
-      <div role="tabpanel" aria-labelledby={`agents-tab-${tab}`} className={`agents-page${dragging ? ' agents-dragging' : ''}`}>
+      <div
+        role="tabpanel"
+        aria-labelledby={`agents-tab-${tab}`}
+        className={`agents-page${dragging ? ' agents-dragging' : ''}`}
+      >
         {tabContent()}
         {side()}
       </div>

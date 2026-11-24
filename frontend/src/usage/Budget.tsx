@@ -16,7 +16,13 @@ export function BudgetPill({ budget, onOpen }: { budget: Budget | null; onOpen: 
   // (Short, so that the bar keeps to one line - B-174; its whole warning in its title, its description: a name with
   // "message" in it would be the message box's label too.)
   return (
-    <button type="button" className="budget-pill" aria-label={`Budget ${said}`} title={`${budgetWarning(budget)}. Opens Usage.`} onClick={onOpen}>
+    <button
+      type="button"
+      className="budget-pill"
+      aria-label={`Budget ${said}`}
+      title={`${budgetWarning(budget)}. Opens Usage.`}
+      onClick={onOpen}
+    >
       <Wallet size={14} weight="bold" aria-hidden /> {said}
     </button>
   )
@@ -40,10 +46,20 @@ export function BudgetSection({ budget, onSettings }: { budget: Budget; onSettin
         <p className="muted">{UNENFORCED}: this month’s spend is not added up.</p>
       ) : (
         <>
-          <meter className="budget-meter" aria-label="Monthly budget used" min={0} max={budget.budget} low={budget.budget * 0.8} high={budget.budget} optimum={0} value={budget.spent} />
+          <meter
+            className="budget-meter"
+            aria-label="Monthly budget used"
+            min={0}
+            max={budget.budget}
+            low={budget.budget * 0.8}
+            high={budget.budget}
+            optimum={0}
+            value={budget.spent}
+          />
           <p className="usage-summary">
             <span className="mono">
-              {money({ amount: budget.spent, currency: budget.currency ?? '', at_least: budget.at_least })} of {budget.budget.toLocaleString('en-US')} {budget.currency ?? ''}
+              {money({ amount: budget.spent, currency: budget.currency ?? '', at_least: budget.at_least })} of{' '}
+              {budget.budget.toLocaleString('en-US')} {budget.currency ?? ''}
             </span>{' '}
             <span className="muted">· {usedPercent(budget)}% used</span>
           </p>
@@ -52,8 +68,8 @@ export function BudgetSection({ budget, onSettings }: { budget: Budget; onSettin
       )}
       {unpriced > 0 && (
         <p className="muted memory-hint">
-          {unpriced === 1 ? '1 message' : `${unpriced} messages`} this month ran on a model with no price (or a CLI, or one that reported nothing):
-          not counted in the spend.
+          {unpriced === 1 ? '1 message' : `${unpriced} messages`} this month ran on a model with no price (or a CLI, or
+          one that reported nothing): not counted in the spend.
         </p>
       )}
     </section>

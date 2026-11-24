@@ -5,7 +5,8 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { PIECE, load } from './model3d'
 import { parse } from './model3dParse'
 
-const STL = 'solid part\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 2 0 0\nvertex 0 3 0\nendloop\nendfacet\nendsolid part\n'
+const STL =
+  'solid part\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 2 0 0\nvertex 0 3 0\nendloop\nendfacet\nendsolid part\n'
 const bytes = (text: string) => new TextEncoder().encode(text).buffer as ArrayBuffer
 let answers: Record<string, () => Response | Partial<Response> | Promise<Response>> = {}
 let asked: string[] = []
@@ -76,8 +77,15 @@ test('a worker that fails says the model could not be read, and is let go', asyn
 test('the worker posts back the arrays of what it parsed, each buffer once, moved; an OBJ says the .mtl it names', async () => {
   const post = vi.spyOn(self, 'postMessage').mockImplementation(() => {})
   await import('./model3d.worker')
-  self.onmessage?.(new MessageEvent('message', { data: { data: bytes('mtllib part.mtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\nusemtl steel\nf 1 2 3\n'), ending: 'obj' } }))
-  const [parsed, { transfer }] = post.mock.calls[0] as unknown as [Exclude<ReturnType<typeof parse>, string>, { transfer: ArrayBuffer[] }]
+  self.onmessage?.(
+    new MessageEvent('message', {
+      data: { data: bytes('mtllib part.mtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\nusemtl steel\nf 1 2 3\n'), ending: 'obj' },
+    }),
+  )
+  const [parsed, { transfer }] = post.mock.calls[0] as unknown as [
+    Exclude<ReturnType<typeof parse>, string>,
+    { transfer: ArrayBuffer[] },
+  ]
   expect(parsed.mtl).toBe('part.mtl')
   const [one] = parsed.parts
   expect([one.kind, one.materials.map(material => material.name)]).toEqual(['mesh', ['steel']])
@@ -91,7 +99,16 @@ test('a glTF whose files beside it come to over 200 MB is not parsed; under it, 
   const huge = () => ({ ok: true, blob: async () => ({ size: 150 * 1024 * 1024 }) as Blob })
   answers['http://localhost:3000/m/a.bin'] = huge
   answers['http://localhost:3000/m/b.bin'] = huge
-  answers['/m/big.gltf'] = () => new Response(JSON.stringify({ asset: { version: '2.0' }, buffers: [{ uri: 'a.bin', byteLength: 1 }, { uri: 'b.bin', byteLength: 1 }] }))
+  answers['/m/big.gltf'] = () =>
+    new Response(
+      JSON.stringify({
+        asset: { version: '2.0' },
+        buffers: [
+          { uri: 'a.bin', byteLength: 1 },
+          { uri: 'b.bin', byteLength: 1 },
+        ],
+      }),
+    )
   expect(await load('/m/big.gltf', 'big.gltf')).toBe('Too large to show here: the files beside it come to over 200 MB.')
   expect(parseGltf).not.toHaveBeenCalled()
 
@@ -138,14 +155,19 @@ test('B-341: a large STL comes back without normals (drawn flat) and with its bo
   const data = new ArrayBuffer(84 + 50 * count)
   const view = new DataView(data)
   view.setUint32(80, count, true)
-  for (let n = 0; n < count; n++) for (let corner = 0; corner < 3; corner++) view.setFloat32(84 + 50 * n + 12 + 12 * corner, n + corner, true)
+  for (let n = 0; n < count; n++)
+    for (let corner = 0; corner < 3; corner++) view.setFloat32(84 + 50 * n + 12 + 12 * corner, n + corner, true)
   const parsed = parse(data.slice(0), 'stl')
-  expect(typeof parsed !== 'string' && [Object.keys(parsed.parts[0].attributes), parsed.parts[0].bounds?.max[0]]).toEqual([['position'], count + 1])
+  expect(
+    typeof parsed !== 'string' && [Object.keys(parsed.parts[0].attributes), parsed.parts[0].bounds?.max[0]],
+  ).toEqual([['position'], count + 1])
   answers['/m/big.stl'] = () => new Response(data)
   const read = await load('/m/big.stl', 'big.stl')
   if (typeof read === 'string') throw new Error(read)
   expect(read.triangles).toBe(count)
-  const pieces = read.object.children as { geometry: { attributes: { position: { array: Float32Array } }; boundingBox: unknown } }[]
+  const pieces = read.object.children as {
+    geometry: { attributes: { position: { array: Float32Array } }; boundingBox: unknown }
+  }[]
   expect(pieces.map(piece => piece.geometry.attributes.position.array.length)).toEqual([PIECE * 9, 9])
   expect(new Set(pieces.map(piece => piece.geometry.attributes.position.array.buffer)).size).toBe(1)
   expect(pieces.every(piece => piece.geometry.boundingBox)).toBe(true)

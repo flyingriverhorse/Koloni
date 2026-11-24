@@ -13,9 +13,29 @@ import { PACKS, ROLE_TOOLS, TOOL_GROUPS } from './roleTools'
 import { EMPTY, type Props, type RoleValues } from './AgentsPage'
 
 /** Empty: no limit (null). A whole number above zero: that. Anything else is not sent (undefined). */
-const limitOf = (text: string) => (text.trim() === '' ? null : /^[1-9]\d{0,14}$/.test(text.trim()) ? Number(text) : undefined)
+const limitOf = (text: string) =>
+  text.trim() === '' ? null : /^[1-9]\d{0,14}$/.test(text.trim()) ? Number(text) : undefined
 
-interface EditorProps extends Omit<Props, 'roles' | 'providers' | 'onModels' | 'onRecord' | 'onRoleModels' | 'onFillAll' | 'onSaveFillAll' | 'teams' | 'onPatch' | 'onHistory' | 'onActivity' | 'teamActions' | 'categoryActions' | 'onOpenConversation' | 'onOpenTools' | 'skills' | 'onOpenSkills'> {
+interface EditorProps extends Omit<
+  Props,
+  | 'roles'
+  | 'providers'
+  | 'onModels'
+  | 'onRecord'
+  | 'onRoleModels'
+  | 'onFillAll'
+  | 'onSaveFillAll'
+  | 'teams'
+  | 'onPatch'
+  | 'onHistory'
+  | 'onActivity'
+  | 'teamActions'
+  | 'categoryActions'
+  | 'onOpenConversation'
+  | 'onOpenTools'
+  | 'skills'
+  | 'onOpenSkills'
+> {
   onModels?: LoadModels
   role: Role | null
   /** The section it opens at (an Edit link's), and what puts it away unsaved. */
@@ -52,7 +72,13 @@ export function Section({ title, id: at, children }: { title: string; id?: strin
 type SetValues = (patch: Partial<RoleValues>) => void
 
 /** The form's first values: its role's, a copy's, or a new role's. */
-const startOf = (role: Role | null, from: Role | undefined, kind: string, team: string | undefined, categories: NonNullable<EditorProps['categories']>): RoleValues =>
+const startOf = (
+  role: Role | null,
+  from: Role | undefined,
+  kind: string,
+  team: string | undefined,
+  categories: NonNullable<EditorProps['categories']>,
+): RoleValues =>
   from
     ? {
         name: role ? role.name : `${from.name} copy`,
@@ -77,12 +103,37 @@ const startOf = (role: Role | null, from: Role | undefined, kind: string, team: 
         ...(!role && team && { teams: [team] }),
       }
     : // (Build, where the user has not deleted it; else the first category.)
-      { ...EMPTY, kind: categories.some(one => one.key === kind) ? kind : (categories[0]?.key ?? kind), ...(team && { teams: [team] }) }
+      {
+        ...EMPTY,
+        kind: categories.some(one => one.key === kind) ? kind : (categories[0]?.key ?? kind),
+        ...(team && { teams: [team] }),
+      }
 
 /** A limit's field as it opens: the number kept, or empty for none. */
 const textOf = (limit: number | null | undefined) => (limit ? String(limit) : '')
 
-export function RoleEditor({ role, runs, takes: savedTakes, found: savedFound, providers, onModels, onFacts, onSave, onCreate, onDelete, onReset, onDone, onCancel, at, copyOf, kind = 'build', team, teamLead = false, categories = [], off }: EditorProps) {
+export function RoleEditor({
+  role,
+  runs,
+  takes: savedTakes,
+  found: savedFound,
+  providers,
+  onModels,
+  onFacts,
+  onSave,
+  onCreate,
+  onDelete,
+  onReset,
+  onDone,
+  onCancel,
+  at,
+  copyOf,
+  kind = 'build',
+  team,
+  teamLead = false,
+  categories = [],
+  off,
+}: EditorProps) {
   // A copy is filled from its role (decision 6), named "<name> copy"; its teams are not.
   const from = role ?? copyOf
   const [values, setValues] = useState<RoleValues>(startOf(role, from, kind, team, categories))
@@ -241,7 +292,13 @@ export function RoleEditor({ role, runs, takes: savedTakes, found: savedFound, p
 }
 
 /** What the role is: its name, line, category and instructions. */
-function RoleWhat({ role, values, set, teamLead, categories }: {
+function RoleWhat({
+  role,
+  values,
+  set,
+  teamLead,
+  categories,
+}: {
   role: Role | null
   values: RoleValues
   set: SetValues
@@ -306,7 +363,13 @@ function RoleWhat({ role, values, set, teamLead, categories }: {
 }
 
 /** What it may do: its tools, by pack or one by one. */
-function RoleTools({ values, pack, toggle, at, off }: {
+function RoleTools({
+  values,
+  pack,
+  toggle,
+  at,
+  off,
+}: {
   values: RoleValues
   pack: (tools: string[], on: boolean) => void
   toggle: (tool: string) => void
@@ -318,7 +381,11 @@ function RoleTools({ values, pack, toggle, at, off }: {
       <div className="role-packs">
         {PACKS.map(([title, line, tools]) => (
           <label key={title} className="role-pack">
-            <input type="checkbox" checked={tools.every(name => values.tools.includes(name))} onChange={e => pack(tools, e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={tools.every(name => values.tools.includes(name))}
+              onChange={e => pack(tools, e.target.checked)}
+            />
             <span>
               <b>{title}</b>
               <span className="choice-note">
@@ -360,7 +427,16 @@ function RoleTools({ values, pack, toggle, at, off }: {
   )
 }
 
-function RoleLimits({ at, lead, steps, setSteps, maxSteps, tokens, setTokens, maxTokens }: {
+function RoleLimits({
+  at,
+  lead,
+  steps,
+  setSteps,
+  maxSteps,
+  tokens,
+  setTokens,
+  maxTokens,
+}: {
   at: Part | undefined
   lead: boolean
   steps: string
@@ -376,28 +452,51 @@ function RoleLimits({ at, lead, steps, setSteps, maxSteps, tokens, setTokens, ma
         Safety stops for one agent
         {(maxSteps || maxTokens) && <span className="muted"> · set</span>}
       </summary>
-      <p className="choice-note">Stops one runaway agent of this role. Empty: {lead ? 'no step limit for the Orchestrator' : 'KOLONİ’s own step limit'}.</p>
+      <p className="choice-note">
+        Stops one runaway agent of this role. Empty:{' '}
+        {lead ? 'no step limit for the Orchestrator' : 'KOLONİ’s own step limit'}.
+      </p>
       <div className="field">
         <label htmlFor="role-max-steps">At most this many steps</label>
-        <input id="role-max-steps" className="input mono" inputMode="numeric" value={steps} placeholder="No limit" aria-invalid={maxSteps === undefined || undefined} aria-describedby="role-max-steps-note role-max-steps-more" onChange={e => setSteps(e.target.value)} />
+        <input
+          id="role-max-steps"
+          className="input mono"
+          inputMode="numeric"
+          value={steps}
+          placeholder="No limit"
+          aria-invalid={maxSteps === undefined || undefined}
+          aria-describedby="role-max-steps-note role-max-steps-more"
+          onChange={e => setSteps(e.target.value)}
+        />
         <span className="choice-note">
           <span id="role-max-steps-note">
             {maxSteps === undefined ? 'A whole number above zero, or empty for no limit. ' : ''}
             Model steps one agent of this role takes, added up over its task and each time it is told to go on, in this
-            turn or a later one. A CLI working with its own tools (native) takes no steps KOLONİ can count: this limit does not hold it.
+            turn or a later one. A CLI working with its own tools (native) takes no steps KOLONİ can count: this limit
+            does not hold it.
           </span>{' '}
           {/* What the limit does not hold is in sight, above; how it stops is behind ⓘ. */}
           <Hint doc={GUIDE.editingRole} id="role-max-steps-more">
-            A change to the limit reaches an agent already open the next time it is told to go on. At the limit that agent stops as failed and says so; the agent that opened it hears it and goes on,
-            and for the Orchestrator the work on the message ends. With nobody watching (a trigger’s message), what a sub-agent
-            stopped there had changed is not kept. KOLONİ’s own step limit still holds. For a CLI session each message it
-            writes is a step.
+            A change to the limit reaches an agent already open the next time it is told to go on. At the limit that
+            agent stops as failed and says so; the agent that opened it hears it and goes on, and for the Orchestrator
+            the work on the message ends. With nobody watching (a trigger’s message), what a sub-agent stopped there had
+            changed is not kept. KOLONİ’s own step limit still holds. For a CLI session each message it writes is a
+            step.
           </Hint>
         </span>
       </div>
       <div className="field">
         <label htmlFor="role-max-tokens">At most this many tokens</label>
-        <input id="role-max-tokens" className="input mono" inputMode="numeric" value={tokens} placeholder="No limit" aria-invalid={maxTokens === undefined || undefined} aria-describedby="role-max-tokens-note role-max-tokens-more" onChange={e => setTokens(e.target.value)} />
+        <input
+          id="role-max-tokens"
+          className="input mono"
+          inputMode="numeric"
+          value={tokens}
+          placeholder="No limit"
+          aria-invalid={maxTokens === undefined || undefined}
+          aria-describedby="role-max-tokens-note role-max-tokens-more"
+          onChange={e => setTokens(e.target.value)}
+        />
         <span className="choice-note">
           <span id="role-max-tokens-note">
             {maxTokens === undefined ? 'A whole number above zero, or empty for no limit. ' : ''}
@@ -425,7 +524,16 @@ const runsOn = (values: RoleValues, uses: Uses, providers: Provider[]) =>
         ? `${providers.find(p => p.id === values.provider_id)?.name ?? 'a provider'} · ${values.model_id ? modelName(values.model_id) : 'its default model'}`
         : 'the chat’s model'
 
-function RoleSummary({ values, teamLead, categories, uses, providers, observer, maxSteps, maxTokens }: {
+function RoleSummary({
+  values,
+  teamLead,
+  categories,
+  uses,
+  providers,
+  observer,
+  maxSteps,
+  maxTokens,
+}: {
   values: RoleValues
   teamLead: boolean
   categories: NonNullable<EditorProps['categories']>
@@ -435,7 +543,9 @@ function RoleSummary({ values, teamLead, categories, uses, providers, observer, 
   maxSteps: number | null | undefined
   maxTokens: number | null | undefined
 }) {
-  const asks = ROLE_TOOLS.filter(tool => tool.asks && values.tools.includes(tool.name)).map(tool => tool.label.toLowerCase())
+  const asks = ROLE_TOOLS.filter(tool => tool.asks && values.tools.includes(tool.name)).map(tool =>
+    tool.label.toLowerCase(),
+  )
   const where = runsOn(values, uses, providers)
   return (
     <div className="role-summary" aria-live="polite">
@@ -450,11 +560,26 @@ function RoleSummary({ values, teamLead, categories, uses, providers, observer, 
       <p>
         run on <b>{where}</b>
       </p>
-      <p>{observer ? 'answer one question about a report, with no tools' : values.tools.length ? `${mayDo(values.tools)}; nothing else` : 'do nothing yet: give it at least one tool'}</p>
-      {!observer && <p>{asks.length ? `ask you first before it may ${asks.join(', ')}, as the chat’s permission level says` : 'never wait for your yes'}</p>}
+      <p>
+        {observer
+          ? 'answer one question about a report, with no tools'
+          : values.tools.length
+            ? `${mayDo(values.tools)}; nothing else`
+            : 'do nothing yet: give it at least one tool'}
+      </p>
+      {!observer && (
+        <p>
+          {asks.length
+            ? `ask you first before it may ${asks.join(', ')}, as the chat’s permission level says`
+            : 'never wait for your yes'}
+        </p>
+      )}
       {(maxSteps || maxTokens) && (
         <p>
-          stop one agent at {[maxSteps && `${maxSteps} steps`, maxTokens && `${maxTokens.toLocaleString('en-US')} tokens`].filter(Boolean).join(' or ')}
+          stop one agent at{' '}
+          {[maxSteps && `${maxSteps} steps`, maxTokens && `${maxTokens.toLocaleString('en-US')} tokens`]
+            .filter(Boolean)
+            .join(' or ')}
         </p>
       )}
     </div>

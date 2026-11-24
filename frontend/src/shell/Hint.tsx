@@ -77,7 +77,9 @@ export function Hint({ id, doc, children }: Props) {
         setOpen(was => was ?? 'hover')
       }}
       // (A moment's grace: the pointer crosses the gap from the button to the bubble.)
-      onMouseLeave={() => (leaving.current = window.setTimeout(() => setOpen(was => (was === 'hover' ? null : was)), 150))}
+      onMouseLeave={() =>
+        (leaving.current = window.setTimeout(() => setOpen(was => (was === 'hover' ? null : was)), 150))
+      }
       // (In a box's label: a click on the button or in the bubble is not ticking the box.)
       onClick={event => event.preventDefault()}
       // (The focus gone on: the bubble would cover what it went to.)
@@ -101,7 +103,13 @@ export function Hint({ id, doc, children }: Props) {
         <span id={textId}>{children}</span>
         {doc && (
           // (Its click kept from the box's, which would cancel it.)
-          <a className="hint-more" href={`/guide/${doc}`} target="_blank" rel="noopener noreferrer" onClick={event => event.stopPropagation()}>
+          <a
+            className="hint-more"
+            href={`/guide/${doc}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={event => event.stopPropagation()}
+          >
             Learn more →
           </a>
         )}

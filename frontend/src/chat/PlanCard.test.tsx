@@ -6,7 +6,10 @@ import { run } from '../test-fixtures'
 import { PlanCard } from './PlanCard'
 
 const proposed = (strongest = true) =>
-  run('p', 'completed', { plan_turn: true, plan: { text: '1. read\n2. write', status: 'proposed', model_id: 'big-model', strongest } })
+  run('p', 'completed', {
+    plan_turn: true,
+    plan: { text: '1. read\n2. write', status: 'proposed', model_id: 'big-model', strongest },
+  })
 
 test('while the plan is written, the turn says nothing changes before it is approved', () => {
   render(<PlanCard run={run('p', 'running', { plan_turn: true })} onDecide={vi.fn()} />)
@@ -43,7 +46,11 @@ test('Edit opens the plan in a box; what is approved is the edited text', async 
 })
 
 test('over the budget the work waits for the user’s word: Cancel goes back to Approve, Go on keeps the edited plan', async () => {
-  const onDecide = vi.fn().mockRejectedValueOnce(new ApiError(409, "this project is over this month's budget (13 of 12 USD): say to go on over it"))
+  const onDecide = vi
+    .fn()
+    .mockRejectedValueOnce(
+      new ApiError(409, "this project is over this month's budget (13 of 12 USD): say to go on over it"),
+    )
   render(<PlanCard run={proposed()} onDecide={onDecide} />)
   await userEvent.click(screen.getByRole('button', { name: 'Edit' }))
   await userEvent.type(screen.getByRole('textbox', { name: 'Plan' }), '\n3. test')
@@ -95,10 +102,24 @@ test('a plan a later turn has gone past can only be turned down, and says why', 
 
 test('decided, the card stays on the record with what was decided', () => {
   const { rerender } = render(
-    <PlanCard run={run('p', 'completed', { plan_turn: true, plan: { text: 'x', status: 'rejected', model_id: 'm', strongest: false, why: 'too big' } })} onDecide={vi.fn()} />,
+    <PlanCard
+      run={run('p', 'completed', {
+        plan_turn: true,
+        plan: { text: 'x', status: 'rejected', model_id: 'm', strongest: false, why: 'too big' },
+      })}
+      onDecide={vi.fn()}
+    />,
   )
   expect(screen.getByRole('note')).toHaveTextContent('Plan rejected: too big')
   expect(screen.queryByRole('button')).not.toBeInTheDocument()
-  rerender(<PlanCard run={run('p', 'completed', { plan_turn: true, plan: { text: 'x', status: 'approved', model_id: 'm', strongest: false } })} onDecide={vi.fn()} />)
+  rerender(
+    <PlanCard
+      run={run('p', 'completed', {
+        plan_turn: true,
+        plan: { text: 'x', status: 'approved', model_id: 'm', strongest: false },
+      })}
+      onDecide={vi.fn()}
+    />,
+  )
   expect(screen.getByRole('note')).toHaveTextContent('Plan approved')
 })

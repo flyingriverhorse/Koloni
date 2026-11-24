@@ -10,12 +10,15 @@ const CLI = 'Claude Code 81c'
 const PAID = 'Paid 81c'
 
 async function local(request: APIRequestContext) {
-  return ((await (await request.get('/api/providers')).json()) as { id: string; name: string }[]).find(p => p.name === 'Local')!.id
+  return ((await (await request.get('/api/providers')).json()) as { id: string; name: string }[]).find(
+    p => p.name === 'Local',
+  )!.id
 }
 
 async function clean(request: APIRequestContext) {
   for (const provider of await (await request.get('/api/providers')).json())
-    if ([CLI, PAID].includes(provider.name) || provider.kind === 'copilot_cli') await request.delete(`/api/providers/${provider.id}`, { headers: OWN })
+    if ([CLI, PAID].includes(provider.name) || provider.kind === 'copilot_cli')
+      await request.delete(`/api/providers/${provider.id}`, { headers: OWN })
   // The backend is shared: a limit left on Local would hold back every spec's turn after this one.
   await request.patch(`/api/providers/${await local(request)}`, { headers: OWN, data: { day_limit: null } })
   await request.delete('/api/prices?model_id=fake-qwen', { headers: OWN })
@@ -25,9 +28,15 @@ test.beforeEach(async ({ request }) => clean(request))
 test.afterEach(async ({ request }) => clean(request))
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`plan gauges say what is left, the Limits tab sets a provider's, and Copilot's server folds away (${theme})`, async ({ page, request }) => {
+  test(`plan gauges say what is left, the Limits tab sets a provider's, and Copilot's server folds away (${theme})`, async ({
+    page,
+    request,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
-    const made = await request.post('/api/providers', { headers: OWN, data: { name: CLI, kind: 'claude_cli', executable: 'no-such-claude-for-81c' } })
+    const made = await request.post('/api/providers', {
+      headers: OWN,
+      data: { name: CLI, kind: 'claude_cli', executable: 'no-such-claude-for-81c' },
+    })
     expect(made.ok()).toBe(true)
     const paid = await request.post('/api/providers', {
       headers: OWN,
@@ -58,7 +67,9 @@ for (const theme of ['light', 'dark'] as const) {
     const cli = page.getByRole('button', { name: new RegExp(`^${CLI}`) })
     await expect(cli).toContainText('16% left this week')
     // The plan's other windows, behind its card's ⓘ.
-    await expect(cli.locator('..').locator('.hint')).toContainText(/Session 33% left · resets .+ · Fable this week 97% left/)
+    await expect(cli.locator('..').locator('.hint')).toContainText(
+      /Session 33% left · resets .+ · Fable this week 97% left/,
+    )
     const card = page.getByRole('button', { name: new RegExp(`^${PAID}`) })
     await expect(card).toContainText('$0 today')
 
@@ -84,13 +95,21 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(its.getByRole('status').filter({ hasText: 'Saved.' })).toBeVisible()
     await shot(page, `81c-limits-plan-${theme}`)
     await page.keyboard.press('Escape')
-    const saved = (await (await request.get('/api/providers')).json()) as { name: string; day_limit: number | null; step_down_at: number | null }[]
+    const saved = (await (await request.get('/api/providers')).json()) as {
+      name: string
+      day_limit: number | null
+      step_down_at: number | null
+    }[]
     expect(saved.find(p => p.name === PAID)?.day_limit).toBe(5)
     expect(saved.find(p => p.name === CLI)?.step_down_at).toBe(80)
     await shot(page, `81c-models-${theme}`)
     expect((await page.locator('.paged').evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])
     await page.setViewportSize({ width: 1280, height: 900 })
-    expect(await page.locator('.provider-card *:not(.visually-hidden)').evaluateAll(all => all.filter(one => one.scrollWidth > one.clientWidth + 1).map(one => one.className))).toEqual([])
+    expect(
+      await page
+        .locator('.provider-card *:not(.visually-hidden)')
+        .evaluateAll(all => all.filter(one => one.scrollWidth > one.clientWidth + 1).map(one => one.className)),
+    ).toEqual([])
     await page.setViewportSize({ width: 1440, height: 900 })
 
     // Copilot: the key is optional (its own gh sign-in is used without one), a model server of your
@@ -110,15 +129,27 @@ for (const theme of ['light', 'dark'] as const) {
   })
 }
 
-test('a turn whose Lead runs on a provider past its limit asks first, and goes on with your word', async ({ page, request }) => {
+test('a turn whose Lead runs on a provider past its limit asks first, and goes on with your word', async ({
+  page,
+  request,
+}) => {
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   await page.getByLabel('Message').fill('hello from the limits spec')
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(chat.getByText('Hello! Ask me to read or change a file.')).toBeVisible()
   // A price, and a day's limit on Local under what that turn spent.
-  expect((await request.put('/api/prices', { headers: OWN, data: { model_id: 'fake-qwen', input: 1000, output: 2000, currency: 'USD' } })).ok()).toBe(true)
-  expect((await request.patch(`/api/providers/${await local(request)}`, { headers: OWN, data: { day_limit: 0.01 } })).ok()).toBe(true)
+  expect(
+    (
+      await request.put('/api/prices', {
+        headers: OWN,
+        data: { model_id: 'fake-qwen', input: 1000, output: 2000, currency: 'USD' },
+      })
+    ).ok(),
+  ).toBe(true)
+  expect(
+    (await request.patch(`/api/providers/${await local(request)}`, { headers: OWN, data: { day_limit: 0.01 } })).ok(),
+  ).toBe(true)
   await page.getByLabel('Message').fill('one more past the limit')
   await page.getByRole('button', { name: 'Send' }).click()
   const card = chat.getByRole('group', { name: /^Over Local's limit of 0\.01 USD a day/ })

@@ -24,14 +24,19 @@ const filesOf = (page: Page) => page.getByRole('region', { name: 'Workspace' })
 test.beforeEach(() => writeFileSync(DIAGRAM, XML))
 test.afterEach(() => [DIAGRAM, PICTURE].forEach(file => rmSync(file, { force: true })))
 
-test('a .drawio opens on the viewer, drawn with its pages; what it names on the web is refused before it is sent; Save as PNG writes it beside', async ({ page }) => {
+test('a .drawio opens on the viewer, drawn with its pages; what it names on the web is refused before it is sent; Save as PNG writes it beside', async ({
+  page,
+}) => {
   test.setTimeout(60_000)
   const requests: string[] = []
   const answered: string[] = []
   const refused: string[] = []
   page.on('request', request => requests.push(request.url()))
   page.on('response', response => answered.push(response.url()))
-  page.on('console', message => /Content Security Policy|Refused to/i.test(message.text()) && refused.push(message.text()))
+  page.on(
+    'console',
+    message => /Content Security Policy|Refused to/i.test(message.text()) && refused.push(message.text()),
+  )
   await openFreshConversation(page)
   await page.getByRole('button', { name: /^Workspace/ }).click()
   const files = filesOf(page)
@@ -58,7 +63,9 @@ test('a .drawio opens on the viewer, drawn with its pages; what it names on the 
   expect(requests.some(url => url.startsWith(`${APP_URL}/drawio/viewer-static.min.js`))).toBe(true)
   // The page tried only what the diagram names - the picture and the font - and its policy refused both. (Playwright
   // lists a request the policy refuses before it is sent: the log alone is no proof, the refusal is.)
-  expect(new Set(requests.filter(outside).map(url => new URL(url).host))).toEqual(new Set(['example.com', 'fonts.googleapis.com']))
+  expect(new Set(requests.filter(outside).map(url => new URL(url).host))).toEqual(
+    new Set(['example.com', 'fonts.googleapis.com']),
+  )
   expect(refused.some(line => line.includes(OUTSIDE))).toBe(true)
   expect(refused.some(line => line.includes('fonts.googleapis.com'))).toBe(true)
   expect(refused.every(line => line.includes(OUTSIDE) || line.includes('fonts.googleapis.com'))).toBe(true)

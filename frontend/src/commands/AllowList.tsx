@@ -20,7 +20,8 @@ interface Props {
 }
 
 /** A web rule in words, as the list shows it. */
-export const webRule = (rule: AllowedWeb) => (rule.kind === 'search' ? 'search the web' : rule.kind === 'page' ? `open ${rule.host}` : `GET ${rule.host}`)
+export const webRule = (rule: AllowedWeb) =>
+  rule.kind === 'search' ? 'search the web' : rule.kind === 'page' ? `open ${rule.host}` : `GET ${rule.host}`
 
 /**
  * What this conversation does without asking - the commands it runs, and what it sends out
@@ -33,8 +34,20 @@ export function AllowList({ rules, web = [], onRemove, onRemoveWeb, onAllowHost,
   const count = rules.length + web.length
   if (count === 0 && !onAllowHost) return null
   const all = [
-    ...rules.map(rule => ({ id: rule.id, text: rule.prefix, danger: rule.danger, site: null, remove: () => onRemove(rule.id) })),
-    ...web.map(rule => ({ id: rule.id, text: webRule(rule), danger: '', site: rule.kind === 'page' ? rule : null, remove: () => onRemoveWeb?.(rule.id) })),
+    ...rules.map(rule => ({
+      id: rule.id,
+      text: rule.prefix,
+      danger: rule.danger,
+      site: null,
+      remove: () => onRemove(rule.id),
+    })),
+    ...web.map(rule => ({
+      id: rule.id,
+      text: webRule(rule),
+      danger: '',
+      site: rule.kind === 'page' ? rule : null,
+      remove: () => onRemoveWeb?.(rule.id),
+    })),
   ]
 
   async function allow(event: FormEvent) {
@@ -69,14 +82,32 @@ export function AllowList({ rules, web = [], onRemove, onRemoveWeb, onAllowHost,
               <div key={rule.id} className="allow-list-rule">
                 <span className="mono">{rule.text}</span>
                 {/* (A rule kept from before slice 90 for a command that is asked every time now.) */}
-                {rule.danger && <span className="muted" title={rule.danger}>covers nothing now - it deletes or names a secret</span>}
+                {rule.danger && (
+                  <span className="muted" title={rule.danger}>
+                    covers nothing now - it deletes or names a secret
+                  </span>
+                )}
                 {/* (A site holds in every chat of the project; marked, it is asked every time, at every level.) */}
                 {rule.site && (
-                  <label className="muted" title="Every chat of this project opens it; marked, it is asked about every time, Full auto too">
-                    <input type="checkbox" checked={rule.site.ask_first} disabled={!onAskFirst} onChange={e => onAskFirst?.(rule.id, e.target.checked)} /> Ask first
+                  <label
+                    className="muted"
+                    title="Every chat of this project opens it; marked, it is asked about every time, Full auto too"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={rule.site.ask_first}
+                      disabled={!onAskFirst}
+                      onChange={e => onAskFirst?.(rule.id, e.target.checked)}
+                    />{' '}
+                    Ask first
                   </label>
                 )}
-                <button type="button" className="icon-btn" aria-label={`Remove rule ${rule.text}`} onClick={rule.remove}>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  aria-label={`Remove rule ${rule.text}`}
+                  onClick={rule.remove}
+                >
                   <X size={12} />
                 </button>
               </div>
@@ -84,7 +115,14 @@ export function AllowList({ rules, web = [], onRemove, onRemoveWeb, onAllowHost,
           </div>
           {onAllowHost && (
             <form className="allow-list-rule" onSubmit={allow}>
-              <input className="input mono" aria-label="Allow GET to a host" placeholder="Allow GET to a host…" value={host} maxLength={500} onChange={e => setHost(e.target.value)} />
+              <input
+                className="input mono"
+                aria-label="Allow GET to a host"
+                placeholder="Allow GET to a host…"
+                value={host}
+                maxLength={500}
+                onChange={e => setHost(e.target.value)}
+              />
               <button type="submit" className="btn btn-small" disabled={!host.trim()}>
                 Allow
               </button>

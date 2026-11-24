@@ -1,7 +1,16 @@
 import { Check, X } from '@phosphor-icons/react'
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react'
 import { errorText } from '../api/client'
-import { type Category, type Colour, type KnowledgeItem, type Provider, type Role, type RoleModel, type Skill, type Team } from '../api/types'
+import {
+  type Category,
+  type Colour,
+  type KnowledgeItem,
+  type Provider,
+  type Role,
+  type RoleModel,
+  type Skill,
+  type Team,
+} from '../api/types'
 import { GUIDE } from '../shell/guide'
 import { Hint } from '../shell/Hint'
 import { titleOf } from './agentStatus'
@@ -14,7 +23,22 @@ import { cannotRun } from './SkillWindow'
 
 /** The sections of a role's form (one form, new or edited: decision 5), and the Model part's cards; an Edit link opens it at its own. */
 export type Part = 'what' | 'model' | 'thinking' | 'window' | 'picks' | 'inside' | 'tools' | 'limits'
-export type RoleChange = Partial<Pick<Role, 'kind' | 'enabled' | 'teams' | 'tools' | 'mcp' | 'skills' | 'provider_id' | 'model_id' | 'tier' | 'tier_min' | 'tier_max'>>
+export type RoleChange = Partial<
+  Pick<
+    Role,
+    | 'kind'
+    | 'enabled'
+    | 'teams'
+    | 'tools'
+    | 'mcp'
+    | 'skills'
+    | 'provider_id'
+    | 'model_id'
+    | 'tier'
+    | 'tier_min'
+    | 'tier_max'
+  >
+>
 
 // 0.1.0-ui: what its agents did is the Agents page's History tab.
 const TABS = ['Overview', 'Instructions', 'Tools', 'Knowledge'] as const
@@ -75,7 +99,24 @@ function Row({ label, children, edit }: { label: string; children: ReactNode; ed
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
 
 /** A role, opened from the chart: what it is, its rule, its instructions, tools and knowledge. Read first; Edit opens its form. */
-export function RolePanel({ role, teams, categories, onNewCategory, tab: first = 'Overview', onPatch, onOpenTools, off = [], serversOff = [], skills = [], onOpenSkills, editor, runs, providers = [], knowledge, onClose }: Props) {
+export function RolePanel({
+  role,
+  teams,
+  categories,
+  onNewCategory,
+  tab: first = 'Overview',
+  onPatch,
+  onOpenTools,
+  off = [],
+  serversOff = [],
+  skills = [],
+  onOpenSkills,
+  editor,
+  runs,
+  providers = [],
+  knowledge,
+  onClose,
+}: Props) {
   const tabs = TABS.filter(one => one !== 'Knowledge' || knowledge)
   const [tab, setTab] = useState<Tab>(tabs.includes(first) ? first : 'Overview')
   const [editing, setEditing] = useState<Part | null>(null)
@@ -149,12 +190,23 @@ export function RolePanel({ role, teams, categories, onNewCategory, tab: first =
           {/* (A team's lead is on or off with its team: said on its team's row.) */}
           {!teamLead && <span className={`tag${role.enabled ? ' tag-ok' : ''}`}>{role.enabled ? 'on' : 'off'}</span>}
         </h2>
-        {titleOf(role.name, teams) !== role.name && <span className="muted">— shown as {titleOf(role.name, teams)}</span>}
+        {titleOf(role.name, teams) !== role.name && (
+          <span className="muted">— shown as {titleOf(role.name, teams)}</span>
+        )}
         <span className="muted">{role.description}</span>
         {isScout(role) && <span className="muted">{SCOUT_AFTER}</span>}
         {role.created_by_agent && <span className="tag tag-accent">Created by an agent</span>}
       </div>
-      {hasSwitch(role) && !teamLead && <input type="checkbox" role="switch" className="model-agents" aria-label={`${role.name} on`} checked={role.enabled} onChange={e => patch({ enabled: e.target.checked })} />}
+      {hasSwitch(role) && !teamLead && (
+        <input
+          type="checkbox"
+          role="switch"
+          className="model-agents"
+          aria-label={`${role.name} on`}
+          checked={role.enabled}
+          onChange={e => patch({ enabled: e.target.checked })}
+        />
+      )}
       <button type="button" className="icon-btn" aria-label="Close the role" onClick={onClose}>
         <X size={14} />
       </button>
@@ -175,12 +227,22 @@ export function RolePanel({ role, teams, categories, onNewCategory, tab: first =
                   setError(null)
                   onNewCategory?.(name, colour)
                     .then(key => onPatch(role.id, { kind: key }))
-                    .then(() => setNewCategory(false), err => setError(errorText(err)))
+                    .then(
+                      () => setNewCategory(false),
+                      err => setError(errorText(err)),
+                    )
                 }}
                 onCancel={() => setNewCategory(false)}
               />
             ) : (
-              <select className="input role-category" aria-label={`${role.name}'s category`} value={role.kind} onChange={e => (e.target.value === NEW_CATEGORY ? setNewCategory(true) : patch({ kind: e.target.value }))}>
+              <select
+                className="input role-category"
+                aria-label={`${role.name}'s category`}
+                value={role.kind}
+                onChange={e =>
+                  e.target.value === NEW_CATEGORY ? setNewCategory(true) : patch({ kind: e.target.value })
+                }
+              >
                 {/* (A kind no category has is shown as it is, until another is picked.) */}
                 {!categories.some(one => one.key === role.kind) && <option value={role.kind}>{role.kind}</option>}
                 {categories.map(one => (
@@ -198,13 +260,23 @@ export function RolePanel({ role, teams, categories, onNewCategory, tab: first =
                 <span key={team.id} className="role-inteam">
                   <b>{team.name}</b>
                   <span className="muted"> · {team.stages.find(stage => stage.roles.includes(role.id))?.name}</span>
-                  <button type="button" className="chip-x" aria-label={`Take ${role.name} out of ${team.name}`} onClick={() => patch({ teams: role.teams.filter(id => id !== team.id) })}>
+                  <button
+                    type="button"
+                    className="chip-x"
+                    aria-label={`Take ${role.name} out of ${team.name}`}
+                    onClick={() => patch({ teams: role.teams.filter(id => id !== team.id) })}
+                  >
                     <X size={10} />
                   </button>
                 </span>
               ))}
               {others.length > 0 && (
-                <select className="chip chip-add" aria-label={`Put ${role.name} in a team`} value="" onChange={e => e.target.value && patch({ teams: [...role.teams, e.target.value] })}>
+                <select
+                  className="chip chip-add"
+                  aria-label={`Put ${role.name} in a team`}
+                  value=""
+                  onChange={e => e.target.value && patch({ teams: [...role.teams, e.target.value] })}
+                >
                   <option value="">+ Add to a team…</option>
                   {others.map(team => (
                     <option key={team.id} value={team.id}>
@@ -234,9 +306,12 @@ export function RolePanel({ role, teams, categories, onNewCategory, tab: first =
           <b>
             {ROLE_TOOLS.filter(tool => has.includes(tool.name)).length} of {ROLE_TOOLS.length}
           </b>{' '}
-          tools · {plural(role.mcp.length, 'MCP server')} · {skills.length > 0 ? `${givenSkills.length} of ${skills.length} skills` : plural(role.skills.length, 'skill')}
+          tools · {plural(role.mcp.length, 'MCP server')} ·{' '}
+          {skills.length > 0 ? `${givenSkills.length} of ${skills.length} skills` : plural(role.skills.length, 'skill')}
         </span>{' '}
-        <Hint doc={GUIDE.rolePanel}>“asks”: it waits for your yes first, as the conversation’s permission level says.</Hint>
+        <Hint doc={GUIDE.rolePanel}>
+          “asks”: it waits for your yes first, as the conversation’s permission level says.
+        </Hint>
       </p>
       {observer ? (
         // No agent is opened in it: what it is asked is one question, with no tools (the server refuses any).
@@ -248,7 +323,11 @@ export function RolePanel({ role, teams, categories, onNewCategory, tab: first =
         TOOL_GROUPS.map(group => {
           const all = ROLE_TOOLS.filter(tool => tool.group === group)
           return (
-            <div key={group} className="tool-block" style={{ '--c': `var(--tool-${group.toLowerCase()})` } as CSSProperties}>
+            <div
+              key={group}
+              className="tool-block"
+              style={{ '--c': `var(--tool-${group.toLowerCase()})` } as CSSProperties}
+            >
               <h4>
                 <span className="tool-mark" aria-hidden="true">
                   {group[0]}
@@ -274,7 +353,13 @@ export function RolePanel({ role, teams, categories, onNewCategory, tab: first =
                       aria-label={tool.label}
                       aria-describedby={`tool-${tool.name}-line`}
                       disabled={keep}
-                      title={locked ? "Kept: KOLONİ's checks and recipes need it" : keep ? 'A role needs at least one tool: turn another on first' : `${tool.name}: ${tool.hint}`}
+                      title={
+                        locked
+                          ? "Kept: KOLONİ's checks and recipes need it"
+                          : keep
+                            ? 'A role needs at least one tool: turn another on first'
+                            : `${tool.name}: ${tool.hint}`
+                      }
                       onClick={() => flip(tool)}
                     >
                       <span className="tool-tile-name">
@@ -341,7 +426,11 @@ export function RolePanel({ role, teams, categories, onNewCategory, tab: first =
                 disabled={!onOpenSkills}
                 onClick={() => onOpenSkills?.(name)}
               >
-                {why && <span className="warn" aria-hidden="true">⚠ </span>}
+                {why && (
+                  <span className="warn" aria-hidden="true">
+                    ⚠{' '}
+                  </span>
+                )}
                 {name}
               </button>
             )
@@ -396,10 +485,19 @@ export function RolePanel({ role, teams, categories, onNewCategory, tab: first =
         ) : tab === 'Overview' ? (
           overview()
         ) : tab === 'Knowledge' && knowledge ? (
-          <KnowledgeTab role={role} teamLead={teamLead} projectId={knowledge.projectId} items={knowledge.items} onUse={knowledge.actions?.useKnowledge} onOpenKnowledge={knowledge.onOpen} />
+          <KnowledgeTab
+            role={role}
+            teamLead={teamLead}
+            projectId={knowledge.projectId}
+            items={knowledge.items}
+            onUse={knowledge.actions?.useKnowledge}
+            onOpenKnowledge={knowledge.onOpen}
+          />
         ) : tab === 'Instructions' ? (
           <>
-            <p className="role-read role-read-long">{role.instructions || <span className="muted">No instructions.</span>}</p>
+            <p className="role-read role-read-long">
+              {role.instructions || <span className="muted">No instructions.</span>}
+            </p>
             <button type="button" className="btn btn-small" onClick={() => setEditing('what')}>
               Edit
             </button>

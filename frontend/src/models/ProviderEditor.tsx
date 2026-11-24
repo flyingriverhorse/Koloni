@@ -6,8 +6,28 @@ import { LimitsTab } from './LimitsTab'
 import { LocalServerTab } from './LocalServerTab'
 import { useModelFacts } from './levels'
 import type { GuideRow } from './ModelRow'
-import { type AnthropicOptions, type CopilotOptions, isCli, type ListedModel, type Mode, type NewProvider, type Props, type ProviderChange, type ProviderKind, signInOf } from './ModelsPage'
-import { AtOnceField, CliFields, CliHelp, DefaultModelField, ProviderActions, ProviderGuide, ServiceFields, TestResult } from './ProviderConnection'
+import {
+  type AnthropicOptions,
+  type CopilotOptions,
+  isCli,
+  type ListedModel,
+  type Mode,
+  type NewProvider,
+  type Props,
+  type ProviderChange,
+  type ProviderKind,
+  signInOf,
+} from './ModelsPage'
+import {
+  AtOnceField,
+  CliFields,
+  CliHelp,
+  DefaultModelField,
+  ProviderActions,
+  ProviderGuide,
+  ServiceFields,
+  TestResult,
+} from './ProviderConnection'
 import { MAX_MODELS, ProviderModels } from './ProviderModels'
 import { KeepFresh } from './RunIt'
 
@@ -102,15 +122,21 @@ const scopedOf = (anthropic: boolean, workspace: string, savedWorkspace: string)
  * as it is (`most_at_once`: a llama-server's slots once read), else its kind's.
  */
 function atOnceOf(provider: Provider | null, kind: ProviderKind, address: string) {
-  const onThisMachine = kind === 'openai_compat' && /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])([:/]|$)/i.test(address.trim())
-  const asSaved = provider && provider.max_running == null && provider.kind === kind && (provider.base_url ?? '') === address.trim()
+  const onThisMachine =
+    kind === 'openai_compat' && /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])([:/]|$)/i.test(address.trim())
+  const asSaved =
+    provider && provider.max_running == null && provider.kind === kind && (provider.base_url ?? '') === address.trim()
   const usualAtOnce = (asSaved && provider.most_at_once) || (kind.endsWith('_cli') ? 3 : 8)
   return { onThisMachine, usualAtOnce }
 }
 
 /** Empty: its kind's default (`most_at_once`). Anything else has to be a whole number from 1 to 1000 - nothing else is sent. */
 const mostOf = (atOnce: string) =>
-  atOnce.trim() === '' ? null : /^[1-9]\d{0,3}$/.test(atOnce.trim()) && Number(atOnce) <= 1000 ? Number(atOnce) : undefined
+  atOnce.trim() === ''
+    ? null
+    : /^[1-9]\d{0,3}$/.test(atOnce.trim()) && Number(atOnce) <= 1000
+      ? Number(atOnce)
+      : undefined
 
 /** The model a real run named, when it is a name. */
 const reportedOf = (tested: ProviderTest | null) =>
@@ -174,7 +200,8 @@ export function ProviderEditor({
         if (!current) return
         setSuggested(told)
         // Only an address that names the service and no more is completed: never one typed out.
-        if (told.api && asked && told.api !== asked && told.api.startsWith(asked.replace(/\/+$/, '') + '/')) setAddress(told.api)
+        if (told.api && asked && told.api !== asked && told.api.startsWith(asked.replace(/\/+$/, '') + '/'))
+          setAddress(told.api)
       },
       () => {},
     )
@@ -218,7 +245,16 @@ export function ProviderEditor({
   const latest = useRef(provider)
   latest.current = provider
   const savedRows = (from = latest.current): GuideRow[] =>
-    (from?.models ?? []).map(m => ({ name: m.name, note: m.note ?? '', tier: m.tier ?? null, agents: from!.for_agents && m.agents, ...(m.enabled === false && { enabled: false, off_why: m.off_why }), inputs: m.inputs ?? null, ...(m.context && { context: m.context }), ...(m.routing && { routing: m.routing }) }))
+    (from?.models ?? []).map(m => ({
+      name: m.name,
+      note: m.note ?? '',
+      tier: m.tier ?? null,
+      agents: from!.for_agents && m.agents,
+      ...(m.enabled === false && { enabled: false, off_why: m.off_why }),
+      inputs: m.inputs ?? null,
+      ...(m.context && { context: m.context }),
+      ...(m.routing && { routing: m.routing }),
+    }))
   const [rows, setRows] = useState(() => savedRows())
   // A provider with no list says it of itself (a CLI or a server on its default model): on Connection.
   const [forAgents, setForAgents] = useState(start.forAgents)
@@ -229,7 +265,16 @@ export function ProviderEditor({
   // How many a catalogue fill left out, while what it proposed is not saved yet (null: no such proposal).
   const [leftOut, setLeftOut] = useState<number | null>(null)
   const listedOf = (list: GuideRow[]): ListedModel[] =>
-    list.map(row => ({ name: row.name, note: row.note.trim() || null, tier: row.tier, agents: row.agents, ...(row.enabled !== undefined && { enabled: row.enabled }), ...(row.inputs != null && { inputs: row.inputs }), ...(row.context !== undefined && { context: row.context }), ...(row.routing !== undefined && { routing: row.routing }) }))
+    list.map(row => ({
+      name: row.name,
+      note: row.note.trim() || null,
+      tier: row.tier,
+      agents: row.agents,
+      ...(row.enabled !== undefined && { enabled: row.enabled }),
+      ...(row.inputs != null && { inputs: row.inputs }),
+      ...(row.context !== undefined && { context: row.context }),
+      ...(row.routing !== undefined && { routing: row.routing }),
+    }))
   const listed = listedOf(rows)
   // The Models tab saves each change at once (a tier, a note, a model added or removed), as the tiers' order does;
   // only a catalogue's proposal waits for its own Save. Nothing of the Connection tab is sent with it.
@@ -287,8 +332,27 @@ export function ProviderEditor({
   const [atOnce, setAtOnce] = useState(start.atOnce)
   // What is typed and not saved yet: closing the window asks before it is thrown away.
   const draftOf = (typedKey: string) =>
-    JSON.stringify([name, kind, address, typedKey, model, executable, mode, serverType, maxPrompt, maxOutput, offline,
-      workspace, ownSetup, signIn, note, onlyListed, atOnce, forAgents, adding ?? ''])
+    JSON.stringify([
+      name,
+      kind,
+      address,
+      typedKey,
+      model,
+      executable,
+      mode,
+      serverType,
+      maxPrompt,
+      maxOutput,
+      offline,
+      workspace,
+      ownSetup,
+      signIn,
+      note,
+      onlyListed,
+      atOnce,
+      forAgents,
+      adding ?? '',
+    ])
   const [clean, setClean] = useState(() => draftOf(''))
   const dirty = draftOf(key) !== clean
   useEffect(() => {
@@ -325,7 +389,12 @@ export function ProviderEditor({
     // Like the workspace: said only when it is not what is saved - both together, as the server keeps what is sent whole.
     const setup: Pick<NewProvider, 'options'> =
       (claudeNative && ownSetup !== savedOwnSetup) || (ownServer && signing !== savedSignIn)
-        ? { options: { ...(kind === 'claude_cli' ? { own_setup: ownSetup } : {}), ...(signing === 'koloni' ? { sign_in: 'koloni' } : {}) } }
+        ? {
+            options: {
+              ...(kind === 'claude_cli' ? { own_setup: ownSetup } : {}),
+              ...(signing === 'koloni' ? { sign_in: 'koloni' } : {}),
+            },
+          }
         : {}
     return { claudeNative, signs, setup }
   }
@@ -357,7 +426,15 @@ export function ProviderEditor({
           ...setup,
           ...guide(),
         }
-      : { name: name.trim(), kind, base_url: address.trim(), api_key: key, default_model: model.trim(), ...scoped, ...guide() }
+      : {
+          name: name.trim(),
+          kind,
+          base_url: address.trim(),
+          api_key: key,
+          default_model: model.trim(),
+          ...scoped,
+          ...guide(),
+        }
 
   /** What the form changes of a saved provider. */
   function changed(saved: Provider): ProviderChange {
@@ -518,7 +595,14 @@ export function ProviderEditor({
         onModels={onModels}
         onFacts={onFacts}
       />
-      <AtOnceField kind={kind} atOnce={atOnce} setAtOnce={setAtOnce} usualAtOnce={usualAtOnce} most={most} onThisMachine={onThisMachine} />
+      <AtOnceField
+        kind={kind}
+        atOnce={atOnce}
+        setAtOnce={setAtOnce}
+        usualAtOnce={usualAtOnce}
+        most={most}
+        onThisMachine={onThisMachine}
+      />
       {/* What agents are told of the provider as a whole, beside its models. */}
       <ProviderGuide
         rows={rows}
@@ -544,7 +628,10 @@ export function ProviderEditor({
           provider={provider}
           ownServer={ownServer}
           canAdd={canAdd}
-          onAdd={() => reported && void persist([...rows, { name: reported, note: '', tier: null, agents: usual }], `${reported} added.`)}
+          onAdd={() =>
+            reported &&
+            void persist([...rows, { name: reported, note: '', tier: null, agents: usual }], `${reported} added.`)
+          }
         />
       )}
       {provider && cli && (
@@ -596,21 +683,39 @@ export function ProviderEditor({
   )
 }
 
-interface TabsProps extends Pick<EditorProps, 'tab' | 'onTab' | 'unkept' | 'onSave' | 'onClaudeSetup' | 'onLocalServer' | 'onRunLocalServer'> {
+interface TabsProps extends Pick<
+  EditorProps,
+  'tab' | 'onTab' | 'unkept' | 'onSave' | 'onClaudeSetup' | 'onLocalServer' | 'onRunLocalServer'
+> {
   provider: Provider
   modelsPart: ReactNode
   form: ReactNode
 }
 
 /** A saved provider's tabs: its models, its connection, its limits and, for a server on this machine, the server. */
-function ProviderTabs({ provider, tab, onTab: setTab, unkept, onSave, onClaudeSetup, onLocalServer, onRunLocalServer, modelsPart, form }: TabsProps) {
+function ProviderTabs({
+  provider,
+  tab,
+  onTab: setTab,
+  unkept,
+  onSave,
+  onClaudeSetup,
+  onLocalServer,
+  onRunLocalServer,
+  modelsPart,
+  form,
+}: TabsProps) {
   // A server on this machine has a tab that starts and stops it (slice 64).
   const tabs: [Tab, string][] =
-    provider.kind === 'openai_compat' && paidOf(provider) === 'this machine' && onLocalServer && onRunLocalServer ? [...TABS, ['server', 'Server']] : TABS
+    provider.kind === 'openai_compat' && paidOf(provider) === 'this machine' && onLocalServer && onRunLocalServer
+      ? [...TABS, ['server', 'Server']]
+      : TABS
   // The arrow keys, Home and End move along the tabs (WAI-ARIA tabs: one tab stop, chosen as it is reached).
   function onTabKey(event: KeyboardEvent<HTMLDivElement>) {
     const at = tabs.findIndex(([id]) => id === tab)
-    const to = ({ ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: tabs.length - 1 } as Record<string, number>)[event.key]
+    const to = ({ ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: tabs.length - 1 } as Record<string, number>)[
+      event.key
+    ]
     if (to === undefined) return
     event.preventDefault()
     const next = tabs[(to + tabs.length) % tabs.length][0]
@@ -637,13 +742,31 @@ function ProviderTabs({ provider, tab, onTab: setTab, unkept, onSave, onClaudeSe
         ))}
       </div>
       {/* Each is kept while another tab is open: what was typed in one is still there when you come back. */}
-      <div id="provider-panel-models" role="tabpanel" aria-labelledby="provider-tab-models" className="provider-panel" hidden={tab !== 'models'}>
+      <div
+        id="provider-panel-models"
+        role="tabpanel"
+        aria-labelledby="provider-tab-models"
+        className="provider-panel"
+        hidden={tab !== 'models'}
+      >
         {modelsPart}
       </div>
-      <div id="provider-panel-connection" role="tabpanel" aria-labelledby="provider-tab-connection" className="provider-panel" hidden={tab !== 'connection'}>
+      <div
+        id="provider-panel-connection"
+        role="tabpanel"
+        aria-labelledby="provider-tab-connection"
+        className="provider-panel"
+        hidden={tab !== 'connection'}
+      >
         {form}
       </div>
-      <div id="provider-panel-limits" role="tabpanel" aria-labelledby="provider-tab-limits" className="provider-panel" hidden={tab !== 'limits'}>
+      <div
+        id="provider-panel-limits"
+        role="tabpanel"
+        aria-labelledby="provider-tab-limits"
+        className="provider-panel"
+        hidden={tab !== 'limits'}
+      >
         {/* Its own Save, apart from Connection's. */}
         <LimitsTab provider={provider} unkept={unkept} onSave={values => onSave(provider.id, values)} />
         {/* Only the default command's: a session of the user's is started by that. */}
@@ -653,7 +776,13 @@ function ProviderTabs({ provider, tab, onTab: setTab, unkept, onSave, onClaudeSe
         )}
       </div>
       {tabs.length > TABS.length && (
-        <div id="provider-panel-server" role="tabpanel" aria-labelledby="provider-tab-server" className="provider-panel" hidden={tab !== 'server'}>
+        <div
+          id="provider-panel-server"
+          role="tabpanel"
+          aria-labelledby="provider-tab-server"
+          className="provider-panel"
+          hidden={tab !== 'server'}
+        >
           <LocalServerTab active={tab === 'server'} onRead={onLocalServer!} onRun={onRunLocalServer!} />
         </div>
       )}

@@ -19,9 +19,18 @@ export function awayLine(away: Away): string {
   const m = away.jobs.length
   const working = away.jobs.findIndex(job => job.state === 'working')
   const at = working >= 0 ? working : away.jobs.findIndex(job => job.state === 'next')
-  const where = !m ? 'nothing on To-do' : at < 0 ? `To-do ${m} of ${m} looked at` : `To-do ${at + 1} of ${m}: ${away.jobs[at].title}`
+  const where = !m
+    ? 'nothing on To-do'
+    : at < 0
+      ? `To-do ${m} of ${m} looked at`
+      : `To-do ${at + 1} of ${m}: ${away.jobs[at].title}`
   const waits = away.counts.waits ?? 0
-  return ['Away', where, ...(away.decided.length ? [`${away.decided.length} decided for you`] : []), ...(waits ? [`${waits} waits`] : [])].join(' · ')
+  return [
+    'Away',
+    where,
+    ...(away.decided.length ? [`${away.decided.length} decided for you`] : []),
+    ...(waits ? [`${waits} waits`] : []),
+  ].join(' · ')
 }
 
 /**
@@ -33,16 +42,29 @@ export function statusOf(conv: ConvState | null, teams: Team[], away: Away | nul
   const queued = conv?.runs.filter(r => r.status === 'queued').length ?? 0
   const run = conv && activeRun(conv)
   // (☾ Away of its project: said while nothing of this chat is at work.)
-  const gone = away?.status === 'running' && away.project_id === conv?.conversation.project_id && run?.status !== 'running'
+  const gone =
+    away?.status === 'running' && away.project_id === conv?.conversation.project_id && run?.status !== 'running'
   return gone ? { tone: 'away', what: awayLine(away), queued } : chatStatus(conv, teams, run, queued)
 }
 
-function chatStatus(conv: ConvState | null, teams: Team[], run: ReturnType<typeof activeRun> | null, queued: number): ChatStatus {
+function chatStatus(
+  conv: ConvState | null,
+  teams: Team[],
+  run: ReturnType<typeof activeRun> | null,
+  queued: number,
+): ChatStatus {
   const lead = conv?.agents.findLast(a => a.depth === 0 && (!run || a.run_id === run.id))
   const who = titleOf(lead?.name || 'Lead', teams)
   if (conv && leadQuestion(conv)) return { tone: 'asks', who, queued }
   if (!conv || !run) return { tone: 'ready', who, queued, tests: conv && testsRunningSince(conv) }
   // (Before its Orchestrator is on record, the turn waits for its model.)
   const what = lead?.run_id === run.id ? activityOf(lead, run, conv, teams) : 'Waiting for the model…'
-  return { tone: 'running', what, since: run.started_at, wrote: turnTokens(conv, run).output_tokens, kind: lead ? liveKind(lead, run.model_id) : null, queued }
+  return {
+    tone: 'running',
+    what,
+    since: run.started_at,
+    wrote: turnTokens(conv, run).output_tokens,
+    kind: lead ? liveKind(lead, run.model_id) : null,
+    queued,
+  }
 }

@@ -37,12 +37,17 @@ async function say(page: Page, text: string, answer: string, times = 1) {
 async function overlapping(page: Page) {
   return page.locator('.react-flow__node').evaluateAll(all => {
     const rects = all.map(n => ({ id: (n as HTMLElement).dataset.id ?? '', box: n.getBoundingClientRect() }))
-    const inside = (a: DOMRect, b: DOMRect) => a.left >= b.left - 1 && a.top >= b.top - 1 && a.right <= b.right + 1 && a.bottom <= b.bottom + 1
+    const inside = (a: DOMRect, b: DOMRect) =>
+      a.left >= b.left - 1 && a.top >= b.top - 1 && a.right <= b.right + 1 && a.bottom <= b.bottom + 1
     const found: string[] = []
     for (const a of rects) {
       for (const b of rects) {
         if (a.id >= b.id || inside(a.box, b.box) || inside(b.box, a.box)) continue
-        const apart = a.box.right <= b.box.left + 1 || b.box.right <= a.box.left + 1 || a.box.bottom <= b.box.top + 1 || b.box.bottom <= a.box.top + 1
+        const apart =
+          a.box.right <= b.box.left + 1 ||
+          b.box.right <= a.box.left + 1 ||
+          a.box.bottom <= b.box.top + 1 ||
+          b.box.bottom <= a.box.top + 1
         if (!apart) found.push(`${a.id} on ${b.id}`)
       }
     }
@@ -54,7 +59,12 @@ async function overlapping(page: Page) {
 async function holds(outer: Locator, inner: Locator) {
   const [box, piece] = [await outer.boundingBox(), await inner.boundingBox()]
   if (!box || !piece) return false
-  return piece.x >= box.x - 1 && piece.y >= box.y - 1 && piece.x + piece.width <= box.x + box.width + 1 && piece.y + piece.height <= box.y + box.height + 1
+  return (
+    piece.x >= box.x - 1 &&
+    piece.y >= box.y - 1 &&
+    piece.x + piece.width <= box.x + box.width + 1 &&
+    piece.y + piece.height <= box.y + box.height + 1
+  )
 }
 
 /** Whether two things, as they are drawn, do not lie on each other. */
@@ -65,13 +75,17 @@ async function apart(one: Locator, other: Locator) {
 }
 
 /** How big the canvas draws the turn: 1 is life-size. */
-const zoom = (page: Page) => page.locator('.react-flow__viewport').evaluate(element => new DOMMatrixReadOnly(getComputedStyle(element).transform).a)
+const zoom = (page: Page) =>
+  page
+    .locator('.react-flow__viewport')
+    .evaluate(element => new DOMMatrixReadOnly(getComputedStyle(element).transform).a)
 
 /** The canvas moves its view over a fifth of a second: a picture taken for a person is taken after that. */
 const settled = (page: Page) => page.waitForTimeout(400)
 
 /** How big a node is in the canvas's own measure, whatever the zoom. */
-const size = (node: Locator) => node.evaluate(element => [(element as HTMLElement).offsetWidth, (element as HTMLElement).offsetHeight])
+const size = (node: Locator) =>
+  node.evaluate(element => [(element as HTMLElement).offsetWidth, (element as HTMLElement).offsetHeight])
 
 /** Whether a one-line text is drawn whole: none of it is cut off by the box it is in. */
 const readInFull = (text: Locator) =>
@@ -96,14 +110,18 @@ async function autoEdit(page: Page) {
   await level(page, 'auto_edit')
 }
 
-test('a message goes on with the topic: Recent names it, the canvas draws this turn alone, and the Coder carries on with what it did', async ({ page, request }) => {
+test('a message goes on with the topic: Recent names it, the canvas draws this turn alone, and the Coder carries on with what it did', async ({
+  page,
+  request,
+}) => {
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   const list = page.getByRole('complementary', { name: 'Recent' })
   const turns = list.locator('.turn-row')
   // (No "Continuing" line: "New topic" beside the model says in its tooltip which topic the message goes on with.)
   const line = chat.getByRole('button', { name: 'New topic' })
-  const goesOn = (topic: string) => expect(line).toHaveAttribute('title', `Your next message goes on with ${topic}: press to start a new topic`)
+  const goesOn = (topic: string) =>
+    expect(line).toHaveAttribute('title', `Your next message goes on with ${topic}: press to start a new topic`)
   const agents = page.locator('.react-flow__node-agent')
   const requests = page.locator('.react-flow__node-request .node-text')
   const coder = agents.filter({ has: page.locator('.node-title', { hasText: /^Coder$/ }) })
@@ -205,7 +223,10 @@ test('a message goes on with the topic: Recent names it, the canvas draws this t
   await shot(page.locator('.composer'), '18b-composer-continuing')
   await line.click()
   await expect(line).toHaveAttribute('aria-pressed', 'true')
-  await expect(line).toHaveAttribute('title', `Your next message starts a new topic: press again to go on with ${FIRST}`)
+  await expect(line).toHaveAttribute(
+    'title',
+    `Your next message starts a new topic: press again to go on with ${FIRST}`,
+  )
   await shot(page.locator('.composer'), '18b-composer-new-topic')
   await say(page, 'hi again', 'Hello! Ask me to read or change a file.')
   await expect(chat.locator('.msg-list').getByRole('separator')).toHaveText('New topic: hi again')
@@ -249,16 +270,30 @@ test('a message goes on with the topic: Recent names it, the canvas draws this t
   await expect.poll(() => overlapping(page)).toEqual([])
   // On record: the four turns are in two topics, the last with the first two.
   const [project]: { id: string }[] = await (await request.get('/api/projects')).json()
-  const conversations: { id: string; title: string }[] = await (await request.get(`/api/projects/${project.id}/conversations`)).json()
+  const conversations: { id: string; title: string }[] = await (
+    await request.get(`/api/projects/${project.id}/conversations`)
+  ).json()
   const conversation = conversations.find(c => c.title === FIRST)!
-  const snap: { runs: { topic_id: string }[]; topics: { id: string; title: string }[] } = await (await request.get(`/api/conversations/${conversation.id}`)).json()
+  const snap: { runs: { topic_id: string }[]; topics: { id: string; title: string }[] } = await (
+    await request.get(`/api/conversations/${conversation.id}`)
+  ).json()
   expect(snap.topics.map(t => t.title)).toEqual([FIRST, 'A greeting'])
-  expect(snap.runs.map(r => r.topic_id)).toEqual([snap.topics[0].id, snap.topics[0].id, snap.topics[1].id, snap.topics[0].id])
+  expect(snap.runs.map(r => r.topic_id)).toEqual([
+    snap.topics[0].id,
+    snap.topics[0].id,
+    snap.topics[1].id,
+    snap.topics[0].id,
+  ])
 
   // --- a trigger's turns are a topic of their own ------------------------------------------------
   const made = await request.post(`/api/projects/${project.id}/triggers`, {
     headers: OWN,
-    data: { name: 'Nightly check', kind: 'webhook', conversation_id: conversation.id, message: 'Do the nightly check.' },
+    data: {
+      name: 'Nightly check',
+      kind: 'webhook',
+      conversation_id: conversation.id,
+      message: 'Do the nightly check.',
+    },
   })
   expect(made.status()).toBe(201)
   const trigger: { id: string } = await made.json()
@@ -292,20 +327,26 @@ test('a message goes on with the topic: Recent names it, the canvas draws this t
   await goesOn(`${FIRST}`)
   // A message written while the trigger's turn is on screen goes where the line says: the user's own topic.
   await say(page, 'hello a third time', 'Hello! Ask me to read or change a file.', 3)
-  const after: { runs: { topic_id: string; unattended: boolean }[] } = await (await request.get(`/api/conversations/${conversation.id}`)).json()
+  const after: { runs: { topic_id: string; unattended: boolean }[] } = await (
+    await request.get(`/api/conversations/${conversation.id}`)
+  ).json()
   expect(after.runs.at(-1)).toMatchObject({ topic_id: snap.topics[0].id, unattended: false })
   // Written into the trigger's topic by choice, it is a turn of that topic - and the choice was for that one message.
   await openTurns(page)
   await scheduled.click()
   await into.click()
   await say(page, 'hello, nightly', 'Hello! Ask me to read or change a file.', 4)
-  const last: { runs: { topic_id: string; unattended: boolean }[] } = await (await request.get(`/api/conversations/${conversation.id}`)).json()
+  const last: { runs: { topic_id: string; unattended: boolean }[] } = await (
+    await request.get(`/api/conversations/${conversation.id}`)
+  ).json()
   expect(last.runs.at(-1)).toMatchObject({ topic_id: after.runs.at(-2)!.topic_id, unattended: false })
   await goesOn(`${FIRST}`)
   await expect(chat.getByRole('button', { name: 'Write into Nightly check instead' })).toBeVisible()
 })
 
-test('in the dark theme the line above the message box and Recent stand out from what they are on (contrast 4.5 or more)', async ({ page }) => {
+test('in the dark theme the line above the message box and Recent stand out from what they are on (contrast 4.5 or more)', async ({
+  page,
+}) => {
   await page.addInitScript(() => localStorage.setItem('koloni-theme', 'dark'))
   await openFreshConversation(page)
   await expect(page.locator('html')).toHaveClass(/\bdark\b/)
@@ -315,7 +356,9 @@ test('in the dark theme the line above the message box and Recent stand out from
   const line = page.getByRole('region', { name: 'Chat' }).getByRole('button', { name: 'New topic' })
   await expect(page.locator('.react-flow__node-agent')).toHaveCount(2)
   // The view takes in the whole turn.
-  await expect.poll(() => holds(page.locator('.canvas-flow'), page.locator('.react-flow__node-agent').last())).toBe(true)
+  await expect
+    .poll(() => holds(page.locator('.canvas-flow'), page.locator('.react-flow__node-agent').last()))
+    .toBe(true)
   // An agent's name is what its header must say: read in full, while provider · model - said again in the inspector - is cut short for it.
   const heads = page.locator('.react-flow__node-agent .node-head')
   await expect(heads.locator('.node-title')).toHaveText(['Orchestrator', 'Coder'])
@@ -351,7 +394,9 @@ test('in the dark theme the line above the message box and Recent stand out from
   await list.locator('.turn-row').filter({ hasText: SECOND }).click()
   await expect(page.locator('.react-flow__node-request .node-text')).toHaveText([SECOND])
   // The Coder's node, and its window with the earlier work open.
-  const coder = page.locator('.react-flow__node-agent').filter({ has: page.locator('.node-title', { hasText: /^Coder$/ }) })
+  const coder = page
+    .locator('.react-flow__node-agent')
+    .filter({ has: page.locator('.node-title', { hasText: /^Coder$/ }) })
   await check(coder, 3)
   await coder.locator('.node-title').click()
   await expect(page.getByRole('complementary', { name: 'Inspector' })).toContainText(/continues from the .+ message/)

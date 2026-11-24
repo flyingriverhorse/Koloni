@@ -17,13 +17,18 @@ const MARKS: [mark: McpTool['mark'], label: string][] = [
   ['off', 'Off'],
 ]
 
-const linesOf = (text: string) => text.split('\n').map(line => line.trim()).filter(Boolean)
+const linesOf = (text: string) =>
+  text
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
 
 /** What a reading found against the one before, in words; nothing that is not there is named. */
 function foundIn(read: McpRead): string {
   const parts = [
     read.new.length > 0 && `New: ${read.new.join(', ')}.`,
-    read.changed.length > 0 && `Changed: ${read.changed.join(', ')} - one that ran without asking is asked about again.`,
+    read.changed.length > 0 &&
+      `Changed: ${read.changed.join(', ')} - one that ran without asking is asked about again.`,
     read.gone.length > 0 && `Gone: ${read.gone.join(', ')}.`,
   ].filter(Boolean)
   return parts.length > 0 ? parts.join(' ') : 'Nothing is new, changed or gone since the reading before.'
@@ -85,7 +90,17 @@ function toolsOf(server: McpServer | null, wanted: string, more: boolean) {
   return { on, chars, found, listed, offerable }
 }
 
-export function ServerEditor({ server, start, roles, onAdd, onSave, onDelete, onRead, onRoleServers, onDone }: EditorProps) {
+export function ServerEditor({
+  server,
+  start,
+  roles,
+  onAdd,
+  onSave,
+  onDelete,
+  onRead,
+  onRoleServers,
+  onDone,
+}: EditorProps) {
   const opened = givenOf(server, start)
   const [name, setName] = useState(opened.name)
   // A key in an argument is never in the box: a saved server's comes masked, a pasted one is masked
@@ -96,7 +111,9 @@ export function ServerEditor({ server, start, roles, onAdd, onSave, onDelete, on
   // The saved variables are known by name only: a value typed here replaces the saved one,
   // null takes the variable away, and one not touched stays as it is.
   const [kept, setKept] = useState<Record<string, string | null>>({})
-  const [rows, setRows] = useState<{ name: string; value: string }[]>(Object.entries(opened.env).map(([name, value]) => ({ name, value })))
+  const [rows, setRows] = useState<{ name: string; value: string }[]>(
+    Object.entries(opened.env).map(([name, value]) => ({ name, value })),
+  )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [read, setRead] = useState<McpRead | null>(null)
@@ -172,7 +189,8 @@ export function ServerEditor({ server, start, roles, onAdd, onSave, onDelete, on
   // A saved server's name, command and variables are behind Edit; a new one's form is all there is.
   const [editing, setEditing] = useState(server === null)
   function setAll(mark: 'ask' | 'off') {
-    if (server) void run(() => onSave(server.id, { marks: Object.fromEntries(offerable.map(tool => [tool.name, mark])) }))
+    if (server)
+      void run(() => onSave(server.id, { marks: Object.fromEntries(offerable.map(tool => [tool.name, mark])) }))
   }
 
   /** A saved server's bar: its command, Read its tools, Edit and Delete server. */
@@ -275,9 +293,9 @@ export function ServerEditor({ server, start, roles, onAdd, onSave, onDelete, on
         Add a variable
       </button>
       <span className="muted provider-note">
-        Added to the server’s environment, on top of this machine’s own (KOLONİ’s own settings are left out). A value
-        is kept in plain text in KOLONİ’s local database and never shown again. In what the server’s tools return, a
-        value of 8 characters or more shows as ***.
+        Added to the server’s environment, on top of this machine’s own (KOLONİ’s own settings are left out). A value is
+        kept in plain text in KOLONİ’s local database and never shown again. In what the server’s tools return, a value
+        of 8 characters or more shows as ***.
       </span>
     </fieldset>
   )
@@ -344,12 +362,12 @@ export function ServerEditor({ server, start, roles, onAdd, onSave, onDelete, on
         <span className="muted provider-note">
           {/* What saving refuses stays in sight; why is behind ⓘ. */}
           <span id="mcp-command-note">
-            The program, then each argument on a line of its own (at most 20). For a .cmd or .bat program (npx on Windows
-            is one), saving refuses % ! ^ &amp; | &lt; &gt; in its path and its arguments.
+            The program, then each argument on a line of its own (at most 20). For a .cmd or .bat program (npx on
+            Windows is one), saving refuses % ! ^ &amp; | &lt; &gt; in its path and its arguments.
           </span>{' '}
           <Hint doc={GUIDE.mcpAdding} id="mcp-command-more">
-            A bare name is looked for on PATH; otherwise give the full path. It starts as written: no shell reads the line,
-            so quotes, pipes and variables do nothing. A .cmd or .bat file is the exception: the Windows command
+            A bare name is looked for on PATH; otherwise give the full path. It starts as written: no shell reads the
+            line, so quotes, pipes and variables do nothing. A .cmd or .bat file is the exception: the Windows command
             interpreter runs it and would act on those characters.
           </Hint>
         </span>
@@ -366,8 +384,8 @@ export function ServerEditor({ server, start, roles, onAdd, onSave, onDelete, on
     <section className="cmd-approval" aria-label="Read its tools?">
       <div className="kicker cmd-approval-kicker">Read its tools?</div>
       <p className="cmd-approval-note">
-        It may download {downloadOf(server.command)} from the internet before it starts. The server runs on this
-        machine with your rights.
+        It may download {downloadOf(server.command)} from the internet before it starts. The server runs on this machine
+        with your rights.
       </p>
       {saved && (
         <label className="choice" htmlFor="mcp-osv">
@@ -382,8 +400,8 @@ export function ServerEditor({ server, start, roles, onAdd, onSave, onDelete, on
           <span>
             First look for it in osv.dev’s known-malware records
             <span id="mcp-osv-note" className="choice-note">
-              Sends the name {saved} to osv.dev. A package it lists is not started. If osv.dev cannot be reached, it starts
-              anyway and you are told. Its dependencies are not checked.
+              Sends the name {saved} to osv.dev. A package it lists is not started. If osv.dev cannot be reached, it
+              starts anyway and you are told. Its dependencies are not checked.
             </span>
           </span>
         </label>
@@ -405,8 +423,8 @@ export function ServerEditor({ server, start, roles, onAdd, onSave, onDelete, on
     <section className="cmd-approval" aria-label="Start it anyway?">
       <div className="kicker cmd-approval-kicker">Start it anyway?</div>
       <p className="cmd-approval-note">
-        This server runs {runsShown(inProject)} from your project, which agents can change. It runs on
-        this machine with your rights, outside every agent’s card. You are asked again if its code changes.
+        This server runs {runsShown(inProject)} from your project, which agents can change. It runs on this machine with
+        your rights, outside every agent’s card. You are asked again if its code changes.
       </p>
       <div className="change-actions">
         <button type="button" className="btn btn-small btn-primary" autoFocus onClick={() => answerProject(true)}>
@@ -445,8 +463,8 @@ export function ServerEditor({ server, start, roles, onAdd, onSave, onDelete, on
         Every call asks until you trust it.{' '}
         <Hint doc={GUIDE.mcpTrust}>
           Until you trust it, every call of its tools asks you on a card with what the server says of the tool, at every
-          level, Full auto too, and “Runs without asking” waits. Read its tools and what they say first. Another command,
-          another variable, or a reading that finds a new or changed tool watches it again.
+          level, Full auto too, and “Runs without asking” waits. Read its tools and what they say first. Another
+          command, another variable, or a reading that finds a new or changed tool watches it again.
         </Hint>
       </p>
     </>
@@ -469,8 +487,8 @@ export function ServerEditor({ server, start, roles, onAdd, onSave, onDelete, on
       </div>
     ) : server.read_at === null ? (
       <p className="muted provider-note">
-        Its tools have not been read yet: no agent is offered any. “Read its tools” starts the server once in an
-        empty folder, asks for its tools and stops it. Agents get the tools as read, until you read them again.
+        Its tools have not been read yet: no agent is offered any. “Read its tools” starts the server once in an empty
+        folder, asks for its tools and stops it. Agents get the tools as read, until you read them again.
       </p>
     ) : (
       <p className="muted provider-note">Its tools were last read {new Date(server.read_at).toLocaleString()}.</p>
@@ -529,15 +547,25 @@ export function ServerEditor({ server, start, roles, onAdd, onSave, onDelete, on
           value={find}
           onChange={e => setFind(e.target.value)}
         />
-        <button type="button" className="btn btn-small" disabled={busy || offerable.length === 0} onClick={() => setAll('ask')}>
+        <button
+          type="button"
+          className="btn btn-small"
+          disabled={busy || offerable.length === 0}
+          onClick={() => setAll('ask')}
+        >
           Set all to Ask
         </button>
-        <button type="button" className="btn btn-small" disabled={busy || offerable.length === 0} onClick={() => setAll('off')}>
+        <button
+          type="button"
+          className="btn btn-small"
+          disabled={busy || offerable.length === 0}
+          onClick={() => setAll('off')}
+        >
           Set all to Off
         </button>
         <Hint doc={GUIDE.mcpTools}>
-          Each sets every one of this server’s {count(offerable.length, 'tool')} that can be offered - the ones you
-          set by hand too{wanted ? `, and not only the ${found.length} shown` : ''}. It cannot be undone.
+          Each sets every one of this server’s {count(offerable.length, 'tool')} that can be offered - the ones you set
+          by hand too{wanted ? `, and not only the ${found.length} shown` : ''}. It cannot be undone.
         </Hint>
       </div>
       {/* What the line under the table says in full, in sight before the table is read to its end. */}
@@ -569,9 +597,8 @@ export function ServerEditor({ server, start, roles, onAdd, onSave, onDelete, on
         </div>
       )}
       <p className="muted provider-note">
-        {count(on.length, 'tool')} on: about {chars}{' '}
-        characters added to every model step of an agent with this server. A small local model’s context has to
-        carry them.
+        {count(on.length, 'tool')} on: about {chars} characters added to every model step of an agent with this server.
+        A small local model’s context has to carry them.
       </p>
     </>
   )
@@ -600,7 +627,9 @@ export function ServerEditor({ server, start, roles, onAdd, onSave, onDelete, on
                 checked={has}
                 disabled={busy}
                 onChange={() =>
-                  void run(() => onRoleServers(role.id, has ? role.mcp.filter(n => n !== server.name) : [...role.mcp, server.name]))
+                  void run(() =>
+                    onRoleServers(role.id, has ? role.mcp.filter(n => n !== server.name) : [...role.mcp, server.name]),
+                  )
                 }
               />
               <span>{role.name}</span>

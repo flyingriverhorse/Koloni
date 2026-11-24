@@ -11,7 +11,9 @@ async function reads(root: Locator, least: number) {
   await expect
     .poll(async () => {
       const pieces = await root.evaluate(contrasts)
-      return pieces.length < least ? `only ${pieces.length} of ${least} pieces drawn` : pieces.filter(piece => piece.ratio < 4.5)
+      return pieces.length < least
+        ? `only ${pieces.length} of ${least} pieces drawn`
+        : pieces.filter(piece => piece.ratio < 4.5)
     })
     .toEqual([])
 }
@@ -57,7 +59,9 @@ for (const theme of ['light', 'dark'] as const)
     await expect(menu).toBeVisible()
     await expect(box).toHaveAttribute('aria-activedescendant', /.+/)
     // above the box
-    expect((await menu.boundingBox())!.y + (await menu.boundingBox())!.height).toBeLessThanOrEqual((await box.boundingBox())!.y)
+    expect((await menu.boundingBox())!.y + (await menu.boundingBox())!.height).toBeLessThanOrEqual(
+      (await box.boundingBox())!.y,
+    )
     await expect(menu.getByRole('option').first()).toHaveAttribute('aria-selected', 'true')
     await reads(menu, 10)
     if (process.env.KOLONI_SHOTS) await shot(page, `46-menu-${theme}`)
@@ -76,7 +80,11 @@ for (const theme of ['light', 'dark'] as const)
     await expect(box).toBeFocused()
     await expect(menu).toBeVisible()
     await page.keyboard.press('Shift+Tab')
-    expect(await page.evaluate(() => document.activeElement === document.body || document.activeElement?.getAttribute('role') === 'listbox')).toBe(false)
+    expect(
+      await page.evaluate(
+        () => document.activeElement === document.body || document.activeElement?.getAttribute('role') === 'listbox',
+      ),
+    ).toBe(false)
 
     // no turn at work: /stop is off and says why
     await box.fill('/st')
@@ -106,7 +114,9 @@ for (const theme of ['light', 'dark'] as const)
     await reads(chip, 1)
     await page.keyboard.type('tidy the greeting')
     if (process.env.KOLONI_SHOTS) await shot(chat, `46-chip-${theme}`)
-    const sent = page.waitForRequest(r => r.method() === 'POST' && /\/api\/conversations\/[0-9a-f]{32}\/messages$/.test(r.url()))
+    const sent = page.waitForRequest(
+      r => r.method() === 'POST' && /\/api\/conversations\/[0-9a-f]{32}\/messages$/.test(r.url()),
+    )
     await page.keyboard.press('Enter')
     expect((await sent).postDataJSON().content).toBe('Ask a sub-agent in the Coder role to do this: tidy the greeting')
     await expect(chip).toHaveCount(0)

@@ -28,7 +28,11 @@ test('any question can be answered in your own words, but not with nothing', asy
 
 test('leave asked for a tool is KOLONİ’s question, and its options are all there is to say', async () => {
   const onAnswer = vi.fn().mockResolvedValue(undefined)
-  const asked = question('q', 'r', { question: 'May the tool "scan" of the MCP server "rea" run?', options: ['Allow', 'Deny'], leave: true })
+  const asked = question('q', 'r', {
+    question: 'May the tool "scan" of the MCP server "rea" run?',
+    options: ['Allow', 'Deny'],
+    leave: true,
+  })
   render(<QuestionCard question={asked} onAnswer={onAnswer} />)
   // a title of KOLONİ's own (sample A), its text whole under it, and who asks
   expect(screen.getByText('Allow this?')).toHaveClass('cmd-approval-kicker')
@@ -61,7 +65,11 @@ test('the card locks while the answer travels and says why it failed', async () 
 
 test('Ask for changes on a recipe’s card asks what to change, and sends it with it or alone (B-114)', async () => {
   const onAnswer = vi.fn().mockResolvedValue(undefined)
-  const card = question('q', 'r', { question: 'Web app: Write the spec is done. Go on?', options: ['Go on', 'Ask for changes', 'Stop'], leave: true })
+  const card = question('q', 'r', {
+    question: 'Web app: Write the spec is done. Go on?',
+    options: ['Go on', 'Ask for changes', 'Stop'],
+    leave: true,
+  })
   const { unmount } = render(<QuestionCard question={card} onAnswer={onAnswer} />)
   await userEvent.click(screen.getByRole('button', { name: 'Ask for changes' }))
   expect(onAnswer).not.toHaveBeenCalled()
@@ -99,7 +107,9 @@ test('an agent’s question is its own title; said in one line, the line stands 
 
 test('an agent’s card names who asks as the screen calls it, from its chat or another; KOLONİ’s keeps its words, and no agent passes for it', () => {
   const who = (agentId: string, over: Parameters<typeof question>[2] = {}) => {
-    const { container, unmount } = render(<QuestionCard question={question('q', 'r', { agent_id: agentId, ...over })} onAnswer={vi.fn()} />)
+    const { container, unmount } = render(
+      <QuestionCard question={question('q', 'r', { agent_id: agentId, ...over })} onAnswer={vi.fn()} />,
+    )
     const said = container.querySelector('.card-who')?.textContent
     unmount()
     return said
@@ -115,7 +125,14 @@ test('an agent’s card names who asks as the screen calls it, from its chat or 
     expect(who('gone')).toBe('The agent asks')
     expect(who('kid', { leave: true, options: ['Allow', 'Deny'] })).toBe('KOLONİ asks')
     // a role an agent made, named so
-    useApp.setState({ conv: convState({ agents: [agent('r', 'running', { role_name: 'KOLONİ' }), agent('r', 'running', { id: 'k2', role_name: 'koloni ' })] }) })
+    useApp.setState({
+      conv: convState({
+        agents: [
+          agent('r', 'running', { role_name: 'KOLONİ' }),
+          agent('r', 'running', { id: 'k2', role_name: 'koloni ' }),
+        ],
+      }),
+    })
     expect([who('r'), who('k2')]).toEqual(['The agent asks', 'The agent asks'])
   } finally {
     resetStoreForTests()

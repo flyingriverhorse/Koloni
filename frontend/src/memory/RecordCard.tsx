@@ -65,7 +65,9 @@ export function RecordBody({ record, evidence }: { record: MemoryRecord; evidenc
       </div>
       {/* (Of a fact with no file behind it - put forward from a working state - it says so on its own.) */}
       {record.checked_how && (
-        <div className="memory-meta mono muted">{record.source ? `how the file was looked at: ${record.checked_how}` : record.checked_how}</div>
+        <div className="memory-meta mono muted">
+          {record.source ? `how the file was looked at: ${record.checked_how}` : record.checked_how}
+        </div>
       )}
       {change && record.source && (
         <div className="memory-meta mono muted">

@@ -13,7 +13,11 @@ export function AskAboutThis() {
   const [shown, setShown] = useState<{ picked: Picked; x: number; y: number } | null>(null)
   const button = useRef<HTMLButtonElement>(null)
   // What was said of this selection - Esc, the first Tab - holds till another is made: a scroll only moves the button.
-  const held = useRef<{ at: unknown[]; dismissed: boolean; offered: boolean }>({ at: [], dismissed: false, offered: false })
+  const held = useRef<{ at: unknown[]; dismissed: boolean; offered: boolean }>({
+    at: [],
+    dismissed: false,
+    offered: false,
+  })
   useEffect(() => {
     const gone = () => {
       held.current.at = [] // (the same text selected again is a new selection)
@@ -32,7 +36,11 @@ export function AskAboutThis() {
       if (at.some((one, i) => one !== held.current.at[i])) held.current = { at, dismissed: false, offered: false }
       if (held.current.dismissed) return setShown(null)
       const box = range.getBoundingClientRect()
-      setShown({ picked: { path: root.getAttribute('data-ask') || null, ...linesIn(root, range, said) }, x: box.right, y: box.bottom })
+      setShown({
+        picked: { path: root.getAttribute('data-ask') || null, ...linesIn(root, range, said) },
+        x: box.right,
+        y: box.bottom,
+      })
     }
     const key = (event: KeyboardEvent) => {
       if (!button.current) return

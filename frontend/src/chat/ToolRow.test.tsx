@@ -53,14 +53,17 @@ test('the image view_image looked at is shown small under its step, by its copy'
   useApp.setState({ conv })
   const viewed = (result: string, status: 'succeeded' | 'failed' = 'succeeded') =>
     toolCall(CALL, 'r', 'view_image', status, '{"path":"art/logo.jpg"}', { result, agent_id: AGENT })
-  const said = 'art/logo.jpg, 2×3, 40 B: it is shown to you with your next step (the user sees it under the step: .koloni/tmp/images/ab12cd34-ef56ab78.jpg)'
+  const said =
+    'art/logo.jpg, 2×3, 40 B: it is shown to you with your next step (the user sees it under the step: .koloni/tmp/images/ab12cd34-ef56ab78.jpg)'
   expect(shotOf(viewed(said))).toBe('.koloni/tmp/images/ab12cd34-ef56ab78.jpg')
   expect(shotOf(viewed(said, 'failed'))).toBeNull()
   expect(shotOf(viewed("error: 'a.png' is not an image by its bytes: PNG, JPEG, GIF or WebP"))).toBeNull()
   render(<ToolRow call={viewed(said)} />)
   expect(screen.getByText('view_image art/logo.jpg')).toBeInTheDocument()
   expect(screen.getByRole('img', { name: 'Image ab12cd34-ef56ab78.jpg' })).toHaveAttribute(
-    'src', `/api/conversations/c28/views/${CALL}/ab12cd34-ef56ab78.jpg`)
+    'src',
+    `/api/conversations/c28/views/${CALL}/ab12cd34-ef56ab78.jpg`,
+  )
 })
 
 // B-346: a copy in its call's own folder, by the image's own name: what its picture is called; only that folder.
@@ -70,13 +73,16 @@ test('the copy of an image is called by the name of the image itself', () => {
   useApp.setState({ conv })
   const viewed = (result: string) =>
     toolCall(CALL, 'r', 'view_image', 'succeeded', '{"path":"art/rea shapes.png"}', { result, agent_id: AGENT })
-  const said = (path: string) => `art/rea shapes.png, 2×3, 40 B: it is shown to you with this result (the user sees it under the step: ${path})`
+  const said = (path: string) =>
+    `art/rea shapes.png, 2×3, 40 B: it is shown to you with this result (the user sees it under the step: ${path})`
   const copy = '.koloni/tmp/images/ab12cd34-ef56ab78/rea shapes.png'
   expect(shotOf(viewed(said(copy)))).toBe(copy)
   expect(shotOf(viewed(said('.koloni/tmp/images/00000000-ef56ab78/rea shapes.png')))).toBeNull()
   render(<ToolRow call={viewed(said(copy))} />)
   expect(screen.getByRole('img', { name: 'Image rea shapes.png' })).toHaveAttribute(
-    'src', `/api/conversations/c46/views/${CALL}/rea%20shapes.png`)
+    'src',
+    `/api/conversations/c46/views/${CALL}/rea%20shapes.png`,
+  )
 })
 
 // B-347: a CLI's own look at an image (Codex's imageView): the copy KOLONİ put at the end of its result.
@@ -86,7 +92,10 @@ test('an image a CLI looked at with its own tool is shown under its step', () =>
   useApp.setState({ conv })
   const copy = '.koloni/tmp/images/ab12cd34-ef56ab78/logo.png'
   const looked = toolCall(CALL, 'r', 'codex__imageView', 'succeeded', '{"path":"C:/p/logo.png"}', {
-    result: `(the user sees it under the step: ${copy})`, agent_id: AGENT, origin: 'cli' })
+    result: `(the user sees it under the step: ${copy})`,
+    agent_id: AGENT,
+    origin: 'cli',
+  })
   expect(shotOf(looked)).toBe(copy)
   expect(shotOf({ ...looked, origin: 'koloni' })).toBeNull()
   render(<ToolRow call={looked} />)
@@ -98,20 +107,31 @@ test('a row opened shows its arguments and its result - or that there is none ye
   const { container, rerender } = render(<ToolRow call={toolCall('t3', 'r', 'browser_open', 'running', '')} />)
   expect(container.querySelector('.tool-row-detail')).toBeNull()
   await userEvent.click(screen.getByRole('button', { expanded: false }))
-  expect(Array.from(container.querySelector('.tool-row-detail')!.children, one => `${one.className}: ${one.textContent}`)).toEqual(['kicker: Arguments', 'mono: {}', 'kicker: Result', 'mono: (no result yet)'])
-  rerender(<ToolRow call={toolCall('t3', 'r', 'browser_open', 'succeeded', '{"url":"http://x/"}', { result: 'opened' })} />)
-  expect(Array.from(container.querySelectorAll('.tool-row-detail > pre'), one => one.textContent)).toEqual(['{"url":"http://x/"}', 'opened'])
+  expect(
+    Array.from(container.querySelector('.tool-row-detail')!.children, one => `${one.className}: ${one.textContent}`),
+  ).toEqual(['kicker: Arguments', 'mono: {}', 'kicker: Result', 'mono: (no result yet)'])
+  rerender(
+    <ToolRow call={toolCall('t3', 'r', 'browser_open', 'succeeded', '{"url":"http://x/"}', { result: 'opened' })} />,
+  )
+  expect(Array.from(container.querySelectorAll('.tool-row-detail > pre'), one => one.textContent)).toEqual([
+    '{"url":"http://x/"}',
+    'opened',
+  ])
   rerender(<ToolRow call={shotCall('succeeded')} />)
   expect(screen.getByText('took a screenshot')).toBeInTheDocument()
   expect(screen.queryByRole('img')).toBeNull()
 })
 
 test('in the chat a step leads with its kind’s icon and its file as a pill; its words are unchanged', () => {
-  const { container } = render(<ToolRow call={toolCall('p1', 'r', 'read_file', 'succeeded', '{"path":"a.py"}')} icon={<svg data-kind="read" />} />)
+  const { container } = render(
+    <ToolRow call={toolCall('p1', 'r', 'read_file', 'succeeded', '{"path":"a.py"}')} icon={<svg data-kind="read" />} />,
+  )
   expect(screen.getByText('a.py')).toHaveClass('step-file')
   expect(screen.getByRole('button')).toHaveTextContent(/^read_file a\.py/)
   expect(container.querySelector('[data-kind="read"]')).not.toBeNull()
   // (What did not end well keeps its own mark.)
-  const failed = render(<ToolRow call={toolCall('p2', 'r', 'read_file', 'failed', '{"path":"b.py"}')} icon={<svg data-kind="read" />} />)
+  const failed = render(
+    <ToolRow call={toolCall('p2', 'r', 'read_file', 'failed', '{"path":"b.py"}')} icon={<svg data-kind="read" />} />,
+  )
   expect(failed.container.querySelector('[data-kind="read"]')).toBeNull()
 })

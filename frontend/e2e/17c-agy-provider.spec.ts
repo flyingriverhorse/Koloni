@@ -34,7 +34,9 @@ test.describe('with the agy CLI as a provider that only reads', () => {
     await removeAgy(request)
   })
 
-  test('a turn at the ask level: what it read is its own tool, and what it was refused is not done', async ({ page }) => {
+  test('a turn at the ask level: what it read is its own tool, and what it was refused is not done', async ({
+    page,
+  }) => {
     await page.getByRole('button', { name: 'Canvas', exact: true }).click()
     const chat = page.getByRole('region', { name: 'Chat' })
     await chat.getByRole('button', { name: /^Model: Local/ }).click()
@@ -58,13 +60,17 @@ test.describe('with the agy CLI as a provider that only reads', () => {
     await lead.locator('.node-title').click()
     const window = await windowFromPanel(page)
     await expect(window.getByText('reads only', { exact: true })).toBeVisible()
-    await expect((await openAgentFold(window, 'Details')).getByRole('note')).toContainText('Reads only: on this provider it works with the CLI’s own tools')
+    await expect((await openAgentFold(window, 'Details')).getByRole('note')).toContainText(
+      'Reads only: on this provider it works with the CLI’s own tools',
+    )
     const steps = await openAgentFold(window, 'Every step as recorded')
     await expect(steps.getByRole('button', { name: /agy__view_file.*own tool.*done/ })).toBeVisible()
     const refused = steps.getByRole('button', { name: /agy__run_command.*own tool.*rejected/ })
     await refused.click()
     await expect(
-      window.getByText(/refused by the CLI: permission check failed for command "python hello.py": user denied permission/),
+      window.getByText(
+        /refused by the CLI: permission check failed for command "python hello.py": user denied permission/,
+      ),
     ).toBeVisible()
 
     // How it was started: through the command the page was given, in the project, without

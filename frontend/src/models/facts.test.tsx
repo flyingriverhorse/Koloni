@@ -22,14 +22,25 @@ const provider = (over: Partial<Provider>): Provider => ({
   note: null,
   models: [],
   only_listed: false,
-  max_running: null, plan: false, step_down_at: null, day_limit: null, month_limit: null,
+  max_running: null,
+  plan: false,
+  step_down_at: null,
+  day_limit: null,
+  month_limit: null,
   has_key: false,
   position: 0,
   created_at: 't',
   updated_at: 't',
   ...over,
 })
-const claude = provider({ id: 'p2', name: 'Claude Code', kind: 'claude_cli', base_url: null, default_model: 'sonnet', position: 1 })
+const claude = provider({
+  id: 'p2',
+  name: 'Claude Code',
+  kind: 'claude_cli',
+  base_url: null,
+  default_model: 'sonnet',
+  position: 1,
+})
 const facts = (efforts: Effort[] | null, more: Partial<ModelFacts> = {}): ModelFacts => ({
   efforts,
   context_window: null,
@@ -54,7 +65,15 @@ test('the picker shows the levels of the model being picked, not of the one save
   const onFacts = vi.fn(async (_id: string, model: string) =>
     model === 'opus' ? facts(['low', 'high'], { deprecated: true }) : facts(['off', 'low', 'medium', 'high']),
   )
-  render(<ModelPicker providers={[provider({}), claude]} providerId={null} modelId={null} onSave={vi.fn()} onFacts={onFacts} />)
+  render(
+    <ModelPicker
+      providers={[provider({}), claude]}
+      providerId={null}
+      modelId={null}
+      onSave={vi.fn()}
+      onFacts={onFacts}
+    />,
+  )
   await userEvent.click(screen.getByRole('button', { name: /Model: Local/ }))
   expect(await screen.findByText(/Its model takes: Off, Low, Medium, High\./)).toBeInTheDocument()
   await userEvent.selectOptions(screen.getByLabelText('Provider'), 'p2')
@@ -69,7 +88,14 @@ test('the picker shows the levels of the model being picked, not of the one save
 test('where the Lead role has a model of its own, the picker shows that model鈥檚 levels', async () => {
   const onFacts = vi.fn().mockResolvedValue(facts(['low']))
   render(
-    <ModelPicker providers={[provider({}), claude]} providerId={null} modelId={null} onSave={vi.fn()} onFacts={onFacts} lead={{ provider_id: 'p2', model_id: null }} />,
+    <ModelPicker
+      providers={[provider({}), claude]}
+      providerId={null}
+      modelId={null}
+      onSave={vi.fn()}
+      onFacts={onFacts}
+      lead={{ provider_id: 'p2', model_id: null }}
+    />,
   )
   await userEvent.click(screen.getByRole('button', { name: /Model: Local/ }))
   expect(await screen.findByText(/Its model takes: Low\. Of the Orchestrator role鈥檚 own model\./)).toBeInTheDocument()
@@ -86,13 +112,53 @@ test('a lookup that failed says so; a model that takes none says nothing is sent
 
 test('the role editor shows the levels of the model picked for the role, before it is saved', async () => {
   const role: Role = {
-    id: 'r1', name: 'Coder', description: '', instructions: '', tools: [], builtin: false, created_by_agent: false, locked_tools: [], models: null,
-    provider_id: null, model_id: null, tier: null, tier_min: null, tier_max: null, kind: 'build', enabled: true, teams: [], pick_from: null, max_steps: null, max_tokens: null, effort: null,
-    max_effort: null, context_window: null, mcp: [], skills: [], inside_cli: false, knows: [], created_at: 't', updated_at: 't',
+    id: 'r1',
+    name: 'Coder',
+    description: '',
+    instructions: '',
+    tools: [],
+    builtin: false,
+    created_by_agent: false,
+    locked_tools: [],
+    models: null,
+    provider_id: null,
+    model_id: null,
+    tier: null,
+    tier_min: null,
+    tier_max: null,
+    kind: 'build',
+    enabled: true,
+    teams: [],
+    pick_from: null,
+    max_steps: null,
+    max_tokens: null,
+    effort: null,
+    max_effort: null,
+    context_window: null,
+    mcp: [],
+    skills: [],
+    inside_cli: false,
+    knows: [],
+    created_at: 't',
+    updated_at: 't',
   }
-  const onFacts = vi.fn().mockResolvedValue(facts(['low', 'medium'], { context_window: 200000, sources: { context_window: 'models.dev' }, catalogue_date: '2026-10-21' }))
+  const onFacts = vi.fn().mockResolvedValue(
+    facts(['low', 'medium'], {
+      context_window: 200000,
+      sources: { context_window: 'models.dev' },
+      catalogue_date: '2026-10-21',
+    }),
+  )
   render(
-    <AgentsPage roles={[role]} providers={[provider({}), claude]} onFacts={onFacts} onSave={vi.fn()} onCreate={vi.fn()} onDelete={vi.fn()} onReset={vi.fn()} />,
+    <AgentsPage
+      roles={[role]}
+      providers={[provider({}), claude]}
+      onFacts={onFacts}
+      onSave={vi.fn()}
+      onCreate={vi.fn()}
+      onDelete={vi.fn()}
+      onReset={vi.fn()}
+    />,
   )
   await userEvent.click(screen.getByRole('button', { name: /^Coder/ }))
   await userEvent.click(screen.getByRole('button', { name: 'Edit model' }))
@@ -115,7 +181,14 @@ test('a saved provider鈥檚 default model says what is known of it and where from
       catalogue_date: '2026-10-21',
     }),
   )
-  render(<ModelsPage providers={[provider({ default_model: 'deepseek-v4-pro' })]} picked="p1" {...pageHandlers()} onFacts={onFacts} />)
+  render(
+    <ModelsPage
+      providers={[provider({ default_model: 'deepseek-v4-pro' })]}
+      picked="p1"
+      {...pageHandlers()}
+      onFacts={onFacts}
+    />,
+  )
   const said = await screen.findByText(/Its model takes: Low, High\./)
   expect(said).toHaveTextContent(
     'Reads 1,048,576 tokens at most, from models.dev (deepseek), 21 Oct 路 0.66 / 1.98 USD a million tokens in / out, set by you 路 strongest, from the catalogue 路 being retired',
@@ -139,7 +212,9 @@ test('an OpenAI-compatible provider is offered the known addresses, and a plan鈥
   expect(Array.from(offered, o => [o.value, o.label])).toEqual(addresses.map(a => [a.api, a.name]))
   await userEvent.type(address, PAYG)
   await userEvent.type(screen.getByLabelText('API key'), 'sk-sp-123')
-  expect(screen.getByText(/starts with sk-sp-: a plan鈥檚 key, which works only at its plan鈥檚 address/)).toBeInTheDocument()
+  expect(
+    screen.getByText(/starts with sk-sp-: a plan鈥檚 key, which works only at its plan鈥檚 address/),
+  ).toBeInTheDocument()
   await userEvent.clear(address)
   await userEvent.type(address, PLAN)
   // A plan's key at its plan's address is what it should be.
@@ -152,19 +227,30 @@ test('an OpenAI-compatible provider is offered the known addresses, and a plan鈥
 test('a provider not added yet is offered the catalogue鈥檚 names, its service鈥檚 address and key name', async () => {
   const onSuggest = vi.fn(async (_kind: string, base: string | null) =>
     base
-      ? { models: ['qwen3.8-max', 'qwen3.7-plus'], service: 'Alibaba', api: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1', env: ['DASHSCOPE_API_KEY'], addresses: [] }
+      ? {
+          models: ['qwen3.8-max', 'qwen3.7-plus'],
+          service: 'Alibaba',
+          api: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+          env: ['DASHSCOPE_API_KEY'],
+          addresses: [],
+        }
       : { models: [], service: null, api: null, env: [], addresses: [] },
   )
   render(<ModelsPage providers={[provider({})]} picked="new" {...pageHandlers()} onSuggest={onSuggest} />)
   await userEvent.type(screen.getByLabelText('Address'), 'https://dashscope-intl.aliyuncs.com')
   await userEvent.tab()
   // the address that named only the service is completed; the key is named as its docs name it
-  await waitFor(() => expect(screen.getByLabelText('Address')).toHaveValue('https://dashscope-intl.aliyuncs.com/compatible-mode/v1'))
+  await waitFor(() =>
+    expect(screen.getByLabelText('Address')).toHaveValue('https://dashscope-intl.aliyuncs.com/compatible-mode/v1'),
+  )
   expect(screen.getByLabelText('API key')).toHaveAttribute('placeholder', 'Your DASHSCOPE_API_KEY')
   expect(screen.getByText(/Alibaba calls its key DASHSCOPE_API_KEY\./)).toBeInTheDocument()
   // the default model and a model being added offer the same names
   const list = screen.getByLabelText('Default model').getAttribute('list')!
-  expect(Array.from(document.getElementById(list)!.querySelectorAll('option'), o => o.value)).toEqual(['qwen3.8-max', 'qwen3.7-plus'])
+  expect(Array.from(document.getElementById(list)!.querySelectorAll('option'), o => o.value)).toEqual([
+    'qwen3.8-max',
+    'qwen3.7-plus',
+  ])
   await userEvent.click(screen.getByRole('button', { name: 'Add a model' }))
   expect(screen.getByLabelText('New model鈥檚 name')).toHaveAttribute('list', list)
 })
@@ -172,23 +258,43 @@ test('a provider not added yet is offered the catalogue鈥檚 names, its service鈥
 test('the page updates the catalogue only when the button is pressed, and says what it kept', async () => {
   const onUpdateCatalogue = vi
     .fn()
-    .mockResolvedValueOnce({ providers: 120, models: 4500, updated_at: '2026-10-21T18:00:00+00:00', local: null, keep_fresh: true })
+    .mockResolvedValueOnce({
+      providers: 120,
+      models: 4500,
+      updated_at: '2026-10-21T18:00:00+00:00',
+      local: null,
+      keep_fresh: true,
+    })
     .mockRejectedValueOnce(new Error("models.dev's list could not be used; nothing was changed"))
-  const onCatalogue = vi.fn().mockResolvedValue({ providers: 6, models: 300, updated_at: '2026-10-20', local: null, keep_fresh: true })
-  render(<ModelsPage providers={[provider({})]} {...pageHandlers()} onUpdateCatalogue={onUpdateCatalogue} onCatalogue={onCatalogue} />)
+  const onCatalogue = vi
+    .fn()
+    .mockResolvedValue({ providers: 6, models: 300, updated_at: '2026-10-20', local: null, keep_fresh: true })
+  render(
+    <ModelsPage
+      providers={[provider({})]}
+      {...pageHandlers()}
+      onUpdateCatalogue={onUpdateCatalogue}
+      onCatalogue={onCatalogue}
+    />,
+  )
   // The copy read, by its date and count: the shipped one here.
   expect(await screen.findByText('Catalogue: models.dev, 20 Oct 路 6 services')).toHaveAttribute('role', 'status')
   expect(onUpdateCatalogue).not.toHaveBeenCalled()
   await userEvent.click(screen.getByRole('button', { name: 'Update catalogue' }))
   // After an update it names the updated copy (kalan-isler 1i a), not the shipped one.
-  expect(await screen.findByText(/^Catalogue: models\.dev, 21 Oct, \d\d:\d\d 路 120 services$/)).toHaveAttribute('role', 'status')
+  expect(await screen.findByText(/^Catalogue: models\.dev, 21 Oct, \d\d:\d\d 路 120 services$/)).toHaveAttribute(
+    'role',
+    'status',
+  )
   await userEvent.click(screen.getByRole('button', { name: 'Update catalogue' }))
   expect(await screen.findByRole('alert')).toHaveTextContent(/nothing was changed/)
 })
 
 test('a catalog.local.json that is not read says why beside the catalogue', async () => {
   const local = 'catalog.local.json is not read: Expecting value: line 1 column 2 (char 1)'
-  const onCatalogue = vi.fn().mockResolvedValue({ providers: 6, models: 300, updated_at: '2026-10-20', local, keep_fresh: true })
+  const onCatalogue = vi
+    .fn()
+    .mockResolvedValue({ providers: 6, models: 300, updated_at: '2026-10-20', local, keep_fresh: true })
   render(<ModelsPage providers={[provider({})]} {...pageHandlers()} onCatalogue={onCatalogue} />)
   expect(await screen.findByRole('alert')).toHaveTextContent(local)
 })
@@ -197,7 +303,15 @@ test('"Keep the catalogue fresh" is on until the user turns it off, and says so 
   const shipped = { providers: 6, models: 300, updated_at: '2026-10-20', local: null, keep_fresh: true }
   const onCatalogue = vi.fn().mockResolvedValue(shipped)
   const onKeepFresh = vi.fn().mockResolvedValue({ ...shipped, keep_fresh: false })
-  render(<ModelsPage providers={[provider({})]} {...pageHandlers()} onUpdateCatalogue={vi.fn()} onCatalogue={onCatalogue} onKeepFresh={onKeepFresh} />)
+  render(
+    <ModelsPage
+      providers={[provider({})]}
+      {...pageHandlers()}
+      onUpdateCatalogue={vi.fn()}
+      onCatalogue={onCatalogue}
+      onKeepFresh={onKeepFresh}
+    />,
+  )
   const fresh = await screen.findByRole('checkbox', { name: 'Keep the catalogue fresh' })
   expect(fresh).toBeChecked()
   await userEvent.click(fresh)

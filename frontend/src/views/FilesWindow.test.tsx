@@ -45,9 +45,14 @@ const props = (more: Partial<Props> = {}): Props => ({
   ...more,
 })
 /** Opened on `key` (as a button or "View diff" asks), or on nothing. */
-const panel = (more: Partial<Props> = {}, key: string | null = null) => render(<FilesWindow {...props({ at: { key, n: 1 }, ...more })} />)
+const panel = (more: Partial<Props> = {}, key: string | null = null) =>
+  render(<FilesWindow {...props({ at: { key, n: 1 }, ...more })} />)
 
-const entry = (name: string, kind: ProjectEntry['kind'] = 'file'): ProjectEntry => ({ name, kind, size: kind === 'dir' ? null : 10 })
+const entry = (name: string, kind: ProjectEntry['kind'] = 'file'): ProjectEntry => ({
+  name,
+  kind,
+  size: kind === 'dir' ? null : 10,
+})
 /** The project on disk, folder by folder ('' the root), and the files' text; the requests made, by address. */
 let disk: Record<string, ProjectEntry[]> = {}
 let texts: Record<string, Partial<{ text: string | null; binary: boolean; too_large: boolean }>> = {}
@@ -62,7 +67,10 @@ beforeEach(() => {
   localStorage.clear()
   resetStoreForTests()
   history = {}
-  disk = { '': [entry('node_modules', 'dir'), entry('src', 'dir'), entry('README.md'), entry('hello.py')], src: [entry('a.py')] }
+  disk = {
+    '': [entry('node_modules', 'dir'), entry('src', 'dir'), entry('README.md'), entry('hello.py')],
+    src: [entry('a.py')],
+  }
   texts = { 'hello.py': { text: "print('hi')\n" } }
   asked = []
   viewsListed = []
@@ -75,7 +83,8 @@ beforeEach(() => {
       const where = new URL(url, 'http://app')
       const path = where.searchParams.get('path') ?? ''
       if (where.pathname.endsWith('/changes')) return new Response(JSON.stringify(gitChanges), { status: 200 })
-      if (where.pathname.endsWith('/file-history')) return new Response(JSON.stringify(history[path] ?? null), { status: 200 })
+      if (where.pathname.endsWith('/file-history'))
+        return new Response(JSON.stringify(history[path] ?? null), { status: 200 })
       const body = where.pathname.endsWith('/files')
         ? (disk[path] ?? null)
         : where.pathname.endsWith('/file')
@@ -85,10 +94,16 @@ beforeEach(() => {
             : where.pathname.endsWith('/views')
               ? viewsListed
               : where.pathname.endsWith('/copy')
-                ? { agent_id: 'c', folder: null, files: [{ path: 'a.txt', kind: 'modify', diff: '@@ -1 +1 @@\n-a\n+b\n', additions: 1, deletions: 1 }] }
+                ? {
+                    agent_id: 'c',
+                    folder: null,
+                    files: [
+                      { path: 'a.txt', kind: 'modify', diff: '@@ -1 +1 @@\n-a\n+b\n', additions: 1, deletions: 1 },
+                    ],
+                  }
                 : where.pathname.endsWith('/frame')
-                ? { frameable: true }
-                : {}
+                  ? { frameable: true }
+                  : {}
       return new Response(JSON.stringify(body), { status: body === null ? 404 : 200 })
     }),
   )
@@ -99,10 +114,22 @@ afterEach(() => {
 })
 
 const treeOf = () => screen.getByRole('tree', { name: 'Files' })
-const treeItems = () => within(treeOf()).getAllByRole('treeitem').map(i => i.getAttribute('aria-label') ?? i.textContent)
-const tabs = () => within(screen.getByRole('tablist', { name: 'Open files' })).getAllByRole('tab').map(t => t.textContent)
+const treeItems = () =>
+  within(treeOf())
+    .getAllByRole('treeitem')
+    .map(i => i.getAttribute('aria-label') ?? i.textContent)
+const tabs = () =>
+  within(screen.getByRole('tablist', { name: 'Open files' }))
+    .getAllByRole('tab')
+    .map(t => t.textContent)
 /** The × on a tab: drawn on it for the mouse, out of what a screen reader reads (Delete closes it from the keyboard). */
-const closeOf = (name: string) => userEvent.click(screen.getAllByRole('tab').find(tab => tab.textContent === name)!.querySelector('.view-tab-close')!)
+const closeOf = (name: string) =>
+  userEvent.click(
+    screen
+      .getAllByRole('tab')
+      .find(tab => tab.textContent === name)!
+      .querySelector('.view-tab-close')!,
+  )
 
 // --- the tree (slice 42c §2) ---------------------------------------------------------------------
 
@@ -122,7 +149,12 @@ test('the root is the project folder’s name, with no section above it; its fol
 test('asked for the shared folder, it opens the project and the folders down to it, and chooses it in view (B-163)', async () => {
   // (The user had closed the project's own folder before.)
   localStorage.setItem('koloni-files-folders-p', JSON.stringify({ '/koloni': false }))
-  disk = { ...disk, '': [entry('.git', 'dir'), entry('.koloni', 'dir'), ...disk['']], '.koloni': [entry('shared', 'dir')], '.koloni/shared': [entry('notes.md')] }
+  disk = {
+    ...disk,
+    '': [entry('.git', 'dir'), entry('.koloni', 'dir'), ...disk['']],
+    '.koloni': [entry('shared', 'dir')],
+    '.koloni/shared': [entry('notes.md')],
+  }
   const scrolled = vi.fn()
   Element.prototype.scrollIntoView = scrolled // (jsdom has none)
   try {
@@ -137,7 +169,11 @@ test('asked for the shared folder, it opens the project and the folders down to 
     rerender(<FilesWindow {...props({ at: { key: 'hello.py', n: 2 } })} />)
     rerender(<FilesWindow {...props({ at: { key: 'folder:.koloni/shared', n: 3 } })} />)
     expect(within(treeOf()).getByRole('treeitem', { name: 'shared' })).not.toHaveAttribute('aria-selected')
-    expect(within(treeOf()).getAllByRole('treeitem').filter(i => i.getAttribute('aria-selected') === 'true')).toHaveLength(1)
+    expect(
+      within(treeOf())
+        .getAllByRole('treeitem')
+        .filter(i => i.getAttribute('aria-selected') === 'true'),
+    ).toHaveLength(1)
   } finally {
     delete (Element.prototype as Partial<Element>).scrollIntoView
   }
@@ -148,8 +184,18 @@ test('a change that comes reads the open folders again, and keeps their rows - a
   const row = await within(treeOf()).findByRole('treeitem', { name: 'hello.py' })
   row.focus()
   let answer = (_: Response) => {}
-  vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(done => (answer = done))))
-  rerender(<FilesWindow {...props({ at: { key: null, n: 1 }, changes: [fileChange('f1', 'r1', { path: 'new.txt', kind: 'create', status: 'proposed' })] })} />)
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() => new Promise<Response>(done => (answer = done))),
+  )
+  rerender(
+    <FilesWindow
+      {...props({
+        at: { key: null, n: 1 },
+        changes: [fileChange('f1', 'r1', { path: 'new.txt', kind: 'create', status: 'proposed' })],
+      })}
+    />,
+  )
   await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/projects/p/files?path=', expect.anything()))
   expect(within(treeOf()).getByRole('treeitem', { name: 'hello.py' })).toHaveFocus()
   await act(async () => answer(new Response(JSON.stringify([entry('hello.py'), entry('new.txt')]), { status: 200 })))
@@ -159,22 +205,54 @@ test('a change that comes reads the open folders again, and keeps their rows - a
 
 test('three changes to one file are one row, and only the latest is shown; M / A / D, a dot while it waits, its folders dotted and open', async () => {
   const changes = [
-    fileChange('f1', 'r1', { path: 'src/a.py', status: 'applied', diff: '@@ -1 +1 @@\n-one\n+two\n', created_at: '2026-10-05T10:00:01Z' }),
-    fileChange('f2', 'r1', { path: 'src\\a.py', status: 'applied', diff: '@@ -1 +1 @@\n-two\n+three\n', created_at: '2026-10-05T10:00:02Z' }),
-    fileChange('f3', 'r1', { path: 'src/a.py', status: 'proposed', diff: '@@ -1 +1 @@\n-three\n+four\n', created_at: '2026-10-05T10:00:03Z' }),
+    fileChange('f1', 'r1', {
+      path: 'src/a.py',
+      status: 'applied',
+      diff: '@@ -1 +1 @@\n-one\n+two\n',
+      created_at: '2026-10-05T10:00:01Z',
+    }),
+    fileChange('f2', 'r1', {
+      path: 'src\\a.py',
+      status: 'applied',
+      diff: '@@ -1 +1 @@\n-two\n+three\n',
+      created_at: '2026-10-05T10:00:02Z',
+    }),
+    fileChange('f3', 'r1', {
+      path: 'src/a.py',
+      status: 'proposed',
+      diff: '@@ -1 +1 @@\n-three\n+four\n',
+      created_at: '2026-10-05T10:00:03Z',
+    }),
     fileChange('f4', 'r1', { path: 'new.txt', kind: 'create', status: 'applied', diff: '@@ -0,0 +1 @@\n+fresh\n' }),
     fileChange('f5', 'r1', { path: 'old.txt', kind: 'delete', status: 'proposed', diff: '@@ -1 +0,0 @@\n-gone\n' }),
   ]
   disk[''].push(entry('new.txt'))
   panel({ changes }, 'src/a.py')
   await waitFor(() => expect(treeItems()).toContain('a.py modified, Waits for you'))
-  expect(treeItems()).toEqual(['koloni changed', 'node_modules', 'src changed', 'a.py modified, Waits for you', 'hello.py', 'new.txt added, Applied', 'old.txt deleted, Waits for you', 'README.md'])
+  expect(treeItems()).toEqual([
+    'koloni changed',
+    'node_modules',
+    'src changed',
+    'a.py modified, Waits for you',
+    'hello.py',
+    'new.txt added, Applied',
+    'old.txt deleted, Waits for you',
+    'README.md',
+  ])
   const row = within(treeOf()).getByRole('treeitem', { name: /^a\.py/ })
   expect(row).toHaveTextContent(/^a\.pyM$/)
   expect(row.querySelector('.tree-mark-warn')).toHaveTextContent('M')
   expect(row.querySelector('.tree-wait')).not.toBeNull()
-  expect(within(treeOf()).getByRole('treeitem', { name: /^new\.txt/ }).querySelector('.tree-mark-ok')).toHaveTextContent('A')
-  expect(within(treeOf()).getByRole('treeitem', { name: /^old\.txt/ }).querySelector('.tree-mark-del')).toHaveTextContent('D')
+  expect(
+    within(treeOf())
+      .getByRole('treeitem', { name: /^new\.txt/ })
+      .querySelector('.tree-mark-ok'),
+  ).toHaveTextContent('A')
+  expect(
+    within(treeOf())
+      .getByRole('treeitem', { name: /^old\.txt/ })
+      .querySelector('.tree-mark-del'),
+  ).toHaveTextContent('D')
   // the latest change's diff only, with its decisions
   expect(screen.getByText('four')).toBeInTheDocument()
   expect(screen.queryByText('two')).not.toBeInTheDocument()
@@ -204,14 +282,25 @@ test('a change the server says is gone from disk says so; a file the listing lea
 test('on Windows a file is one row whatever case its path is written in, named as it is on disk', async () => {
   vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Mozilla/5.0 (Windows NT 10.0; Win64; x64)')
   panel({ changes: [fileChange('f1', 'r1', { path: 'Hello.PY', status: 'proposed' })] }, 'hello.py')
-  expect(await within(treeOf()).findByRole('treeitem', { name: 'hello.py modified, Waits for you' })).toBeInTheDocument()
+  expect(
+    await within(treeOf()).findByRole('treeitem', { name: 'hello.py modified, Waits for you' }),
+  ).toBeInTheDocument()
   expect(within(treeOf()).getAllByRole('treeitem', { name: /^hello\.py/i })).toHaveLength(1)
   expect(tabs()).toEqual(['hello.py'])
 })
 
 test('a decision goes to the latest change of the file shown', async () => {
   const onDecide = vi.fn(async () => {})
-  panel({ changes: [fileChange('f1', 'r1', { status: 'applied' }), fileChange('f2', 'r1', { status: 'proposed', created_at: '2026-10-05T10:00:09Z' })], onDecide }, 'src/a.py')
+  panel(
+    {
+      changes: [
+        fileChange('f1', 'r1', { status: 'applied' }),
+        fileChange('f2', 'r1', { status: 'proposed', created_at: '2026-10-05T10:00:09Z' }),
+      ],
+      onDecide,
+    },
+    'src/a.py',
+  )
   await userEvent.click(screen.getByRole('button', { name: 'Approve' }))
   expect(onDecide).toHaveBeenCalledWith('f2', 'approve')
 })
@@ -222,7 +311,9 @@ test('a string over several lines of a file is coloured on each of them (K-42a)'
   texts['hello.py'] = { text: 'x = """one\ntwo\nthree"""\ny = 1\n' }
   panel({}, 'hello.py')
   await screen.findByText('4')
-  const lines = Array.from(document.querySelectorAll('.diff-line .diff-text'), line => Boolean(line.querySelector('.hljs-string')))
+  const lines = Array.from(document.querySelectorAll('.diff-line .diff-text'), line =>
+    Boolean(line.querySelector('.hljs-string')),
+  )
   expect(lines).toEqual([true, true, true, false])
 })
 
@@ -265,11 +356,23 @@ test('a page an agent wrote is previewed from its view (the text not on disk yet
   expect(screen.getByText(/the new page/)).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Run once' }))
   expect(frame().getAttribute('sandbox')).toBe('allow-scripts')
-  rerender(<FilesWindow {...props({ views: [{ ...written, sha: 'sha-v2-again' }], at: { key: 'site/page.html', n: 1 } })} />)
+  rerender(
+    <FilesWindow {...props({ views: [{ ...written, sha: 'sha-v2-again' }], at: { key: 'site/page.html', n: 1 } })} />,
+  )
   expect(frame().getAttribute('src')).toBe('/api/conversations/c1/views/v2/page.html?v=sha-v2-again-proposed')
   expect(frame().getAttribute('sandbox')).toBe('allow-scripts')
   // with a change to it, it opens on the diff; Preview a click away
-  rerender(<FilesWindow {...props({ views: [written], changes: [fileChange('f1', 'r1', { path: 'site/page.html', status: 'proposed', diff: '@@ -0,0 +1 @@\n+<p>hi</p>\n' })], at: { key: 'site/page.html', n: 2 } })} />)
+  rerender(
+    <FilesWindow
+      {...props({
+        views: [written],
+        changes: [
+          fileChange('f1', 'r1', { path: 'site/page.html', status: 'proposed', diff: '@@ -0,0 +1 @@\n+<p>hi</p>\n' }),
+        ],
+        at: { key: 'site/page.html', n: 2 },
+      })}
+    />,
+  )
   expect(screen.getByRole('button', { name: 'Diff' })).toHaveAttribute('aria-pressed', 'true')
   expect(document.querySelector('iframe')).toBeNull()
   await userEvent.click(screen.getByRole('button', { name: 'Preview' }))
@@ -281,7 +384,11 @@ test('K-39-betik: a page’s script is asked about - Run once, Always run in thi
   const frame = () => document.querySelector('iframe')!
   const { unmount } = panel({ views: [view('v1', 'a.html')] }, 'a.html')
   const ask = screen.getByRole('group', { name: 'Run its script?' })
-  expect(within(ask).getAllByRole('button').map(b => b.textContent)).toEqual(['Run once', 'Always run in this chat', 'Don’t run'])
+  expect(
+    within(ask)
+      .getAllByRole('button')
+      .map(b => b.textContent),
+  ).toEqual(['Run once', 'Always run in this chat', 'Don’t run'])
   // Don't run: the page stays drawn, without its script, and the ask goes
   await userEvent.click(within(ask).getByRole('button', { name: 'Don’t run' }))
   expect(screen.queryByRole('group', { name: 'Run its script?' })).toBeNull()
@@ -292,7 +399,11 @@ test('K-39-betik: a page’s script is asked about - Run once, Always run in thi
   await userEvent.click(within(said()).getByRole('button', { name: 'Run once' }))
   expect(frame().getAttribute('sandbox')).toBe('allow-scripts')
   expect(said()).toHaveTextContent('Script ran once.')
-  expect(within(said()).getAllByRole('button').map(b => b.textContent)).toEqual(['Ask each time'])
+  expect(
+    within(said())
+      .getAllByRole('button')
+      .map(b => b.textContent),
+  ).toEqual(['Ask each time'])
   await userEvent.click(within(said()).getByRole('button', { name: 'Ask each time' }))
   expect(frame().getAttribute('sandbox')).toBe('')
   expect(within(screen.getByRole('group', { name: 'Run its script?' })).getAllByRole('button')).toHaveLength(3)
@@ -306,7 +417,9 @@ test('K-39-betik: a page’s script is asked about - Run once, Always run in thi
   await userEvent.click(screen.getByRole('button', { name: 'Always run in this chat' }))
   expect(asked).toContain(`PATCH /api/conversations/${id}`)
   expect(JSON.parse(String(vi.mocked(fetch).mock.calls.at(-1)![1]!.body))).toEqual({ page_scripts: true })
-  act(() => useApp.setState(s => ({ conv: { ...s.conv!, conversation: { ...s.conv!.conversation, page_scripts: true } } })))
+  act(() =>
+    useApp.setState(s => ({ conv: { ...s.conv!, conversation: { ...s.conv!.conversation, page_scripts: true } } })),
+  )
   expect(frame().getAttribute('sandbox')).toBe('allow-scripts')
   const on = screen.getByRole('group', { name: 'Its script' })
   expect(on).toHaveTextContent('Scripts run in this chat without asking.')
@@ -316,7 +429,9 @@ test('K-39-betik: a page’s script is asked about - Run once, Always run in thi
 
 test('K-39-betik: Always runs only this chat’s own pages - a page of the project it never made is asked about still', async () => {
   useApp.setState({ conv: convState() })
-  act(() => useApp.setState(s => ({ conv: { ...s.conv!, conversation: { ...s.conv!.conversation, page_scripts: true } } })))
+  act(() =>
+    useApp.setState(s => ({ conv: { ...s.conv!, conversation: { ...s.conv!.conversation, page_scripts: true } } })),
+  )
   disk[''].push(entry('docs.html'))
   panel({}, 'docs.html')
   expect(document.querySelector('iframe')!.getAttribute('sandbox')).toBe('')
@@ -324,11 +439,23 @@ test('K-39-betik: Always runs only this chat’s own pages - a page of the proje
 })
 
 test('a drawing is framed too, never with its script; a picture is a picture, with nothing to switch to; one too large is not loaded', async () => {
-  panel({ views: [view('v1', 'd.svg', { kind: 'svg' }), view('v2', 'chart.png', { kind: 'image', status: 'shown' }), view('v3', 'big.png', { kind: 'image', too_large: true })] }, 'd.svg')
+  panel(
+    {
+      views: [
+        view('v1', 'd.svg', { kind: 'svg' }),
+        view('v2', 'chart.png', { kind: 'image', status: 'shown' }),
+        view('v3', 'big.png', { kind: 'image', too_large: true }),
+      ],
+    },
+    'd.svg',
+  )
   expect(document.querySelector('iframe[title="d.svg"]')?.getAttribute('sandbox')).toBe('')
   expect(screen.queryByRole('group', { name: 'Run its script?' })).not.toBeInTheDocument()
   await userEvent.click(within(treeOf()).getByRole('treeitem', { name: /^chart\.png/ }))
-  expect(screen.getByRole('img', { name: 'chart.png' })).toHaveAttribute('src', '/api/conversations/c1/views/v2/chart.png?v=sha-v2-shown')
+  expect(screen.getByRole('img', { name: 'chart.png' })).toHaveAttribute(
+    'src',
+    '/api/conversations/c1/views/v2/chart.png?v=sha-v2-shown',
+  )
   expect(screen.queryByRole('button', { name: 'Code' })).not.toBeInTheDocument()
   await userEvent.click(within(treeOf()).getByRole('treeitem', { name: /^big\.png/ }))
   expect(screen.getByText(/Too large to show/)).toBeInTheDocument()
@@ -346,7 +473,10 @@ test('a page that goes elsewhere by itself - a second load at the same address -
 })
 
 test('a note is read as Markdown, not framed', async () => {
-  vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(url.includes('/views/') ? '# Plan\n\n- one' : '[]', { status: 200 })))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => new Response(url.includes('/views/') ? '# Plan\n\n- one' : '[]', { status: 200 })),
+  )
   panel({ views: [view('v1', 'notes.md', { kind: 'md' })] }, 'notes.md')
   expect(await screen.findByRole('heading', { name: 'Plan' })).toBeInTheDocument()
   expect(document.querySelector('iframe')).toBeNull()
@@ -384,14 +514,22 @@ test('the views are read again when a change is made or decided', () => {
 
 test('the views are read again when a file is put there with no call of its own: one a command made (R161)', () => {
   const before = convState()
-  expect(viewsStamp(applyEvent(before, 7, 'view.shown', { id: 'v1', path: 'docs/note.docx', agent_id: 'a1', note: null }))).not.toBe(viewsStamp(before))
+  expect(
+    viewsStamp(applyEvent(before, 7, 'view.shown', { id: 'v1', path: 'docs/note.docx', agent_id: 'a1', note: null })),
+  ).not.toBe(viewsStamp(before))
 })
 
 test('the list of the conversation left, come after the first list of the one opened, is dropped: what is shown there next is new', async () => {
   let late: ((views: View[]) => void) | null = null
   let listed: View[] = []
-  const get = vi.spyOn(api, 'get').mockImplementation(path => (path === '/conversations/old/views' ? new Promise(done => (late = done)) : Promise.resolve(listed)) as never)
-  const at = (id: string, over: Partial<ConvState> = {}) => convState({ conversation: { ...convState().conversation, id }, ...over })
+  const get = vi
+    .spyOn(api, 'get')
+    .mockImplementation(
+      path =>
+        (path === '/conversations/old/views' ? new Promise(done => (late = done)) : Promise.resolve(listed)) as never,
+    )
+  const at = (id: string, over: Partial<ConvState> = {}) =>
+    convState({ conversation: { ...convState().conversation, id }, ...over })
   const { result, rerender } = renderHook(({ conv }) => useViews(conv, false), { initialProps: { conv: at('old') } })
   await waitFor(() => expect(late).not.toBeNull())
   rerender({ conv: at('new') })
@@ -521,11 +659,15 @@ test('what comes new opens Workspace at it by itself, the focus left in the mess
   expect(box).toHaveFocus()
   // untouched: the next one is shown
   shows(conv, 'two.html', 2)
-  await waitFor(() => expect(screen.getByRole('tab', { name: 'two.html' })).toHaveAttribute('aria-selected', 'true'), { timeout: 3000 })
+  await waitFor(() => expect(screen.getByRole('tab', { name: 'two.html' })).toHaveAttribute('aria-selected', 'true'), {
+    timeout: 3000,
+  })
   // in use: the next is only marked new there
   fireEvent.pointerDown(screen.getByRole('tab', { name: 'two.html' }))
   shows(conv, 'three.html', 3)
-  expect(await within(treeOf()).findByRole('treeitem', { name: 'three.html new Shown' }, { timeout: 3000 })).toBeInTheDocument()
+  expect(
+    await within(treeOf()).findByRole('treeitem', { name: 'three.html new Shown' }, { timeout: 3000 }),
+  ).toBeInTheDocument()
   expect(screen.getByRole('tab', { name: 'two.html' })).toHaveAttribute('aria-selected', 'true')
   // closed unseen, it is new on the button
   await userEvent.click(screen.getByRole('button', { name: 'Close workspace' }))
@@ -556,12 +698,17 @@ test('closed, the focus goes back to the button that opened it - the chat’s or
 })
 
 test('"View diff" and a change that waits open Workspace at that file', async () => {
-  opened({ fileChanges: [fileChange('f1', 'r1', { path: 'src\\a.py', status: 'applied', diff: '@@ -1 +1 @@\n-x\n+y\n' })] })
+  opened({
+    fileChanges: [fileChange('f1', 'r1', { path: 'src\\a.py', status: 'applied', diff: '@@ -1 +1 @@\n-x\n+y\n' })],
+  })
   render(<ChatPanel />)
   act(() => useApp.getState().openChange('f1'))
   expect(screen.getByRole('region', { name: 'Workspace' })).toBeVisible()
   expect(screen.getByRole('tab', { name: 'a.py' })).toHaveAttribute('aria-selected', 'true')
-  expect(await within(treeOf()).findByRole('treeitem', { name: 'a.py modified, Applied' })).toHaveAttribute('aria-selected', 'true')
+  expect(await within(treeOf()).findByRole('treeitem', { name: 'a.py modified, Applied' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
   // closed and asked again, it opens on it again
   await userEvent.click(screen.getByRole('button', { name: 'Close workspace' }))
   act(() => useApp.getState().openChange('f1'))
@@ -571,7 +718,15 @@ test('"View diff" and a change that waits open Workspace at that file', async ()
 // --- slice 42b: Previews - what an agent's command serves, live --------------------------------------
 
 const server = (id: string, over: Partial<Command> = {}) =>
-  command(id, 'r1', { command: 'npm run dev', keep_running: true, status: 'running', exit_code: null, ended_at: null, preview_url: 'http://localhost:5173/', ...over })
+  command(id, 'r1', {
+    command: 'npm run dev',
+    keep_running: true,
+    status: 'running',
+    exit_code: null,
+    ended_at: null,
+    preview_url: 'http://localhost:5173/',
+    ...over,
+  })
 const served = (...commands: Command[]): Item[] => servedOf(convState({ commands }))
 
 test('a server’s page is framed from its own address and origin, with its scripts and forms - never moving the app nor opening windows; Reload, Open in browser and Stop', async () => {
@@ -597,12 +752,21 @@ test('a server’s page is framed from its own address and origin, with its scri
 })
 
 test('a server that does not allow being framed is not framed: it is offered in the browser', async () => {
-  vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url.endsWith('/frame') ? { frameable: false } : []), { status: 200 })))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async (url: string) =>
+        new Response(JSON.stringify(url.endsWith('/frame') ? { frameable: false } : []), { status: 200 }),
+    ),
+  )
   panel({ views: served(server('k1')) }, 'preview:k1')
   expect(await screen.findByText('This server does not allow being shown here.')).toBeInTheDocument()
   expect(document.querySelector('iframe')).toBeNull()
   // (offered beside the words, as in the header)
-  expect(screen.getAllByRole('link', { name: 'Open in browser' }).map(a => a.getAttribute('href'))).toEqual(['http://localhost:5173/', 'http://localhost:5173/'])
+  expect(screen.getAllByRole('link', { name: 'Open in browser' }).map(a => a.getAttribute('href'))).toEqual([
+    'http://localhost:5173/',
+    'http://localhost:5173/',
+  ])
 })
 
 test('a server starting, stopped, or left when KOLONİ closed says so, and frames nothing', () => {
@@ -611,13 +775,25 @@ test('a server starting, stopped, or left when KOLONİ closed says so, and frame
   expect(screen.getByText('Waiting for the address it serves on…')).toBeInTheDocument()
   expect(screen.getByRole('tab', { name: 'npm run dev' })).toBeInTheDocument()
   unmount()
-  panel({ views: served(server('k2', { status: 'killed' }), server('k3', { status: 'interrupted', preview_url: 'http://127.0.0.1:3000' })) }, 'preview:k3')
+  panel(
+    {
+      views: served(
+        server('k2', { status: 'killed' }),
+        server('k3', { status: 'interrupted', preview_url: 'http://127.0.0.1:3000' }),
+      ),
+    },
+    'preview:k3',
+  )
   expect(screen.getByRole('status')).toHaveTextContent('stopped when KOLONİ closed')
   expect(screen.getByText('It is not running any more.')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Stop' })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Reload' })).not.toBeInTheDocument()
   expect(document.querySelector('iframe')).toBeNull()
-  expect(treeItems().slice(0, 3)).toEqual(['Previews', '127.0.0.1:3000 stopped when KOLONİ closed', 'localhost:5173 stopped'])
+  expect(treeItems().slice(0, 3)).toEqual([
+    'Previews',
+    '127.0.0.1:3000 stopped when KOLONİ closed',
+    'localhost:5173 stopped',
+  ])
 })
 
 test('no Preview button: a server opens Workspace by itself once its address is known, under Previews', async () => {
@@ -647,14 +823,28 @@ test('a server on the app’s own port is never framed - it would be the app’s
 })
 
 test('B-165: opened with nothing new or waiting - after a reload - it opens what the chat last showed; two tabs of one name say the folder', async () => {
-  const shown = (id: string, path: string) => toolCall(id, 'r1', 'show', 'succeeded', JSON.stringify({ path }), { result: `shown: ${path} is in the view beside the chat` })
+  const shown = (id: string, path: string) =>
+    toolCall(id, 'r1', 'show', 'succeeded', JSON.stringify({ path }), {
+      result: `shown: ${path} is in the view beside the chat`,
+    })
   useApp.setState({ conv: convState({ toolCalls: [shown('t1', 'notes.md'), shown('t2', 'game/index.html')] }) })
-  const views = [view('v1', 'index.html', { status: 'applied' }), view('v2', 'game/index.html', { status: 'shown' }), view('v3', 'notes.md', { kind: 'md', status: 'shown' })]
+  const views = [
+    view('v1', 'index.html', { status: 'applied' }),
+    view('v2', 'game/index.html', { status: 'shown' }),
+    view('v3', 'notes.md', { kind: 'md', status: 'shown' }),
+  ]
   const { unmount } = panel({ views })
   expect(tabs()).toEqual(['index.html'])
-  expect(screen.getByRole('tab', { name: 'index.html' })).toHaveAttribute('title', expect.stringMatching(/^game\/index\.html/))
+  expect(screen.getByRole('tab', { name: 'index.html' })).toHaveAttribute(
+    'title',
+    expect.stringMatching(/^game\/index\.html/),
+  )
   // The root's index.html beside it: the one in game/ says so.
-  await userEvent.click(within(treeOf()).getAllByRole('treeitem', { name: /^index\.html/ }).find(item => item.getAttribute('title') === 'index.html')!)
+  await userEvent.click(
+    within(treeOf())
+      .getAllByRole('treeitem', { name: /^index\.html/ })
+      .find(item => item.getAttribute('title') === 'index.html')!,
+  )
   expect(tabs()).toEqual(['game/index.html', 'index.html'])
   unmount()
   // The file shown is not there any more: nothing is opened for it.
@@ -663,10 +853,15 @@ test('B-165: opened with nothing new or waiting - after a reload - it opens what
 })
 
 test('B-187: the page the chat last showed opens on its preview, though changed - on its diff while that change waits', () => {
-  const shown = toolCall('t1', 'r1', 'show', 'succeeded', JSON.stringify({ path: 'game/index.html' }), { result: 'shown: game/index.html is in the view beside the chat' })
+  const shown = toolCall('t1', 'r1', 'show', 'succeeded', JSON.stringify({ path: 'game/index.html' }), {
+    result: 'shown: game/index.html is in the view beside the chat',
+  })
   useApp.setState({ conv: convState({ toolCalls: [shown] }) })
   const at = (status: 'applied' | 'proposed') =>
-    panel({ views: [view('v2', 'game/index.html', { status })], changes: [fileChange('f1', 'r1', { path: 'game/index.html', status })] })
+    panel({
+      views: [view('v2', 'game/index.html', { status })],
+      changes: [fileChange('f1', 'r1', { path: 'game/index.html', status })],
+    })
   const { unmount } = at('applied')
   expect(screen.getByRole('button', { name: 'Preview' })).toHaveAttribute('aria-pressed', 'true')
   expect(screen.getByRole('button', { name: 'Diff' })).toHaveAttribute('aria-pressed', 'false')
@@ -677,7 +872,10 @@ test('B-187: the page the chat last showed opens on its preview, though changed 
 
 test('K-belge-ciktilari: an output asked for from the canvas opens on its preview, though changed; a pdf is the browser’s own viewer, in no sandbox, only once asked', async () => {
   const changes = [fileChange('f1', 'r1', { path: 'deck.html', status: 'applied' })]
-  const { unmount } = panel({ views: [view('v1', 'deck.html', { status: 'applied' })], changes }, 'preview-of:deck.html')
+  const { unmount } = panel(
+    { views: [view('v1', 'deck.html', { status: 'applied' })], changes },
+    'preview-of:deck.html',
+  )
   expect(screen.getByRole('button', { name: 'Preview' })).toHaveAttribute('aria-pressed', 'true')
   unmount()
   panel({ views: [view('v2', 'out/report.pdf', { kind: 'pdf', status: 'shown' })] }, 'preview-of:out/report.pdf')
@@ -697,7 +895,11 @@ test('K-belge-ciktilari: an output asked for from the canvas opens on its previe
 })
 
 test('K-belge-ciktilari: a Word document, a workbook or a deck is drawn in the document viewer’s frame of no origin', () => {
-  for (const [name, kind] of [['plan.docx', 'docx'], ['sums.xlsx', 'xlsx'], ['deck.pptx', 'pptx']] as const) {
+  for (const [name, kind] of [
+    ['plan.docx', 'docx'],
+    ['sums.xlsx', 'xlsx'],
+    ['deck.pptx', 'pptx'],
+  ] as const) {
     const { unmount } = panel({ views: [view(name, name, { kind, status: 'shown' })] }, `preview-of:${name}`)
     const frame = screen.getByTitle(`Document ${name}`)
     expect(frame).toHaveAttribute('sandbox', 'allow-scripts')
@@ -711,7 +913,10 @@ test('K-belge-ciktilari: a Word document, a workbook or a deck is drawn in the d
 const listTabs = () => within(screen.getByRole('tablist', { name: 'Show' })).getAllByRole('tab')
 
 /** The Changes tree's rows as a screen reader names them; an agent's line with its time as `T`. */
-const changeItems = () => within(screen.getByRole('tree', { name: 'Changes' })).getAllByRole('treeitem').map(i => (i.getAttribute('aria-label') ?? '').replace(/^[^·]*\d:\d\d[^·]* · /, 'T · '))
+const changeItems = () =>
+  within(screen.getByRole('tree', { name: 'Changes' }))
+    .getAllByRole('treeitem')
+    .map(i => (i.getAttribute('aria-label') ?? '').replace(/^[^·]*\d:\d\d[^·]* · /, 'T · '))
 
 test('K-degisenler, sample A: Changes groups what changed by what you have to do - this chat’s under its agent, git’s other files on their own - in words, no letters; a click opens the diff against HEAD; the count is in the label', async () => {
   gitChanges = [
@@ -726,8 +931,17 @@ test('K-degisenler, sample A: Changes groups what changed by what you have to do
   await waitFor(() => expect(listTabs().map(t => t.textContent)).toEqual(['Files', 'Changes · 3']))
   expect(screen.getByRole('tree', { name: 'Files' })).toBeInTheDocument()
   await userEvent.click(listTabs()[1])
-  expect(screen.getByRole('status')).toHaveTextContent("This chat's work, and what git sees changed in koloni since the last commit.")
-  expect(changeItems()).toEqual(['In the project · 1', 'T · Lead', 'a.py in src changed', 'Not by an agent · 2', 'gone.txt deleted', 'new.txt new, not in git'])
+  expect(screen.getByRole('status')).toHaveTextContent(
+    "This chat's work, and what git sees changed in koloni since the last commit.",
+  )
+  expect(changeItems()).toEqual([
+    'In the project · 1',
+    'T · Lead',
+    'a.py in src changed',
+    'Not by an agent · 2',
+    'gone.txt deleted',
+    'new.txt new, not in git',
+  ])
   const tree = screen.getByRole('tree', { name: 'Changes' })
   expect(within(tree).getByRole('treeitem', { name: 'In the project · 1' })).toHaveAttribute('aria-level', '1')
   const row = within(tree).getByRole('treeitem', { name: /^a\.py/ })
@@ -758,15 +972,30 @@ test('K-degisenler, sample A: with no git, Changes is this chat’s own record a
   localStorage.setItem('koloni-files-list', JSON.stringify('changes'))
   // (an agent's write into the scratch, .koloni/tmp/, is in no list of what changed: K-koloni-klasor)
   const scratch = fileChange('f3', 'r1', { path: '.koloni/tmp/a.txt' })
-  const { rerender } = panel({ changes: [fileChange('f1', 'r1', { path: 'src/a.py', status: 'proposed' }), fileChange('f2', 'r1', { path: 'old.txt', status: 'rejected', diff: '+b' }), scratch] })
+  const { rerender } = panel({
+    changes: [
+      fileChange('f1', 'r1', { path: 'src/a.py', status: 'proposed' }),
+      fileChange('f2', 'r1', { path: 'old.txt', status: 'rejected', diff: '+b' }),
+      scratch,
+    ],
+  })
   // (what is closed is not counted)
   await waitFor(() => expect(listTabs()[1]).toHaveTextContent('Changes · 1'))
-  expect(screen.getByRole('status')).toHaveTextContent("No git here, or it did not answer in time: this is what this chat's agents changed.")
+  expect(screen.getByRole('status')).toHaveTextContent(
+    "No git here, or it did not answer in time: this is what this chat's agents changed.",
+  )
   expect(changeItems()).toEqual(['Waits for you · 1', 'T · Lead', 'a.py in src changed', 'Closed · 1'])
   const closed = within(screen.getByRole('tree', { name: 'Changes' })).getByRole('treeitem', { name: 'Closed · 1' })
   expect(closed).toHaveAttribute('aria-expanded', 'false')
   await userEvent.click(closed)
-  expect(changeItems()).toEqual(['Waits for you · 1', 'T · Lead', 'a.py in src changed', 'Closed · 1', 'T · Lead', 'old.txt changed, you said no'])
+  expect(changeItems()).toEqual([
+    'Waits for you · 1',
+    'T · Lead',
+    'a.py in src changed',
+    'Closed · 1',
+    'T · Lead',
+    'old.txt changed, you said no',
+  ])
   expect(JSON.parse(localStorage.getItem('koloni-changes-open') ?? '')).toEqual({ '/Closed': true })
   // (what waits for you opens on its diff, with its decision there)
   await userEvent.click(within(screen.getByRole('tree', { name: 'Changes' })).getByRole('treeitem', { name: /^a\.py/ }))
@@ -787,10 +1016,22 @@ test('K-degisenler, sample A: "Show folders as a tree" puts the files in their f
   await waitFor(() => expect(listTabs()[1]).toHaveTextContent('Changes · 3'))
   const asTree = screen.getByRole('checkbox', { name: 'Show folders as a tree' })
   expect(asTree).not.toBeChecked()
-  expect(changeItems()).toEqual(['Not by an agent · 3', 'a.py in src changed', 'b.py in src/sub new', 'new.txt new, not in git'])
+  expect(changeItems()).toEqual([
+    'Not by an agent · 3',
+    'a.py in src changed',
+    'b.py in src/sub new',
+    'new.txt new, not in git',
+  ])
   const rows = () => within(screen.getByRole('tree', { name: 'Changes' })).getAllByRole('treeitem')
   await userEvent.click(asTree)
-  expect(changeItems()).toEqual(['Not by an agent · 3', 'src', 'sub', 'b.py new', 'a.py changed', 'new.txt new, not in git'])
+  expect(changeItems()).toEqual([
+    'Not by an agent · 3',
+    'src',
+    'sub',
+    'b.py new',
+    'a.py changed',
+    'new.txt new, not in git',
+  ])
   expect(rows()[1]).toHaveAttribute('aria-expanded', 'true')
   expect(rows()[3]).toHaveAttribute('aria-level', '4')
   expect(listTabs()[1]).toHaveTextContent('Changes · 3')
@@ -799,19 +1040,51 @@ test('K-degisenler, sample A: "Show folders as a tree" puts the files in their f
   expect(changeItems()).toEqual(['Not by an agent · 3', 'src', 'sub', 'a.py changed', 'new.txt new, not in git'])
   expect(JSON.parse(localStorage.getItem('koloni-changes-open') ?? '')).toEqual({ '/Not by an agent/src/sub': false })
   await userEvent.click(asTree)
-  expect(changeItems()).toEqual(['Not by an agent · 3', 'a.py in src changed', 'b.py in src/sub new', 'new.txt new, not in git'])
+  expect(changeItems()).toEqual([
+    'Not by an agent · 3',
+    'a.py in src changed',
+    'b.py in src/sub new',
+    'new.txt new, not in git',
+  ])
 })
-
 
 test('K-devir-4: over an opened file, the last agents on it - each a link to the agent, or to its chat when another; nothing where KOLONİ has nothing on record', async () => {
   useApp.setState({ conv: convState() })
-  const one = (over: Partial<FileHistory>): FileHistory => ({ at: '2026-10-29T09:12:00Z', agent_id: 'a1', agent_role: 'Coder', agent_name: '', conversation_id: 'c', conversation_title: 'Fix greeting', kind: 'modify', status: 'taken in', ...over })
-  history = { 'hello.py': [one({}), one({ agent_id: 'a2', agent_role: 'Reviewer', agent_name: 'Reviewer 2', conversation_id: 'c2', conversation_title: 'Other', status: 'discarded' })] }
+  const one = (over: Partial<FileHistory>): FileHistory => ({
+    at: '2026-10-29T09:12:00Z',
+    agent_id: 'a1',
+    agent_role: 'Coder',
+    agent_name: '',
+    conversation_id: 'c',
+    conversation_title: 'Fix greeting',
+    kind: 'modify',
+    status: 'taken in',
+    ...over,
+  })
+  history = {
+    'hello.py': [
+      one({}),
+      one({
+        agent_id: 'a2',
+        agent_role: 'Reviewer',
+        agent_name: 'Reviewer 2',
+        conversation_id: 'c2',
+        conversation_title: 'Other',
+        status: 'discarded',
+      }),
+    ],
+  }
   panel()
   await userEvent.click(await within(treeOf()).findByRole('treeitem', { name: 'hello.py' }))
   const line = await screen.findByText(/^Last on this file:/)
-  expect(line).toHaveTextContent(/^Last on this file: Coder \d\d:\d\d[^(]*\(modified, taken in\) · Reviewer 2 \d\d:\d\d[^(]*in chat Other \(modified, discarded\)$/)
-  expect(within(line).getAllByRole('button').map(b => b.textContent)).toEqual([expect.stringMatching(/^Coder /), expect.stringMatching(/^Reviewer 2 /)])
+  expect(line).toHaveTextContent(
+    /^Last on this file: Coder \d\d:\d\d[^(]*\(modified, taken in\) · Reviewer 2 \d\d:\d\d[^(]*in chat Other \(modified, discarded\)$/,
+  )
+  expect(
+    within(line)
+      .getAllByRole('button')
+      .map(b => b.textContent),
+  ).toEqual([expect.stringMatching(/^Coder /), expect.stringMatching(/^Reviewer 2 /)])
   await userEvent.click(within(line).getByRole('button', { name: /^Coder/ }))
   expect(useApp.getState().selectedNodeId).toBe('agent:a1')
   expect(asked.filter(a => a.includes('/file-history'))).toEqual(['GET /api/projects/p/file-history?path=hello.py'])
@@ -825,7 +1098,14 @@ test('K-dallar: on a branch it reads that branch from git, read only - its tree,
   gitChanges = [{ path: 'hello.py', status: 'M' }]
   gitDiffs['hello.py'] = "@@ -1 +1 @@\n-print('hi')\n+print('bye')\n"
   const written = view('v1', 'page.html')
-  panel({ branch: 'refs/heads/feature', views: [written], changes: [fileChange('f1', 'r1', { path: 'README.md', status: 'proposed' })] }, 'page.html')
+  panel(
+    {
+      branch: 'refs/heads/feature',
+      views: [written],
+      changes: [fileChange('f1', 'r1', { path: 'README.md', status: 'proposed' })],
+    },
+    'page.html',
+  )
   expect(await screen.findByText('feature')).toBeInTheDocument()
   expect(screen.getByRole('status', { name: '' })).toHaveTextContent('feature · read only')
   await waitFor(() => expect(asked).toContain('GET /api/projects/p/files?path=&ref=refs%2Fheads%2Ffeature'))
@@ -837,8 +1117,12 @@ test('K-dallar: on a branch it reads that branch from git, read only - its tree,
   // (the chat's change waits for nobody here)
   expect(screen.queryByText('1 file waits')).toBeNull()
   await userEvent.click(screen.getByRole('tab', { name: /Changes/ }))
-  await userEvent.click(await within(screen.getByRole('tree', { name: 'Changes' })).findByRole('treeitem', { name: /hello\.py/ }))
-  await waitFor(() => expect(asked).toContain('GET /api/projects/p/changes/diff?path=hello.py&ref=refs%2Fheads%2Ffeature'))
+  await userEvent.click(
+    await within(screen.getByRole('tree', { name: 'Changes' })).findByRole('treeitem', { name: /hello\.py/ }),
+  )
+  await waitFor(() =>
+    expect(asked).toContain('GET /api/projects/p/changes/diff?path=hello.py&ref=refs%2Fheads%2Ffeature'),
+  )
   await userEvent.click(screen.getByRole('button', { name: 'Back to the project' }))
   expect(useApp.getState().filesRef).toBeNull()
 })
@@ -868,7 +1152,17 @@ test('the project’s branch first read as the page loads keeps the file picked 
 
 test('B-342: a change done with that changes nothing is no diff to open on: the page opens as it is', () => {
   const written = view('v2', 'site/page.html')
-  render(<FilesWindow {...props({ views: [written], changes: [fileChange('f1', 'r1', { path: 'site/page.html', status: 'rejected', diff: '', additions: 0, deletions: 0 })], at: { key: 'site/page.html', n: 1 } })} />)
+  render(
+    <FilesWindow
+      {...props({
+        views: [written],
+        changes: [
+          fileChange('f1', 'r1', { path: 'site/page.html', status: 'rejected', diff: '', additions: 0, deletions: 0 }),
+        ],
+        at: { key: 'site/page.html', n: 1 },
+      })}
+    />,
+  )
   expect(screen.queryByText('No textual difference.')).toBeNull()
   expect(screen.queryByRole('button', { name: 'Diff' })).toBeNull()
   expect(document.querySelector('iframe')).not.toBeNull()
@@ -889,27 +1183,70 @@ test('B-338: a file added outside KOLONİ is in the tree once the user comes bac
 
 test('K-degisenler, sample A: the lines of a group go by when your message came - across days, whatever the clock writes', async () => {
   localStorage.setItem('koloni-files-list', JSON.stringify('changes'))
-  const asked = (run: string, at: string) => ({ id: run, conversation_id: 'c', run_id: run, agent_id: null, role: 'user', content: run, created_at: at, status: 'complete' }) as never
+  const asked = (run: string, at: string) =>
+    ({
+      id: run,
+      conversation_id: 'c',
+      run_id: run,
+      agent_id: null,
+      role: 'user',
+      content: run,
+      created_at: at,
+      status: 'complete',
+    }) as never
   // (as text, "01:05 PM" or "13:05" of the next day sorts before "11:00 PM" or "23:00" of the day before)
-  useApp.setState({ conv: convState({ messages: [asked('late', '2026-11-07T11:05:00Z'), asked('early', '2026-11-06T21:00:00Z')] }) })
-  panel({ changes: [fileChange('l', 'late', { agent_id: 'r1', path: 'l.py', status: 'proposed' }), fileChange('e', 'early', { agent_id: 'r1', path: 'e.py', status: 'proposed' })] })
-  await waitFor(() => expect(changeItems()).toEqual(['Waits for you · 2', 'T · Lead · “early”', 'e.py changed', 'T · Lead · “late”', 'l.py changed']))
+  useApp.setState({
+    conv: convState({ messages: [asked('late', '2026-11-07T11:05:00Z'), asked('early', '2026-11-06T21:00:00Z')] }),
+  })
+  panel({
+    changes: [
+      fileChange('l', 'late', { agent_id: 'r1', path: 'l.py', status: 'proposed' }),
+      fileChange('e', 'early', { agent_id: 'r1', path: 'e.py', status: 'proposed' }),
+    ],
+  })
+  await waitFor(() =>
+    expect(changeItems()).toEqual([
+      'Waits for you · 2',
+      'T · Lead · “early”',
+      'e.py changed',
+      'T · Lead · “late”',
+      'l.py changed',
+    ]),
+  )
 })
 
 test('K-degisenler, sample A: with git, the count is what git lists - as the top bar counts it', async () => {
-  gitChanges = [{ path: 'a.py', status: 'M' }, { path: 'b.py', status: 'M' }]
+  gitChanges = [
+    { path: 'a.py', status: 'M' },
+    { path: 'b.py', status: 'M' },
+  ]
   panel({ changes: [fileChange('p', 'r1', { path: 'c.py', status: 'proposed' })] })
   await waitFor(() => expect(listTabs()[1]).toHaveTextContent('Changes · 2'))
 })
 
 test('K-degisenler, sample A: a copy that waits, or was kept, opens on what it holds, with the way to its card', async () => {
   localStorage.setItem('koloni-files-list', JSON.stringify('changes'))
-  const merge = (status: string, kept_in: string | null) => ({ id: `g-${status}`, run_id: 'r1', agent_id: 'c', status, files: [], kept_in, created_at: 't', decided_at: null }) as never
+  const merge = (status: string, kept_in: string | null) =>
+    ({
+      id: `g-${status}`,
+      run_id: 'r1',
+      agent_id: 'c',
+      status,
+      files: [],
+      kept_in,
+      created_at: 't',
+      decided_at: null,
+    }) as never
   const coder = agent('r1', 'completed', { id: 'c', name: 'Coder', copy: { state: 'own' } })
-  for (const [held, button] of [[merge('pending', null), 'Take in…'], [merge('kept', 'C:/kept'), 'Look']] as const) {
+  for (const [held, button] of [
+    [merge('pending', null), 'Take in…'],
+    [merge('kept', 'C:/kept'), 'Look'],
+  ] as const) {
     useApp.setState({ conv: convState({ merges: [held] }), selectedNodeId: null })
     const { unmount } = panel({ agents: [lead, coder] })
-    await userEvent.click(await within(screen.getByRole('tree', { name: 'Changes' })).findByRole('treeitem', { name: /^Coder's copy/ }))
+    await userEvent.click(
+      await within(screen.getByRole('tree', { name: 'Changes' })).findByRole('treeitem', { name: /^Coder's copy/ }),
+    )
     expect(await screen.findByRole('region', { name: 'a.txt' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: button }))
     expect(useApp.getState().selectedNodeId).toBe('agent:c')
@@ -919,7 +1256,10 @@ test('K-degisenler, sample A: a copy that waits, or was kept, opens on what it h
 
 test('a copy at work is under Working copies in Files, on a tab of its own; a tab clicked is shown; a diff side by side or in one column is remembered', async () => {
   const coder = agent('r1', 'running', { id: 'c', name: 'Coder', copy: { state: 'own' } })
-  panel({ agents: [lead, coder], changes: [fileChange('f1', 'r1', { status: 'proposed', diff: '@@ -1 +1 @@\n-a\n+b\n' })] }, 'src/a.py')
+  panel(
+    { agents: [lead, coder], changes: [fileChange('f1', 'r1', { status: 'proposed', diff: '@@ -1 +1 @@\n-a\n+b\n' })] },
+    'src/a.py',
+  )
   await userEvent.click(await within(treeOf()).findByRole('treeitem', { name: /^Coder's copy/ }))
   expect(within(treeOf()).getByRole('treeitem', { name: /^Working copies/ })).toBeInTheDocument()
   expect(await screen.findByRole('region', { name: 'a.txt' })).toBeInTheDocument()

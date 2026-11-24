@@ -32,13 +32,25 @@ function svgContrasts(svg: Element) {
   const behind = page ? getComputedStyle(page).backgroundColor : 'rgb(255, 255, 255)'
   // (the piece that holds the words: a <tspan> has a fill of its own, the <text> around it may not show)
   return Array.from(svg.querySelectorAll('text, tspan'))
-    .filter(text => Array.from(text.childNodes).some(node => node.nodeType === Node.TEXT_NODE && node.textContent?.trim()))
+    .filter(text =>
+      Array.from(text.childNodes).some(node => node.nodeType === Node.TEXT_NODE && node.textContent?.trim()),
+    )
     .map(text => {
       let under: string | null = null
       for (let group = text.closest('g'); group && !under; group = group.parentElement?.closest('g') ?? null)
-        for (const shape of group.querySelectorAll(':scope > rect, :scope > path, :scope > polygon, :scope > circle, :scope > ellipse')) under ??= filled(shape)
-      const [a, b] = [luminance(rgb(getComputedStyle(text).fill)), luminance(rgb(under ?? behind))].sort((x, y) => y - x)
-      return { text: text.textContent!.trim().slice(0, 30), color: getComputedStyle(text).fill, under: under ?? behind, ratio: (a + 0.05) / (b + 0.05) }
+        for (const shape of group.querySelectorAll(
+          ':scope > rect, :scope > path, :scope > polygon, :scope > circle, :scope > ellipse',
+        ))
+          under ??= filled(shape)
+      const [a, b] = [luminance(rgb(getComputedStyle(text).fill)), luminance(rgb(under ?? behind))].sort(
+        (x, y) => y - x,
+      )
+      return {
+        text: text.textContent!.trim().slice(0, 30),
+        color: getComputedStyle(text).fill,
+        under: under ?? behind,
+        ratio: (a + 0.05) / (b + 0.05),
+      }
     })
 }
 
@@ -51,9 +63,12 @@ async function readable(root: Locator, drawing: Locator) {
   expect(drawn.filter(piece => piece.ratio < 4.5)).toEqual([])
 }
 
-const themeIs = (page: Page, dark: boolean) => expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(dark)
+const themeIs = (page: Page, dark: boolean) =>
+  expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(dark)
 
-test('a diagram in an answer is drawn, a broken one stays code with its error, nothing it names is fetched, in both themes', async ({ page }) => {
+test('a diagram in an answer is drawn, a broken one stays code with its error, nothing it names is fetched, in both themes', async ({
+  page,
+}) => {
   await page.addInitScript(() => localStorage.setItem('koloni-theme', 'light'))
   // (what the page's policy stops never leaves it: the browser names it and turns it down itself)
   const [asked, stopped]: string[][] = [[], []]
@@ -83,7 +98,11 @@ test('a diagram in an answer is drawn, a broken one stays code with its error, n
   const lucky = chat.getByRole('img', { name: 'Trying its luck' })
   await expect(lucky).toBeVisible()
   await expect(lucky.locator('foreignObject, b')).toHaveCount(0)
-  const fill = (svg: Locator) => svg.locator('g.node rect, g.node path').first().evaluate(el => getComputedStyle(el).fill)
+  const fill = (svg: Locator) =>
+    svg
+      .locator('g.node rect, g.node path')
+      .first()
+      .evaluate(el => getComputedStyle(el).fill)
   expect(await fill(lucky)).toBe(await fill(drawing))
   // An image in a label, in an image shape or in the diagram's CSS is neither an element nor fetched.
   await expect(chat.locator('img')).toHaveCount(0)
@@ -141,6 +160,7 @@ test('a .md file with a diagram is drawn in the Workspace preview, in both theme
     // Left as it was found: the note still waiting is turned down.
     const conv = await (await page.request.get(`/api/conversations/${id}`)).json()
     for (const change of conv.file_changes ?? [])
-      if (change.status === 'proposed') await page.request.post(`/api/file-changes/${change.id}/reject`, { headers: OWN })
+      if (change.status === 'proposed')
+        await page.request.post(`/api/file-changes/${change.id}/reject`, { headers: OWN })
   }
 })

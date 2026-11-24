@@ -23,15 +23,28 @@ interface Props {
 }
 
 /** What a message is restored to before, by its time: "Restore to before your 10:42 message". */
-const restoreTitle = (row: Pick<TurnRow, 'unattended' | 'at'>) => `Restore to before ${row.unattended ? 'the' : 'your'} ${when(row.at)} message`
+const restoreTitle = (row: Pick<TurnRow, 'unattended' | 'at'>) =>
+  `Restore to before ${row.unattended ? 'the' : 'your'} ${when(row.at)} message`
 
 /** A message's row: its time, its first words, its work and how it stands - and Restore to before it. */
-function Row({ row, current, onPick, restore }: { row: TurnRow; current: boolean; onPick: () => void; restore: ReactNode }) {
+function Row({
+  row,
+  current,
+  onPick,
+  restore,
+}: {
+  row: TurnRow
+  current: boolean
+  onPick: () => void
+  restore: ReactNode
+}) {
   const work = workText(row)
   return (
     <li className="recent-row">
       <button type="button" className="turn-row" aria-current={current ? 'true' : undefined} onClick={onPick}>
-        <span className="turn-row-text">{row.unattended ? row.triggerName || 'A trigger' : row.text || 'No message'}</span>
+        <span className="turn-row-text">
+          {row.unattended ? row.triggerName || 'A trigger' : row.text || 'No message'}
+        </span>
         <span className="turn-row-meta mono">
           <span>{when(row.at)}</span>
           {work && <span>{work}</span>}
@@ -46,7 +59,15 @@ function Row({ row, current, onPick, restore }: { row: TurnRow; current: boolean
 }
 
 /** The box a topic's name is changed in: Enter saves, Esc leaves it as it was. */
-function Rename({ title, onSave, onClose }: { title: string; onSave: (title: string) => Promise<void>; onClose: () => void }) {
+function Rename({
+  title,
+  onSave,
+  onClose,
+}: {
+  title: string
+  onSave: (title: string) => Promise<void>
+  onClose: () => void
+}) {
   const [draft, setDraft] = useState(title)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -93,7 +114,12 @@ function Rename({ title, onSave, onClose }: { title: string; onSave: (title: str
 }
 
 /** The list's last section: the topic of the message drawn and its rename - nothing where it cannot be renamed. */
-const topicSection = (topic: Props['topic'], onRename: Props['onRename'], renaming: boolean, setRenaming: (on: boolean) => void) =>
+const topicSection = (
+  topic: Props['topic'],
+  onRename: Props['onRename'],
+  renaming: boolean,
+  setRenaming: (on: boolean) => void,
+) =>
   topic &&
   onRename && (
     <section aria-label="Topic">
@@ -104,7 +130,13 @@ const topicSection = (topic: Props['topic'], onRename: Props['onRename'], renami
           <span className="muted turn-list-hint" title={topic.title}>
             Topic: {topic.title}
           </span>
-          <button type="button" className="icon-btn topic-rename" aria-label={`Rename ${topic.title}`} title="Rename this topic" onClick={() => setRenaming(true)}>
+          <button
+            type="button"
+            className="icon-btn topic-rename"
+            aria-label={`Rename ${topic.title}`}
+            title="Rename this topic"
+            onClick={() => setRenaming(true)}
+          >
             <PencilSimple size={12} />
           </button>
         </div>
@@ -131,7 +163,10 @@ export function TurnList({ rows, current, onPick, conversationId, topic, onRenam
   const button = useRef<HTMLButtonElement>(null)
   const recent = rows.slice(-RECENT).reverse()
   // What waits for you further back: listed too, under them - the dot never points at nothing.
-  const older = rows.slice(0, -RECENT).filter(row => row.waits).reverse()
+  const older = rows
+    .slice(0, -RECENT)
+    .filter(row => row.waits)
+    .reverse()
   const waiting = rows.some(row => row.waits)
 
   useEffect(() => {
@@ -195,7 +230,13 @@ export function TurnList({ rows, current, onPick, conversationId, topic, onRenam
           {rows.length === 0 && <p className="muted turn-list-empty">No message yet.</p>}
           <ul className="turn-rows">
             {recent.map(row => (
-              <Row key={row.runId} row={row} current={row.runId === current} onPick={() => pick(row.runId)} restore={restore(row)} />
+              <Row
+                key={row.runId}
+                row={row}
+                current={row.runId === current}
+                onPick={() => pick(row.runId)}
+                restore={restore(row)}
+              />
             ))}
           </ul>
           {older.length > 0 && (
@@ -203,7 +244,13 @@ export function TurnList({ rows, current, onPick, conversationId, topic, onRenam
               <h3 className="kicker">Older · waits for you</h3>
               <ul className="turn-rows">
                 {older.map(row => (
-                  <Row key={row.runId} row={row} current={row.runId === current} onPick={() => pick(row.runId)} restore={restore(row)} />
+                  <Row
+                    key={row.runId}
+                    row={row}
+                    current={row.runId === current}
+                    onPick={() => pick(row.runId)}
+                    restore={restore(row)}
+                  />
                 ))}
               </ul>
             </section>

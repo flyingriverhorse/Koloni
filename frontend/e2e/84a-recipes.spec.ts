@@ -16,7 +16,8 @@ type Named = { id: string; name: string }
 test.afterEach(async ({ request }) => {
   const { recipes } = (await (await request.get('/api/recipes')).json()) as { recipes: Named[] }
   for (const recipe of recipes)
-    if (recipe.name.startsWith(NAME) || recipe.name === DRAWN) expect((await request.delete(`/api/recipes/${recipe.id}`, { headers: OWN })).ok()).toBe(true)
+    if (recipe.name.startsWith(NAME) || recipe.name === DRAWN)
+      expect((await request.delete(`/api/recipes/${recipe.id}`, { headers: OWN })).ok()).toBe(true)
   for (const team of (await (await request.get('/api/teams')).json()) as Named[])
     if (team.name === TEAM) expect((await request.delete(`/api/teams/${team.id}`, { headers: OWN })).ok()).toBe(true)
   rmSync(RECIPES, { recursive: true, force: true })
@@ -27,7 +28,8 @@ test.afterEach(async ({ request }) => {
   }
 })
 
-const lowContrast = async (page: Page) => (await page.locator('.paged').evaluate(contrasts)).filter(piece => piece.ratio < 4.5)
+const lowContrast = async (page: Page) =>
+  (await page.locator('.paged').evaluate(contrasts)).filter(piece => piece.ratio < 4.5)
 const recipesTab = async (page: Page) => {
   await page.getByRole('button', { name: 'Agents', exact: true }).click()
   await page.getByRole('tab', { name: 'Recipes' }).click()
@@ -40,7 +42,9 @@ async function arrowsTakenAway(page: Page) {
     seen.arrowsGone = 0
     new MutationObserver(changes => {
       for (const change of changes)
-        for (const one of change.removedNodes) if (one instanceof Element && (one.matches('.react-flow__edge') || one.querySelector('.react-flow__edge'))) seen.arrowsGone += 1
+        for (const one of change.removedNodes)
+          if (one instanceof Element && (one.matches('.react-flow__edge') || one.querySelector('.react-flow__edge')))
+            seen.arrowsGone += 1
     }).observe(document.querySelector('.recipe-flow') as Element, { subtree: true, childList: true })
   })
   return () => page.evaluate(() => (window as unknown as { arrowsGone: number }).arrowsGone)
@@ -56,7 +60,10 @@ async function drag(page: Page, from: Locator, to: Locator) {
 }
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`a recipe drawn is checked, saved and kept over a reload; a ready one is read-only and copied (${theme})`, async ({ page, request }) => {
+  test(`a recipe drawn is checked, saved and kept over a reload; a ready one is read-only and copied (${theme})`, async ({
+    page,
+    request,
+  }) => {
     test.setTimeout(60_000)
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await page.setViewportSize({ width: 1440, height: 900 })
@@ -71,7 +78,9 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(page.getByRole('button', { name: 'Save recipe' })).toHaveCount(0)
     // A part chosen: who does it and what it gets, shown and not changed.
     await page.getByRole('button', { name: /^Build it/ }).click()
-    await expect(part(page)).toContainText('the work of Write the spec, and the findings of All at once, wait for all when looped back')
+    await expect(part(page)).toContainText(
+      'the work of Write the spec, and the findings of All at once, wait for all when looped back',
+    )
     await expect(part(page).getByLabel('Who')).toBeDisabled()
     await shot(page, `84a-recipes-ready-${theme}`)
     expect(await lowContrast(page)).toEqual([])
@@ -109,7 +118,8 @@ for (const theme of ['light', 'dark'] as const) {
     await shot(page, `84a-recipes-${theme}`)
     expect(await lowContrast(page)).toEqual([])
     // Dragged where the user wants it (K-tarif-surukle), and saved with it.
-    const box = async (id: string) => (await page.locator(`.react-flow__node[data-id="${id}"]`).boundingBox()) as { x: number; y: number }
+    const box = async (id: string) =>
+      (await page.locator(`.react-flow__node[data-id="${id}"]`).boundingBox()) as { x: number; y: number }
     // A save refused first: its alert above the board, which the next Save takes away.
     const name = page.getByLabel('Recipe’s name')
     await name.fill('')
@@ -126,18 +136,27 @@ for (const theme of ['light', 'dark'] as const) {
     // How far s1 is right of the start on the drawing, both read at once: no move of the view can come between two screen reads.
     const apart = () =>
       page.evaluate(() => {
-        const x = (id: string) => new DOMMatrixReadOnly(getComputedStyle(document.querySelector(`.recipe-flow .react-flow__node[data-id="${id}"]`) as Element).transform).m41
+        const x = (id: string) =>
+          new DOMMatrixReadOnly(
+            getComputedStyle(document.querySelector(`.recipe-flow .react-flow__node[data-id="${id}"]`) as Element)
+              .transform,
+          ).m41
         return x('s1') - x('start')
       })
     // Where s1 is on the board (the board itself moves up as the alert goes: the page's own flow).
     const onBoard = async () => {
-      const [at, board] = [await box('s1'), (await page.locator('.recipe-flow').boundingBox()) as { x: number; y: number }]
+      const [at, board] = [
+        await box('s1'),
+        (await page.locator('.recipe-flow').boundingBox()) as { x: number; y: number },
+      ]
       return { x: at.x - board.x, y: at.y - board.y }
     }
     const dragged = await onBoard()
     await page.getByRole('button', { name: 'Save recipe' }).click()
     const placed = async () => {
-      const { recipes } = (await (await request.get('/api/recipes')).json()) as { recipes: (Named & { graph: { steps: { pos?: unknown }[] } })[] }
+      const { recipes } = (await (await request.get('/api/recipes')).json()) as {
+        recipes: (Named & { graph: { steps: { pos?: unknown }[] } })[]
+      }
       return recipes.find(one => one.name === `${NAME} ${theme}`)?.graph.steps[0].pos ?? null
     }
     await expect.poll(placed).not.toBeNull()
@@ -157,7 +176,9 @@ for (const theme of ['light', 'dark'] as const) {
     await page.getByRole('button', { name: new RegExp(`^${NAME} ${theme}`) }).click()
     await expect(page.getByRole('button', { name: /^Build it/ })).toContainText('Coder')
     expect(await apart()).toBe(moved)
-    const { recipes } = (await (await request.get('/api/recipes')).json()) as { recipes: (Named & { graph: { arrows: unknown[] } })[] }
+    const { recipes } = (await (await request.get('/api/recipes')).json()) as {
+      recipes: (Named & { graph: { arrows: unknown[] } })[]
+    }
     expect(recipes.find(one => one.name === `${NAME} ${theme}`)?.graph.arrows).toEqual([
       { from: 'start', to: 's1' },
       { from: 's1', to: 'end1' },
@@ -165,7 +186,9 @@ for (const theme of ['light', 'dark'] as const) {
   })
 }
 
-test('an arrow is dragged from a part’s bottom to anywhere on another, a loop from its right side, never the other way; all of it stays in view', async ({ page }) => {
+test('an arrow is dragged from a part’s bottom to anywhere on another, a loop from its right side, never the other way; all of it stays in view', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await openFreshConversation(page)
   await recipesTab(page)
@@ -190,9 +213,22 @@ test('an arrow is dragged from a part’s bottom to anywhere on another, a loop 
   await expect(node('s8')).toBeVisible()
   // The board fits itself again a moment after a step is added: measure once it has.
   await expect(async () => {
-    const board = (await page.locator('.recipe-flow').boundingBox()) as { x: number; y: number; width: number; height: number }
-    for (const box of await page.locator('.recipe-flow .react-flow__node').evaluateAll(all => all.map(one => one.getBoundingClientRect().toJSON())))
-      expect(box.top >= board.y && box.bottom <= board.y + board.height && box.left >= board.x && box.right <= board.x + board.width, JSON.stringify(box)).toBe(true)
+    const board = (await page.locator('.recipe-flow').boundingBox()) as {
+      x: number
+      y: number
+      width: number
+      height: number
+    }
+    for (const box of await page
+      .locator('.recipe-flow .react-flow__node')
+      .evaluateAll(all => all.map(one => one.getBoundingClientRect().toJSON())))
+      expect(
+        box.top >= board.y &&
+          box.bottom <= board.y + board.height &&
+          box.left >= board.x &&
+          box.right <= board.x + board.width,
+        JSON.stringify(box),
+      ).toBe(true)
   }).toPass({ timeout: 5000 })
 
   // A step taken out of its group gets arrows of its own, drawn.
@@ -207,7 +243,9 @@ test('an arrow is dragged from a part’s bottom to anywhere on another, a loop 
 })
 
 // B-108: ten steps your message did not lead to stood in one row, six of the eleven parts off the board, and Tidy up did not fit them.
-test('steps your message does not lead to yet are laid out one under another; tidied up, all of them are on the board', async ({ page }) => {
+test('steps your message does not lead to yet are laid out one under another; tidied up, all of them are on the board', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await openFreshConversation(page)
   await recipesTab(page)
@@ -216,11 +254,26 @@ test('steps your message does not lead to yet are laid out one under another; ti
   for (let n = 0; n < 10; n += 1) await page.getByRole('button', { name: '+ Step' }).click()
   await page.getByRole('button', { name: 'Tidy up' }).click()
   await expect(page.locator('.recipe-flow .react-flow__node[data-id="s10"]')).toBeVisible()
-  const board = (await page.locator('.recipe-flow').boundingBox()) as { x: number; y: number; width: number; height: number }
+  const board = (await page.locator('.recipe-flow').boundingBox()) as {
+    x: number
+    y: number
+    width: number
+    height: number
+  }
   await expect
     .poll(async () =>
-      (await page.locator('.recipe-flow .react-flow__node').evaluateAll(all => all.map(one => one.getBoundingClientRect().toJSON()))).filter(
-        box => !(box.top >= board.y && box.bottom <= board.y + board.height && box.left >= board.x && box.right <= board.x + board.width),
+      (
+        await page
+          .locator('.recipe-flow .react-flow__node')
+          .evaluateAll(all => all.map(one => one.getBoundingClientRect().toJSON()))
+      ).filter(
+        box =>
+          !(
+            box.top >= board.y &&
+            box.bottom <= board.y + board.height &&
+            box.left >= board.x &&
+            box.right <= board.x + board.width
+          ),
       ),
     )
     .toEqual([])
@@ -241,7 +294,10 @@ test('a part the server refused shows ⚠ on it, and a long name stops short of 
   expect(name!.x + name!.width).toBeLessThanOrEqual(warn!.x)
 })
 
-test('or write it: the Lead’s model draws a draft that is saved by the user alone, into the folder; a team’s default recipe is kept', async ({ page, request }) => {
+test('or write it: the Lead’s model draws a draft that is saved by the user alone, into the folder; a team’s default recipe is kept', async ({
+  page,
+  request,
+}) => {
   test.setTimeout(60_000)
   await openFreshConversation(page)
   await recipesTab(page)
@@ -250,11 +306,15 @@ test('or write it: the Lead’s model draws a draft that is saved by the user al
   await expect(page.getByLabel('Recipe’s name')).toHaveValue(DRAWN)
   await expect(page.getByRole('button', { name: /^Write the spec/ })).toContainText('Spec writer')
   await expect(page.getByRole('status').filter({ hasText: 'Nothing is saved yet' })).toBeVisible()
-  expect(((await (await request.get('/api/recipes')).json()) as { recipes: Named[] }).recipes.map(one => one.name)).not.toContain(DRAWN)
+  expect(
+    ((await (await request.get('/api/recipes')).json()) as { recipes: Named[] }).recipes.map(one => one.name),
+  ).not.toContain(DRAWN)
   // Kept in the folder: its .koloni/recipes, in git with it; said once.
   await page.getByLabel('Where it is kept').selectOption('folder')
   await page.getByRole('button', { name: 'Save recipe' }).click()
-  await expect(page.getByRole('status').filter({ hasText: 'Saved in .koloni/ in this folder (kept in git).' })).toBeVisible()
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Saved in .koloni/ in this folder (kept in git).' }),
+  ).toBeVisible()
   const file = path.join(RECIPES, 'spec-then-code.json')
   expect(existsSync(file)).toBe(true)
   expect(JSON.parse(readFileSync(file, 'utf8')).name).toBe(DRAWN)
@@ -266,12 +326,17 @@ test('or write it: the Lead’s model draws a draft that is saved by the user al
   await page.getByLabel('Message').waitFor()
   await page.getByRole('button', { name: 'Agents', exact: true }).click()
   // (Its foot is the open team's: opened from its row.)
-  await page.getByRole('region', { name: TEAM, exact: true }).getByRole('button', { name: new RegExp(`^${TEAM}`), expanded: false }).click()
+  await page
+    .getByRole('region', { name: TEAM, exact: true })
+    .getByRole('button', { name: new RegExp(`^${TEAM}`), expanded: false })
+    .click()
   const pick = page.getByLabel(`${TEAM}'s default recipe`)
   expect(await pick.locator('option').allTextContents()).not.toContain(DRAWN) // a folder's own is not every folder's
   await pick.selectOption({ label: 'Bugfix' })
   await expect(pick).toHaveValue(/.+/)
-  const team = ((await (await request.get('/api/teams')).json()) as (Named & { default_recipe_id: string | null })[]).find(one => one.name === TEAM)
+  const team = (
+    (await (await request.get('/api/teams')).json()) as (Named & { default_recipe_id: string | null })[]
+  ).find(one => one.name === TEAM)
   const { recipes } = (await (await request.get('/api/recipes')).json()) as { recipes: Named[] }
   expect(team?.default_recipe_id).toBe(recipes.find(one => one.name === 'Bugfix')?.id)
 })

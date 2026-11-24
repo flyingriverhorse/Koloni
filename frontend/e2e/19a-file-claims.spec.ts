@@ -12,7 +12,9 @@ const tidy = () => rmSync(NOTES, { force: true })
 test.beforeEach(tidy)
 test.afterEach(tidy)
 
-test('two agents want one file: the second waits for the first, the canvas says so, and both changes are in the file', async ({ page }) => {
+test('two agents want one file: the second waits for the first, the canvas says so, and both changes are in the file', async ({
+  page,
+}) => {
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   const agents = page.locator('.react-flow__node-agent')
@@ -33,7 +35,9 @@ test('two agents want one file: the second waits for the first, the canvas says 
   // A line joins the one that waits to the one that holds; the holder's node counts the file (who holds it is in the side panel).
   await expect(line).toHaveCount(1)
   await expect(box(/^Coder$/)).toContainText('1 file')
-  await expect(chat.getByRole('button', { name: /Coder 2.*Add to notes\.txt slowly/ })).toContainText('waiting for a file')
+  await expect(chat.getByRole('button', { name: /Coder 2.*Add to notes\.txt slowly/ })).toContainText(
+    'waiting for a file',
+  )
   // Waiting for a file asks nothing of the user: the turn runs, and nothing is marked.
   await expect(page.getByText(/WORKING/)).toBeVisible()
   await expect(page.locator('[data-run="waiting_approval"]')).toHaveCount(0)
@@ -44,9 +48,13 @@ test('two agents want one file: the second waits for the first, the canvas says 
   await shot(page, '19a-agent-waits-for-file')
 
   // The inspector says the same of the agent that waits, and what the other one holds.
-  await box(/^Coder 2$/).locator('.node-head').click()
+  await box(/^Coder 2$/)
+    .locator('.node-head')
+    .click()
   await expect(inspector.getByRole('note')).toContainText('Waits for Coder to finish with notes.txt')
-  await box(/^Coder$/).locator('.node-head').click()
+  await box(/^Coder$/)
+    .locator('.node-head')
+    .click()
   await expect(inspector.getByRole('list', { name: 'Files it holds' })).toContainText('notes.txt')
 
   // The first is done: the second is told to look again, reads the file and adds its line.

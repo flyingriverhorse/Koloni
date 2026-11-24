@@ -45,8 +45,15 @@ export function goesOn(graph: RecipeGraph, id: string | null): id is string {
 function inBranch(graph: RecipeGraph, from: string, group: string): string[] {
   if (graph.arrows.some(arrow => arrow.from === from)) return []
   const line = new Set([from])
-  for (let at = from, arrow; (arrow = graph.arrows.find(one => one.to === at)) && !line.has(arrow.from); at = arrow.from) line.add(arrow.from)
-  return graph.steps.filter(step => step.group === group && !line.has(step.id) && !graph.arrows.some(arrow => arrow.to === step.id)).map(step => step.id)
+  for (
+    let at = from, arrow;
+    (arrow = graph.arrows.find(one => one.to === at)) && !line.has(arrow.from);
+    at = arrow.from
+  )
+    line.add(arrow.from)
+  return graph.steps
+    .filter(step => step.group === group && !line.has(step.id) && !graph.arrows.some(arrow => arrow.to === step.id))
+    .map(step => step.id)
 }
 
 /** Where a part stands on the way: a step in a group stands as its group. */
@@ -74,10 +81,16 @@ function ancestors(graph: RecipeGraph, id: string): Set<string> {
 export function targets(graph: RecipeGraph, from: string): string[] {
   const group = stepOf(graph, from)?.group
   if (group) return inBranch(graph, from, group)
-  const taken = new Set([from, ...ancestors(graph, from), ...graph.arrows.filter(arrow => arrow.from === from).map(arrow => arrow.to)])
-  return [...graph.steps.filter(step => !step.group).map(step => step.id), ...graph.groups.map(group => group.id), ...graph.ends.map(end => end.id)].filter(
-    id => !taken.has(id),
-  )
+  const taken = new Set([
+    from,
+    ...ancestors(graph, from),
+    ...graph.arrows.filter(arrow => arrow.from === from).map(arrow => arrow.to),
+  ])
+  return [
+    ...graph.steps.filter(step => !step.group).map(step => step.id),
+    ...graph.groups.map(group => group.id),
+    ...graph.ends.map(end => end.id),
+  ].filter(id => !taken.has(id))
 }
 
 /** Where a loop from `from` may go back to: a step or group on the way to it - never inside its own group. */
@@ -86,11 +99,19 @@ export function loopTargets(graph: RecipeGraph, from: string): string[] {
   // K-evrim: a step of candidates goes round again itself, from the picked one's work.
   const again = graph.steps.some(step => step.id === from && 'candidates' in step.who) ? [from] : []
   return [
-    ...again,...graph.steps.filter(step => back.has(onTheWay(graph, step.id))).map(step => step.id), ...graph.groups.filter(group => back.has(group.id)).map(group => group.id)]
+    ...again,
+    ...graph.steps.filter(step => back.has(onTheWay(graph, step.id))).map(step => step.id),
+    ...graph.groups.filter(group => back.has(group.id)).map(group => group.id),
+  ]
 }
 
 function fresh(graph: RecipeGraph, prefix: string): string {
-  const taken = new Set([START, ...graph.steps.map(one => one.id), ...graph.groups.map(one => one.id), ...graph.ends.map(one => one.id)])
+  const taken = new Set([
+    START,
+    ...graph.steps.map(one => one.id),
+    ...graph.groups.map(one => one.id),
+    ...graph.ends.map(one => one.id),
+  ])
   let n = 1
   while (taken.has(`${prefix}${n}`)) n += 1
   return `${prefix}${n}`
@@ -126,7 +147,8 @@ export const disconnect = (graph: RecipeGraph, from: string, to: string): Recipe
 /** A new step: in the group that is chosen (or whose step is), else after the part that is chosen (an arrow from it, where one may leave it). */
 export function addStep(graph: RecipeGraph, after: string | null): [RecipeGraph, string] {
   const id = fresh(graph, 's')
-  const inGroup = after === null ? null : kindOf(graph, after) === 'group' ? after : (stepOf(graph, after)?.group ?? null)
+  const inGroup =
+    after === null ? null : kindOf(graph, after) === 'group' ? after : (stepOf(graph, after)?.group ?? null)
   const added = { ...graph, steps: [...graph.steps, newStep(graph, id, 'New step', inGroup)] }
   return [inGroup || !goesOn(graph, after) ? added : connect(added, after, id), id]
 }
@@ -150,7 +172,8 @@ export function addRoom(graph: RecipeGraph, after: string | null): [RecipeGraph,
 export const roomOf = (who: Who | undefined): string[] | null => (who && 'room' in who ? who.room : null)
 
 /** K-evrim: a step of candidates, as a card and a list say it: "Coder ×3 · target 80". */
-export const candidatesLine = (who: Extract<Who, { candidates: string }>) => `${who.candidates} ×${who.most}${who.target != null ? ` · target ${who.target}` : ''}`
+export const candidatesLine = (who: Extract<Who, { candidates: string }>) =>
+  `${who.candidates} ×${who.most}${who.target != null ? ` · target ${who.target}` : ''}`
 
 /** The roles a step's agents are of, by name - its role's, its team's stages', its room's members' - and how they work in it. */
 export function stepRoles(who: Who, teams: Team[], roles: Role[]): [names: string[], as: 'step' | 'room'] {
@@ -185,7 +208,11 @@ export function loopBack(graph: RecipeGraph, from: string): RecipeGraph {
 export function setLoop(graph: RecipeGraph, from: string, to: string | null, rounds?: number | null): RecipeGraph {
   const was = graph.loops.find(loop => loop.from === from)
   const others = graph.loops.filter(loop => loop.from !== from)
-  return { ...graph, loops: to === null ? others : [...others, { from, to, rounds: rounds === undefined ? (was?.rounds ?? ROUNDS) : rounds }] }
+  return {
+    ...graph,
+    loops:
+      to === null ? others : [...others, { from, to, rounds: rounds === undefined ? (was?.rounds ?? ROUNDS) : rounds }],
+  }
 }
 
 export const loopOf = (graph: RecipeGraph, from: string) => graph.loops.find(loop => loop.from === from) ?? null
@@ -214,7 +241,8 @@ export const waitFor = (graph: RecipeGraph, id: string, wait: RecipeGraph['group
   ...graph,
   groups: graph.groups.map(group => {
     if (group.id !== id) return group
-    const name = group.name === GROUP_NAME || group.name === FIRST_NAME ? (wait === 'first' ? FIRST_NAME : GROUP_NAME) : group.name
+    const name =
+      group.name === GROUP_NAME || group.name === FIRST_NAME ? (wait === 'first' ? FIRST_NAME : GROUP_NAME) : group.name
     return { ...group, wait, name }
   }),
 })
@@ -244,7 +272,10 @@ export function gets(graph: RecipeGraph, id: string): string {
   const inner = stepOf(graph, id)?.group ? graph.arrows.find(arrow => arrow.to === id) : undefined
   const from = inner ? [inner.from] : before(graph, id)
   const looped = graph.loops.filter(loop => loop.to === id).map(loop => nameOf(graph, loop.from))
-  const first = from.length === 0 ? 'nothing yet: no arrow comes to it' : from.map(one => (one === START ? 'your message' : `the work of ${nameOf(graph, one)}`)).join(' and ')
+  const first =
+    from.length === 0
+      ? 'nothing yet: no arrow comes to it'
+      : from.map(one => (one === START ? 'your message' : `the work of ${nameOf(graph, one)}`)).join(' and ')
   return looped.length ? `${first}, and the findings of ${looped.join(' and ')} when looped back` : first
 }
 
@@ -254,12 +285,17 @@ export function summary(graph: RecipeGraph): string {
   const word = (id: string) => {
     const loop = loopOf(graph, id)
     const who = stepOf(graph, id)?.who
-    const name = kindOf(graph, id) === 'group' ? `${graph.steps.filter(step => step.group === id).length} at once` : nameOf(graph, id)
+    const name =
+      kindOf(graph, id) === 'group'
+        ? `${graph.steps.filter(step => step.group === id).length} at once`
+        : nameOf(graph, id)
     const named = who && 'candidates' in who ? `${name} · ${candidatesLine(who)}` : name
     return loop?.rounds ? `${named} (≤${loop.rounds} rounds)` : named
   }
   // (Not a group's arrows between its own steps: its branches.)
-  const outer = graph.arrows.filter(arrow => !stepOf(graph, arrow.from)?.group || stepOf(graph, arrow.from)?.group !== stepOf(graph, arrow.to)?.group)
+  const outer = graph.arrows.filter(
+    arrow => !stepOf(graph, arrow.from)?.group || stepOf(graph, arrow.from)?.group !== stepOf(graph, arrow.to)?.group,
+  )
   const outs = (id: string) => outer.filter(arrow => arrow.from === id).map(arrow => arrow.to)
   const ins = (id: string) => outer.filter(arrow => arrow.to === id).length
   const words: string[] = []
@@ -277,7 +313,13 @@ export function summary(graph: RecipeGraph): string {
       }
       return { line, stop: one }
     })
-    if (tos.length > 1) words.push(`(${ways.filter(way => way.line.length).map(way => way.line.map(word).join(' → ')).join(' ∥ ')})`)
+    if (tos.length > 1)
+      words.push(
+        `(${ways
+          .filter(way => way.line.length)
+          .map(way => way.line.map(word).join(' → '))
+          .join(' ∥ ')})`,
+      )
     at = ways[0].stop
     if (!seen.has(at)) words.push(word(at))
   }
@@ -318,9 +360,18 @@ const LOOP_OUT = 45
  * A loop back drawn from the right side of the part it leaves to the right side of the one it goes back to: a curve out to
  * the right, its words just past the curve's farthest point (at its middle, a quarter of the ends and three of the bend).
  */
-export function loopCurve(sx: number, sy: number, tx: number, ty: number): { path: string; labelX: number; labelY: number } {
+export function loopCurve(
+  sx: number,
+  sy: number,
+  tx: number,
+  ty: number,
+): { path: string; labelX: number; labelY: number } {
   const bend = Math.max(sx, tx) + LOOP_OUT
-  return { path: `M${sx},${sy} C${bend},${sy} ${bend},${ty} ${tx},${ty}`, labelX: (sx + tx) / 8 + (3 * bend) / 4 + 6, labelY: (sy + ty) / 2 }
+  return {
+    path: `M${sx},${sy} C${bend},${sy} ${bend},${ty} ${tx},${ty}`,
+    labelX: (sx + tx) / 8 + (3 * bend) / 4 + 6,
+    labelY: (sy + ty) / 2,
+  }
 }
 
 /** K-tarif-kol: a group's branches, each its steps along their arrows from one no arrow comes to (B-374: drawn side by side). */
@@ -333,7 +384,11 @@ export function branches(graph: RecipeGraph, group: string): string[][] {
   for (const first of [...firsts, ...ids]) {
     if (seen.has(first)) continue
     const line: string[] = []
-    for (let at: string | undefined = first; at && !seen.has(at); at = graph.arrows.find(arrow => arrow.from === at && ids.includes(arrow.to))?.to) {
+    for (
+      let at: string | undefined = first;
+      at && !seen.has(at);
+      at = graph.arrows.find(arrow => arrow.from === at && ids.includes(arrow.to))?.to
+    ) {
       seen.add(at)
       line.push(at)
     }
@@ -372,10 +427,16 @@ export function layout(graph: RecipeGraph, checks = false): Record<string, Place
   walk([START])
   // What no arrow from the start reaches yet is drawn below it, from its own first parts along its arrows, to be joined
   // (B-108: ten steps in one row ran off the board).
-  const tops = [...graph.steps.filter(step => !step.group).map(step => step.id), ...graph.groups.map(group => group.id), ...graph.ends.map(end => end.id)]
+  const tops = [
+    ...graph.steps.filter(step => !step.group).map(step => step.id),
+    ...graph.groups.map(group => group.id),
+    ...graph.ends.map(end => end.id),
+  ]
   const loose = tops.filter(id => depth[id] === undefined)
   // (An end nothing leads to is no first part: it stays at the bottom.)
-  const firsts = loose.filter(id => kindOf(graph, id) !== 'end' && !graph.arrows.some(arrow => arrow.to === id && loose.includes(arrow.from)))
+  const firsts = loose.filter(
+    id => kindOf(graph, id) !== 'end' && !graph.arrows.some(arrow => arrow.to === id && loose.includes(arrow.from)),
+  )
   const below = Math.max(0, ...Object.values(depth)) + 1
   for (const id of firsts) depth[id] = below
   walk(firsts)
@@ -383,7 +444,8 @@ export function layout(graph: RecipeGraph, checks = false): Record<string, Place
   // (Arrows that go round with no first part, as a model may draw them, and ends not joined yet: in a row at the bottom.)
   const last = Math.max(0, ...Object.values(depth)) + 1
   const rows: string[][] = []
-  for (const id of [START, ...tops, ...(depth[CHECKS] === undefined ? [] : [CHECKS])]) (rows[depth[id] ?? last] ??= []).push(id)
+  for (const id of [START, ...tops, ...(depth[CHECKS] === undefined ? [] : [CHECKS])])
+    (rows[depth[id] ?? last] ??= []).push(id)
   // shortcut: a group's branches all in one row, so one of many makes the board zoom out (four: 0.77 in a 1024 px window); wrap
   // its columns if a wide group is too small to read.
   const inGroups = Object.fromEntries(graph.groups.map(group => [group.id, branches(graph, group.id)]))
@@ -391,7 +453,10 @@ export function layout(graph: RecipeGraph, checks = false): Record<string, Place
     const kind = kindOf(graph, id)
     if (kind === 'group') {
       const [across, down] = [Math.max(1, inGroups[id].length), Math.max(1, ...inGroups[id].map(line => line.length))]
-      return { w: across * STEP_W + (across - 1) * GAP + 2 * GROUP_PAD, h: GROUP_HEAD + 2 * FAN + down * STEP_H + (down - 1) * LINK }
+      return {
+        w: across * STEP_W + (across - 1) * GAP + 2 * GROUP_PAD,
+        h: GROUP_HEAD + 2 * FAN + down * STEP_H + (down - 1) * LINK,
+      }
     }
     return kind === 'step' || id === CHECKS ? { w: STEP_W, h: STEP_H } : { w: 160, h: 40 }
   }
@@ -399,7 +464,11 @@ export function layout(graph: RecipeGraph, checks = false): Record<string, Place
   let y = 0
   // A row of more than ROW parts not joined yet goes on under itself: the drawing stays narrow enough to be seen whole. (A row
   // the start leads to stays one: its parts run side by side.)
-  const lines = rows.flatMap((row, at) => (at < below ? [row] : Array.from({ length: Math.ceil(row.length / ROW) }, (_, n) => row.slice(n * ROW, (n + 1) * ROW))))
+  const lines = rows.flatMap((row, at) =>
+    at < below
+      ? [row]
+      : Array.from({ length: Math.ceil(row.length / ROW) }, (_, n) => row.slice(n * ROW, (n + 1) * ROW)),
+  )
   for (const row of lines) {
     const sizes = row.map(size)
     const width = sizes.reduce((sum, one) => sum + one.w, 0) + GAP * (row.length - 1)
@@ -413,12 +482,21 @@ export function layout(graph: RecipeGraph, checks = false): Record<string, Place
   // A group's branches side by side in it, each one's steps one under another (where React Flow draws a child: from its group's corner).
   for (const group of graph.groups)
     inGroups[group.id].forEach((line, across) =>
-      line.forEach((id, down) => (places[id] = { x: GROUP_PAD + across * (STEP_W + GAP), y: GROUP_HEAD + FAN + down * (STEP_H + LINK), w: STEP_W, h: STEP_H })),
+      line.forEach(
+        (id, down) =>
+          (places[id] = {
+            x: GROUP_PAD + across * (STEP_W + GAP),
+            y: GROUP_HEAD + FAN + down * (STEP_H + LINK),
+            w: STEP_W,
+            h: STEP_H,
+          }),
+      ),
     )
   // (A step of a group that is not drawn has no place: it is not on the board.)
   // shortcut: a group keeps the size the board gives it, so its steps move only a little inside it; size a group by its steps'
   // places if people want to arrange inside one.
-  for (const one of [...graph.steps, ...graph.groups, ...graph.ends]) if (one.pos && places[one.id]) places[one.id] = { ...places[one.id], ...one.pos }
+  for (const one of [...graph.steps, ...graph.groups, ...graph.ends])
+    if (one.pos && places[one.id]) places[one.id] = { ...places[one.id], ...one.pos }
   if (places[CHECKS]) checksOverEnds(graph, places)
   return places
 }
@@ -439,7 +517,12 @@ function checksOverEnds(graph: RecipeGraph, places: Record<string, Place>) {
   if (!graph.ends.some(end => end.pos)) return
   const ends = graph.ends.map(end => places[end.id]).filter(Boolean)
   const [left, right] = [Math.min(...ends.map(one => one.x)), Math.max(...ends.map(one => one.x + one.w))]
-  places[CHECKS] = { x: (left + right) / 2 - STEP_W / 2, y: Math.min(...ends.map(one => one.y)) - STEP_H - 28, w: STEP_W, h: STEP_H }
+  places[CHECKS] = {
+    x: (left + right) / 2 - STEP_W / 2,
+    y: Math.min(...ends.map(one => one.y)) - STEP_H - 28,
+    w: STEP_W,
+    h: STEP_H,
+  }
 }
 
 export type Checks = NonNullable<RecipeGraph['checks']>
@@ -459,7 +542,19 @@ export const CHECK_PARTS: [part: Exclude<keyof Checks, 'fix_rounds'>, name: stri
   ['style', 'Code style and types', 'the project’s own ruff, eslint, tsc, mypy - asked before one runs unasked'],
 ]
 /** "Set for this recipe" as it starts: the project's usual Test and review for code. */
-export const ownChecks = (): Checks => ({ tests: true, review: true, docs: false, diagram: false, data: false, slides: false, ui: false, config: true, scripts: true, style: true, fix_rounds: null })
+export const ownChecks = (): Checks => ({
+  tests: true,
+  review: true,
+  docs: false,
+  diagram: false,
+  data: false,
+  slides: false,
+  ui: false,
+  config: true,
+  scripts: true,
+  style: true,
+  fix_rounds: null,
+})
 
 /** The Checks step's choice: set for the recipe, or - null - following the project (no `checks` kept, as the server keeps it). */
 export function setChecks(graph: RecipeGraph, checks: Checks | null): RecipeGraph {
@@ -477,10 +572,16 @@ export function checksLine(checks: Checks | null | undefined): string {
 }
 
 /** The Checks step's Fix rounds, said: the project's (null), until it passes (k-canli-016), check only (0); else "rounds N". */
-const ROUNDS_SAID: Record<string, string> = { null: 'the project’s rounds', undefined: 'the project’s rounds', until: 'until it passes', 0: 'check only' }
+const ROUNDS_SAID: Record<string, string> = {
+  null: 'the project’s rounds',
+  undefined: 'the project’s rounds',
+  until: 'until it passes',
+  0: 'check only',
+}
 
 /** The recipe panel's Fix rounds as chosen: "" the project's (null), "until", else a number. */
-export const roundsChosen = (value: string): Checks['fix_rounds'] => (value === '' ? null : value === 'until' ? 'until' : Number(value))
+export const roundsChosen = (value: string): Checks['fix_rounds'] =>
+  value === '' ? null : value === 'until' ? 'until' : Number(value)
 
 /** The parts the Checks step is joined to: each an arrow leads from to an end; with none yet, each no arrow leaves (the start, on an empty board). */
 export function lastParts(graph: RecipeGraph): string[] {
@@ -502,11 +603,14 @@ export function boardPlaces(graph: RecipeGraph): Record<string, Place> {
 }
 
 /** The ends the Checks step leads to: each an arrow reaches (one not joined yet is drawn alone). */
-export const checkedEnds = (graph: RecipeGraph): string[] => graph.ends.filter(end => graph.arrows.some(arrow => arrow.to === end.id)).map(end => end.id)
+export const checkedEnds = (graph: RecipeGraph): string[] =>
+  graph.ends.filter(end => graph.arrows.some(arrow => arrow.to === end.id)).map(end => end.id)
 
 /** Where the Checks step is drawn with no end joined: under its last part(s). */
 export function checksPlace(graph: RecipeGraph, places: Record<string, Place>): Place {
-  const last = lastParts(graph).map(id => places[id]).filter(Boolean)
+  const last = lastParts(graph)
+    .map(id => places[id])
+    .filter(Boolean)
   const x = last.length ? Math.min(...last.map(one => one.x)) : 0
   const y = last.length ? Math.max(...last.map(one => one.y + one.h)) + 28 : 0
   return { x, y, w: STEP_W, h: STEP_H }

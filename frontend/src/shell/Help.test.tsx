@@ -21,9 +21,13 @@ test('`?` lists the keyboard shortcuts - not while something is typed - and Esc 
   screen.getByRole('button', { name: 'elsewhere' }).focus()
   await userEvent.keyboard('?')
   expect(help()).toHaveFocus()
-  const keys = within(help()!).getAllByRole('term').map(term => term.textContent)
+  const keys = within(help()!)
+    .getAllByRole('term')
+    .map(term => term.textContent)
   expect(keys).toEqual(['Ctrl+K', '?', '/', '/ in the box', 'C', 'Enter', 'Esc'])
-  expect(within(help()!).getByText(/^Commands, at the start of the message box/)).toHaveTextContent('or one of your own (Settings › This project › Slash commands)')
+  expect(within(help()!).getByText(/^Commands, at the start of the message box/)).toHaveTextContent(
+    'or one of your own (Settings › This project › Slash commands)',
+  )
   await userEvent.keyboard('{Escape}')
   expect(help()).not.toBeInTheDocument()
   // back where `?` was pressed
@@ -48,7 +52,18 @@ test('`/` puts the focus in the message box, and is not typed into it', async ()
 
 test('opened from the top bar, the list stands under its button, inside the window', async () => {
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
-    () => ({ left: 980, top: 10, width: 32, height: 32, x: 980, y: 10, right: 1012, bottom: 42, toJSON: () => ({}) }) as DOMRect,
+    () =>
+      ({
+        left: 980,
+        top: 10,
+        width: 32,
+        height: 32,
+        x: 980,
+        y: 10,
+        right: 1012,
+        bottom: 42,
+        toJSON: () => ({}),
+      }) as DOMRect,
   )
   vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(340)
   const onFirstSteps = vi.fn()
@@ -66,7 +81,9 @@ test('C opens the closed chat - not while something is typed', async () => {
   render(
     <>
       <textarea aria-label="Note" />
-      <button type="button" className="chat-line" onClick={opened}>Chat</button>
+      <button type="button" className="chat-line" onClick={opened}>
+        Chat
+      </button>
       <Help onFirstSteps={() => {}} />
     </>,
   )

@@ -29,7 +29,14 @@ const MAX_BESIDE = 32
 const TOO_LARGE_BESIDE = 'Too large to show here: the files beside it come to over 200 MB.'
 const REFUSED = 'about:blank' // (a resource refused: it fails to load, and nothing is asked for)
 const STEP = Math.PI / 18
-const UNITS: Record<string, string> = { micron: 'µm', millimeter: 'mm', centimeter: 'cm', meter: 'm', inch: 'in', foot: 'ft' }
+const UNITS: Record<string, string> = {
+  micron: 'µm',
+  millimeter: 'mm',
+  centimeter: 'cm',
+  meter: 'm',
+  inch: 'in',
+  foot: 'ft',
+}
 
 /**
  * Only what lies in the model's own folder, on this origin, or what it carries in itself: no query
@@ -42,7 +49,14 @@ export function guard(base: string) {
   return (url: string) => {
     if (/^(data|blob):/i.test(url)) return url
     const full = new URL(url, folder)
-    if (full.origin !== folder.origin || !full.pathname.startsWith(folder.pathname) || full.search || full.hash || /%2f|%5c/i.test(full.pathname)) return REFUSED
+    if (
+      full.origin !== folder.origin ||
+      !full.pathname.startsWith(folder.pathname) ||
+      full.search ||
+      full.hash ||
+      /%2f|%5c/i.test(full.pathname)
+    )
+      return REFUSED
     asked.add(full.href)
     return asked.size > MAX_BESIDE ? REFUSED : full.href
   }
@@ -52,7 +66,10 @@ export function guard(base: string) {
 export function triangles(object: THREE.Object3D) {
   let count = 0
   object.traverse((part: THREE.Mesh) => {
-    if (part.isMesh) count += (Math.floor((part.geometry.index ?? part.geometry.attributes.position)?.count / 3) || 0) * (part.isInstancedMesh ? part.count : 1)
+    if (part.isMesh)
+      count +=
+        (Math.floor((part.geometry.index ?? part.geometry.attributes.position)?.count / 3) || 0) *
+        (part.isInstancedMesh ? part.count : 1)
   })
   return count
 }
@@ -86,7 +103,9 @@ const COMPONENT = { 5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4 } as Re
 function gltfJson(data: ArrayBuffer) {
   const view = new DataView(data)
   const glb = data.byteLength >= 20 && view.getUint32(0, true) === 0x46546c67
-  const bytes = glb ? new Uint8Array(data, 20, Math.min(view.getUint32(12, true), data.byteLength - 20)) : new Uint8Array(data)
+  const bytes = glb
+    ? new Uint8Array(data, 20, Math.min(view.getUint32(12, true), data.byteLength - 20))
+    : new Uint8Array(data)
   try {
     return JSON.parse(new TextDecoder().decode(bytes))
   } catch {
@@ -99,7 +118,11 @@ function gltfJson(data: ArrayBuffer) {
  * declared size where no buffer holds it (no bufferView), so the JSON alone can ask for gigabytes.
  * One with neither a bufferView nor sparse values is all zeros - nothing to draw - and refused.
  */
-export function gltfTooLarge(json: { accessors?: { bufferView?: number; sparse?: object; count?: number; type?: string; componentType?: number }[] } | null) {
+export function gltfTooLarge(
+  json: {
+    accessors?: { bufferView?: number; sparse?: object; count?: number; type?: string; componentType?: number }[]
+  } | null,
+) {
   let bytes = 0
   for (const accessor of json?.accessors ?? []) {
     const count = Number(accessor.count)
@@ -114,12 +137,18 @@ export function gltfTooLarge(json: { accessors?: { bufferView?: number; sparse?:
  * addresses, by the address the loader asks for. What `check` refuses, or cannot be read, is left out - it
  * fails to load, as it would. A string says why it is not drawn.
  */
-async function besideOf(json: { buffers?: { uri?: string }[]; images?: { uri?: string }[] } | null, base: string, check: (url: string) => string, signal?: AbortSignal) {
+async function besideOf(
+  json: { buffers?: { uri?: string }[]; images?: { uri?: string }[] } | null,
+  base: string,
+  check: (url: string) => string,
+  signal?: AbortSignal,
+) {
   const read = new Map<string, Blob>()
   let total = 0
   for (const { uri } of [...(json?.buffers ?? []), ...(json?.images ?? [])]) {
     // (the address as GLTFLoader makes it: its folder and the uri, side by side)
-    if (typeof uri !== 'string' || /^(data|blob):/i.test(uri) || read.has(base + uri) || check(base + uri) === REFUSED) continue
+    if (typeof uri !== 'string' || /^(data|blob):/i.test(uri) || read.has(base + uri) || check(base + uri) === REFUSED)
+      continue
     const answer = await fetch(check(base + uri), { signal }).catch(() => null)
     const bytes = answer?.ok ? await answer.blob().catch(() => null) : null
     if (!bytes) continue
@@ -151,11 +180,16 @@ function offThread(data: ArrayBuffer, ending: string, signal?: AbortSignal): Pro
 export const PIECE = 200_000
 
 /** What the worker parsed, as three draws it: an STL in its one colour, an OBJ's parts with the .mtl's materials by name. */
-function built({ parts }: Exclude<Parsed, string>, ending: string, mtl: { create(name: string): THREE.Material | undefined } | null): THREE.Object3D {
+function built(
+  { parts }: Exclude<Parsed, string>,
+  ending: string,
+  mtl: { create(name: string): THREE.Material | undefined } | null,
+): THREE.Object3D {
   // (its arrays as they came, never copied; its box and sphere as the worker measured them)
   const geometry = (one: Part, cut?: [number, number]) => {
     const made = new THREE.BufferGeometry()
-    for (const [key, { array, itemSize }] of Object.entries(one.attributes)) made.setAttribute(key, new THREE.BufferAttribute(cut ? array.subarray(...cut) : array, itemSize))
+    for (const [key, { array, itemSize }] of Object.entries(one.attributes))
+      made.setAttribute(key, new THREE.BufferAttribute(cut ? array.subarray(...cut) : array, itemSize))
     if (one.index) made.setIndex(new THREE.BufferAttribute(one.index, 1))
     for (const { start, count, materialIndex } of one.groups) made.addGroup(start, count, materialIndex)
     // (a piece takes the whole's: their union is the whole, and none is culled that is in sight)
@@ -171,14 +205,20 @@ function built({ parts }: Exclude<Parsed, string>, ending: string, mtl: { create
     const points = one.attributes.position?.array.length ?? 0
     if (one.index || points <= PIECE * 9) return new THREE.Mesh(geometry(one), material)
     const group = new THREE.Group()
-    for (let at = 0; at < points; at += PIECE * 9) group.add(new THREE.Mesh(geometry(one, [at, at + PIECE * 9]), material))
+    for (let at = 0; at < points; at += PIECE * 9)
+      group.add(new THREE.Mesh(geometry(one, [at, at + PIECE * 9]), material))
     return group
   }
   // As OBJLoader makes them: the .mtl's own for a mesh, its colour for lines and points; else its defaults.
   const material = (kind: Part['kind'], said: Part['materials'][number]) => {
     const own = mtl?.create(said.name)
     if (own && kind === 'mesh') return own
-    const made = kind === 'lines' ? new THREE.LineBasicMaterial() : kind === 'points' ? new THREE.PointsMaterial({ size: 1, sizeAttenuation: false }) : new THREE.MeshPhongMaterial()
+    const made =
+      kind === 'lines'
+        ? new THREE.LineBasicMaterial()
+        : kind === 'points'
+          ? new THREE.PointsMaterial({ size: 1, sizeAttenuation: false })
+          : new THREE.MeshPhongMaterial()
     if (own) made.color.copy(own.color)
     else Object.assign(made, said)
     return made
@@ -217,10 +257,19 @@ async function drawnBy(ending: string | undefined, data: ArrayBuffer, reading: R
   return UNREADABLE
 }
 
-async function offThreadDrawn(data: ArrayBuffer, ending: string, { manager, base, signal }: Reading): Promise<Drawn | string> {
+async function offThreadDrawn(
+  data: ArrayBuffer,
+  ending: string,
+  { manager, base, signal }: Reading,
+): Promise<Drawn | string> {
   const parsed = await offThread(data, ending, signal)
   if (typeof parsed === 'string') return parsed
-  const materials = parsed.mtl ? await new MTLLoader(manager).setPath(base).loadAsync(parsed.mtl).catch(() => null) : null
+  const materials = parsed.mtl
+    ? await new MTLLoader(manager)
+        .setPath(base)
+        .loadAsync(parsed.mtl)
+        .catch(() => null)
+    : null
   materials?.preload()
   return { object: built(parsed, ending, materials), unit: null }
 }
@@ -244,12 +293,17 @@ async function gltfDrawn(data: ArrayBuffer, { manager, base, check, signal }: Re
 function threeMfDrawn(data: ArrayBuffer, manager: THREE.LoadingManager): Drawn | string {
   // What it unpacks to, from its zip's own list, before anything is unpacked.
   let unpacked = 0
-  unzipSync(new Uint8Array(data), { filter: (file: { originalSize: number }) => ((unpacked += file.originalSize), false) })
+  unzipSync(new Uint8Array(data), {
+    filter: (file: { originalSize: number }) => ((unpacked += file.originalSize), false),
+  })
   if (unpacked > MAX_UNPACKED) return TOO_LARGE_UNPACKED
   const object = new ThreeMFLoader(manager).parse(data)
   // shortcut: the zip is read twice (the loader keeps its unit to itself); upgrade if large 3MFs are slow.
-  const [model] = Object.values(unzipSync(new Uint8Array(data), { filter: (file: { name: string }) => file.name.endsWith('.model') }))
-  const said = model && /<model\b[^>]*\bunit\s*=\s*["'](\w+)["']/.exec(new TextDecoder().decode(model as Uint8Array))?.[1]
+  const [model] = Object.values(
+    unzipSync(new Uint8Array(data), { filter: (file: { name: string }) => file.name.endsWith('.model') }),
+  )
+  const said =
+    model && /<model\b[^>]*\bunit\s*=\s*["'](\w+)["']/.exec(new TextDecoder().decode(model as Uint8Array))?.[1]
   return { object, unit: UNITS[said ?? 'millimeter'] ?? said } // (the 3MF format's own default: millimetres)
 }
 
@@ -259,7 +313,11 @@ function threeMfDrawn(data: ArrayBuffer, manager: THREE.LoadingManager): Drawn |
  * shortcut: a glTF and a 3MF are parsed on the page's thread - a glTF's scene comes with its textures, and
  * three's 3MF reader needs DOMParser, which a worker has not; move them too if large ones hold the page.
  */
-export async function load(src: string, name: string, { signal, onChange }: { signal?: AbortSignal; onChange?: () => void } = {}): Promise<Loaded | string> {
+export async function load(
+  src: string,
+  name: string,
+  { signal, onChange }: { signal?: AbortSignal; onChange?: () => void } = {},
+): Promise<Loaded | string> {
   const data = await bytesOf(src, signal)
   if (typeof data === 'string') return data
   const bytes = data.byteLength // (an STL's or OBJ's bytes are moved to the worker, not copied)

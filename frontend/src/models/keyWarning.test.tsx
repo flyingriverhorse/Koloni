@@ -20,7 +20,11 @@ const provider = (over: Partial<Provider>): Provider => ({
   note: null,
   models: [],
   only_listed: false,
-  max_running: null, plan: false, step_down_at: null, day_limit: null, month_limit: null,
+  max_running: null,
+  plan: false,
+  step_down_at: null,
+  day_limit: null,
+  month_limit: null,
   has_key: false,
   position: 0,
   created_at: 't',
@@ -28,7 +32,15 @@ const provider = (over: Partial<Provider>): Provider => ({
   ...over,
 })
 const WARNING = 'this looks like a Claude subscription token - the API does not accept it; add Claude Code instead'
-const api = provider({ id: 'p3', name: 'Claude-Subscription-API', kind: 'anthropic', base_url: null, has_key: true, position: 1, key_warning: WARNING })
+const api = provider({
+  id: 'p3',
+  name: 'Claude-Subscription-API',
+  kind: 'anthropic',
+  base_url: null,
+  has_key: true,
+  position: 1,
+  key_warning: WARNING,
+})
 
 const handlers = () => ({
   onCreate: vi.fn().mockResolvedValue(undefined),
@@ -44,8 +56,20 @@ test('a key the API will not take is warned of on its card', () => {
 })
 
 test('a CLI version KOLONİ did not measure is said on its card, louder where it runs the old way', () => {
-  const quiet = provider({ id: 'p4', name: 'Claude', kind: 'claude_cli', mode: 'native', version_note: 'Claude Code 2.1.312 not measured with KOLONİ' })
-  const old = provider({ id: 'p5', name: 'Codex', kind: 'codex_cli', mode: 'native', version_note: 'Codex 0.170.0 not measured; running the old way' })
+  const quiet = provider({
+    id: 'p4',
+    name: 'Claude',
+    kind: 'claude_cli',
+    mode: 'native',
+    version_note: 'Claude Code 2.1.312 not measured with KOLONİ',
+  })
+  const old = provider({
+    id: 'p5',
+    name: 'Codex',
+    kind: 'codex_cli',
+    mode: 'native',
+    version_note: 'Codex 0.170.0 not measured; running the old way',
+  })
   // B-310: an agy too old for KOLONİ's tools - where a Lead or a Spec writer would be picked on it
   const agy = "agy 1.4.8 cannot open sub-agents here (KOLONİ's tools reach agy from 1.4.9 on): running the old way"
   const older = provider({ id: 'p6', name: 'agy', kind: 'agy_cli', mode: 'reads', version_note: agy })
@@ -65,7 +89,10 @@ test('an Anthropic provider’s Default model says it is needed, not what looks 
 test('the picker does not offer “the provider’s default” where there is none', async () => {
   render(<ModelPicker providers={[provider({}), api]} providerId="p3" modelId={null} onSave={vi.fn()} />)
   await userEvent.click(screen.getByRole('button', { name: /Model: Claude-Subscription-API/ }))
-  expect(screen.getByLabelText('Model name')).toHaveAttribute('placeholder', 'Needed: this provider has no default model')
+  expect(screen.getByLabelText('Model name')).toHaveAttribute(
+    'placeholder',
+    'Needed: this provider has no default model',
+  )
   await userEvent.selectOptions(screen.getByLabelText('Provider'), 'p1')
   // A server of one's own does run its first model with none named.
   expect(screen.getByLabelText('Model name')).toHaveAttribute('placeholder', "The provider's default")

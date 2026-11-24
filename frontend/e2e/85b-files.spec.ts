@@ -8,11 +8,18 @@ import { clickCanvas, contrasts, OWN, openFreshConversation, settled, shot, setP
 test.use({ viewport: { width: 1440, height: 1400 } })
 
 // A PNG of one pixel, and a few lines of code.
-const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')
+const PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+  'base64',
+)
 const CODE = Buffer.from('export function pay() {\n  // waits for the banner\n}\n')
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`files and a link are chips, go with the message, and stand on the canvas (${theme})`, async ({ page }: { page: Page }) => {
+  test(`files and a link are chips, go with the message, and stand on the canvas (${theme})`, async ({
+    page,
+  }: {
+    page: Page
+  }) => {
     await page.addInitScript(theme => localStorage.setItem('koloni-theme', theme), theme)
     const id = await openFreshConversation(page)
     // (The Lead's sub-agent opens without a card: what is looked at here is the file it is handed.)
@@ -20,7 +27,11 @@ for (const theme of ['light', 'dark'] as const) {
 
     // The 📎 offers the three ways.
     await page.getByRole('button', { name: 'Attach' }).click()
-    await expect(page.getByRole('menuitem')).toHaveText(['Files from this computer…', /A screenshot from the clipboard/, 'A file of the project…'])
+    await expect(page.getByRole('menuitem')).toHaveText([
+      'Files from this computer…',
+      /A screenshot from the clipboard/,
+      'A file of the project…',
+    ])
     await page.keyboard.press('Escape')
     await expect(page.getByRole('menu')).toHaveCount(0)
 
@@ -37,17 +48,23 @@ for (const theme of ['light', 'dark'] as const) {
     ])
     await expect(page.getByText('2 attached · 122 B')).toBeVisible()
     // (Files added, Send stays on the level's line.)
-    const [level, send] = await Promise.all([page.getByRole('button', { name: /^Permission level:/ }), page.getByRole('button', { name: 'Send' })].map(async c => {
-      const at = (await c.boundingBox())!
-      return Math.round(at.y + at.height / 2)
-    }))
+    const [level, send] = await Promise.all(
+      [page.getByRole('button', { name: /^Permission level:/ }), page.getByRole('button', { name: 'Send' })].map(
+        async c => {
+          const at = (await c.boundingBox())!
+          return Math.round(at.y + at.height / 2)
+        },
+      ),
+    )
     expect(send).toBe(level)
     expect((await page.locator('.composer').evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])
     if (process.env.KOLONI_SHOTS) await shot(page.locator('.composer'), `85b-composer-${theme}`)
 
     await page.getByRole('button', { name: 'Send' }).click()
     const chat = page.getByRole('region', { name: 'Chat' })
-    await expect(chat.getByText('cart85b.ts: the click handler waits for the banner → Coder')).toBeVisible({ timeout: 20_000 })
+    await expect(chat.getByText('cart85b.ts: the click handler waits for the banner → Coder')).toBeVisible({
+      timeout: 20_000,
+    })
     const bubble = chat.locator('.msg-user .msg-bubble').last()
     await expect(bubble.locator('.att-mini')).toHaveText(['PNGshot85b.png', '.tscart85b.ts', 'URLstripe.com/docs'])
     await expect(chips).toHaveCount(0) // (gone with the message)
@@ -70,11 +87,19 @@ for (const theme of ['light', 'dark'] as const) {
 
 // B-106: with ten files the box and Send stay in the chat; what was not added goes with the files it was refused beside;
 // the project's file list closes by Esc and a click elsewhere, and what is typed while it is open goes into the box.
-test('ten files keep Send in sight; "not added" goes; the project list closes and lets typing through', async ({ page }: { page: Page }) => {
+test('ten files keep Send in sight; "not added" goes; the project list closes and lets typing through', async ({
+  page,
+}: {
+  page: Page
+}) => {
   await page.setViewportSize({ width: 1280, height: 771 })
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
-  const many = Array.from({ length: 11 }, (_, at) => ({ name: `many${at + 1}.txt`, mimeType: 'text/plain', buffer: Buffer.from(`file ${at + 1}\n`) }))
+  const many = Array.from({ length: 11 }, (_, at) => ({
+    name: `many${at + 1}.txt`,
+    mimeType: 'text/plain',
+    buffer: Buffer.from(`file ${at + 1}\n`),
+  }))
   await page.locator('.att-menu-box input[type=file]').setInputFiles(many)
   const chips = page.getByRole('list', { name: 'Attached' })
   await expect(chips.getByText('a message has 10 files at most: not added')).toBeVisible()

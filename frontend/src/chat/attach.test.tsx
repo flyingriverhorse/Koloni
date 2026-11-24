@@ -128,7 +128,9 @@ describe('the chips of the next message', () => {
     const { container } = inChat([])
     await userEvent.type(screen.getByLabelText('Message'), 'the bug')
     await act(async () => {
-      fireEvent.drop(container.querySelector('.composer')!, { dataTransfer: { types: ['Files'], files: [new File(['mp4'], 'repro.mp4')] } })
+      fireEvent.drop(container.querySelector('.composer')!, {
+        dataTransfer: { types: ['Files'], files: [new File(['mp4'], 'repro.mp4')] },
+      })
     })
     expect(await screen.findByText('repro.mp4')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
@@ -140,7 +142,9 @@ describe('the chips of the next message', () => {
     const big = new File(['x'], 'big.bin')
     Object.defineProperty(big, 'size', { value: 26 * 2 ** 20 })
     await act(async () => {
-      fireEvent.drop(container.querySelector('.composer')!, { dataTransfer: { types: ['Files'], files: [big, new File(['y'], 'eleventh.txt')] } })
+      fireEvent.drop(container.querySelector('.composer')!, {
+        dataTransfer: { types: ['Files'], files: [big, new File(['y'], 'eleventh.txt')] },
+      })
     })
     expect(await screen.findByText('larger than 25 MB: not added')).toBeInTheDocument()
     expect(screen.getByText('a message has 10 files at most: not added')).toBeInTheDocument()
@@ -149,7 +153,9 @@ describe('the chips of the next message', () => {
 
   test('a video over 25 MB goes up as its first 64 KB and its size: its frames alone go on', async () => {
     const large = 30 * 2 ** 20
-    const sent = vi.spyOn(api, 'upload').mockResolvedValue(file('long', { name: 'long.mp4', kind: 'video', mime: 'video/mp4', size: large }))
+    const sent = vi
+      .spyOn(api, 'upload')
+      .mockResolvedValue(file('long', { name: 'long.mp4', kind: 'video', mime: 'video/mp4', size: large }))
     URL.createObjectURL = vi.fn(() => 'blob:x')
     const { container } = inChat([])
     const long = new File([new Uint8Array(100 * 2 ** 10)], 'long.mp4', { type: 'video/mp4' })
@@ -164,7 +170,9 @@ describe('the chips of the next message', () => {
 
   test('a video over 25 MB whose frames cannot be taken is taken off again: nothing of it would reach a model', async () => {
     const large = 30 * 2 ** 20
-    vi.spyOn(api, 'upload').mockResolvedValue(file('long', { name: 'long.mp4', kind: 'video', mime: 'video/mp4', size: large }))
+    vi.spyOn(api, 'upload').mockResolvedValue(
+      file('long', { name: 'long.mp4', kind: 'video', mime: 'video/mp4', size: large }),
+    )
     const removed = vi.spyOn(api, 'delete').mockResolvedValue(undefined)
     URL.createObjectURL = vi.fn(() => {
       throw new Error('this browser cannot open it')
@@ -175,13 +183,19 @@ describe('the chips of the next message', () => {
     await act(async () => {
       fireEvent.drop(container.querySelector('.composer')!, { dataTransfer: { types: ['Files'], files: [long] } })
     })
-    expect(await screen.findByText('not added: its frames could not be taken (this browser cannot open it)')).toBeInTheDocument()
+    expect(
+      await screen.findByText('not added: its frames could not be taken (this browser cannot open it)'),
+    ).toBeInTheDocument()
     expect(removed).toHaveBeenCalledWith('/attachments/long')
-    expect(within(screen.getByRole('list', { name: 'Attached' })).queryByText('video · 30.0 MB', { exact: false })).toBeNull()
+    expect(
+      within(screen.getByRole('list', { name: 'Attached' })).queryByText('video · 30.0 MB', { exact: false }),
+    ).toBeNull()
   })
 
   test('a screenshot pasted into the box is added, not pasted as text', async () => {
-    const sent = vi.spyOn(api, 'upload').mockResolvedValue(file('shot', { name: 'image.png', kind: 'image', mime: 'image/png' }))
+    const sent = vi
+      .spyOn(api, 'upload')
+      .mockResolvedValue(file('shot', { name: 'image.png', kind: 'image', mime: 'image/png' }))
     inChat([])
     const shot = new File(['png'], 'image.png', { type: 'image/png' })
     await act(async () => {
@@ -195,7 +209,11 @@ describe('the chips of the next message', () => {
     inChat([])
     await userEvent.click(screen.getByRole('button', { name: 'Attach' }))
     const items = screen.getAllByRole('menuitem').map(item => item.textContent?.trim())
-    expect(items).toEqual(['Files from this computer…', 'A screenshot from the clipboard Ctrl+V', 'A file of the project…'])
+    expect(items).toEqual([
+      'Files from this computer…',
+      'A screenshot from the clipboard Ctrl+V',
+      'A file of the project…',
+    ])
     await userEvent.keyboard('{Escape}')
     expect(screen.queryByRole('menu')).toBeNull()
   })
@@ -210,12 +228,20 @@ describe('what a file is said to be', () => {
   })
 
   test('a video over 25 MB is not kept: no player for it, and its frames are what goes', () => {
-    const long = file('long', { name: 'long.mp4', kind: 'video', mime: 'video/mp4', size: 30 * 2 ** 20, summary: 'frames only: larger than 25 MB, the video is not kept' })
+    const long = file('long', {
+      name: 'long.mp4',
+      kind: 'video',
+      mime: 'video/mp4',
+      size: 30 * 2 ** 20,
+      summary: 'frames only: larger than 25 MB, the video is not kept',
+    })
     expect(shown(long, 3).meta).toBe('video · 30.0 MB · not kept, 3 frames taken')
     const { container } = render(<AttachmentPreview file={long} />)
     expect(container.querySelector('video')).toBeNull()
     expect(screen.getByText('frames only: larger than 25 MB, the video is not kept')).toBeInTheDocument()
-    const kept = render(<AttachmentPreview file={file('clip', { name: 'repro.mp4', kind: 'video', mime: 'video/mp4' })} />)
+    const kept = render(
+      <AttachmentPreview file={file('clip', { name: 'repro.mp4', kind: 'video', mime: 'video/mp4' })} />,
+    )
     // (no Download in its controls: its address, with the page's key, would stay in the list of downloads)
     expect(kept.container.querySelector('video')).toHaveAttribute('controlslist', 'nodownload')
   })
@@ -223,18 +249,33 @@ describe('what a file is said to be', () => {
   test('before it is sent, a picture says the chat’s model is shown none on a provider given no images (B-119)', () => {
     const shot = file('shot', { name: 'shot.png', kind: 'image', mime: 'image/png' })
     const copilot = { name: 'Copilot', kind: 'copilot_cli' } as Provider
-    expect(shown(shot, 0, null, unseenOn(copilot)).meta).toBe('image · 4 KB · not shown: Copilot is given no images by KOLONİ')
+    expect(shown(shot, 0, null, unseenOn(copilot)).meta).toBe(
+      'image · 4 KB · not shown: Copilot is given no images by KOLONİ',
+    )
     expect(unseenOn({ name: 'Claude', kind: 'claude_cli' } as Provider)).toBeNull()
     expect(shown(shot, 0, null, unseenOn(undefined)).meta).toBe('image · 4 KB · seen by a model that sees images')
   })
 
   test('once sent, a picture says what became of it for each agent’s model', () => {
-    const shot = file('shot', { name: 'shot.png', kind: 'image', mime: 'image/png', shown_to: { a: 'shown to sonnet on Claude Code', b: 'not shown to q on Qoder: Qoder is given no images by KOLONİ' } })
-    expect(shown(shot).meta).toBe('image · 4 KB · shown to sonnet on Claude Code; not shown to q on Qoder: Qoder is given no images by KOLONİ')
+    const shot = file('shot', {
+      name: 'shot.png',
+      kind: 'image',
+      mime: 'image/png',
+      shown_to: {
+        a: 'shown to sonnet on Claude Code',
+        b: 'not shown to q on Qoder: Qoder is given no images by KOLONİ',
+      },
+    })
+    expect(shown(shot).meta).toBe(
+      'image · 4 KB · shown to sonnet on Claude Code; not shown to q on Qoder: Qoder is given no images by KOLONİ',
+    )
   })
 
   test('links are each found once, without the full stop after them', () => {
-    expect(linksIn('a https://x.test/a, and http://y.test. and https://x.test/a again')).toEqual(['https://x.test/a', 'http://y.test'])
+    expect(linksIn('a https://x.test/a, and http://y.test. and https://x.test/a again')).toEqual([
+      'https://x.test/a',
+      'http://y.test',
+    ])
   })
 })
 
@@ -288,13 +329,19 @@ describe('frames taken in the browser', () => {
     } as unknown as HTMLVideoElement
     URL.createObjectURL = vi.fn(() => 'blob:x')
     URL.revokeObjectURL = vi.fn()
-    await expect(takeFrames(new Blob(['?']), { video: () => video, canvas: () => document.createElement('canvas') })).rejects.toThrow('this browser cannot open it')
+    await expect(
+      takeFrames(new Blob(['?']), { video: () => video, canvas: () => document.createElement('canvas') }),
+    ).rejects.toThrow('this browser cannot open it')
   })
 })
 
 describe('a file looked at: the text a model is given of it', () => {
   const note = file('note', { name: 'notes.txt', kind: 'text', mime: 'text/plain' })
-  const lines = (container: HTMLElement) => Array.from(container.querySelector('.att-preview')!.children, one => `${one.tagName} ${one.className}: ${one.textContent}`).slice(1)
+  const lines = (container: HTMLElement) =>
+    Array.from(
+      container.querySelector('.att-preview')!.children,
+      one => `${one.tagName} ${one.className}: ${one.textContent}`,
+    ).slice(1)
 
   test('while it is read it says so; then its text, or that none is given', async () => {
     let told: (answer: { text: string | null }) => void = () => {}
@@ -316,7 +363,10 @@ describe('a file looked at: the text a model is given of it', () => {
   })
 
   test('a text over 20,000 characters is cut there; one that cannot be read is said as none; a picture and a program are not asked for', async () => {
-    const get = vi.spyOn(api, 'get').mockResolvedValueOnce({ text: 'x'.repeat(20001) }).mockRejectedValueOnce(new Error('down'))
+    const get = vi
+      .spyOn(api, 'get')
+      .mockResolvedValueOnce({ text: 'x'.repeat(20001) })
+      .mockRejectedValueOnce(new Error('down'))
     const long = render(<AttachmentPreview file={note} />)
     expect((await long.findByText(/^x+ …$/)).textContent).toBe(`${'x'.repeat(20000)}\n…`)
     long.unmount()
@@ -324,7 +374,9 @@ describe('a file looked at: the text a model is given of it', () => {
     expect(await failed.findByText('No text of it is given to a model.')).toBeInTheDocument()
     failed.unmount()
     get.mockClear()
-    const picture = render(<AttachmentPreview file={file('shot', { name: 'shot.png', kind: 'image', mime: 'image/png' })} />)
+    const picture = render(
+      <AttachmentPreview file={file('shot', { name: 'shot.png', kind: 'image', mime: 'image/png' })} />,
+    )
     expect(lines(picture.container).map(line => line.split(':')[0])).toEqual(['IMG view-image'])
     expect(picture.container.querySelector('img')).toHaveAttribute('alt', 'shot.png')
     picture.unmount()

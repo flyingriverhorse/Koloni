@@ -17,10 +17,15 @@ export interface Shown {
   meta: string
 }
 
-const CODE = /\.(ts|tsx|js|jsx|mjs|cjs|py|rb|go|rs|java|kt|cs|c|h|cpp|hpp|php|swift|sh|ps1|sql|css|scss|html|vue|svelte|json|ya?ml|toml|xml)$/i
+const CODE =
+  /\.(ts|tsx|js|jsx|mjs|cjs|py|rb|go|rs|java|kt|cs|c|h|cpp|hpp|php|swift|sh|ps1|sql|css|scss|html|vue|svelte|json|ya?ml|toml|xml)$/i
 
 export function sizeText(size: number): string {
-  return size < 1024 ? `${size} B` : size < 2 ** 20 ? `${Math.round(size / 1024)} KB` : `${(size / 2 ** 20).toFixed(1)} MB`
+  return size < 1024
+    ? `${size} B`
+    : size < 2 ** 20
+      ? `${Math.round(size / 1024)} KB`
+      : `${(size / 2 ** 20).toFixed(1)} MB`
 }
 
 /** The providers whose models KOLONİ shows a picture to (`app/providers.py`: HTTP_KINDS, IMAGE_CLIS). */
@@ -34,7 +39,12 @@ export const unseenOn = (provider: Provider | undefined) =>
  * A file as its chip says it: its kind, its size and what will happen to it. `frames`: those the page took of a video;
  * `unseen`: why the chat's model will not see a picture (`unseenOn`).
  */
-export function shown(file: Attachment, frames = 0, noFrames: string | null = null, unseen: string | null = null): Shown {
+export function shown(
+  file: Attachment,
+  frames = 0,
+  noFrames: string | null = null,
+  unseen: string | null = null,
+): Shown {
   const ext = file.name.match(/\.[^.]+$/)?.[0] ?? ''
   const size = sizeText(file.size)
   // A picture's or video's, once sent: what became of it for each agent's model.
@@ -43,7 +53,11 @@ export function shown(file: Attachment, frames = 0, noFrames: string | null = nu
     case 'text':
       return textShown(file, ext, size)
     case 'image':
-      return { label: file.mime.split('/')[1].toUpperCase(), colour: '--file-img', meta: `image · ${size} · ${seen ?? unseen ?? 'seen by a model that sees images'}` }
+      return {
+        label: file.mime.split('/')[1].toUpperCase(),
+        colour: '--file-img',
+        meta: `image · ${size} · ${seen ?? unseen ?? 'seen by a model that sees images'}`,
+      }
     case 'pdf':
       return { label: 'PDF', colour: '--file-doc', meta: file.summary }
     case 'docx':
@@ -59,7 +73,11 @@ export function shown(file: Attachment, frames = 0, noFrames: string | null = nu
 
 function textShown(file: Attachment, ext: string, size: string): Shown {
   const code = CODE.test(file.name)
-  return { label: code ? ext.toLowerCase() : 'TXT', colour: '--file-code', meta: `${code ? 'code' : 'text'} · ${size} · ${file.summary}` }
+  return {
+    label: code ? ext.toLowerCase() : 'TXT',
+    colour: '--file-code',
+    meta: `${code ? 'code' : 'text'} · ${size} · ${file.summary}`,
+  }
 }
 
 /** A video's chip; `said`: what became of it for the models, or why it has no frames - null: its frames are counted. */
@@ -84,7 +102,11 @@ export const LINK: Shown = { label: 'URL', colour: '--file-link', meta: 'a link 
 
 /** One file for the conversation's next message, or a frame of a video of it; `size`: a larger video's, of which `file` is the first bytes. Throws ApiError. */
 export function upload(conversationId: string, file: Blob, name: string, frameOf?: string, size?: number) {
-  const query = new URLSearchParams({ name, ...(frameOf && { frame_of: frameOf }), ...(size && { size: String(size) }) })
+  const query = new URLSearchParams({
+    name,
+    ...(frameOf && { frame_of: frameOf }),
+    ...(size && { size: String(size) }),
+  })
   return api.upload<Attachment>(`/conversations/${conversationId}/attachments?${query}`, file)
 }
 

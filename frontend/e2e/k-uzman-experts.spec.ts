@@ -13,16 +13,20 @@ type Named = { id: string; name: string }
 
 test.afterEach(async ({ request }) => {
   for (const role of (await (await request.get('/api/roles')).json()) as Named[])
-    if (role.name === 'Pay expert') expect((await request.delete(`/api/roles/${role.id}`, { headers: OWN })).ok()).toBe(true)
+    if (role.name === 'Pay expert')
+      expect((await request.delete(`/api/roles/${role.id}`, { headers: OWN })).ok()).toBe(true)
   await dropKnowledge(request, 'Pay')
   rmSync(DOCS, { recursive: true, force: true })
   rmSync(KEPT, { recursive: true, force: true })
 })
 
-const lowContrast = async (page: Page) => (await page.locator('.paged').evaluate(contrasts)).filter(piece => piece.ratio < 4.5)
+const lowContrast = async (page: Page) =>
+  (await page.locator('.paged').evaluate(contrasts)).filter(piece => piece.ratio < 4.5)
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`an expert made from a file of the project learns it once and its Knowledge page row says so (${theme})`, async ({ page }) => {
+  test(`an expert made from a file of the project learns it once and its Knowledge page row says so (${theme})`, async ({
+    page,
+  }) => {
     test.setTimeout(60_000)
     mkdirSync(DOCS, { recursive: true })
     writeFileSync(path.join(DOCS, 'pay.md'), '# Pay\n\npay(amount) takes a payment. Amounts are in cents.\n')
@@ -31,7 +35,7 @@ for (const theme of ['light', 'dark'] as const) {
     await openFreshConversation(page)
     await page.getByRole('button', { name: 'Agents', exact: true }).click()
     await page.getByRole('button', { name: 'New role' }).click()
-    await page.getByRole('button', { name: 'An expert', exact: true }).click()  // (not the MLflow or Databricks expert)
+    await page.getByRole('button', { name: 'An expert', exact: true }).click() // (not the MLflow or Databricks expert)
     await page.getByLabel('Knows').fill('Pay')
     await page.getByLabel('Sources').fill('docs-uzman/pay.md')
     await shot(page, `k-uzman-template-${theme}`)
@@ -43,7 +47,10 @@ for (const theme of ['light', 'dark'] as const) {
     const panel = page.getByRole('complementary', { name: 'Role Pay expert' })
     await expect(panel.getByText('knows: Pay')).toBeVisible()
     await expect(panel.getByRole('switch', { name: 'Knowledge Pay' })).toBeChecked()
-    await expect(panel.getByRole('group', { name: 'Pay: how' }).getByRole('button', { name: 'Full' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(panel.getByRole('group', { name: 'Pay: how' }).getByRole('button', { name: 'Full' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
     await expect(panel.getByLabel('Sources')).toHaveCount(0)
     await shot(page, `k-uzman-knowledge-tab-${theme}`)
     expect(await lowContrast(page)).toEqual([])
@@ -77,7 +84,9 @@ for (const theme of ['light', 'dark'] as const) {
 // The user's screenshot: in a narrow step, an expert's "knows: ..." sat on its name and pushed the x out of the chip. The
 // name keeps one line (an ellipsis, the whole name in its title), what it knows its own line under it, the x inside.
 for (const theme of ['light', 'dark'] as const) {
-  test(`an expert's chip in a team's step: name, what it knows and the x do not overlap (${theme})`, async ({ page }) => {
+  test(`an expert's chip in a team's step: name, what it knows and the x do not overlap (${theme})`, async ({
+    page,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page)
     await page.getByRole('button', { name: 'Agents', exact: true }).click()
@@ -89,8 +98,12 @@ for (const theme of ['light', 'dark'] as const) {
       for (const chip of await chips.all()) {
         const name = chip.locator('.team-mini-open')
         await expect(name).toHaveAttribute('title', (await name.textContent())!)
-        const [box, named, knows, x] = await Promise.all([chip, name, chip.locator('.chip-knows'), chip.locator('.chip-x')].map(async part => (await part.boundingBox())!))
-        expect(named.height).toBeLessThan(24)  // one line
+        const [box, named, knows, x] = await Promise.all(
+          [chip, name, chip.locator('.chip-knows'), chip.locator('.chip-x')].map(
+            async part => (await part.boundingBox())!,
+          ),
+        )
+        expect(named.height).toBeLessThan(24) // one line
         expect(knows.y).toBeGreaterThanOrEqual(named.y + named.height - 1)
         for (const part of [named, knows, x]) {
           expect(part.x).toBeGreaterThanOrEqual(box.x)

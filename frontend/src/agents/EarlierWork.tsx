@@ -27,38 +27,49 @@ interface Props {
 export function EarlierWork({ state, agentId, open, onToggle, onOpenChange, onSelectAgent }: Props) {
   const links = earlierLinks(state, agentId)
   if (links.length === 0) return null
-  const files = new Set(state.fileChanges.filter(f => links.some(link => link.agent.id === f.agent_id) && !inScratch(f.path)).map(f => f.path)).size
+  const files = new Set(
+    state.fileChanges
+      .filter(f => links.some(link => link.agent.id === f.agent_id) && !inScratch(f.path))
+      .map(f => f.path),
+  ).size
   return (
     <details className="agent-fold" open={open} onToggle={e => onToggle(e.currentTarget.open)}>
       <summary>
         Earlier work{' '}
         <span className="agent-fold-count">
-          {messagesInWords(links.map(link => messageTime(state, link.agent.run_id)))} · {files} file{files === 1 ? '' : 's'}
+          {messagesInWords(links.map(link => messageTime(state, link.agent.run_id)))} · {files} file
+          {files === 1 ? '' : 's'}
         </span>
       </summary>
-      {open && links.map(({ agent }) => (
-        <div key={agent.id} role="group" aria-label={`The ${messageTime(state, agent.run_id)} message`} className="earlier-work-link">
-          <div className="kicker">{messageTime(state, agent.run_id)} · its task</div>
-          <div className="agent-feed-task">{agent.task || 'No task on record.'}</div>
-          <div className="kicker">What it did</div>
-          <AgentSteps
-            state={state}
-            agent={agent}
-            onOpenChange={onOpenChange}
-            onSelectAgent={onSelectAgent}
-            without={agent.report}
-            empty="Nothing on record."
-          />
-          <div className="kicker">Its report</div>
-          {agent.report ? (
-            <div className="markdown">
-              <Markdown>{agent.report}</Markdown>
-            </div>
-          ) : (
-            <p className="muted">It ended without a report.</p>
-          )}
-        </div>
-      ))}
+      {open &&
+        links.map(({ agent }) => (
+          <div
+            key={agent.id}
+            role="group"
+            aria-label={`The ${messageTime(state, agent.run_id)} message`}
+            className="earlier-work-link"
+          >
+            <div className="kicker">{messageTime(state, agent.run_id)} · its task</div>
+            <div className="agent-feed-task">{agent.task || 'No task on record.'}</div>
+            <div className="kicker">What it did</div>
+            <AgentSteps
+              state={state}
+              agent={agent}
+              onOpenChange={onOpenChange}
+              onSelectAgent={onSelectAgent}
+              without={agent.report}
+              empty="Nothing on record."
+            />
+            <div className="kicker">Its report</div>
+            {agent.report ? (
+              <div className="markdown">
+                <Markdown>{agent.report}</Markdown>
+              </div>
+            ) : (
+              <p className="muted">It ended without a report.</p>
+            )}
+          </div>
+        ))}
     </details>
   )
 }

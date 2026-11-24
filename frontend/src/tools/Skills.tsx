@@ -34,9 +34,14 @@ async function uploadOf(files: File[], zip: boolean): Promise<SkillUpload> {
   const size = sent.reduce((sum, file) => sum + file.size, 0)
   const mib = (bytes: number) => (bytes / 1024 / 1024).toFixed(1)
   if (zip && size > MAX_ZIP_BYTES) throw new Error(`A skill’s .zip is at most 25 MiB; this is ${mib(size)} MiB.`)
-  if (!zip && size > MAX_SKILL_BYTES) throw new Error(`A skill holds at most 5 MiB; this is ${mib(size)} MiB. Choose the skill’s own folder.`)
+  if (!zip && size > MAX_SKILL_BYTES)
+    throw new Error(`A skill holds at most 5 MiB; this is ${mib(size)} MiB. Choose the skill’s own folder.`)
   if (zip) return { zip: await base64(sent[0]) }
-  return { files: await Promise.all(sent.map(async file => ({ path: file.webkitRelativePath || file.name, data: await base64(file) }))) }
+  return {
+    files: await Promise.all(
+      sent.map(async file => ({ path: file.webkitRelativePath || file.name, data: await base64(file) })),
+    ),
+  }
 }
 
 /** A folder, a .zip or a GitHub repository, read and shown - its scripts whole, its licence, what is not copied - before its skill is kept. */
@@ -116,13 +121,18 @@ function AddSkill({
           onKeyDown={enter(folder.trim() ? { folder: folder.trim() } : null)}
         />
         <span id="skill-folder-note" className="choice-note">
-          KOLONİ keeps a copy in its own store, which no agent writes, so a later change to the folder does not change the
-          skill. Secrets (a .env, a key, a credentials file) and links are not copied. A folder or a .zip chosen here is
-          uploaded from this browser (5 MiB at most) and read the same way. But with Choose folder… a browser may follow a
-          link and send what it points to: to keep links out, type the folder’s path or upload a .zip.
+          KOLONİ keeps a copy in its own store, which no agent writes, so a later change to the folder does not change
+          the skill. Secrets (a .env, a key, a credentials file) and links are not copied. A folder or a .zip chosen
+          here is uploaded from this browser (5 MiB at most) and read the same way. But with Choose folder… a browser
+          may follow a link and send what it points to: to keep links out, type the folder’s path or upload a .zip.
         </span>
       </div>
-      <button type="button" className="btn btn-small" disabled={busy || !folder.trim()} onClick={() => read({ folder: folder.trim() })}>
+      <button
+        type="button"
+        className="btn btn-small"
+        disabled={busy || !folder.trim()}
+        onClick={() => read({ folder: folder.trim() })}
+      >
         Read the folder
       </button>{' '}
       <button type="button" className="btn btn-small" disabled={busy} onClick={() => folderPick.current?.click()}>
@@ -132,8 +142,23 @@ function AddSkill({
         Upload .zip…
       </button>
       {/* (webkitdirectory: not in React's types, but every browser's folder picker) */}
-      <input ref={folderPick} type="file" hidden multiple {...{ webkitdirectory: '' }} aria-label="A skill's folder to upload" onChange={upload(false)} />
-      <input ref={zipPick} type="file" hidden accept=".zip,application/zip" aria-label="A skill's .zip to upload" onChange={upload(true)} />
+      <input
+        ref={folderPick}
+        type="file"
+        hidden
+        multiple
+        {...{ webkitdirectory: '' }}
+        aria-label="A skill's folder to upload"
+        onChange={upload(false)}
+      />
+      <input
+        ref={zipPick}
+        type="file"
+        hidden
+        accept=".zip,application/zip"
+        aria-label="A skill's .zip to upload"
+        onChange={upload(true)}
+      />
       <div className="field">
         <label htmlFor="skill-github">From GitHub</label>
         <input
@@ -149,11 +174,16 @@ function AddSkill({
           onKeyDown={enter(github.trim() ? { github: github.trim() } : null)}
         />
         <span id="skill-github-note" className="choice-note">
-          A public repository, or a folder in it. Only its file list, SKILL.md, licence and scripts are read now; the rest
-          is downloaded from the same commit when you add it.
+          A public repository, or a folder in it. Only its file list, SKILL.md, licence and scripts are read now; the
+          rest is downloaded from the same commit when you add it.
         </span>
       </div>
-      <button type="button" className="btn btn-small" disabled={busy || !github.trim()} onClick={() => read({ github: github.trim() })}>
+      <button
+        type="button"
+        className="btn btn-small"
+        disabled={busy || !github.trim()}
+        onClick={() => read({ github: github.trim() })}
+      >
         Read from GitHub
       </button>{' '}
       <button type="button" className="btn btn-small" onClick={onCancel}>
@@ -162,10 +192,17 @@ function AddSkill({
       {found && (
         <div className="cmd-approval">
           <SkillShown skill={found.skill} />
-          <ScriptsLeave id="skill-new-leave" skill={found.skill} texts={found.skill.script_texts} checked={unasked} onChange={setUnasked} />
+          <ScriptsLeave
+            id="skill-new-leave"
+            skill={found.skill}
+            texts={found.skill.script_texts}
+            checked={unasked}
+            onChange={setUnasked}
+          />
           {replacing && (
             <p id="skill-new-replaces" className="choice-note">
-              A skill named <span className="mono">{found.skill.name}</span> is kept already: this replaces it, and the roles that have it keep it.
+              A skill named <span className="mono">{found.skill.name}</span> is kept already: this replaces it, and the
+              roles that have it keep it.
             </p>
           )}
           <div className="change-actions">
@@ -197,7 +234,6 @@ function AddSkill({
   )
 }
 
-
 /** What the Tools page's part for skills is asked to do; each throws ApiError. */
 export interface SkillActions {
   onPreviewSkill: (source: SkillSource) => Promise<SkillPreview>
@@ -225,7 +261,17 @@ interface Props extends SkillActions {
 }
 
 /** K-skill-uyum: KOLONİ's own store of skills, a row each - on or off for every role, unfolded: what it asks, the roles it is given to, its SKILL.md, its scripts' leave, how it did. */
-export function SkillsSection({ skills, roles, off, serversOff, picked, adding, onAdding, onPatchRole, ...actions }: Props) {
+export function SkillsSection({
+  skills,
+  roles,
+  off,
+  serversOff,
+  picked,
+  adding,
+  onAdding,
+  onPatchRole,
+  ...actions
+}: Props) {
   const [open, setOpen] = useState<string | null>(picked?.startsWith('skill:') ? picked.slice(6) : null)
   const [rows, setRows] = useState<SkillRecordRow[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -236,14 +282,18 @@ export function SkillsSection({ skills, roles, off, serversOff, picked, adding, 
   useEffect(() => {
     let latest = true
     // (No bars where it cannot be read: the unfolded row says why.)
-    onSkillRecord().then(read => latest && setRows(read), () => {})
+    onSkillRecord().then(
+      read => latest && setRows(read),
+      () => {},
+    )
     return () => {
       latest = false
     }
   }, [onSkillRecord])
   const openId = skills.find(skill => skill.name === open)?.id
   useLayoutEffect(() => {
-    if (picked?.startsWith('skill:') && openId) document.getElementById(`tools-skill-${openId}`)?.scrollIntoView?.({ block: 'nearest' })
+    if (picked?.startsWith('skill:') && openId)
+      document.getElementById(`tools-skill-${openId}`)?.scrollIntoView?.({ block: 'nearest' })
   }, [picked, openId])
   const act = (action: Promise<unknown>) => {
     setError(null)
@@ -254,8 +304,8 @@ export function SkillsSection({ skills, roles, off, serversOff, picked, adding, 
       <p className="muted provider-note tools-lead">
         KOLONİ’s own store: a copy no agent writes.{' '}
         <Hint doc={GUIDE.skills}>
-          A role is given one here, under its row; one you switch off is given to no role. Its agents are told each skill’s name and line, and read the
-          whole of one when they need it.
+          A role is given one here, under its row; one you switch off is given to no role. Its agents are told each
+          skill’s name and line, and read the whole of one when they need it.
         </Hint>
       </p>
       {adding && (
@@ -274,7 +324,10 @@ export function SkillsSection({ skills, roles, off, serversOff, picked, adding, 
         </div>
       )}
       {skills.length === 0 ? (
-        <p className="muted hive-empty">No skill yet. A skill is a folder of instructions (a SKILL.md) that a role’s agents read when they need it: add one with Add › A skill, at the top.</p>
+        <p className="muted hive-empty">
+          No skill yet. A skill is a folder of instructions (a SKILL.md) that a role’s agents read when they need it:
+          add one with Add › A skill, at the top.
+        </p>
       ) : (
         <ul className="tools-servers" aria-label="Skills">
           {skills.map(skill => {
@@ -284,7 +337,14 @@ export function SkillsSection({ skills, roles, off, serversOff, picked, adding, 
             return (
               <li key={skill.id}>
                 <div className="tools-row">
-                  <input type="checkbox" role="switch" className="switch" aria-label={`${skill.name} on`} checked={skill.enabled} onChange={() => act(actions.onSkillOn(skill.id, !skill.enabled))} />
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    className="switch"
+                    aria-label={`${skill.name} on`}
+                    checked={skill.enabled}
+                    onChange={() => act(actions.onSkillOn(skill.id, !skill.enabled))}
+                  />
                   <button
                     id={`tools-skill-${skill.id}`}
                     type="button"
@@ -320,19 +380,36 @@ export function SkillsSection({ skills, roles, off, serversOff, picked, adding, 
                       <span className="muted mono tools-card-note">
                         {skill.version && `v${skill.version} · `}from {skill.source} · <Licence skill={skill} />
                       </span>
-                      <SkillWindow skill={skill} roles={roles} off={off} serversOff={serversOff} onRecord={onSkillRecord} onPatchRole={onPatchRole} />
+                      <SkillWindow
+                        skill={skill}
+                        roles={roles}
+                        off={off}
+                        serversOff={serversOff}
+                        onRecord={onSkillRecord}
+                        onPatchRole={onPatchRole}
+                      />
                       <SkillText skill={skill} />
-                      <ScriptsLeave id={`skill-leave-${skill.id}`} skill={skill} checked={skill.scripts_run_unasked} onChange={on => act(actions.onSkillLeave(skill.id, on))} />
+                      <ScriptsLeave
+                        id={`skill-leave-${skill.id}`}
+                        skill={skill}
+                        checked={skill.scripts_run_unasked}
+                        onChange={on => act(actions.onSkillLeave(skill.id, on))}
+                      />
                       <div>
                         <button
                           type="button"
                           className="btn btn-small btn-danger"
                           onClick={() => {
                             setDeleting(skill.id)
-                            confirm.ask(`Delete the skill ${skill.name}? Every role that has it loses it, and KOLONİ’s copy of it is removed.`, 'Delete skill', () => {
-                              setOpen(was => (was === skill.name ? null : was))
-                              act(actions.onDeleteSkill(skill.id))
-                            }, 'Cancel')
+                            confirm.ask(
+                              `Delete the skill ${skill.name}? Every role that has it loses it, and KOLONİ’s copy of it is removed.`,
+                              'Delete skill',
+                              () => {
+                                setOpen(was => (was === skill.name ? null : was))
+                                act(actions.onDeleteSkill(skill.id))
+                              },
+                              'Cancel',
+                            )
                           }}
                         >
                           Delete skill {skill.name}

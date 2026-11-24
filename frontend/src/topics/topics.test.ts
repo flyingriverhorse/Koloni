@@ -2,18 +2,13 @@ import { expect, test } from 'vitest'
 import type { Message } from '../api/types'
 import { when } from '../canvas/turns'
 import { agent, convState, run, topic, userMessage } from '../test-fixtures'
-import {
-  chainOf,
-  continuesFrom,
-  messageTime,
-  latestOfUser,
-  nextTopic,
-  titleOf,
-  turnNumbers,
-  wentOnIn,
-} from './topics'
+import { chainOf, continuesFrom, messageTime, latestOfUser, nextTopic, titleOf, turnNumbers, wentOnIn } from './topics'
 
-const byTrigger = (runId: string, content: string): Message => ({ ...userMessage(runId, content), id: `t-${runId}`, role: 'trigger' })
+const byTrigger = (runId: string, content: string): Message => ({
+  ...userMessage(runId, content),
+  id: `t-${runId}`,
+  role: 'trigger',
+})
 const nightly = { unattended: true, trigger_id: 'tr', trigger_name: 'Nightly look', topic_id: 'tn' }
 const at = (minute: number) => `2026-10-05T10:${String(minute).padStart(2, '0')}:00Z`
 
@@ -23,7 +18,11 @@ const at = (minute: number) => `2026-10-05T10:${String(minute).padStart(2, '0')}
  */
 const state = (over: Parameters<typeof convState>[0] = {}) =>
   convState({
-    topics: [topic('ta', 'Fix the greeting'), topic('tn', 'Look the project over', { trigger_id: 'tr' }), topic('tb', 'Write the docs')],
+    topics: [
+      topic('ta', 'Fix the greeting'),
+      topic('tn', 'Look the project over', { trigger_id: 'tr' }),
+      topic('tb', 'Write the docs'),
+    ],
     runs: [
       run('a1', 'completed', { topic_id: 'ta', created_at: at(1) }),
       run('a2', 'completed', { topic_id: 'ta', created_at: at(2) }),
@@ -42,12 +41,33 @@ const state = (over: Parameters<typeof convState>[0] = {}) =>
     ],
     agents: [
       agent('a1', 'completed'),
-      agent('a1', 'completed', { id: 'coder1', parent_agent_id: 'a1', role_name: 'Coder', depth: 1, task: 'Change the greeting', report: 'It says merhaba.' }),
+      agent('a1', 'completed', {
+        id: 'coder1',
+        parent_agent_id: 'a1',
+        role_name: 'Coder',
+        depth: 1,
+        task: 'Change the greeting',
+        report: 'It says merhaba.',
+      }),
       agent('a2', 'completed', { continues_id: 'a1' }),
-      agent('a2', 'completed', { id: 'coder2', parent_agent_id: 'a2', role_name: 'Coder', depth: 1, continues_id: 'coder1', task: 'Now in Turkish' }),
+      agent('a2', 'completed', {
+        id: 'coder2',
+        parent_agent_id: 'a2',
+        role_name: 'Coder',
+        depth: 1,
+        continues_id: 'coder1',
+        task: 'Now in Turkish',
+      }),
       agent('n1', 'completed'),
       agent('a3', 'failed', { continues_id: 'a2' }),
-      agent('a3', 'failed', { id: 'coder3', parent_agent_id: 'a3', role_name: 'Coder', depth: 1, continues_id: 'coder2', task: 'And in German' }),
+      agent('a3', 'failed', {
+        id: 'coder3',
+        parent_agent_id: 'a3',
+        role_name: 'Coder',
+        depth: 1,
+        continues_id: 'coder2',
+        task: 'And in German',
+      }),
       agent('b1'),
     ],
     ...over,
@@ -67,15 +87,25 @@ test('the topic the user was last in is that of the newest turn they started in 
   expect(latestOfUser(stopped)?.id).toBe('ta')
   // a trigger's turn never changes it, nor does a message the user sent into a trigger's topic
   const later = state()
-  later.runs = [...later.runs, run('n2', 'completed', { ...nightly, created_at: at(8) }), run('n3', 'completed', { topic_id: 'tn', created_at: at(9) })]
+  later.runs = [
+    ...later.runs,
+    run('n2', 'completed', { ...nightly, created_at: at(8) }),
+    run('n3', 'completed', { topic_id: 'tn', created_at: at(9) }),
+  ]
   expect(latestOfUser(later)?.id).toBe('tb')
   // a turn on record with no topic, or with one that is not known yet, is no topic to go on with
-  expect(latestOfUser(convState({ runs: [run('x', 'completed'), run('y', 'completed', { topic_id: 'gone' })] }))).toBeNull()
+  expect(
+    latestOfUser(convState({ runs: [run('x', 'completed'), run('y', 'completed', { topic_id: 'gone' })] })),
+  ).toBeNull()
   expect(latestOfUser(convState())).toBeNull()
 })
 
 test('the next message goes on with the topic the user was last in, unless a turn of another topic of theirs is on screen', () => {
-  expect(nextTopic(state(), null)).toEqual({ kind: 'topic', topic: expect.objectContaining({ id: 'tb' }), instead: null })
+  expect(nextTopic(state(), null)).toEqual({
+    kind: 'topic',
+    topic: expect.objectContaining({ id: 'tb' }),
+    instead: null,
+  })
   // a turn of the same topic on screen changes nothing
   expect(nextTopic(state(), 'b1')).toMatchObject({ kind: 'topic', topic: { id: 'tb' }, instead: null })
   // a turn of an earlier topic of the user's: the message goes to that one
@@ -101,7 +131,11 @@ test('looking at a trigger’s turn does not send the next message into the trig
 })
 
 test('with no topic of the user’s to go on with the next message starts one; in an empty conversation nothing is said', () => {
-  const only = convState({ topics: [topic('tn', 'Look', { trigger_id: 'tr' })], runs: [run('n1', 'completed', nightly)], messages: [byTrigger('n1', 'Look')] })
+  const only = convState({
+    topics: [topic('tn', 'Look', { trigger_id: 'tr' })],
+    runs: [run('n1', 'completed', nightly)],
+    messages: [byTrigger('n1', 'Look')],
+  })
   expect(nextTopic(only, null)).toEqual({ kind: 'new', instead: null })
   // the trigger's turn on screen: the message still starts the user's first topic, and the trigger's is offered
   expect(nextTopic(only, 'n1')).toMatchObject({ kind: 'new', instead: { id: 'tn' } })
@@ -137,7 +171,11 @@ test('a topic is called by its title; a trigger’s by the trigger’s name, as 
 
 test('the chain of an agent: the agents it goes on from, oldest first, each with its turn', () => {
   const s = state()
-  expect(chainOf(s, 'coder3').map(link => [link.agent.id, link.turn])).toEqual([['coder1', 1], ['coder2', 2], ['coder3', 3]])
+  expect(chainOf(s, 'coder3').map(link => [link.agent.id, link.turn])).toEqual([
+    ['coder1', 1],
+    ['coder2', 2],
+    ['coder3', 3],
+  ])
   expect(chainOf(s, 'coder1').map(link => [link.agent.id, link.turn])).toEqual([['coder1', 1]])
   expect(chainOf(s, 'gone')).toEqual([])
   // "continues from the 10:42 message" is the link before it, by its message's time; said of a sub-agent only - a

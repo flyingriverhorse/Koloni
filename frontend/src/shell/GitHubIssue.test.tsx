@@ -10,12 +10,23 @@ import { GitHubIssue } from './GitHubIssue'
 afterEach(() => vi.restoreAllMocks())
 
 const URL_12 = 'https://github.com/owner/repo/issues/12'
-const KEPT = { attachment: { id: 'a1', conversation_id: 'c9', name: 'github-issue-12.md' } as Attachment, number: 12, url: URL_12 }
-const LISTED = { why_not: null, issues: [{ number: 12, title: 'Crash on start', url: URL_12, updated_at: '2026-11-01T10:00:00Z' }] }
+const KEPT = {
+  attachment: { id: 'a1', conversation_id: 'c9', name: 'github-issue-12.md' } as Attachment,
+  number: 12,
+  url: URL_12,
+}
+const LISTED = {
+  why_not: null,
+  issues: [{ number: 12, title: 'Crash on start', url: URL_12, updated_at: '2026-11-01T10:00:00Z' }],
+}
 
 async function opened(listed: unknown, kept: () => Promise<unknown> = async () => KEPT) {
   useApp.setState({ projectId: 'p', conv: null, drafts: {} })
-  const post = vi.spyOn(api, 'post').mockImplementation((path: string) => (path === '/projects/p/github-issues' ? Promise.resolve(listed) : kept()) as never)
+  const post = vi
+    .spyOn(api, 'post')
+    .mockImplementation(
+      (path: string) => (path === '/projects/p/github-issues' ? Promise.resolve(listed) : kept()) as never,
+    )
   const made = vi.spyOn(useApp.getState(), 'newConversation').mockImplementation(async () => {
     useApp.setState({ conv: convState({ conversation: { ...conversation, id: 'c9' } }) })
   })
@@ -41,7 +52,9 @@ test('an open issue picked from the list starts a chat in the project: the issue
 
 test('without gh it says why and how to install it, lists none, and an address can still be pasted', async () => {
   const { post, started } = await opened({ why_not: 'gh (GitHub’s CLI) is not installed', issues: [] })
-  expect(await screen.findByText(/No issues listed: gh \(GitHub’s CLI\) is not installed\./)).toHaveTextContent('gh auth login')
+  expect(await screen.findByText(/No issues listed: gh \(GitHub’s CLI\) is not installed\./)).toHaveTextContent(
+    'gh auth login',
+  )
   expect(screen.queryByRole('list', { name: 'Open issues' })).not.toBeInTheDocument()
   await userEvent.type(screen.getByLabelText('Issue address or #number'), URL_12)
   await userEvent.click(screen.getByRole('button', { name: 'Start the chat' }))
@@ -61,7 +74,10 @@ test('an address gh gives that is not github.com’s, or not one line, is left o
 })
 
 test('what the server refuses is said in the dialog with no message written, and the next try goes into the same new chat', async () => {
-  const kept = vi.fn().mockRejectedValueOnce(new ApiError(422, 'an issue is its number (#12) or its address')).mockResolvedValue(KEPT)
+  const kept = vi
+    .fn()
+    .mockRejectedValueOnce(new ApiError(422, 'an issue is its number (#12) or its address'))
+    .mockResolvedValue(KEPT)
   const { made, started } = await opened(LISTED, kept)
   await userEvent.type(screen.getByLabelText('Issue address or #number'), '--web')
   await userEvent.click(screen.getByRole('button', { name: 'Start the chat' }))

@@ -19,7 +19,18 @@ import {
 import '@xyflow/react/dist/style.css'
 import { useEffect, useRef, useState } from 'react'
 import { ApiError, errorText } from '../api/client'
-import type { CandidateModel, Provider, Recipe, RecipeDraft, RecipeGraph, RecipeStep, Recipes, Role, RoleModel, Team } from '../api/types'
+import type {
+  CandidateModel,
+  Provider,
+  Recipe,
+  RecipeDraft,
+  RecipeGraph,
+  RecipeStep,
+  Recipes,
+  Role,
+  RoleModel,
+  Team,
+} from '../api/types'
 import { type LoadModels, ModelNameInput } from '../models/ModelNameInput'
 import {
   agentsLine,
@@ -79,7 +90,11 @@ export interface RecipeActions {
   /** KOLONİ's recipes, the ready ones first, and with a folder its own `.koloni/recipes/`. */
   recipes: (projectId: string | null) => Promise<Recipes>
   /** A recipe changed where it is kept; a new one (null) in KOLONİ, or in the folder of `projectId`. */
-  saveRecipe: (recipe: Recipe | null, body: { name: string; graph: RecipeGraph }, projectId: string | null) => Promise<Recipe>
+  saveRecipe: (
+    recipe: Recipe | null,
+    body: { name: string; graph: RecipeGraph },
+    projectId: string | null,
+  ) => Promise<Recipe>
   deleteRecipe: (recipe: Recipe) => Promise<void>
   /** The Lead's model asked once to draw a sentence as a recipe: nothing is saved. */
   draftRecipe: (text: string) => Promise<RecipeDraft>
@@ -96,7 +111,17 @@ const recipeKey = (recipe: Recipe) => (recipe.project_id ? `folder:${recipe.file
 const opened = (recipe: Recipe): Draft => ({ name: recipe.name, graph: recipe.graph, from: recipe })
 
 const whoValue = (who: Who) =>
-  'experts' in who ? `experts:${who.experts}` : 'lead' in who ? 'lead' : 'role' in who ? `role:${who.role}` : 'candidates' in who ? `candidates:${who.candidates}` : 'team' in who ? `team:${who.team}` : 'room'
+  'experts' in who
+    ? `experts:${who.experts}`
+    : 'lead' in who
+      ? 'lead'
+      : 'role' in who
+        ? `role:${who.role}`
+        : 'candidates' in who
+          ? `candidates:${who.candidates}`
+          : 'team' in who
+            ? `team:${who.team}`
+            : 'room'
 const whoOf = (value: string): Who =>
   value === 'lead'
     ? { lead: true }
@@ -107,20 +132,28 @@ const whoOf = (value: string): Who =>
         : value.startsWith('candidates:')
           ? { candidates: value.slice(11), most: 2, models: 'auto' }
           : { team: value.slice(5) }
-const stagesOf = (team: Team | undefined) => team?.stages.map(stage => stage.name).join(', then ') ?? 'no such team here'
+const stagesOf = (team: Team | undefined) =>
+  team?.stages.map(stage => stage.name).join(', then ') ?? 'no such team here'
 /** A step's chip and the line under its name: who does it. */
 const whoLine = (who: Who, teams: Team[]): [string, string] =>
   'experts' in who
-    ? ['experts', who.experts === 'stale' ? 'the team’s experts whose guide is old: they learn' : who.experts === 'learned' ? 'the team’s experts that have learned, at once' : 'the team’s experts, at once']
+    ? [
+        'experts',
+        who.experts === 'stale'
+          ? 'the team’s experts whose guide is old: they learn'
+          : who.experts === 'learned'
+            ? 'the team’s experts that have learned, at once'
+            : 'the team’s experts, at once',
+      ]
     : 'room' in who
-    ? ['Room', who.room.join(' · ') || 'no roles yet']
-    : 'lead' in who
-      ? ['Orchestrator picks', 'the Orchestrator picks who']
-      : 'role' in who
-        ? ['role', who.most ? `${who.role}, up to ${who.most}` : who.role]
-        : 'candidates' in who
-          ? ['Candidates', candidatesLine(who)]
-          : ['team stages', `${who.team} → ${stagesOf(teams.find(team => team.name === who.team))}`]
+      ? ['Room', who.room.join(' · ') || 'no roles yet']
+      : 'lead' in who
+        ? ['Orchestrator picks', 'the Orchestrator picks who']
+        : 'role' in who
+          ? ['role', who.most ? `${who.role}, up to ${who.most}` : who.role]
+          : 'candidates' in who
+            ? ['Candidates', candidatesLine(who)]
+            : ['team stages', `${who.team} → ${stagesOf(teams.find(team => team.name === who.team))}`]
 
 interface NodeData extends Record<string, unknown> {
   /** "checks": the recipe's locked Checks step (S5c), after its last step(s). */
@@ -140,7 +173,8 @@ interface NodeData extends Record<string, unknown> {
 /** What no arrow leaves: an end. (The Checks step's way out to the end(s) is the board's own, never dragged from.) */
 const LAST = new Set<NodeData['kind']>(['end'])
 /** A group that goes on once its first branch is done says so on its way out - into the Checks step too, where it ends the recipe. */
-const firstDone = (graph: RecipeGraph, from: string) => graph.groups.some(group => group.id === from && group.wait === 'first')
+const firstDone = (graph: RecipeGraph, from: string) =>
+  graph.groups.some(group => group.id === from && group.wait === 'first')
 const FIRST_DONE = { label: 'first done', labelStyle: { fill: 'var(--text)', fontSize: 'var(--text-meta)' } }
 
 /** A part of the drawing: its name, who does it, and what the server said keeps it from running. One button to choose it. */
@@ -151,21 +185,45 @@ function RecipeNode({ id, data, width, height }: NodeProps<Node<NodeData>>) {
   const handlesChanged = useUpdateNodeInternals()
   useEffect(() => handlesChanged(id), [handlesChanged, id, inGroup, width, height])
   return (
-    <div className={`recipe-node recipe-${kind}${data.chosen ? ' recipe-node-chosen' : ''}${data.problem ? ' recipe-node-problem' : ''}${data.warn ? ' recipe-node-warned' : ''}`}>
+    <div
+      className={`recipe-node recipe-${kind}${data.chosen ? ' recipe-node-chosen' : ''}${data.problem ? ' recipe-node-problem' : ''}${data.warn ? ' recipe-node-warned' : ''}`}
+    >
       {/* An arrow is drawn from where it leaves only (B-85: one drawn from the right side's target went the wrong way); the
           loop's source over its target there, to be taken. */}
       {kind !== 'start' && <Handle type="target" position={Position.Top} id="in" isConnectableStart={false} />}
-      {!LAST.has(kind) && <Handle type="source" position={Position.Bottom} id="out" isConnectable={kind !== 'checks'} />}
+      {!LAST.has(kind) && (
+        <Handle type="source" position={Position.Bottom} id="out" isConnectable={kind !== 'checks'} />
+      )}
       {/* B-374: where its branches fork, under its name, and join, at its way out; the board's own, never dragged from. */}
       {kind === 'group' && (
         <>
-          <Handle type="source" position={Position.Bottom} id="fork" className="recipe-branch-handle" isConnectable={false} style={{ top: GROUP_HEAD, bottom: 'auto' }} />
-          <Handle type="target" position={Position.Top} id="join" className="recipe-branch-handle" isConnectable={false} style={{ top: 'auto', bottom: 0 }} />
+          <Handle
+            type="source"
+            position={Position.Bottom}
+            id="fork"
+            className="recipe-branch-handle"
+            isConnectable={false}
+            style={{ top: GROUP_HEAD, bottom: 'auto' }}
+          />
+          <Handle
+            type="target"
+            position={Position.Top}
+            id="join"
+            className="recipe-branch-handle"
+            isConnectable={false}
+            style={{ top: 'auto', bottom: 0 }}
+          />
         </>
       )}
       {(kind === 'step' || kind === 'group') && (
         <>
-          <Handle type="target" position={Position.Right} id="loop-in" className="recipe-loop-handle" isConnectableStart={false} />
+          <Handle
+            type="target"
+            position={Position.Right}
+            id="loop-in"
+            className="recipe-loop-handle"
+            isConnectableStart={false}
+          />
           <Handle type="source" position={Position.Right} id="loop-out" className="recipe-loop-handle" />
         </>
       )}
@@ -192,7 +250,10 @@ function LoopEdge({ sourceX, sourceY, targetX, targetY, markerEnd, label }: Edge
     <>
       <BaseEdge path={path} markerEnd={markerEnd} />
       <EdgeLabelRenderer>
-        <span className="recipe-loop-label" style={{ transform: `translate(${labelX}px, ${labelY}px) translateY(-50%)` }}>
+        <span
+          className="recipe-loop-label"
+          style={{ transform: `translate(${labelX}px, ${labelY}px) translateY(-50%)` }}
+        >
           {label}
         </span>
       </EdgeLabelRenderer>
@@ -225,7 +286,13 @@ function Board({ draft, roles, teams, models, chosen, problems, readOnly, onChoo
   // S5c, k-sira-016: the Checks step between the last step(s) and the end(s) - drawn by the board, never dragged.
   const places = boardPlaces(graph)
   // (A group comes before its steps: React Flow draws a child inside a parent it already has.)
-  const order = [START, ...graph.steps.filter(step => !step.group).map(step => step.id), ...graph.groups.map(group => group.id), ...graph.ends.map(end => end.id), CHECKS]
+  const order = [
+    START,
+    ...graph.steps.filter(step => !step.group).map(step => step.id),
+    ...graph.groups.map(group => group.id),
+    ...graph.ends.map(end => end.id),
+    CHECKS,
+  ]
   const width = useStore(state => state.width)
   const height = useStore(state => state.height)
   const left = Math.min(...order.map(id => places[id].x))
@@ -255,10 +322,21 @@ function Board({ draft, roles, teams, models, chosen, problems, readOnly, onChoo
   }, [zoom, left, right, top, width, height, flow, shape, size])
   // (A loop only back to a part on the way there, as the panel offers: one dropped further down is no loop.)
   const join = (from: string, to: string, handle: string | null) =>
-    handle !== 'loop-out' ? connect(graph, from, to) : loopTargets(graph, from).includes(to) ? setLoop(graph, from, to) : graph
+    handle !== 'loop-out'
+      ? connect(graph, from, to)
+      : loopTargets(graph, from).includes(to)
+        ? setLoop(graph, from, to)
+        : graph
   const data = (id: string): NodeData => {
     if (id === CHECKS)
-      return { kind: 'checks', title: 'Checks 🔒', sub: `always before the end · ${checksLine(graph.checks)}`, inGroup: false, chosen: chosen === CHECKS, onPick: () => onChoose(CHECKS) }
+      return {
+        kind: 'checks',
+        title: 'Checks 🔒',
+        sub: `always before the end · ${checksLine(graph.checks)}`,
+        inGroup: false,
+        chosen: chosen === CHECKS,
+        onPick: () => onChoose(CHECKS),
+      }
     const kind = kindOf(graph, id) ?? 'step'
     const step = graph.steps.find(one => one.id === id)
     const [chip, sub] = step ? whoLine(step.who, teams) : [undefined, undefined]
@@ -266,9 +344,12 @@ function Board({ draft, roles, teams, models, chosen, problems, readOnly, onChoo
       kind,
       title: nameOf(graph, id),
       chip,
-      sub: step ? `${sub}${step.ask_me ? ' · ask me to approve it' : ''}${step.when ? ' · only if the step before found a problem' : ''}` : sub,
+      sub: step
+        ? `${sub}${step.ask_me ? ' · ask me to approve it' : ''}${step.when ? ' · only if the step before found a problem' : ''}`
+        : sub,
       problem: problems[id]?.join(' · '),
-      warn: [...(step ? stepCannot(step.who, teams, roles, models) : []), ...(problems[id] ?? [])].join(' · ') || undefined,
+      warn:
+        [...(step ? stepCannot(step.who, teams, roles, models) : []), ...(problems[id] ?? [])].join(' · ') || undefined,
       inGroup: !!step?.group,
       chosen: chosen === id,
       onPick: () => onChoose(id),
@@ -277,30 +358,63 @@ function Board({ draft, roles, teams, models, chosen, problems, readOnly, onChoo
   // Each dragged where the user wants it (the start stays where the board puts it): a group with its steps, a group's step inside it.
   // (Given as measured too: a node made anew each render without it has its handles read again, and its arrows are not drawn
   // meanwhile - after a save, at times, never again till the recipe was reopened, B-85.)
-  const sized = (id: string) => ({ position: places[id], width: places[id].w, height: places[id].h, measured: { width: places[id].w, height: places[id].h } })
+  const sized = (id: string) => ({
+    position: places[id],
+    width: places[id].w,
+    height: places[id].h,
+    measured: { width: places[id].w, height: places[id].h },
+  })
   const nodes: Node<NodeData>[] = [
     ...order.map(id => ({ id, ...sized(id) })),
-    ...graph.steps.filter(step => step.group && places[step.group]).map(step => ({ id: step.id, parentId: step.group as string, extent: 'parent' as const, ...sized(step.id) })),
-  ].map(node => ({ ...node, type: 'recipe', data: data(node.id), draggable: !readOnly && node.id !== START && node.id !== CHECKS, selectable: false }))
+    ...graph.steps
+      .filter(step => step.group && places[step.group])
+      .map(step => ({ id: step.id, parentId: step.group as string, extent: 'parent' as const, ...sized(step.id) })),
+  ].map(node => ({
+    ...node,
+    type: 'recipe',
+    data: data(node.id),
+    draggable: !readOnly && node.id !== START && node.id !== CHECKS,
+    selectable: false,
+  }))
   const ends = new Set(graph.ends.map(end => end.id))
   const edges: Edge[] = [
     // (By place in the list: two arrows alike, which the server refuses, are still two edges.)
     // (An arrow into an end is drawn through the Checks step: last step → Checks → end.)
-    ...graph.arrows.flatMap((arrow, at) => (ends.has(arrow.to) ? [] : [{
-      id: `a${at}`,
-      source: arrow.from,
-      target: arrow.to,
-      sourceHandle: 'out',
-      targetHandle: 'in',
-      markerEnd: { type: MarkerType.ArrowClosed },
-      // (A group that goes on once its first branch is done says so on its way out.)
-      ...(firstDone(graph, arrow.from) && FIRST_DONE),
-    }])),
+    ...graph.arrows.flatMap((arrow, at) =>
+      ends.has(arrow.to)
+        ? []
+        : [
+            {
+              id: `a${at}`,
+              source: arrow.from,
+              target: arrow.to,
+              sourceHandle: 'out',
+              targetHandle: 'in',
+              markerEnd: { type: MarkerType.ArrowClosed },
+              // (A group that goes on once its first branch is done says so on its way out.)
+              ...(firstDone(graph, arrow.from) && FIRST_DONE),
+            },
+          ],
+    ),
     // B-374: a group's branches fork from under its name and join at its way out, so they read as running side by side.
     ...graph.groups.flatMap(group =>
       branches(graph, group.id).flatMap(line => [
-        { id: `fork-${line[0]}`, source: group.id, target: line[0], sourceHandle: 'fork', targetHandle: 'in', markerEnd: { type: MarkerType.ArrowClosed } },
-        { id: `join-${line[line.length - 1]}`, source: line[line.length - 1], target: group.id, sourceHandle: 'out', targetHandle: 'join', markerEnd: { type: MarkerType.ArrowClosed } },
+        {
+          id: `fork-${line[0]}`,
+          source: group.id,
+          target: line[0],
+          sourceHandle: 'fork',
+          targetHandle: 'in',
+          markerEnd: { type: MarkerType.ArrowClosed },
+        },
+        {
+          id: `join-${line[line.length - 1]}`,
+          source: line[line.length - 1],
+          target: group.id,
+          sourceHandle: 'out',
+          targetHandle: 'join',
+          markerEnd: { type: MarkerType.ArrowClosed },
+        },
       ]),
     ),
     // S5c: the Checks step joined to the recipe's last step(s) - it follows as a step is added after them.
@@ -314,7 +428,15 @@ function Board({ draft, roles, teams, models, chosen, problems, readOnly, onChoo
       markerEnd: { type: MarkerType.ArrowClosed },
       ...(firstDone(graph, from) && FIRST_DONE),
     })),
-    ...checkedEnds(graph).map(end => ({ id: `checks>${end}`, source: CHECKS, target: end, sourceHandle: 'out', targetHandle: 'in', className: 'recipe-checks-edge', markerEnd: { type: MarkerType.ArrowClosed } })),
+    ...checkedEnds(graph).map(end => ({
+      id: `checks>${end}`,
+      source: CHECKS,
+      target: end,
+      sourceHandle: 'out',
+      targetHandle: 'in',
+      className: 'recipe-checks-edge',
+      markerEnd: { type: MarkerType.ArrowClosed },
+    })),
     ...graph.loops.map((loop, at) => ({
       id: `l${at}`,
       source: loop.from,
@@ -343,7 +465,13 @@ function Board({ draft, roles, teams, models, chosen, problems, readOnly, onChoo
       deleteKeyCode={null}
       // A part dragged: where it is now, kept in the drawing (saved with it), in whole pixels.
       onNodesChange={changes => {
-        const moved = changes.reduce((now, one) => (one.type === 'position' && one.position ? place(now, one.id, { x: Math.round(one.position.x), y: Math.round(one.position.y) }) : now), graph)
+        const moved = changes.reduce(
+          (now, one) =>
+            one.type === 'position' && one.position
+              ? place(now, one.id, { x: Math.round(one.position.x), y: Math.round(one.position.y) })
+              : now,
+          graph,
+        )
         if (moved === graph) return
         dragged.current = true
         onChange(moved)
@@ -354,7 +482,10 @@ function Board({ draft, roles, teams, models, chosen, problems, readOnly, onChoo
       onConnectEnd={(event, state) => {
         if (state.isValid || !state.fromNode || state.fromHandle?.type !== 'source') return
         const at = 'changedTouches' in event ? event.changedTouches[0] : event
-        const to = document.elementFromPoint(at.clientX, at.clientY)?.closest('.react-flow__node')?.getAttribute('data-id')
+        const to = document
+          .elementFromPoint(at.clientX, at.clientY)
+          ?.closest('.react-flow__node')
+          ?.getAttribute('data-id')
         if (to && to !== state.fromNode.id) onChange(join(state.fromNode.id, to, state.fromHandle.id ?? null))
       }}
       // (A node React Flow sees no click on takes no pointer at all: its button would be under the pane.)
@@ -392,7 +523,12 @@ type OneRole = Extract<Who, { role: string }>
 type Candidates = Extract<Who, { candidates: string }>
 
 /** What a part is, under its name in the panel. */
-const partSaid = (kind: ReturnType<typeof kindOf>, at: number, graph: RecipeGraph, group: RecipeGraph['groups'][number] | undefined) =>
+const partSaid = (
+  kind: ReturnType<typeof kindOf>,
+  at: number,
+  graph: RecipeGraph,
+  group: RecipeGraph['groups'][number] | undefined,
+) =>
   kind === 'step'
     ? `Step ${at + 1} of ${graph.steps.length}`
     : group?.wait === 'first'
@@ -405,7 +541,10 @@ const partSaid = (kind: ReturnType<typeof kindOf>, at: number, graph: RecipeGrap
 
 /** Whether a Who (as its select's value) names what is here. */
 const knownWho = (who: string, roles: Role[], teams: Team[]) =>
-  who === 'lead' || who.startsWith('experts:') || roles.some(role => `role:${role.name}` === who || `candidates:${role.name}` === who) || teams.some(team => `team:${team.name}` === who)
+  who === 'lead' ||
+  who.startsWith('experts:') ||
+  roles.some(role => `role:${role.name}` === who || `candidates:${role.name}` === who) ||
+  teams.some(team => `team:${team.name}` === who)
 
 /** A step's Who where it is one role's or candidates of a role, and the candidates' models where the user picks each. */
 function whoShapes(step: RecipeStep | undefined) {
@@ -420,19 +559,32 @@ function whoShapes(step: RecipeStep | undefined) {
  * S5c (plan decision 16): the recipe's Checks step - locked, always its last: what KOLONİ checks before its work is done. It follows the
  * project's After a change unless set for this recipe: each part on or off, and its Fix rounds (0: check only).
  */
-function ChecksPanel({ graph, readOnly, onChange }: { graph: RecipeGraph; readOnly: boolean; onChange: (graph: RecipeGraph) => void }) {
+function ChecksPanel({
+  graph,
+  readOnly,
+  onChange,
+}: {
+  graph: RecipeGraph
+  readOnly: boolean
+  onChange: (graph: RecipeGraph) => void
+}) {
   const checks = graph.checks ?? null
   const set = (next: Checks | null) => onChange(setChecks(graph, next))
   return (
     <aside className="role-panel recipe-panel" aria-label="Recipe part Checks">
       <h3>Checks - the end of this recipe</h3>
-      <div className="muted">What KOLONİ checks before this recipe’s work is done. Always the step before the end: it can’t be removed.</div>
+      <div className="muted">
+        What KOLONİ checks before this recipe’s work is done. Always the step before the end: it can’t be removed.
+      </div>
       <fieldset className="recipe-rows" disabled={readOnly}>
         <label className="recipe-check">
           <input type="radio" name="recipe-checks" checked={!checks} onChange={() => set(null)} />
           <span>
             Follow the project
-            <small className="muted"> After a change in Settings › This project: Test and review, Tests only or Nothing</small>
+            <small className="muted">
+              {' '}
+              After a change in Settings › This project: Test and review, Tests only or Nothing
+            </small>
           </span>
         </label>
         <label className="recipe-check">
@@ -443,7 +595,11 @@ function ChecksPanel({ graph, readOnly, onChange }: { graph: RecipeGraph; readOn
           <>
             {CHECK_PARTS.map(([part, name, said]) => (
               <label key={part} className="recipe-check recipe-check-part">
-                <input type="checkbox" checked={checks[part]} onChange={e => set({ ...checks, [part]: e.target.checked })} />
+                <input
+                  type="checkbox"
+                  checked={checks[part]}
+                  onChange={e => set({ ...checks, [part]: e.target.checked })}
+                />
                 <span>
                   {name}
                   <small className="muted"> {said}</small>
@@ -452,7 +608,12 @@ function ChecksPanel({ graph, readOnly, onChange }: { graph: RecipeGraph; readOn
             ))}
             <label className="recipe-row">
               <span className="muted">Fix rounds</span>
-              <select className="input" aria-label="Fix rounds" value={checks.fix_rounds ?? ''} onChange={e => set({ ...checks, fix_rounds: roundsChosen(e.target.value) })}>
+              <select
+                className="input"
+                aria-label="Fix rounds"
+                value={checks.fix_rounds ?? ''}
+                onChange={e => set({ ...checks, fix_rounds: roundsChosen(e.target.value) })}
+              >
                 <option value="">the project’s</option>
                 <option value="until">until it passes</option>
                 <option value="0">0 - check only</option>
@@ -471,7 +632,19 @@ function ChecksPanel({ graph, readOnly, onChange }: { graph: RecipeGraph; readOn
 }
 
 /** The chosen part: who does it, what it gets, when it is done, what happens when it fails, where it goes on and loops back. */
-function PartPanel({ graph, id, roles, teams, problems, readOnly, onChange, onChoose, models, providers = [], onModels }: PanelProps) {
+function PartPanel({
+  graph,
+  id,
+  roles,
+  teams,
+  problems,
+  readOnly,
+  onChange,
+  onChoose,
+  models,
+  providers = [],
+  onModels,
+}: PanelProps) {
   const kind = kindOf(graph, id)
   const step = graph.steps.find(one => one.id === id)
   const group = graph.groups.find(one => one.id === id)
@@ -490,7 +663,8 @@ function PartPanel({ graph, id, roles, teams, problems, readOnly, onChange, onCh
   // B-388: one whose agent of this role works in the project itself (`step` false, as the spawn refuses it) cannot be a candidate.
   const runOn = candidates ? models?.[candidates.candidates]?.run_on : undefined
   const inCopy = (id: string) => runOn?.find(r => r.provider_id === id)?.step !== false
-  const setPick = (at: number, pick: CandidateModel) => candidates && picks && change({ who: { ...candidates, models: picks.map((one, i) => (i === at ? pick : one)) } })
+  const setPick = (at: number, pick: CandidateModel) =>
+    candidates && picks && change({ who: { ...candidates, models: picks.map((one, i) => (i === at ? pick : one)) } })
 
   /** A Room step (slice 84e): 2 to 6 roles that meet in one room; one named that is not here is kept on show. */
   const roomRow = (room: string[]) => (
@@ -499,7 +673,13 @@ function PartPanel({ graph, id, roles, teams, problems, readOnly, onChange, onCh
       <div className="recipe-nexts">
         {[...new Set([...roles.map(role => role.name), ...room])].map(name => (
           <label key={name} className="choice">
-            <input type="checkbox" checked={room.includes(name)} onChange={e => change({ who: { room: e.target.checked ? [...room, name] : room.filter(one => one !== name) } })} />
+            <input
+              type="checkbox"
+              checked={room.includes(name)}
+              onChange={e =>
+                change({ who: { room: e.target.checked ? [...room, name] : room.filter(one => one !== name) } })
+              }
+            />
             <span>{roles.some(role => role.name === name) ? name : `${name} (not here)`}</span>
           </label>
         ))}
@@ -584,7 +764,9 @@ function PartPanel({ graph, id, roles, teams, problems, readOnly, onChange, onCh
               value={pick.provider_id}
               onChange={e => setPick(at, { provider_id: e.target.value, model_id: null })}
             >
-              {!guided.some(p => p.id === pick.provider_id) && <option value={pick.provider_id}>not one agents may use</option>}
+              {!guided.some(p => p.id === pick.provider_id) && (
+                <option value={pick.provider_id}>not one agents may use</option>
+              )}
               {guided.map(p => (
                 <option key={p.id} value={p.id} disabled={!inCopy(p.id)}>
                   {inCopy(p.id) ? p.name : `${p.name} (can’t run in a recipe’s copy)`}
@@ -601,14 +783,23 @@ function PartPanel({ graph, id, roles, teams, problems, readOnly, onChange, onCh
               onChange={value => setPick(at, { ...pick, model_id: value.trim() || null })}
             />
             {picks.length > 1 && (
-              <button type="button" className="btn btn-small" aria-label={`Remove candidate ${at + 1}’s model`} onClick={() => change({ who: { ...candidates, models: picks.filter((_, i) => i !== at) } })}>
+              <button
+                type="button"
+                className="btn btn-small"
+                aria-label={`Remove candidate ${at + 1}’s model`}
+                onClick={() => change({ who: { ...candidates, models: picks.filter((_, i) => i !== at) } })}
+              >
                 ×
               </button>
             )}
           </span>
         ))}
         {picks.length < candidates.most && (
-          <button type="button" className="btn btn-small" onClick={() => change({ who: { ...candidates, models: [...picks, picks[picks.length - 1]] } })}>
+          <button
+            type="button"
+            className="btn btn-small"
+            onClick={() => change({ who: { ...candidates, models: [...picks, picks[picks.length - 1]] } })}
+          >
             + Candidate {picks.length + 1}
           </button>
         )}
@@ -629,7 +820,13 @@ function PartPanel({ graph, id, roles, teams, problems, readOnly, onChange, onCh
           onChange={e => {
             const most = Number(e.target.value)
             // (Your list holds one model a candidate at most: one past it is cut, or the save is refused.)
-            change({ who: { ...candidates, most, models: Array.isArray(candidates.models) ? candidates.models.slice(0, most) : candidates.models } })
+            change({
+              who: {
+                ...candidates,
+                most,
+                models: Array.isArray(candidates.models) ? candidates.models.slice(0, most) : candidates.models,
+              },
+            })
           }}
         >
           {[2, 3, 4, 5].map(n => (
@@ -650,7 +847,14 @@ function PartPanel({ graph, id, roles, teams, problems, readOnly, onChange, onCh
           aria-label="Target score"
           placeholder="none: every round runs"
           value={candidates.target ?? ''}
-          onChange={e => change({ who: { ...candidates, target: e.target.value === '' ? null : Math.min(100, Math.max(0, Math.round(Number(e.target.value)))) } })}
+          onChange={e =>
+            change({
+              who: {
+                ...candidates,
+                target: e.target.value === '' ? null : Math.min(100, Math.max(0, Math.round(Number(e.target.value)))),
+              },
+            })
+          }
         />
       </label>
       {/* K-evrim-model: whose the candidates' models are - the Lead's to pick (as nothing is said, "auto" is left out of the file), the role's, or yours. */}
@@ -662,7 +866,15 @@ function PartPanel({ graph, id, roles, teams, problems, readOnly, onChange, onCh
           value={Array.isArray(candidates.models) ? 'each' : (candidates.models ?? 'auto')}
           onChange={e => {
             const how = e.target.value
-            change({ who: { ...candidates, models: how === 'each' ? [{ provider_id: (guided.find(p => inCopy(p.id)) ?? guided[0])?.id ?? '', model_id: null }] : (how as 'auto' | 'same') } })
+            change({
+              who: {
+                ...candidates,
+                models:
+                  how === 'each'
+                    ? [{ provider_id: (guided.find(p => inCopy(p.id)) ?? guided[0])?.id ?? '', model_id: null }]
+                    : (how as 'auto' | 'same'),
+              },
+            })
           }}
         >
           <option value="auto">Auto, the Lead picks</option>
@@ -689,14 +901,24 @@ function PartPanel({ graph, id, roles, teams, problems, readOnly, onChange, onCh
       </div>
       <label className="recipe-row">
         <span className="muted">Done when</span>
-        <select className="input" value={step.done_when} onChange={e => change({ done_when: e.target.value as RecipeStep['done_when'] })}>
-          <option value="done">{room ? 'the room ends: all say done, or its time or budget is up' : 'its agents say done'}</option>
+        <select
+          className="input"
+          value={step.done_when}
+          onChange={e => change({ done_when: e.target.value as RecipeStep['done_when'] })}
+        >
+          <option value="done">
+            {room ? 'the room ends: all say done, or its time or budget is up' : 'its agents say done'}
+          </option>
           <option value="no_findings">no finding is left (a review)</option>
         </select>
       </label>
       <label className="recipe-row">
         <span className="muted">If it fails</span>
-        <select className="input" value={step.if_fails} onChange={e => change({ if_fails: e.target.value as RecipeStep['if_fails'] })}>
+        <select
+          className="input"
+          value={step.if_fails}
+          onChange={e => change({ if_fails: e.target.value as RecipeStep['if_fails'] })}
+        >
           <option value="ask">ask me</option>
           <option value="stop">stop</option>
         </select>
@@ -706,14 +928,23 @@ function PartPanel({ graph, id, roles, teams, problems, readOnly, onChange, onCh
         <span>Ask me to approve its work before it goes on</span>
       </label>
       <label className="choice recipe-row-wide">
-        <input type="checkbox" checked={!!step.when} onChange={e => change({ when: e.target.checked ? 'problem' : null })} />
+        <input
+          type="checkbox"
+          checked={!!step.when}
+          onChange={e => change({ when: e.target.checked ? 'problem' : null })}
+        />
         <span>Only if the step before found a problem</span>
       </label>
       {/* (A room meets on its own, never at once with other steps.) */}
       {!room && (
         <label className="recipe-row">
           <span className="muted">At once</span>
-          <select className="input" aria-label="At the same time as" value={step.group ?? ''} onChange={e => change({ group: e.target.value || null })}>
+          <select
+            className="input"
+            aria-label="At the same time as"
+            value={step.group ?? ''}
+            onChange={e => change({ group: e.target.value || null })}
+          >
             <option value="">no: on its own</option>
             {graph.groups.map(one => (
               <option key={one.id} value={one.id}>
@@ -738,12 +969,22 @@ function PartPanel({ graph, id, roles, teams, problems, readOnly, onChange, onCh
         {nexts.map(next => (
           <span key={next} className="recipe-next">
             {nameOf(graph, next)}
-            <button type="button" className="link-btn" aria-label={`No arrow to ${nameOf(graph, next)}`} onClick={() => onChange(disconnect(graph, id, next))}>
+            <button
+              type="button"
+              className="link-btn"
+              aria-label={`No arrow to ${nameOf(graph, next)}`}
+              onClick={() => onChange(disconnect(graph, id, next))}
+            >
               remove
             </button>
           </span>
         ))}
-        <select className="input" aria-label="Add an arrow to" value="" onChange={e => e.target.value && onChange(connect(graph, id, e.target.value))}>
+        <select
+          className="input"
+          aria-label="Add an arrow to"
+          value=""
+          onChange={e => e.target.value && onChange(connect(graph, id, e.target.value))}
+        >
           <option value="">+ an arrow to…</option>
           {targets(graph, id).map(next => (
             <option key={next} value={next}>
@@ -760,7 +1001,12 @@ function PartPanel({ graph, id, roles, teams, problems, readOnly, onChange, onCh
     <div className="recipe-row">
       <span className="muted">Loops back</span>
       <div className="recipe-nexts">
-        <select className="input" aria-label="Loops back to" value={loop?.to ?? ''} onChange={e => onChange(setLoop(graph, id, e.target.value || null))}>
+        <select
+          className="input"
+          aria-label="Loops back to"
+          value={loop?.to ?? ''}
+          onChange={e => onChange(setLoop(graph, id, e.target.value || null))}
+        >
           <option value="">no loop</option>
           {/* Back to a part on the way here; one drawn otherwise (a model's draft) is kept on show, the server says why. */}
           {[...new Set([...loopTargets(graph, id), ...(loop ? [loop.to] : [])])].map(back => (
@@ -770,7 +1016,12 @@ function PartPanel({ graph, id, roles, teams, problems, readOnly, onChange, onCh
           ))}
         </select>
         {loop && (
-          <select className="input" aria-label="At most" value={loop.rounds ?? ''} onChange={e => onChange(setLoop(graph, id, loop.to, e.target.value ? Number(e.target.value) : null))}>
+          <select
+            className="input"
+            aria-label="At most"
+            value={loop.rounds ?? ''}
+            onChange={e => onChange(setLoop(graph, id, loop.to, e.target.value ? Number(e.target.value) : null))}
+          >
             {!loop.rounds && <option value="">no round limit</option>}
             {[1, 2, 3, 4, 5].map(n => (
               <option key={n} value={n}>
@@ -789,14 +1040,26 @@ function PartPanel({ graph, id, roles, teams, problems, readOnly, onChange, onCh
       {(step || group) && (
         <label className="recipe-row">
           <span className="muted">Name</span>
-          <input className="input" value={name} maxLength={60} onChange={e => onChange(step ? changeStep(graph, id, { name: e.target.value }) : renameGroup(graph, id, e.target.value))} />
+          <input
+            className="input"
+            value={name}
+            maxLength={60}
+            onChange={e =>
+              onChange(step ? changeStep(graph, id, { name: e.target.value }) : renameGroup(graph, id, e.target.value))
+            }
+          />
         </label>
       )}
       {group && (
         // K-tarif-kol: its branches - its steps joined by arrows inside it - all, or the first one done.
         <label className="recipe-row">
           <span className="muted">Wait for</span>
-          <select className="input" aria-label="Wait for" value={group.wait ?? 'all'} onChange={e => onChange(waitFor(graph, id, e.target.value as typeof group.wait))}>
+          <select
+            className="input"
+            aria-label="Wait for"
+            value={group.wait ?? 'all'}
+            onChange={e => onChange(waitFor(graph, id, e.target.value as typeof group.wait))}
+          >
             <option value="all">all branches</option>
             <option value="first">the first one done</option>
           </select>
@@ -806,7 +1069,12 @@ function PartPanel({ graph, id, roles, teams, problems, readOnly, onChange, onCh
       {end && (
         <label className="recipe-row">
           <span className="muted">Then</span>
-          <select className="input" aria-label="How it ends" value={end.then} onChange={e => onChange(changeEnd(graph, id, e.target.value as End['then']))}>
+          <select
+            className="input"
+            aria-label="How it ends"
+            value={end.then}
+            onChange={e => onChange(changeEnd(graph, id, e.target.value as End['then']))}
+          >
             {Object.entries(END_NAMES).map(([then, words]) => (
               <option key={then} value={then}>
                 {words}
@@ -870,7 +1138,10 @@ interface Props {
 function refusedOf(err: unknown, drawn: RecipeGraph) {
   // The server says what keeps it from running, at the part it is about: shown there. What the request's own check refused (an
   // empty name, B-108) is said in its words too - not as "graph.steps.0.name: Value error, …".
-  const said = err instanceof ApiError && Array.isArray(err.raw) ? (err.raw as { at?: string | null; msg?: string; loc?: unknown[] }[]) : []
+  const said =
+    err instanceof ApiError && Array.isArray(err.raw)
+      ? (err.raw as { at?: string | null; msg?: string; loc?: unknown[] }[])
+      : []
   const plain = (msg: unknown) => {
     const words = String(msg ?? '').replace(/^Value error, /, '')
     return words.charAt(0).toUpperCase() + words.slice(1)
@@ -878,28 +1149,45 @@ function refusedOf(err: unknown, drawn: RecipeGraph) {
   const raw = said.map(one => {
     const [body, graph, list, index, field] = one.loc ?? []
     if (body === 'body' && graph === 'name') return { at: null, msg: plain(one.msg) }
-    const of = body === 'body' && graph === 'graph' && (list === 'steps' || list === 'groups') ? drawn[list][index as number] : undefined
+    const of =
+      body === 'body' && graph === 'graph' && (list === 'steps' || list === 'groups')
+        ? drawn[list][index as number]
+        : undefined
     if (!of) return one
     // (A Who is one of four shapes, and the check says each it is not: one line for them all.)
-    return { at: of.id, msg: field === 'who' ? 'Who does it is not one the board draws: choose it again' : plain(one.msg) }
+    return {
+      at: of.id,
+      msg: field === 'who' ? 'Who does it is not one the board draws: choose it again' : plain(one.msg),
+    }
   })
   const at = raw.filter(one => typeof one.at === 'string')
   // (Anything else the check refused is said where the request names it.)
-  const whole = [...new Set(raw.filter(one => !one.at).map(one => ('at' in one ? String(one.msg) : `${(one.loc ?? []).filter(part => part !== 'body').join('.')}: ${one.msg}`)))]
+  const whole = [
+    ...new Set(
+      raw
+        .filter(one => !one.at)
+        .map(one =>
+          'at' in one ? String(one.msg) : `${(one.loc ?? []).filter(part => part !== 'body').join('.')}: ${one.msg}`,
+        ),
+    ),
+  ]
   return { at, whole }
 }
 
 /** What a refused save says of each part, by the part's id: each thing once. */
 function byPart(at: ReturnType<typeof refusedOf>['at']) {
   const found: Record<string, string[]> = {}
-  for (const one of at) if (!found[one.at as string]?.includes(String(one.msg))) (found[one.at as string] ??= []).push(String(one.msg))
+  for (const one of at)
+    if (!found[one.at as string]?.includes(String(one.msg))) (found[one.at as string] ??= []).push(String(one.msg))
   return found
 }
 
-const notYet = (things: number) => `It cannot run yet: ${things === 1 ? 'one part says why' : `${things} things to change, each at its part`}.`
+const notYet = (things: number) =>
+  `It cannot run yet: ${things === 1 ? 'one part says why' : `${things} things to change, each at its part`}.`
 
 /** Why "Make it a recipe" cannot ask: what the server says, or that the list is not read yet; null when it can. */
-const whyOf = (list: Recipes | string | null) => (list && typeof list !== 'string' ? list.writer.why : 'The recipes are not read yet.')
+const whyOf = (list: Recipes | string | null) =>
+  list && typeof list !== 'string' ? list.writer.why : 'The recipes are not read yet.'
 
 /** The note under "Or write it": whom it asks first, as the server names it ("Balanced: Local · qwen3"). */
 const noteOf = (list: Recipes | string | null) => {
@@ -963,9 +1251,18 @@ export function RecipesTab({ roles, teams, list, projectId, actions, reload, mod
     setError(null)
     setSaid(null)
     try {
-      const saved = await actions.saveRecipe(draft.from, { name: draft.name, graph: draft.graph }, inFolder && projectId ? projectId : null)
+      const saved = await actions.saveRecipe(
+        draft.from,
+        { name: draft.name, graph: draft.graph },
+        inFolder && projectId ? projectId : null,
+      )
       reload()
-      open(opened(saved), recipeKey(saved), saved.project_id && !draft.from ? 'Saved in .koloni/ in this folder (kept in git).' : 'Saved.', false)
+      open(
+        opened(saved),
+        recipeKey(saved),
+        saved.project_id && !draft.from ? 'Saved in .koloni/ in this folder (kept in git).' : 'Saved.',
+        false,
+      )
     } catch (err) {
       const { at, whole } = refusedOf(err, draft.graph)
       if (at.length) {
@@ -982,7 +1279,11 @@ export function RecipesTab({ roles, teams, list, projectId, actions, reload, mod
     setError(null)
     try {
       const drawn = await actions.draftRecipe(sentence.trim())
-      open({ name: drawn.name, graph: drawn.graph, from: null }, null, `Drawn by ${drawn.provider_name}${drawn.model_id ? ` (${drawn.model_id})` : ''}: change it as you like, then save it. Nothing is saved yet.`)
+      open(
+        { name: drawn.name, graph: drawn.graph, from: null },
+        null,
+        `Drawn by ${drawn.provider_name}${drawn.model_id ? ` (${drawn.model_id})` : ''}: change it as you like, then save it. Nothing is saved yet.`,
+      )
     } catch (err) {
       setError(errorText(err))
     } finally {
@@ -1012,13 +1313,21 @@ export function RecipesTab({ roles, teams, list, projectId, actions, reload, mod
           The recipes could not be read: {list}
         </p>
       )}
-      {list && typeof list !== 'string' && list.broken.map(line => (
-        <p key={line} role="alert" className="alert">
-          {line}
-        </p>
-      ))}
+      {list &&
+        typeof list !== 'string' &&
+        list.broken.map(line => (
+          <p key={line} role="alert" className="alert">
+            {line}
+          </p>
+        ))}
       {recipes.map(recipe => (
-        <button key={recipeKey(recipe)} type="button" className={`recipe-item${chosen === recipeKey(recipe) ? ' recipe-item-chosen' : ''}`} aria-pressed={chosen === recipeKey(recipe)} onClick={() => open(opened(recipe), recipeKey(recipe))}>
+        <button
+          key={recipeKey(recipe)}
+          type="button"
+          className={`recipe-item${chosen === recipeKey(recipe) ? ' recipe-item-chosen' : ''}`}
+          aria-pressed={chosen === recipeKey(recipe)}
+          onClick={() => open(opened(recipe), recipeKey(recipe))}
+        >
           <b>{recipe.name}</b>
           <span className="muted">
             {summary(recipe.graph)}
@@ -1026,7 +1335,11 @@ export function RecipesTab({ roles, teams, list, projectId, actions, reload, mod
           </span>
         </button>
       ))}
-      <button type="button" className="agents-add" onClick={() => open({ name: 'New recipe', graph: emptyGraph(), from: null }, null)}>
+      <button
+        type="button"
+        className="agents-add"
+        onClick={() => open({ name: 'New recipe', graph: emptyGraph(), from: null }, null)}
+      >
         + Draw a new recipe
       </button>
       <div className="recipe-write">
@@ -1040,7 +1353,12 @@ export function RecipesTab({ roles, teams, list, projectId, actions, reload, mod
           value={sentence}
           onChange={e => setSentence(e.target.value)}
         />
-        <button type="button" className="btn btn-small" disabled={!sentence.trim() || !!why || writing || !actions} onClick={() => void write()}>
+        <button
+          type="button"
+          className="btn btn-small"
+          disabled={!sentence.trim() || !!why || writing || !actions}
+          onClick={() => void write()}
+        >
           {writing ? 'Asking the model…' : 'Make it a recipe'}
         </button>
         <span className="muted recipe-note">{why ?? noteOf(list)}</span>
@@ -1051,9 +1369,21 @@ export function RecipesTab({ roles, teams, list, projectId, actions, reload, mod
   /** Over the board: its name, where a new one is kept, Delete (said again first), Copy it and Save recipe. */
   const head = (draft: Draft) => (
     <div className="recipe-head">
-      <input className="input recipe-name" aria-label="Recipe’s name" maxLength={60} value={draft.name} disabled={readOnly} onChange={e => setDraft({ ...draft, name: e.target.value })} />
+      <input
+        className="input recipe-name"
+        aria-label="Recipe’s name"
+        maxLength={60}
+        value={draft.name}
+        disabled={readOnly}
+        onChange={e => setDraft({ ...draft, name: e.target.value })}
+      />
       {draft.from === null && projectId && (
-        <select className="input" aria-label="Where it is kept" value={inFolder ? 'folder' : 'koloni'} onChange={e => setInFolder(e.target.value === 'folder')}>
+        <select
+          className="input"
+          aria-label="Where it is kept"
+          value={inFolder ? 'folder' : 'koloni'}
+          onChange={e => setInFolder(e.target.value === 'folder')}
+        >
           <option value="koloni">Kept in KOLONİ, for every folder</option>
           <option value="folder">Kept in this folder’s .koloni/recipes (in git)</option>
         </select>
@@ -1063,9 +1393,16 @@ export function RecipesTab({ roles, teams, list, projectId, actions, reload, mod
       {draft.from && !draft.from.ready && deleting ? (
         <span className="agents-new-team">
           <span>
-            Delete {draft.from.name}? {draft.from.project_id ? 'Its file in .koloni/recipes goes too.' : 'A team that runs by it will have no default recipe.'}
+            Delete {draft.from.name}?{' '}
+            {draft.from.project_id
+              ? 'Its file in .koloni/recipes goes too.'
+              : 'A team that runs by it will have no default recipe.'}
           </span>
-          <button type="button" className="btn btn-small btn-danger" onClick={() => draft.from && void deleteIt(draft.from)}>
+          <button
+            type="button"
+            className="btn btn-small btn-danger"
+            onClick={() => draft.from && void deleteIt(draft.from)}
+          >
             Delete recipe
           </button>
           <button type="button" className="btn btn-small" onClick={() => setDeleting(false)}>
@@ -1080,7 +1417,17 @@ export function RecipesTab({ roles, teams, list, projectId, actions, reload, mod
           </button>
         )
       )}
-      <button type="button" className="btn btn-small" onClick={() => open({ name: `${draft.name} copy`, graph: draft.graph, from: null }, null, readOnly ? 'A copy of a ready recipe: yours to change.' : null)}>
+      <button
+        type="button"
+        className="btn btn-small"
+        onClick={() =>
+          open(
+            { name: `${draft.name} copy`, graph: draft.graph, from: null },
+            null,
+            readOnly ? 'A copy of a ready recipe: yours to change.' : null,
+          )
+        }
+      >
         Copy it
       </button>
       {!readOnly && (
@@ -1106,37 +1453,78 @@ export function RecipesTab({ roles, teams, list, projectId, actions, reload, mod
         </span>
         {/* The tools hang a new part after the chosen one (inside a chosen group); over the board, never on a part. */}
         <div className="recipe-tools" role="toolbar" aria-label="Draw">
-          <button type="button" className="recipe-tool" disabled={readOnly} onClick={() => add(addStep(draft.graph, chosenPart))}>
+          <button
+            type="button"
+            className="recipe-tool"
+            disabled={readOnly}
+            onClick={() => add(addStep(draft.graph, chosenPart))}
+          >
             + Step
           </button>
-          <button type="button" className="recipe-tool" disabled={readOnly} onClick={() => add(addGroup(draft.graph, chosenPart))}>
+          <button
+            type="button"
+            className="recipe-tool"
+            disabled={readOnly}
+            onClick={() => add(addGroup(draft.graph, chosenPart))}
+          >
             + All at once
           </button>
           <button
             type="button"
             className="recipe-tool"
             title="From the chosen step back to the one before it, with its findings"
-            disabled={readOnly || !chosenPart || !fromGraph.some(id => kindOf(draft.graph, id) === 'step' || kindOf(draft.graph, id) === 'group')}
+            disabled={
+              readOnly ||
+              !chosenPart ||
+              !fromGraph.some(id => kindOf(draft.graph, id) === 'step' || kindOf(draft.graph, id) === 'group')
+            }
             onClick={() => chosenPart && change(loopBack(draft.graph, chosenPart))}
           >
             + Loop back
           </button>
-          <button type="button" className="recipe-tool" title="Its roles meet in one room" disabled={readOnly} onClick={() => add(addRoom(draft.graph, chosenPart))}>
+          <button
+            type="button"
+            className="recipe-tool"
+            title="Its roles meet in one room"
+            disabled={readOnly}
+            onClick={() => add(addRoom(draft.graph, chosenPart))}
+          >
             + Room
           </button>
-          <button type="button" className="recipe-tool" disabled={readOnly} onClick={() => add(addEnd(draft.graph, chosenPart))}>
+          <button
+            type="button"
+            className="recipe-tool"
+            disabled={readOnly}
+            onClick={() => add(addEnd(draft.graph, chosenPart))}
+          >
             + Ask me
           </button>
-          <button type="button" className="recipe-tool" title="Every part back where the board puts it" disabled={readOnly} onClick={() => {
+          <button
+            type="button"
+            className="recipe-tool"
+            title="Every part back where the board puts it"
+            disabled={readOnly}
+            onClick={() => {
               change(tidy(draft.graph))
               setOpens(n => n + 1) // (seen afresh, from its top: the dragged parts held it elsewhere)
-            }}>
+            }}
+          >
             Tidy up
           </button>
         </div>
         <div className="recipe-flow">
           <ReactFlowProvider key={opens}>
-            <Board draft={draft} roles={roles} teams={teams} models={models} chosen={part === CHECKS ? CHECKS : chosenPart} problems={problems} readOnly={readOnly} onChoose={setPart} onChange={change} />
+            <Board
+              draft={draft}
+              roles={roles}
+              teams={teams}
+              models={models}
+              chosen={part === CHECKS ? CHECKS : chosenPart}
+              problems={problems}
+              readOnly={readOnly}
+              onChoose={setPart}
+              onChange={change}
+            />
           </ReactFlowProvider>
         </div>
       </>
@@ -1147,7 +1535,19 @@ export function RecipesTab({ roles, teams, list, projectId, actions, reload, mod
     draft && part === CHECKS ? (
       <ChecksPanel graph={draft.graph} readOnly={readOnly} onChange={change} />
     ) : draft && chosenPart ? (
-      <PartPanel graph={draft.graph} id={chosenPart} roles={roles} teams={teams} problems={problems[chosenPart] ?? []} readOnly={readOnly} onChange={change} onChoose={setPart} models={models} providers={providers} onModels={onModels} />
+      <PartPanel
+        graph={draft.graph}
+        id={chosenPart}
+        roles={roles}
+        teams={teams}
+        problems={problems[chosenPart] ?? []}
+        readOnly={readOnly}
+        onChange={change}
+        onChoose={setPart}
+        models={models}
+        providers={providers}
+        onModels={onModels}
+      />
     ) : (
       <aside className="role-panel recipe-panel" aria-label="Recipe part">
         <p className="muted">Choose a part of the drawing to see who does it, what it gets and where it goes on.</p>
@@ -1157,9 +1557,7 @@ export function RecipesTab({ roles, teams, list, projectId, actions, reload, mod
   return (
     <>
       {listPane()}
-      <div className="recipe-board">
-        {board()}
-      </div>
+      <div className="recipe-board">{board()}</div>
       {side()}
     </>
   )

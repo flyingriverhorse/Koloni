@@ -14,7 +14,9 @@ export default defineConfig({
   use: { baseURL: APP_URL, trace: 'retain-on-failure' },
   reporter: [[process.env.CI ? 'dot' : 'list'], ['./e2e/keep-failures.mjs']],
   // No real speakers: a sleeping wireless headset held audio and its 'ended' never came (32e).
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], launchOptions: { args: ['--disable-audio-output'] } } }],
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'], launchOptions: { args: ['--disable-audio-output'] } } },
+  ],
   webServer: [
     {
       command: 'node e2e/fake-model.mjs',

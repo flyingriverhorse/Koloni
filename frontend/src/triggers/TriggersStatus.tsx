@@ -41,7 +41,13 @@ export function TriggersStatus({ triggers, paused, held = false, onPause, onOpen
         {paused ? 'Triggers paused' : `${on} ${on === 1 ? 'trigger' : 'triggers'} ${held ? '· held' : 'on'}`}
       </button>
       {paused ? (
-        <button type="button" className="btn" disabled={busy} title="Let the triggers run again" onClick={() => void pause(false)}>
+        <button
+          type="button"
+          className="btn"
+          disabled={busy}
+          title="Let the triggers run again"
+          onClick={() => void pause(false)}
+        >
           <Play size={13} />
           Resume
         </button>

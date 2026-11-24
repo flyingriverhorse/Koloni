@@ -47,14 +47,25 @@ const week = (used: number, source: string | null): Limits => ({
   windows: [{ name: 'seven_day', minutes: 10080, used_percent: used, resets_at: null, stale: false }],
   credits: null,
 })
-const SETUP = { command: '"C:/KOLONİ/.venv/Scripts/python.exe" "C:/KOLONİ/scripts/koloni_statusline.py" --koloni http://127.0.0.1:8790 --key k3y', script: 'C:\\KOLONİ\\scripts\\koloni_statusline.py' }
+const SETUP = {
+  command:
+    '"C:/KOLONİ/.venv/Scripts/python.exe" "C:/KOLONİ/scripts/koloni_statusline.py" --koloni http://127.0.0.1:8790 --key k3y',
+  script: 'C:\\KOLONİ\\scripts\\koloni_statusline.py',
+}
 
 afterEach(() => vi.unstubAllGlobals())
 
 test('a reading says where Claude Code said it after how long ago it was read', () => {
-  expect(readingOf(claude, { limits: week(93, 'your Claude Code session') })).toMatchObject({ value: '7%', more: 'read 2 h ago, from your Claude Code session' })
-  expect(readingOf(claude, { limits: week(93, 'a short run to read it') })).toMatchObject({ more: 'read 2 h ago, in a short run to read it' })
-  expect(readingOf(claude, { limits: week(93, 'its last run') })).toMatchObject({ more: 'read 2 h ago, in its last run here' })
+  expect(readingOf(claude, { limits: week(93, 'your Claude Code session') })).toMatchObject({
+    value: '7%',
+    more: 'read 2 h ago, from your Claude Code session',
+  })
+  expect(readingOf(claude, { limits: week(93, 'a short run to read it') })).toMatchObject({
+    more: 'read 2 h ago, in a short run to read it',
+  })
+  expect(readingOf(claude, { limits: week(93, 'its last run') })).toMatchObject({
+    more: 'read 2 h ago, in its last run here',
+  })
 })
 
 test('Claude Code’s card reads its plan now in one short turn, says so while it reads, and a failure keeps the last reading', async () => {
@@ -83,7 +94,11 @@ test('Claude Code’s card reads its plan now in one short turn, says so while i
   expect(read).toHaveTextContent('Read now')
   fails = true
   await userEvent.click(read)
-  await waitFor(() => expect(card).toHaveTextContent(/7%\s*left this week · read 2 h ago\s*not read now: Claude Code ended without saying its limits/))
+  await waitFor(() =>
+    expect(card).toHaveTextContent(
+      /7%\s*left this week · read 2 h ago\s*not read now: Claude Code ended without saying its limits/,
+    ),
+  )
 })
 
 test('the Claude Code window says how its own sessions keep the reading fresh: the setting to add, to copy; KOLONİ writes nothing', async () => {
@@ -93,9 +108,13 @@ test('the Claude Code window says how its own sessions keep the reading fresh: t
   const part = screen.getByRole('region', { name: 'Keep it fresh from your Claude Code sessions' })
   const line = `"statusLine": ${JSON.stringify({ type: 'command', command: SETUP.command })}`
   await waitFor(() => expect(part).toHaveTextContent(line))
-  expect(part).toHaveTextContent('Add this to your Claude Code settings yourself: open your Claude Code settings file, %USERPROFILE%\\.claude\\settings.json')
+  expect(part).toHaveTextContent(
+    'Add this to your Claude Code settings yourself: open your Claude Code settings file, %USERPROFILE%\\.claude\\settings.json',
+  )
   expect(part).toHaveTextContent('Claude Code picks it up on its next refresh')
-  expect(part).toHaveTextContent('Already have a status line? End the command with … --then \\"your command\\""}; on Windows it runs under cmd.')
+  expect(part).toHaveTextContent(
+    'Already have a status line? End the command with … --then \\"your command\\""}; on Windows it runs under cmd.',
+  )
   const copied = vi.fn().mockResolvedValue(undefined)
   vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText: copied } })
   await userEvent.click(within(part).getByRole('button', { name: 'Copy the status line setting' }))
@@ -105,7 +124,14 @@ test('the Claude Code window says how its own sessions keep the reading fresh: t
 
 test('a Claude Code that is not installed has no Read now: nothing is there to run its turn (B-61)', async () => {
   const onAvailability = vi.fn().mockResolvedValue({ installed: false, signed_in: null, models: [] })
-  render(<ModelsPage providers={[claude]} {...handlers()} onAvailability={onAvailability} onLimits={vi.fn().mockResolvedValue(week(83, null))} />)
+  render(
+    <ModelsPage
+      providers={[claude]}
+      {...handlers()}
+      onAvailability={onAvailability}
+      onLimits={vi.fn().mockResolvedValue(week(83, null))}
+    />,
+  )
   expect(await screen.findByRole('button', { name: /^Claude Code.*not installed/ })).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Read Claude Code’s plan now' })).toBeNull()
   // Its one action is then a Check, which runs no model.
@@ -123,7 +149,14 @@ test('what a plan has left is said once: on its card, not again in its window’
 
 test('a Claude Code of another command is not kept fresh by the user’s sessions: no such part', async () => {
   const onClaudeSetup = vi.fn().mockResolvedValue(SETUP)
-  render(<ModelsPage providers={[{ ...claude, executable: 'C:/tools/claude-work.cmd' }]} picked="cc" {...handlers()} onClaudeSetup={onClaudeSetup} />)
+  render(
+    <ModelsPage
+      providers={[{ ...claude, executable: 'C:/tools/claude-work.cmd' }]}
+      picked="cc"
+      {...handlers()}
+      onClaudeSetup={onClaudeSetup}
+    />,
+  )
   await userEvent.click(screen.getByRole('tab', { name: 'Limits' }))
   expect(screen.queryByRole('region', { name: 'Keep it fresh from your Claude Code sessions' })).toBeNull()
   expect(onClaudeSetup).not.toHaveBeenCalled()

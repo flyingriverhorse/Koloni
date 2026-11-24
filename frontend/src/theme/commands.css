@@ -3634,7 +3634,10 @@ fieldset.choice > label .choice-note,
   right: calc(14px + var(--inspector-w, 0px));
   top: 14px;
   z-index: 6;
-  width: max(min(320px, calc(var(--room) - 28px)), min(520px, calc(var(--room) - min(480px, var(--room) - 28px) - 42px)));
+  width: max(
+    min(320px, calc(var(--room) - 28px)),
+    min(520px, calc(var(--room) - min(480px, var(--room) - 28px) - 42px))
+  );
   /* (Ending above the canvas's buttons at the stage's bottom right: 14px, and their 232px with a gap - slice 66.) */
   height: min(360px, calc(100% - 28px - 240px));
   min-height: 180px;
@@ -4101,7 +4104,9 @@ fieldset.choice > label .choice-note,
 /* KOLONİ's own note: where the work stands as a turn ends (G7), told apart from what people wrote. */
 .channel-message.note-koloni {
   background: var(--bg);
-  box-shadow: 0 0 0 1px var(--border), inset 3px 0 0 var(--accent);
+  box-shadow:
+    0 0 0 1px var(--border),
+    inset 3px 0 0 var(--accent);
 }
 
 .note-closed {
@@ -4717,7 +4722,6 @@ fieldset.choice > label .choice-note,
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent) inset;
 }
-
 
 /* Ready for you (K-bekleyenler): the chat's one list of what waits for you, by kind. */
 .waiting-list section {

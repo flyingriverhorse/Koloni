@@ -24,7 +24,11 @@ test('a live line says what is known - time, tokens written, tier or model - and
 test('its facts follow what it does, after a dot, each its own piece - time, tokens, tier - so the last gives way first; with none known, nothing', () => {
   const { container, rerender } = render(<LiveFacts since={iso(Date.now() - 5_000)} wrote={1234} kind="Fast" />)
   expect(container.querySelector('.live-facts')).toHaveTextContent(/^· \d+s · ↓ 1\.2k tokens · Fast$/)
-  expect(Array.from(container.querySelectorAll('.live-facts > span'), piece => piece.textContent)).toEqual([expect.stringMatching(/^ · \d+s$/), ' · ↓ 1.2k tokens', ' · Fast'])
+  expect(Array.from(container.querySelectorAll('.live-facts > span'), piece => piece.textContent)).toEqual([
+    expect.stringMatching(/^ · \d+s$/),
+    ' · ↓ 1.2k tokens',
+    ' · Fast',
+  ])
   rerender(<LiveFacts since={null} wrote={null} kind={null} />)
   expect(container.querySelector('.live-facts')).toBeNull()
 })

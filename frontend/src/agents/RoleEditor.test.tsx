@@ -14,7 +14,9 @@ const role = (over: Partial<Role>): Role => ({
   instructions: 'Be strict.',
   tools: ['list_dir', 'read_file', 'search'],
   builtin: true,
-  created_by_agent: false, locked_tools: [], models: null,
+  created_by_agent: false,
+  locked_tools: [],
+  models: null,
   provider_id: null,
   model_id: null,
   tier: null,
@@ -135,7 +137,8 @@ test('edits are saved with the role’s tools as they are', async () => {
 })
 
 /** The thinking card (K-ladder): Auto or one fixed level, then one ladder of the levels, Off to Max, as radios. */
-const mode = (name: 'Auto' | 'One fixed level') => within(screen.getByRole('radiogroup', { name: 'Thinking' })).getByRole('radio', { name })
+const mode = (name: 'Auto' | 'One fixed level') =>
+  within(screen.getByRole('radiogroup', { name: 'Thinking' })).getByRole('radio', { name })
 const ladder = () => screen.getByRole('radiogroup', { name: /^(Fixed level|Most the Orchestrator may pick)$/ })
 const rung = (name: string) => within(ladder()).getByRole('radio', { name })
 const checked = () =>
@@ -155,7 +158,9 @@ test('K-ladder: in Auto the ladder picks the most; one fixed level is any level 
   // Auto by default: up to High; it never picks Off; Max is struck, and the note says why.
   expect(mode('Auto')).toBeChecked()
   expect(ladder()).toHaveAccessibleName('Most the Orchestrator may pick')
-  expect(ladder()).toHaveAccessibleDescription('Auto picks a level for each task, from Low up to High. Click a level to move “most”.')
+  expect(ladder()).toHaveAccessibleDescription(
+    'Auto picks a level for each task, from Low up to High. Click a level to move “most”.',
+  )
   expect(checked()).toEqual(['Highmost'])
   expect(rung('Off')).toBeDisabled()
   expect(rung('Max')).toBeDisabled()
@@ -166,7 +171,9 @@ test('K-ladder: in Auto the ladder picks the most; one fixed level is any level 
   await userEvent.click(mode('One fixed level'))
   expect(ladder()).toHaveAccessibleName('Fixed level')
   expect(checked()).toEqual(['Medium'])
-  expect(ladder()).toHaveAccessibleDescription('Every task gets Medium. The Orchestrator doesn’t change it. Click another level to change it.')
+  expect(ladder()).toHaveAccessibleDescription(
+    'Every task gets Medium. The Orchestrator doesn’t change it. Click another level to change it.',
+  )
   await userEvent.click(rung('XHigh'))
   expect(checked()).toEqual(['XHigh'])
   await userEvent.click(rung('Off'))
@@ -175,7 +182,9 @@ test('K-ladder: in Auto the ladder picks the most; one fixed level is any level 
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(h.onSave.mock.calls[0][1]).toMatchObject({ effort: 'xhigh', max_effort: null })
   // (as kept here: Auto) the read view answers how hard it thinks, in one line
-  expect(screen.getByRole('complementary', { name: 'Role Reviewer' })).toHaveTextContent('How hard it thinksAuto · up to HighHow much')
+  expect(screen.getByRole('complementary', { name: 'Role Reviewer' })).toHaveTextContent(
+    'How hard it thinksAuto · up to HighHow much',
+  )
   // a model that takes none: nothing to choose, and nothing is sent
   await edit('Documenter', 'Edit model')
   expect(screen.getByText(/The model’s levels are not known: nothing is sent\./)).toBeInTheDocument()
@@ -186,10 +195,18 @@ test('K-ladder: in Auto the ladder picks the most; one fixed level is any level 
 
 test('K-ladder: a most set earlier above a fixed level is said under the ladder, and Remove takes it away', async () => {
   const h = handlers()
-  render(<AgentsPage roles={[role({ effort: 'low', max_effort: 'medium' })]} {...h} onRoleModels={vi.fn().mockResolvedValue([{ role: 'Reviewer', efforts: ['off', 'low', 'medium', 'high'] }])} />)
+  render(
+    <AgentsPage
+      roles={[role({ effort: 'low', max_effort: 'medium' })]}
+      {...h}
+      onRoleModels={vi.fn().mockResolvedValue([{ role: 'Reviewer', efforts: ['off', 'low', 'medium', 'high'] }])}
+    />,
+  )
   await edit('Reviewer', 'Edit model')
   await screen.findByText(/Its model takes: Off, Low, Medium, High\./)
-  expect(screen.getByRole('complementary', { name: 'Role Reviewer' })).toHaveTextContent('How hard it thinksLow, up to Medium')
+  expect(screen.getByRole('complementary', { name: 'Role Reviewer' })).toHaveTextContent(
+    'How hard it thinksLow, up to Medium',
+  )
   expect(checked()).toEqual(['Low'])
   expect(screen.getByText(/The Orchestrator may also go up to Medium \(set earlier\)\./)).toBeInTheDocument()
   // another level leaves it as it was
@@ -219,7 +236,11 @@ test('a saved level the model does not take is shown struck, and can be taken ba
   expect(mode('One fixed level')).toBeChecked()
   expect(checked()).toEqual(['Max'])
   expect(rung('Max')).toBeDisabled()
-  expect(screen.getByText(/Off, High, XHigh, Max: not taken by this model\. Max as saved: the nearest lower level it takes is sent, or none\./)).toBeInTheDocument()
+  expect(
+    screen.getByText(
+      /Off, High, XHigh, Max: not taken by this model\. Max as saved: the nearest lower level it takes is sent, or none\./,
+    ),
+  ).toBeInTheDocument()
   // back to Auto, a most its model does not take goes too
   await userEvent.click(mode('Auto'))
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -228,18 +249,32 @@ test('a saved level the model does not take is shown struck, and can be taken ba
 
 test('K-ladder: on a model without High, Auto’s most is shown at the nearest lower level it takes - and not saved', async () => {
   const h = handlers()
-  render(<AgentsPage roles={[role({})]} {...h} onRoleModels={vi.fn().mockResolvedValue([{ role: 'Reviewer', efforts: ['low', 'medium'] }])} />)
+  render(
+    <AgentsPage
+      roles={[role({})]}
+      {...h}
+      onRoleModels={vi.fn().mockResolvedValue([{ role: 'Reviewer', efforts: ['low', 'medium'] }])}
+    />,
+  )
   await edit('Reviewer', 'Edit model')
   await screen.findByText(/Its model takes: Low, Medium\./)
   expect(checked()).toEqual(['Mediummost'])
-  expect(screen.getByText('Auto picks a level for each task, from Low up to Medium. Click a level to move “most”.')).toBeInTheDocument()
+  expect(
+    screen.getByText('Auto picks a level for each task, from Low up to Medium. Click a level to move “most”.'),
+  ).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(h.onSave.mock.calls[0][1]).toMatchObject({ effort: null, max_effort: null })
 })
 
 test('K-ladder: Auto with a most of Off set earlier marks the lowest level it takes, says so, and Remove takes it away', async () => {
   const h = handlers()
-  render(<AgentsPage roles={[role({ max_effort: 'off' })]} {...h} onRoleModels={vi.fn().mockResolvedValue([{ role: 'Reviewer', efforts: ['off', 'low', 'high'] }])} />)
+  render(
+    <AgentsPage
+      roles={[role({ max_effort: 'off' })]}
+      {...h}
+      onRoleModels={vi.fn().mockResolvedValue([{ role: 'Reviewer', efforts: ['off', 'low', 'high'] }])}
+    />,
+  )
   await edit('Reviewer', 'Edit model')
   await screen.findByText(/Its model takes: Off, Low, High\./)
   expect(checked()).toEqual(['Lowmost'])
@@ -253,7 +288,13 @@ test('K-ladder: Auto with a most of Off set earlier marks the lowest level it ta
 
 test('K-ladder: with its levels not known, going back to Auto keeps a most set earlier', async () => {
   const h = handlers()
-  render(<AgentsPage roles={[role({ effort: 'high', max_effort: 'xhigh' })]} {...h} onRoleModels={vi.fn().mockResolvedValue([{ role: 'Reviewer', efforts: [] }])} />)
+  render(
+    <AgentsPage
+      roles={[role({ effort: 'high', max_effort: 'xhigh' })]}
+      {...h}
+      onRoleModels={vi.fn().mockResolvedValue([{ role: 'Reviewer', efforts: [] }])}
+    />,
+  )
   await edit('Reviewer', 'Edit model')
   await screen.findByText(/The model’s levels are not known/)
   await userEvent.click(mode('Auto'))
@@ -347,7 +388,11 @@ test('a new role is put in one of the categories, Build to begin with', async ()
   render(<AgentsPage roles={[role({})]} categories={categories} {...handlers()} />)
   await userEvent.click(screen.getByRole('button', { name: 'New role' }))
   const category = screen.getByLabelText('Category')
-  expect(within(category).getAllByRole('option').map(o => o.textContent)).toEqual(['Build', 'Research'])
+  expect(
+    within(category)
+      .getAllByRole('option')
+      .map(o => o.textContent),
+  ).toEqual(['Build', 'Research'])
   expect(category).toHaveValue('build')
   // with Build deleted, the first category: the one sent is the one shown
   cleanup()
@@ -359,14 +404,24 @@ test('a new role is put in one of the categories, Build to begin with', async ()
 test('which model a role uses is one choice: the Lead picks in a range, always a tier, always a model, or the conversation’s', async () => {
   const h = handlers()
   const providers = [provider('p1', 'Local', true), provider('p2', 'Claude Code', true)]
-  render(<AgentsPage roles={[role({}), role({ id: 'r3', name: 'Debugger', tier: 'strongest' })]} providers={providers} {...h} />)
+  render(
+    <AgentsPage
+      roles={[role({}), role({ id: 'r3', name: 'Debugger', tier: 'strongest' })]}
+      providers={providers}
+      {...h}
+    />,
+  )
   await userEvent.click(card('Debugger'))
   expect(screen.getByRole('complementary', { name: 'Role Debugger' })).toHaveTextContent('Which modelAlways strongest')
   await edit('Reviewer', 'Edit model')
   const uses = screen.getByRole('radiogroup', { name: 'Who picks it?' })
   // mockup B: who picks it, then only what that choice needs
   expect(seg('Orchestrator')).toBeChecked()
-  expect(within(uses).getAllByRole('radio').map(o => o.closest('label')?.textContent)).toEqual(['Orchestrator', 'As the chat', 'One tier', 'One model'])
+  expect(
+    within(uses)
+      .getAllByRole('radio')
+      .map(o => o.closest('label')?.textContent),
+  ).toEqual(['Orchestrator', 'As the chat', 'One tier', 'One model'])
   expect(uses).toHaveAccessibleDescription('It picks a tier for each job, inside this range, and says why.')
   expect(screen.queryByRole('radiogroup', { name: 'Tier' })).not.toBeInTheDocument()
   expect(screen.queryByLabelText('Provider')).not.toBeInTheDocument()
@@ -375,7 +430,10 @@ test('which model a role uses is one choice: the Lead picks in a range, always a
   await userEvent.selectOptions(screen.getByLabelText('From'), 'balanced')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   // an end left where it is, is no bound: sent as null
-  expect(h.onSave).toHaveBeenLastCalledWith('r1', expect.objectContaining({ tier: null, tier_min: 'balanced', tier_max: null, provider_id: null }))
+  expect(h.onSave).toHaveBeenLastCalledWith(
+    'r1',
+    expect.objectContaining({ tier: null, tier_min: 'balanced', tier_max: null, provider_id: null }),
+  )
 
   await edit('Debugger', 'Edit model')
   expect(seg('One tier')).toBeChecked()
@@ -392,13 +450,19 @@ test('which model a role uses is one choice: the Lead picks in a range, always a
   await userEvent.selectOptions(screen.getByLabelText('Provider'), 'p2')
   await userEvent.type(screen.getByLabelText('Model name'), 'opus')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(h.onSave).toHaveBeenLastCalledWith('r3', expect.objectContaining({ provider_id: 'p2', model_id: 'opus', tier: null, tier_min: null, tier_max: null }))
+  expect(h.onSave).toHaveBeenLastCalledWith(
+    'r3',
+    expect.objectContaining({ provider_id: 'p2', model_id: 'opus', tier: null, tier_min: null, tier_max: null }),
+  )
   await edit('Debugger', 'Edit model')
   await userEvent.click(seg('As the chat'))
   expect(screen.queryByLabelText('Provider')).not.toBeInTheDocument()
   expect(screen.getByText('Whatever the chat’s model picker says.')).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(h.onSave).toHaveBeenLastCalledWith('r3', expect.objectContaining({ tier: 'conversation', provider_id: null, model_id: null }))
+  expect(h.onSave).toHaveBeenLastCalledWith(
+    'r3',
+    expect.objectContaining({ tier: 'conversation', provider_id: null, model_id: null }),
+  )
 })
 
 test('one tier clears what another choice left: no range or model of its own stays', async () => {
@@ -407,15 +471,26 @@ test('one tier clears what another choice left: no range or model of its own sta
   await edit('Reviewer', 'Edit model')
   await userEvent.click(seg('Fast'))
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(h.onSave).toHaveBeenLastCalledWith('r1', expect.objectContaining({ tier: 'fast', tier_min: null, tier_max: null, provider_id: null, model_id: null }))
+  expect(h.onSave).toHaveBeenLastCalledWith(
+    'r1',
+    expect.objectContaining({ tier: 'fast', tier_min: null, tier_max: null, provider_id: null, model_id: null }),
+  )
 })
 
 test('K-rol-model-sirasi: a role’s preferred models are added, reordered and removed, and saved in that order', async () => {
   const h = handlers()
-  const providers = [provider('p1', 'Local', true), provider('p2', 'Claude Code', true), provider('p3', 'Paid Api', false)]
-  render(<AgentsPage roles={[role({ models: [{ provider_id: 'p1', model_id: 'big' }] })]} providers={providers} {...h} />)
+  const providers = [
+    provider('p1', 'Local', true),
+    provider('p2', 'Claude Code', true),
+    provider('p3', 'Paid Api', false),
+  ]
+  render(
+    <AgentsPage roles={[role({ models: [{ provider_id: 'p1', model_id: 'big' }] })]} providers={providers} {...h} />,
+  )
   await userEvent.click(card('Reviewer'))
-  expect(screen.getByRole('complementary', { name: 'Role Reviewer' })).toHaveTextContent('Which modelFirst big — then Orchestrator · fast–strongest')
+  expect(screen.getByRole('complementary', { name: 'Role Reviewer' })).toHaveTextContent(
+    'Which modelFirst big — then Orchestrator · fast–strongest',
+  )
   await edit('Reviewer', 'Edit model')
   // the list is its own field: the one choice above it stays as it was
   expect(seg('Orchestrator')).toBeChecked()
@@ -426,18 +501,28 @@ test('K-rol-model-sirasi: a role’s preferred models are added, reordered and r
   await userEvent.click(screen.getByRole('button', { name: 'Cancel adding a model' }))
   expect(screen.queryByLabelText('Preferred model name')).not.toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: '+ Add a model' }))
-  expect(within(screen.getByLabelText('Preferred models')).getAllByRole('option').map(o => o.textContent)).toEqual(['Local', 'Claude Code'])
+  expect(
+    within(screen.getByLabelText('Preferred models'))
+      .getAllByRole('option')
+      .map(o => o.textContent),
+  ).toEqual(['Local', 'Claude Code'])
   await userEvent.selectOptions(screen.getByLabelText('Preferred models'), 'p2')
   await userEvent.type(screen.getByLabelText('Preferred model name'), 'opus')
   await userEvent.click(screen.getByRole('button', { name: 'Add' }))
-  const order = () => within(screen.getByRole('list', { name: 'Preferred models, in order' })).getAllByRole('listitem').map(li => li.textContent?.split(' ↑')[0])
+  const order = () =>
+    within(screen.getByRole('list', { name: 'Preferred models, in order' }))
+      .getAllByRole('listitem')
+      .map(li => li.textContent?.split(' ↑')[0])
   expect(order()).toEqual(['1. Local · big', '2. Claude Code · opus'])
   expect(screen.getByLabelText('Preferred model name')).toHaveValue('')
   await userEvent.click(screen.getByRole('button', { name: 'Move opus up' }))
   expect(order()).toEqual(['1. Claude Code · opus', '2. Local · big'])
   await userEvent.click(screen.getByRole('button', { name: 'Remove big' }))
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(h.onSave).toHaveBeenLastCalledWith('r1', expect.objectContaining({ models: [{ provider_id: 'p2', model_id: 'opus' }], provider_id: null, tier: null }))
+  expect(h.onSave).toHaveBeenLastCalledWith(
+    'r1',
+    expect.objectContaining({ models: [{ provider_id: 'p2', model_id: 'opus' }], provider_id: null, tier: null }),
+  )
 })
 
 test('a refused save shows the reason', async () => {
@@ -450,16 +535,29 @@ test('a refused save shows the reason', async () => {
 })
 
 test('a role an agent created says so', async () => {
-  render(<AgentsPage roles={[role({ id: 'r3', name: 'Forager', builtin: false, created_by_agent: true })]} {...handlers()} />)
+  render(
+    <AgentsPage
+      roles={[role({ id: 'r3', name: 'Forager', builtin: false, created_by_agent: true })]}
+      {...handlers()}
+    />,
+  )
   await edit('Forager', 'Instructions')
   expect(screen.getAllByText('Created by an agent').length).toBeGreaterThan(0)
 })
 
 test('a role with a model of its own shows it as that choice, and with no provider there is none to choose', async () => {
   const providers = [provider('p2', 'Claude Code', false)]
-  render(<AgentsPage roles={[role({ provider_id: 'p2', model_id: 'opus' }), role({ id: 'r4', name: 'Forager' })]} providers={providers} {...handlers()} />)
+  render(
+    <AgentsPage
+      roles={[role({ provider_id: 'p2', model_id: 'opus' }), role({ id: 'r4', name: 'Forager' })]}
+      providers={providers}
+      {...handlers()}
+    />,
+  )
   await userEvent.click(card('Reviewer'))
-  expect(screen.getByRole('complementary', { name: 'Role Reviewer' })).toHaveTextContent('Which modelClaude Code · opus')
+  expect(screen.getByRole('complementary', { name: 'Role Reviewer' })).toHaveTextContent(
+    'Which modelClaude Code · opus',
+  )
   await edit('Reviewer', 'Edit model')
   expect(seg('One model')).toBeChecked()
   expect(screen.getByLabelText('Provider')).toHaveValue('p2')
@@ -471,8 +569,27 @@ test('a role with a model of its own shows it as that choice, and with no provid
 })
 
 const provider = (id: string, name: string, forAgents: boolean) => ({
-  id, name, kind: 'openai_compat' as const, base_url: 'http://x/v1', default_model: null, executable: null, mode: null, options: null,
-  for_agents: forAgents, note: null, models: [], only_listed: false, max_running: null, plan: false, step_down_at: null, day_limit: null, month_limit: null, has_key: false, position: 0, created_at: 't', updated_at: 't',
+  id,
+  name,
+  kind: 'openai_compat' as const,
+  base_url: 'http://x/v1',
+  default_model: null,
+  executable: null,
+  mode: null,
+  options: null,
+  for_agents: forAgents,
+  note: null,
+  models: [],
+  only_listed: false,
+  max_running: null,
+  plan: false,
+  step_down_at: null,
+  day_limit: null,
+  month_limit: null,
+  has_key: false,
+  position: 0,
+  created_at: 't',
+  updated_at: 't',
 })
 
 test('what may be picked for a role: all in the team guide, none, or only the guide’s providers that are ticked', async () => {
@@ -501,7 +618,9 @@ test('what may be picked for a role: all in the team guide, none, or only the gu
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(h.onSave).toHaveBeenLastCalledWith('r1', expect.objectContaining({ pick_from: null }))
   // saved (as kept here: all), the read view answers its question
-  expect(screen.getByRole('complementary', { name: 'Role Reviewer' })).toHaveTextContent('Who may move itAny providerin the team guide, with a reason')
+  expect(screen.getByRole('complementary', { name: 'Role Reviewer' })).toHaveTextContent(
+    'Who may move itAny providerin the team guide, with a reason',
+  )
 })
 
 test('a role’s list is shown as it is kept: a provider no longer in the guide stays ticked, and says so', async () => {
@@ -523,17 +642,27 @@ test('a role’s limits on steps and tokens are whole numbers above zero, or emp
   expect(fold.closest('details')).not.toHaveAttribute('open')
   await userEvent.click(fold)
   expect(screen.getByText('Stops one runaway agent of this role. Empty: KOLONİ’s own step limit.')).toBeVisible()
-  expect(screen.getByLabelText('At most this many steps')).toHaveAccessibleDescription(/added up over its task and each time it is told to go on.*reaches an agent already open the next time it is told to go on/)
+  expect(screen.getByLabelText('At most this many steps')).toHaveAccessibleDescription(
+    /added up over its task and each time it is told to go on.*reaches an agent already open the next time it is told to go on/,
+  )
   const steps = screen.getByLabelText('At most this many steps')
   const tokens = screen.getByLabelText('At most this many tokens')
   expect(steps).toHaveValue('8')
   expect(tokens).toHaveValue('')
   // a session's messages are counted; only a CLI at work with its own tools is not held - and that is said in sight
-  const unheld = screen.getByText(/A CLI working with its own tools \(native\) takes no steps KOLONİ can count: this limit does not hold it/)
+  const unheld = screen.getByText(
+    /A CLI working with its own tools \(native\) takes no steps KOLONİ can count: this limit does not hold it/,
+  )
   expect(unheld.closest('.hint')).toBeNull()
-  expect(screen.getByText(/A change to the limit reaches an agent already open the next time it is told to go on\..*With nobody watching \(a trigger’s message\), what a sub-agent\s+stopped there had changed is not kept.*For a CLI session each message it\s+writes is a step\./s)).toBeInTheDocument()
+  expect(
+    screen.getByText(
+      /A change to the limit reaches an agent already open the next time it is told to go on\..*With nobody watching \(a trigger’s message\), what a sub-agent\s+stopped there had changed is not kept.*For a CLI session each message it\s+writes is a step\./s,
+    ),
+  ).toBeInTheDocument()
   expect(screen.getByText(/an agent carried on for a later\s+message starts again from zero/)).toBeInTheDocument()
-  const tokenNote = screen.getByText(/A model that reports nothing is not held by this\. A CLI \(a session, or its own tools\)\s+reports when it ends/)
+  const tokenNote = screen.getByText(
+    /A model that reports nothing is not held by this\. A CLI \(a session, or its own tools\)\s+reports when it ends/,
+  )
   expect(tokenNote.closest('.hint')).toBeNull()
 
   await userEvent.type(tokens, '0')
@@ -548,7 +677,13 @@ test('a role’s limits on steps and tokens are whole numbers above zero, or emp
 
 test('changing one tool keeps the memory tools a role already has, and the backlog’s no tile shows', async () => {
   const onPatch = vi.fn().mockResolvedValue(undefined)
-  render(<AgentsPage roles={[role({ tools: ['read_file', 'read_backlog', 'remember', 'recall'] })]} onPatch={onPatch} {...handlers()} />)
+  render(
+    <AgentsPage
+      roles={[role({ tools: ['read_file', 'read_backlog', 'remember', 'recall'] })]}
+      onPatch={onPatch}
+      {...handlers()}
+    />,
+  )
   await userEvent.click(card('Reviewer'))
   await userEvent.click(screen.getByRole('tab', { name: 'Tools' }))
   expect(screen.getByRole('button', { name: 'Remember' })).toHaveAttribute('aria-pressed', 'true')
@@ -571,7 +706,9 @@ const ran: RecordRow = {
   changes: { taken: 2, rejected: 1 },
   compared: { chosen: 1, not_chosen: 2 },
   rediscovery: { mean: 6.2, agents: 4 },
-  taken_in: 2, turned_down: 1, cost: { amount: 0.0375, currency: 'USD' },
+  taken_in: 2,
+  turned_down: 1,
+  cost: { amount: 0.0375, currency: 'USD' },
 }
 /** A cell as it is drawn: what is there only for a screen reader left out. */
 const drawn = (cell: HTMLElement) => {
@@ -579,10 +716,25 @@ const drawn = (cell: HTMLElement) => {
   copy.querySelectorAll('.visually-hidden').forEach(hidden => hidden.remove())
   return copy.textContent
 }
-const history = { days: 30, lead_turns: 0, jobs_limit: 200, roles: [{ name: 'Reviewer', done: 1, failed: 0, running: 0 }], teams: [], recipes: [], jobs: [] }
+const history = {
+  days: 30,
+  lead_turns: 0,
+  jobs_limit: 200,
+  roles: [{ name: 'Reviewer', done: 1, failed: 0, running: 0 }],
+  teams: [],
+  recipes: [],
+  jobs: [],
+}
 /** 0.1.0-ui: a role's record is on the page's History tab, under its jobs, once the list is of that role. */
 const historyOf = async (onRecord: () => Promise<RecordRow[]>) => {
-  render(<AgentsPage roles={[role({})]} onRecord={onRecord} onHistory={vi.fn().mockResolvedValue(history)} {...handlers()} />)
+  render(
+    <AgentsPage
+      roles={[role({})]}
+      onRecord={onRecord}
+      onHistory={vi.fn().mockResolvedValue(history)}
+      {...handlers()}
+    />,
+  )
   await vi.waitFor(() => expect(onRecord).toHaveBeenCalled())
   await userEvent.click(screen.getByRole('tab', { name: 'History' }))
   await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Role' }), 'Reviewer')
@@ -594,9 +746,26 @@ const tableOf = async (rows: RecordRow[]) => {
 
 test("a role's record is a table with its columns in order, its numbers those of the record's line", async () => {
   const table = await tableOf([ran])
-  expect(within(table).getAllByRole('columnheader').map(th => th.textContent)).toEqual([
-    'Provider · model', 'Ran', 'Done', 'Failed', 'Stopped', 'Interrupted', 'Steps', 'Time', 'Sent', 'Written', 'Changes taken / rejected',
-    'Chosen in comparisons', 'Taken in', 'Turned down', 'Cost',
+  expect(
+    within(table)
+      .getAllByRole('columnheader')
+      .map(th => th.textContent),
+  ).toEqual([
+    'Provider · model',
+    'Ran',
+    'Done',
+    'Failed',
+    'Stopped',
+    'Interrupted',
+    'Steps',
+    'Time',
+    'Sent',
+    'Written',
+    'Changes taken / rejected',
+    'Chosen in comparisons',
+    'Taken in',
+    'Turned down',
+    'Cost',
   ])
   // named once: by its own name, with no caption beside it (its fold's line says the rest)
   expect(table).toHaveAttribute('aria-label', 'Record of the last 30 days')
@@ -604,14 +773,54 @@ test("a role's record is a table with its columns in order, its numbers those of
   const row = within(table).getAllByRole('row')[1]
   expect(within(row).getByRole('rowheader')).toHaveTextContent('Local · qwen')
   const cells = within(row).getAllByRole('cell')
-  const [runs, done, failed, stopped, interrupted, steps, time, sent, written, changes, compared, tookIn, turnedDown, cost] = cells.map(drawn)
-  expect([runs, done, failed, stopped, interrupted, steps, time, sent, written, changes, compared]).toEqual(['7', '3', '1', '3', '1', '4.5', '2 min', '1200', '36', '2 / 1', '1 of 3'])
+  const [
+    runs,
+    done,
+    failed,
+    stopped,
+    interrupted,
+    steps,
+    time,
+    sent,
+    written,
+    changes,
+    compared,
+    tookIn,
+    turnedDown,
+    cost,
+  ] = cells.map(drawn)
+  expect([runs, done, failed, stopped, interrupted, steps, time, sent, written, changes, compared]).toEqual([
+    '7',
+    '3',
+    '1',
+    '3',
+    '1',
+    '4.5',
+    '2 min',
+    '1200',
+    '36',
+    '2 / 1',
+    '1 of 3',
+  ])
   // K-model-puan: jobs taken in and turned down, and the middle cost as the Usage page writes one
   expect([tookIn, turnedDown, cost]).toEqual(['2', '1', '≈ 0.0375 USD'])
   // the same numbers as the record's line of words
   const line = recordLine(ran)
   const [taken, rejected] = changes!.split(' / ')
-  for (const said of [`${runs} ran`, `${done} done`, `${failed} failed`, `${interrupted} interrupted`, `${steps} steps`, time, `sent ${sent}`, `written ${written}`, `${taken} taken`, `${rejected} rejected`, `chosen ${compared}`]) expect(line).toContain(said)
+  for (const said of [
+    `${runs} ran`,
+    `${done} done`,
+    `${failed} failed`,
+    `${interrupted} interrupted`,
+    `${steps} steps`,
+    time,
+    `sent ${sent}`,
+    `written ${written}`,
+    `${taken} taken`,
+    `${rejected} rejected`,
+    `chosen ${compared}`,
+  ])
+    expect(line).toContain(said)
   // stopped by KOLONİ and by you together; apart under the pointer and to a screen reader, as the line says
   expect(cells[3]).toHaveAttribute('title', '1 by KOLONİ, 2 by you')
   expect(cells[3]).toHaveTextContent('1 by KOLONİ, 2 by you')
@@ -647,12 +856,22 @@ test('a long role name is whole in the library: never cut', () => {
 })
 
 test("a role's record is folded, closed: its line says the gist, and opening it shows the table and its note; with no record there is none", async () => {
-  const table = await tableOf([ran, { ...ran, model_id: 'other', agents: 2, ended: { done: 2, failed: 0, stopped_by_koloni: 0, stopped_by_user: 0, interrupted: 0 } }])
+  const table = await tableOf([
+    ran,
+    {
+      ...ran,
+      model_id: 'other',
+      agents: 2,
+      ended: { done: 2, failed: 0, stopped_by_koloni: 0, stopped_by_user: 0, interrupted: 0 },
+    },
+  ])
   const fold = table.closest('details')!
   expect(fold).not.toHaveAttribute('open')
   const line = within(fold).getByText(/^Record of the last 30 days: /)
   expect(line.tagName).toBe('SUMMARY')
-  expect(line).toHaveTextContent('Record of the last 30 days: 9 ran on 2 models · 5 done · 1 failed · 1 stopped by KOLONİ · 2 stopped by you · 1 interrupted')
+  expect(line).toHaveTextContent(
+    'Record of the last 30 days: 9 ran on 2 models · 5 done · 1 failed · 1 stopped by KOLONİ · 2 stopped by you · 1 interrupted',
+  )
   await userEvent.click(line)
   expect(fold).toHaveAttribute('open')
   expect(within(fold).getByText('Middle values: half the agents took more, half less.')).toBeInTheDocument()
@@ -686,7 +905,9 @@ test('the Observer has no tools to tick, and is saved with none', async () => {
 
 test('a role shows its model’s window as found and where from, takes one set by you, and goes back to the found one', async () => {
   const h = handlers()
-  const onRoleModels = vi.fn().mockResolvedValue([{ role: 'Reviewer', provider_name: 'Local', efforts: [], context_window: 80128 }])
+  const onRoleModels = vi
+    .fn()
+    .mockResolvedValue([{ role: 'Reviewer', provider_name: 'Local', efforts: [], context_window: 80128 }])
   const compaction = vi.spyOn(api, 'get').mockResolvedValue({ compact_at: 80 })
   render(<AgentsPage roles={[role({})]} {...h} onRoleModels={onRoleModels} />)
   await edit('Reviewer', 'Edit model')
@@ -697,7 +918,9 @@ test('a role shows its model’s window as found and where from, takes one set b
   expect(mark.parentElement).toHaveStyle({ '--at': '80%' })
   expect(compaction).toHaveBeenCalledWith('/compaction')
   compaction.mockRestore()
-  expect(screen.getByText(/Past the % in Settings › The app \(“Summarise a long context at \(%\)”\)/)).toBeInTheDocument()
+  expect(
+    screen.getByText(/Past the % in Settings › The app \(“Summarise a long context at \(%\)”\)/),
+  ).toBeInTheDocument()
   expect(screen.getByText('Set by hand').closest('details')).not.toHaveAttribute('open')
   expect(field()).toHaveAttribute('placeholder', '80128')
   await userEvent.type(field(), '0')
@@ -715,7 +938,13 @@ test('a role shows its model’s window as found and where from, takes one set b
 })
 
 test('a model whose window is not said shows it as unknown', async () => {
-  render(<AgentsPage roles={[role({ context_window: 4096 })]} {...handlers()} onRoleModels={vi.fn().mockResolvedValue([{ role: 'Reviewer', efforts: [], context_window: null }])} />)
+  render(
+    <AgentsPage
+      roles={[role({ context_window: 4096 })]}
+      {...handlers()}
+      onRoleModels={vi.fn().mockResolvedValue([{ role: 'Reviewer', efforts: [], context_window: null }])}
+    />,
+  )
   await edit('Reviewer', 'Edit model')
   expect(await screen.findByText('Found automatically: unknown.')).toBeInTheDocument()
   // one set by hand: its fold is open, and the meter is known from it
@@ -727,7 +956,9 @@ test('a model whose window is not said shows it as unknown', async () => {
 test('in the form, a tool switched off on the Tools page says so beside its switch (slice 61)', async () => {
   render(<AgentsPage roles={[role({})]} off={['web_search']} {...handlers()} />)
   await userEvent.click(screen.getByRole('button', { name: 'New role' }))
-  expect(screen.getByLabelText('web_search').closest('label')).toHaveTextContent('search the web · off on the Tools page')
+  expect(screen.getByLabelText('web_search').closest('label')).toHaveTextContent(
+    'search the web · off on the Tools page',
+  )
   expect(screen.getByLabelText('http_request').closest('label')).not.toHaveTextContent('off on the Tools page')
 })
 
@@ -750,7 +981,9 @@ test('K-rol-model: the Lead, whom nobody opens, has no most; its Auto sends no l
   const onRoleModels = vi.fn().mockResolvedValue([{ role: 'Lead', efforts: ['low', 'medium', 'high'] }])
   render(<AgentsPage roles={[role({ id: 'lead', name: 'Lead', kind: 'plan' })]} {...h} onRoleModels={onRoleModels} />)
   await userEvent.click(screen.getByRole('button', { name: 'Open the Lead' }))
-  expect(screen.getByRole('complementary', { name: 'Role Lead' })).toHaveTextContent('How hard it thinksAutothe chat’s level, or the model’s own')
+  expect(screen.getByRole('complementary', { name: 'Role Lead' })).toHaveTextContent(
+    'How hard it thinksAutothe chat’s level, or the model’s own',
+  )
   await userEvent.click(screen.getByRole('button', { name: 'Edit model' }))
   await screen.findByText(/Its model takes: Low, Medium, High\./)
   expect(checked()).toEqual([])
@@ -767,12 +1000,20 @@ test('K-rol-model: the Lead, whom nobody opens, has no most; its Auto sends no l
 
 test('back to Auto, a most of Off is taken away: Auto never runs "from Low up to Off"', async () => {
   const h = handlers()
-  render(<AgentsPage roles={[role({ effort: 'off', max_effort: 'off' })]} {...h} onRoleModels={vi.fn().mockResolvedValue([{ role: 'Reviewer', efforts: ['off', 'low', 'high'] }])} />)
+  render(
+    <AgentsPage
+      roles={[role({ effort: 'off', max_effort: 'off' })]}
+      {...h}
+      onRoleModels={vi.fn().mockResolvedValue([{ role: 'Reviewer', efforts: ['off', 'low', 'high'] }])}
+    />,
+  )
   await edit('Reviewer', 'Edit model')
   await screen.findByText(/Its model takes: Off, Low, High\./)
   await userEvent.click(mode('Auto'))
   expect(checked()).toEqual(['Highmost'])
-  expect(screen.getByText('Auto picks a level for each task, from Low up to High. Click a level to move “most”.')).toBeInTheDocument()
+  expect(
+    screen.getByText('Auto picks a level for each task, from Low up to High. Click a level to move “most”.'),
+  ).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(h.onSave.mock.calls[0][1]).toMatchObject({ effort: null, max_effort: null })
 })
@@ -780,11 +1021,19 @@ test('back to Auto, a most of Off is taken away: Auto never runs "from Low up to
 test('a model whose name sets its level says so where its levels are told (B-404)', () => {
   const facts = { efforts: [], sources: { efforts: 'its name says its level' } } as never
   expect(levelsKnown([], namedLevel(facts))).toBe('Its name sets its level: nothing is sent.')
-  expect(levelsKnown([], namedLevel({ efforts: [], sources: {} } as never))).toBe('The model’s levels are not known: nothing is sent.')
+  expect(levelsKnown([], namedLevel({ efforts: [], sources: {} } as never))).toBe(
+    'The model’s levels are not known: nothing is sent.',
+  )
 })
 
 test('a role whose model’s name sets its level says so on its card and in its form (B-404)', async () => {
-  render(<AgentsPage roles={[documenter]} {...handlers()} onRoleModels={vi.fn().mockResolvedValue([{ role: 'Documenter', efforts: [], level_named: true }])} />)
+  render(
+    <AgentsPage
+      roles={[documenter]}
+      {...handlers()}
+      onRoleModels={vi.fn().mockResolvedValue([{ role: 'Documenter', efforts: [], level_named: true }])}
+    />,
+  )
   await userEvent.click(card('Documenter'))
   const panel = screen.getByRole('complementary', { name: 'Role Documenter' })
   expect(await within(panel).findByText('its name sets its level: none is sent')).toBeInTheDocument()
@@ -806,12 +1055,29 @@ test('a role on Copilot’s auto says Copilot picks the model and its level: non
 })
 
 test('a new role’s summary says where it runs, for each way to choose it; with no name yet it is “…”', async () => {
-  render(<AgentsPage roles={[role({})]} providers={[provider('p1', 'Local', true), provider('p2', 'Claude Code', true)]} {...handlers()} />)
+  render(
+    <AgentsPage
+      roles={[role({})]}
+      providers={[provider('p1', 'Local', true), provider('p2', 'Claude Code', true)]}
+      {...handlers()}
+    />,
+  )
   await userEvent.click(screen.getByRole('button', { name: 'New role' }))
-  const lines = () => Array.from(screen.getByText(/^be called/).closest('[aria-live]')!.querySelectorAll('p'), p => p.textContent)
+  const lines = () =>
+    Array.from(
+      screen
+        .getByText(/^be called/)
+        .closest('[aria-live]')!
+        .querySelectorAll('p'),
+      p => p.textContent,
+    )
   // as it opens: the Orchestrator picks, from the lowest tier to the highest; no name, no tool, no limit
   expect(lines()[0]).toMatch(/^be called …, in /)
-  expect(lines().slice(1)).toEqual(['run on the model the Orchestrator picks for each job, fast to strongest', 'do nothing yet: give it at least one tool', 'never wait for your yes'])
+  expect(lines().slice(1)).toEqual([
+    'run on the model the Orchestrator picks for each job, fast to strongest',
+    'do nothing yet: give it at least one tool',
+    'never wait for your yes',
+  ])
   await userEvent.click(seg('As the chat'))
   expect(lines()[1]).toBe('run on the chat’s model')
   await userEvent.click(seg('One tier'))

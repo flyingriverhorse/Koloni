@@ -4,7 +4,9 @@
 import { expect, test, type Locator } from './fixtures'
 import { contrasts, e2eProject, LINK, openFreshConversation, OWN, rail, say, shot } from './helpers'
 
-test('KOLONİ opens with no setup page; a plain chat is given no file tools; a folder opened from the browser after a turn opens a new chat there, whose files are read', async ({ page }) => {
+test('KOLONİ opens with no setup page; a plain chat is given no file tools; a folder opened from the browser after a turn opens a new chat there, whose files are read', async ({
+  page,
+}) => {
   // 1. A start, whatever is there: no "Open a project" page, the chat's box and the folder button.
   await page.goto(LINK)
   await expect(page.getByLabel('Message')).toBeVisible()
@@ -29,7 +31,10 @@ test('KOLONİ opens with no setup page; a plain chat is given no file tools; a f
 
   // 3. Open a folder…: the browser opens in the folder the project is in; double-click goes in, the path goes back.
   await folder.click()
-  await page.getByRole('dialog', { name: 'This chat’s folders' }).getByRole('button', { name: 'Open a folder…' }).click()
+  await page
+    .getByRole('dialog', { name: 'This chat’s folders' })
+    .getByRole('button', { name: 'Open a folder…' })
+    .click()
   const browser = page.getByRole('dialog', { name: 'Open a folder' })
   const here = browser.getByRole('navigation', { name: 'Where' }).locator('[aria-current]')
   await expect(here).toHaveText('e2e')
@@ -56,13 +61,25 @@ test('KOLONİ opens with no setup page; a plain chat is given no file tools; a f
   // 5. The list has the new chat under its folder's name, open, and the plain one under "No folder", closed.
   await rail(page, 'Chats').click()
   const list = page.locator('.conv-page')
-  await expect(list.getByRole('region', { name: 'project', exact: true }).getByRole('button', { name: /^read the port, 86a/ }).first()).toBeVisible()
+  await expect(
+    list
+      .getByRole('region', { name: 'project', exact: true })
+      .getByRole('button', { name: /^read the port, 86a/ })
+      .first(),
+  ).toBeVisible()
   await list.getByRole('button', { name: 'No folder', exact: true }).click()
-  await expect(list.getByRole('region', { name: 'No folder', exact: true }).getByRole('button', { name: /^what can you do here, 86a/ }).first()).toBeVisible()
+  await expect(
+    list
+      .getByRole('region', { name: 'No folder', exact: true })
+      .getByRole('button', { name: /^what can you do here, 86a/ })
+      .first(),
+  ).toBeVisible()
 })
 
 for (const theme of ['light', 'dark'] as const)
-  test(`in the ${theme} theme the folder button, its panel and the folder browser read at 4.5 or more, a blocked folder too`, async ({ page }) => {
+  test(`in the ${theme} theme the folder button, its panel and the folder browser read at 4.5 or more, a blocked folder too`, async ({
+    page,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page)
     const check = async (root: Locator, least: number) => {

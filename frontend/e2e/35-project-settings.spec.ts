@@ -3,18 +3,34 @@ import { OWN, contrasts, openFreshConversation, rail, shot } from './helpers'
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
-const SECTIONS = ['Agents', 'Asking and away', 'New chats start with', 'Limits and money', 'Commands and secrets', 'Runs without asking', 'Checks and git', 'Memory and web', 'Notifications', 'This folder']
+const SECTIONS = [
+  'Agents',
+  'Asking and away',
+  'New chats start with',
+  'Limits and money',
+  'Commands and secrets',
+  'Runs without asking',
+  'Checks and git',
+  'Memory and web',
+  'Notifications',
+  'This folder',
+]
 
 // What this spec changes starts and ends as a fresh project has it: the backend is shared with the other specs.
 async function putBack({ request }: { request: APIRequestContext }) {
   const [project] = await (await request.get('/api/projects')).json()
-  if (project) await request.patch(`/api/projects/${project.id}`, { headers: OWN, data: { auto_notes: false, turn_token_limit: null, hide_secrets: true } })
+  if (project)
+    await request.patch(`/api/projects/${project.id}`, {
+      headers: OWN,
+      data: { auto_notes: false, turn_token_limit: null, hide_secrets: true },
+    })
 }
 test.beforeEach(putBack)
 test.afterEach(putBack)
 
 /** Where the canvas is and how near: React Flow's own transform of it. */
-const viewport = (page: Page) => page.locator('.react-flow__viewport').evaluate(el => (el as HTMLElement).style.transform)
+const viewport = (page: Page) =>
+  page.locator('.react-flow__viewport').evaluate(el => (el as HTMLElement).style.transform)
 
 /** Waits until the canvas has stopped moving. */
 async function settled(page: Page) {
@@ -31,7 +47,9 @@ async function settled(page: Page) {
     .toBe(true)
 }
 
-test('the canvas under the settings: new work that came meanwhile is in view when they close, and a selected node has not moved', async ({ page }) => {
+test('the canvas under the settings: new work that came meanwhile is in view when they close, and a selected node has not moved', async ({
+  page,
+}) => {
   await openFreshConversation(page)
   const gear = page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' })
   const stage = page.locator('.react-flow')
@@ -39,7 +57,14 @@ test('the canvas under the settings: new work that came meanwhile is in view whe
   const inView = async () => {
     const around = (await stage.boundingBox())!
     const boxes = await Promise.all((await agents.all()).map(node => node.boundingBox()))
-    return boxes.every(box => box && box.x >= around.x && box.y >= around.y && box.x + box.width <= around.x + around.width && box.y + box.height <= around.y + around.height)
+    return boxes.every(
+      box =>
+        box &&
+        box.x >= around.x &&
+        box.y >= around.y &&
+        box.x + box.width <= around.x + around.width &&
+        box.y + box.height <= around.y + around.height,
+    )
   }
 
   // The lead takes a moment before it starts its two reviewers: by then the settings are open over the canvas.
@@ -91,7 +116,9 @@ test('secret files are hidden from commands until the box is cleared, and cleare
 })
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`Settings › This project is a page of sections, opened and closed by ⚙ on the rail (${theme})`, async ({ page }) => {
+  test(`Settings › This project is a page of sections, opened and closed by ⚙ on the rail (${theme})`, async ({
+    page,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page)
     const gear = page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' })
@@ -150,7 +177,9 @@ for (const theme of ['light', 'dark'] as const) {
       // Every piece of text of the page - the list with its marks, and each section - reads at 4.5 or more.
       for (const section of SECTIONS) {
         await settings.getByRole('button', { name: new RegExp(`^${section}`) }).click()
-        await settings.locator('.hint-bubble').evaluateAll(hints => hints.forEach(hint => ((hint as HTMLElement).hidden = false)))
+        await settings
+          .locator('.hint-bubble')
+          .evaluateAll(hints => hints.forEach(hint => ((hint as HTMLElement).hidden = false)))
         const pieces = await settings.evaluate(contrasts)
         expect(pieces.filter(piece => piece.ratio < 4.5)).toEqual([])
       }

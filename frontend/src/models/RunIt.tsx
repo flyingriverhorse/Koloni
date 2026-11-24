@@ -42,7 +42,10 @@ export function RunIt({ label, text, link, told }: { label: string; text: string
       {text}{' '}
       {told.cmd ? (
         // K-giris-cmd: cmd.exe takes no $env:, so its own form beside PowerShell's.
-        [['PowerShell', told.command], ['Command Prompt', told.cmd]].map(([shell, command]) => (
+        [
+          ['PowerShell', told.command],
+          ['Command Prompt', told.cmd],
+        ].map(([shell, command]) => (
           <div key={shell}>
             {shell}: <code className="mono">{command}</code> <Copy text={command} label={`Copy the ${shell} command`} />
           </div>
@@ -77,7 +80,12 @@ export function LogIn({ kind, told, onCheck }: { kind: ProviderKind; told: RunCo
             told={told}
           />
           {onCheck && (
-            <button type="button" className="btn btn-small" title="Reads its sign-in again; no model is run" onClick={onCheck}>
+            <button
+              type="button"
+              className="btn btn-small"
+              title="Reads its sign-in again; no model is run"
+              onClick={onCheck}
+            >
               Check again
             </button>
           )}
@@ -101,26 +109,29 @@ export function KeepFresh({ onSetup }: { onSetup: () => Promise<ClaudeSessionSet
       live = false
     }
   }, [onSetup])
-  const line = typeof setup === 'object' ? `"statusLine": ${JSON.stringify({ type: 'command', command: setup.command })}` : null
+  const line =
+    typeof setup === 'object' ? `"statusLine": ${JSON.stringify({ type: 'command', command: setup.command })}` : null
   const heading = useId()
   return (
     <section aria-labelledby={heading} className="provider-note keep-fresh">
       <h3 id={heading}>Keep it fresh from your Claude Code sessions</h3>
       <p className="muted">
-        Your own Claude Code sessions send what is left of your plan here through their status line as it changes (on Pro and Max, after a session’s first
-        answer).
+        Your own Claude Code sessions send what is left of your plan here through their status line as it changes (on
+        Pro and Max, after a session’s first answer).
       </p>
       {typeof setup === 'string' && <div role="alert">The command could not be read: {setup}</div>}
       {line && (
         <p>
           Add this to your Claude Code settings yourself: open your Claude Code settings file,{' '}
-          <code className="mono">%USERPROFILE%\.claude\settings.json</code>, add this line inside its outer <code className="mono">{'{ }'}</code> (with a
-          comma between it and the line before), and save; Claude Code picks it up on its next refresh. <code className="mono">{line}</code>{' '}
+          <code className="mono">%USERPROFILE%\.claude\settings.json</code>, add this line inside its outer{' '}
+          <code className="mono">{'{ }'}</code> (with a comma between it and the line before), and save; Claude Code
+          picks it up on its next refresh. <code className="mono">{line}</code>{' '}
           <Copy text={line} label="Copy the status line setting" />
         </p>
       )}
       <p className="muted">
-        Already have a status line? End the command with <code className="mono">{'… --then \\"your command\\""}'}</code>; on Windows it runs under cmd.
+        Already have a status line? End the command with <code className="mono">{'… --then \\"your command\\""}'}</code>
+        ; on Windows it runs under cmd.
       </p>
     </section>
   )

@@ -6,16 +6,21 @@ import type { GeminiVoice, Message } from '../api/types'
 import { engine } from './engine'
 import { cannotRead, geminiOn, read, readAnswer, reader, stopReading, useVoice } from './voice'
 
-const HEARD = 'Speech recognition is your browser’s: in Chrome and Edge what you say is sent to Google’s or Microsoft’s service to be written down.'
+const HEARD =
+  'Speech recognition is your browser’s: in Chrome and Edge what you say is sent to Google’s or Microsoft’s service to be written down.'
 const KEPT = 'KOLONİ keeps no sound and sends none anywhere.'
 const PRIVACY = `${HEARD} Reading aloud uses this computer’s voices; a voice marked online sends what it reads to its maker. ${KEPT}`
-const GEMINI_PRIVACY = 'Text read with Gemini is sent to Google. On the free tier Google may use it to improve its products; on a paid key it does not.'
+const GEMINI_PRIVACY =
+  'Text read with Gemini is sent to Google. On the free tier Google may use it to improve its products; on a paid key it does not.'
 // From Google's page (ai.google.dev/gemini-api/docs/speech-generation, 18 October 2026); the server checks the same names (app/speech.py).
 const GEMINI_MODELS = [
   ['gemini-3.8-flash-tts', 'Flash TTS'],
   ['gemini-3.8-flash-lite-tts', 'Flash-Lite TTS'],
 ] as const
-const GEMINI_VOICES = 'Zephyr Puck Charon Kore Fenrir Leda Orus Aoede Callirrhoe Autonoe Enceladus Iapetus Umbriel Algieba Despina Erinome Algenib Rasalgethi Laomedeia Achernar Alnilam Schedar Gacrux Pulcherrima Achird Zubenelgenubi Vindemiatrix Sadachbia Sadaltager Sulafat'.split(' ')
+const GEMINI_VOICES =
+  'Zephyr Puck Charon Kore Fenrir Leda Orus Aoede Callirrhoe Autonoe Enceladus Iapetus Umbriel Algieba Despina Erinome Algenib Rasalgethi Laomedeia Achernar Alnilam Schedar Gacrux Pulcherrima Achird Zubenelgenubi Vindemiatrix Sadachbia Sadaltager Sulafat'.split(
+    ' ',
+  )
 const SAMPLE = 'This is how the answers will sound.'
 // shortcut: the sample is in English whatever the language; upgrade to a sample per language if one is asked for.
 
@@ -69,7 +74,9 @@ export function SaidAloud({ message }: { message: Message }) {
   if (!said) return null
   return (
     <div className="msg-said">
-      <span className="muted">{message.spoken ? 'Said aloud: ' : 'Said aloud, read from the start of the answer: '}</span>
+      <span className="muted">
+        {message.spoken ? 'Said aloud: ' : 'Said aloud, read from the start of the answer: '}
+      </span>
       {said}
     </div>
   )
@@ -84,7 +91,8 @@ export function AutoRead() {
   useVoice(geminiOn)
   if (!reader().canSpeak) return null
   const what = mode === 'whole' ? 'the whole answer, as it is written' : 'a short summary, when the work ends'
-  const says = cannotRead() ?? (on ? `Auto-read is on: ${what}.` : 'Auto-read is off: answers are read from their 🔊 button.')
+  const says =
+    cannotRead() ?? (on ? `Auto-read is on: ${what}.` : 'Auto-read is off: answers are read from their 🔊 button.')
   return (
     <button
       type="button"
@@ -140,7 +148,15 @@ export function ReadFailed() {
  * heard. Nothing is sent by itself. Pressed again, once the browser stops, or once the user
  * types, it stops.
  */
-export function Dictate({ onStart, onText, onError }: { onStart: () => { before: string; after: string }; onText: (text: string) => void; onError: (why: string | null) => void }) {
+export function Dictate({
+  onStart,
+  onText,
+  onError,
+}: {
+  onStart: () => { before: string; after: string }
+  onText: (text: string) => void
+  onError: (why: string | null) => void
+}) {
   const [listening, setListening] = useState(false)
   useEffect(() => () => engine.stop(), [])
   if (!engine.canListen) return null
@@ -165,7 +181,9 @@ export function Dictate({ onStart, onText, onError }: { onStart: () => { before:
       className="icon-btn composer-mic"
       aria-label="Dictate"
       aria-pressed={listening}
-      title={listening ? 'Listening: press to stop' : 'Dictate: what you say is written into the box, and nothing is sent'}
+      title={
+        listening ? 'Listening: press to stop' : 'Dictate: what you say is written into the box, and nothing is sent'
+      }
       onClick={() => (listening ? engine.stop() : start())}
     >
       <Microphone size={15} weight={listening ? 'fill' : 'regular'} />
@@ -176,77 +194,150 @@ export function Dictate({ onStart, onText, onError }: { onStart: () => { before:
 /** Settings › The app › Voice (this browser's, for every chat): how answers are read aloud and in what voice, and where speech goes. */
 export function VoiceSettings() {
   // (Its settings only: what is being read changes at every key, and is none of its business.)
-  const settings = useVoice(useShallow(s => ({ mode: s.mode, language: s.language, voice: s.voice, rate: s.rate, pitch: s.pitch, style: s.style, set: s.set })))
+  const settings = useVoice(
+    useShallow(s => ({
+      mode: s.mode,
+      language: s.language,
+      voice: s.voice,
+      rate: s.rate,
+      pitch: s.pitch,
+      style: s.style,
+      set: s.set,
+    })),
+  )
   const { set } = settings
   const gemini = useVoice(geminiOn)
   // Gemini's tab first while it reads.
   const [tab, setTab] = useState<'Browser' | 'Gemini' | null>(null)
   const shown = tab ?? (gemini ? 'Gemini' : 'Browser')
   // The browser's own languages too: dictation and the Lead's line need no voice to read them.
-  const languages = [...new Set([settings.language, 'en-US', ...navigator.languages, ...useVoices().map(voice => voice.lang)])].sort()
+  const languages = [
+    ...new Set([settings.language, 'en-US', ...navigator.languages, ...useVoices().map(voice => voice.lang)]),
+  ].sort()
   const voices = useVoices(settings.language)
   // With no voice of this computer's for the language, the browser's own is a service's.
   const online = voices.length > 0 && !voices.some(voice => voice.local)
   return (
     <section aria-label="Voice" className="voice-settings">
       <h2>Voice</h2>
-      <p className="choice-note">This browser’s, for every chat: kept here, not on the server. Dictate and Read aloud stay beside the message box.</p>
+      <p className="choice-note">
+        This browser’s, for every chat: kept here, not on the server. Dictate and Read aloud stay beside the message
+        box.
+      </p>
       <div className="voice-panel">
-          <fieldset className="voice-modes">
-            <legend className="kicker">Auto-read reads</legend>
-            {(
+        <fieldset className="voice-modes">
+          <legend className="kicker">Auto-read reads</legend>
+          {(
+            [
+              ['whole', 'Whole answer', 'Sentence by sentence, as it is written'],
               [
-                ['whole', 'Whole answer', 'Sentence by sentence, as it is written'],
-                ['summary', 'Short summary', 'A sentence or two the Orchestrator adds to be said, read when the work ends'],
-              ] as const
-            ).map(([value, label, note]) => (
-              <label key={value} className="choice" htmlFor={`voice-${value}`}>
-                <input id={`voice-${value}`} type="radio" name="voice-mode" checked={settings.mode === value} onChange={() => set({ mode: value })} />
-                <span>
-                  {label}
-                  <span className="choice-note">{note}</span>
-                </span>
-              </label>
+                'summary',
+                'Short summary',
+                'A sentence or two the Orchestrator adds to be said, read when the work ends',
+              ],
+            ] as const
+          ).map(([value, label, note]) => (
+            <label key={value} className="choice" htmlFor={`voice-${value}`}>
+              <input
+                id={`voice-${value}`}
+                type="radio"
+                name="voice-mode"
+                checked={settings.mode === value}
+                onChange={() => set({ mode: value })}
+              />
+              <span>
+                {label}
+                <span className="choice-note">{note}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+        <div className="voice-fields">
+          <label htmlFor="voice-language">Dictation language</label>
+          <select
+            id="voice-language"
+            className="input"
+            value={settings.language}
+            onChange={e => set({ language: e.target.value, voice: null })}
+          >
+            {languages.map(lang => (
+              <option key={lang}>{lang}</option>
             ))}
-          </fieldset>
-          <div className="voice-fields">
-            <label htmlFor="voice-language">Dictation language</label>
-            <select id="voice-language" className="input" value={settings.language} onChange={e => set({ language: e.target.value, voice: null })}>
-              {languages.map(lang => (
-                <option key={lang}>{lang}</option>
-              ))}
-            </select>
+          </select>
+        </div>
+        <div className="tabs voice-tabs" role="tablist" aria-label="Read aloud with">
+          {(['Browser', 'Gemini'] as const).map(name => (
+            <button
+              key={name}
+              id={`voice-tab-${name}`}
+              type="button"
+              role="tab"
+              aria-selected={shown === name}
+              aria-controls="voice-tab"
+              className="tab"
+              onClick={() => setTab(name)}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+        <div id="voice-tab" role="tabpanel" aria-labelledby={`voice-tab-${shown}`} className="voice-tab">
+          {shown === 'Gemini' ? (
+            <GeminiTab />
+          ) : (
+            <BrowserTab settings={settings} voices={voices} online={online} gemini={gemini} />
+          )}
+        </div>
+        <label className="voice-style" htmlFor="voice-style">
+          How the Orchestrator speaks
+          <textarea
+            id="voice-style"
+            className="input"
+            rows={2}
+            maxLength={300}
+            value={settings.style}
+            placeholder="short and friendly"
+            onChange={e => set({ style: e.target.value })}
+          />
+          <span className="choice-note">Sent with your message when Auto-read reads a short summary.</span>
+        </label>
+        {!engine.canListen && (
+          <div className="muted cmd-approval-note">
+            This browser cannot write down what you say, so there is no microphone.
           </div>
-          <div className="tabs voice-tabs" role="tablist" aria-label="Read aloud with">
-            {(['Browser', 'Gemini'] as const).map(name => (
-              <button key={name} id={`voice-tab-${name}`} type="button" role="tab" aria-selected={shown === name} aria-controls="voice-tab" className="tab" onClick={() => setTab(name)}>
-                {name}
-              </button>
-            ))}
-          </div>
-          <div id="voice-tab" role="tabpanel" aria-labelledby={`voice-tab-${shown}`} className="voice-tab">
-            {shown === 'Gemini' ? <GeminiTab /> : <BrowserTab settings={settings} voices={voices} online={online} gemini={gemini} />}
-          </div>
-          <label className="voice-style" htmlFor="voice-style">
-            How the Orchestrator speaks
-            <textarea id="voice-style" className="input" rows={2} maxLength={300} value={settings.style} placeholder="short and friendly" onChange={e => set({ style: e.target.value })} />
-            <span className="choice-note">Sent with your message when Auto-read reads a short summary.</span>
-          </label>
-          {!engine.canListen && <div className="muted cmd-approval-note">This browser cannot write down what you say, so there is no microphone.</div>}
-          {!engine.canSpeak && !gemini && <div className="muted cmd-approval-note">This browser cannot read aloud.</div>}
-          <div className="muted cmd-approval-note">{gemini ? `${HEARD} Reading aloud is Gemini’s. ${GEMINI_PRIVACY} KOLONİ keeps no sound.` : PRIVACY}</div>
+        )}
+        {!engine.canSpeak && !gemini && <div className="muted cmd-approval-note">This browser cannot read aloud.</div>}
+        <div className="muted cmd-approval-note">
+          {gemini ? `${HEARD} Reading aloud is Gemini’s. ${GEMINI_PRIVACY} KOLONİ keeps no sound.` : PRIVACY}
+        </div>
       </div>
     </section>
   )
 }
 
 /** The browser's own reading: its voice, rate and pitch, what it lacks for the language, and a preview. */
-function BrowserTab({ settings, voices, online, gemini }: { settings: Pick<ReturnType<typeof useVoice.getState>, 'voice' | 'rate' | 'pitch' | 'language' | 'set'>; voices: ReturnType<typeof useVoices>; online: boolean; gemini: boolean }) {
+function BrowserTab({
+  settings,
+  voices,
+  online,
+  gemini,
+}: {
+  settings: Pick<ReturnType<typeof useVoice.getState>, 'voice' | 'rate' | 'pitch' | 'language' | 'set'>
+  voices: ReturnType<typeof useVoices>
+  online: boolean
+  gemini: boolean
+}) {
   return (
     <>
       <div className="voice-fields">
         <label htmlFor="voice-voice">Voice</label>
-        <select id="voice-voice" className="input" value={settings.voice ?? ''} disabled={voices.length === 0} onChange={e => settings.set({ voice: e.target.value || null })}>
+        <select
+          id="voice-voice"
+          className="input"
+          value={settings.voice ?? ''}
+          disabled={voices.length === 0}
+          onChange={e => settings.set({ voice: e.target.value || null })}
+        >
           <option value="">{online ? 'The browser’s own (online)' : 'The browser’s own'}</option>
           {voices.map(voice => (
             <option key={voice.uri} value={voice.uri}>
@@ -255,9 +346,25 @@ function BrowserTab({ settings, voices, online, gemini }: { settings: Pick<Retur
           ))}
         </select>
         <label htmlFor="voice-rate">Rate</label>
-        <input id="voice-rate" type="range" min={0.5} max={2} step={0.1} value={settings.rate} onChange={e => settings.set({ rate: Number(e.target.value) })} />
+        <input
+          id="voice-rate"
+          type="range"
+          min={0.5}
+          max={2}
+          step={0.1}
+          value={settings.rate}
+          onChange={e => settings.set({ rate: Number(e.target.value) })}
+        />
         <label htmlFor="voice-pitch">Pitch</label>
-        <input id="voice-pitch" type="range" min={0} max={2} step={0.1} value={settings.pitch} onChange={e => settings.set({ pitch: Number(e.target.value) })} />
+        <input
+          id="voice-pitch"
+          type="range"
+          min={0}
+          max={2}
+          step={0.1}
+          value={settings.pitch}
+          onChange={e => settings.set({ pitch: Number(e.target.value) })}
+        />
       </div>
       {engine.canSpeak && voices.length === 0 && (
         <div role="note" className="composer-warning">
@@ -269,8 +376,17 @@ function BrowserTab({ settings, voices, online, gemini }: { settings: Pick<Retur
           No voice of this computer’s reads {settings.language}: every one here is online.
         </div>
       )}
-      {gemini && <div className="muted cmd-approval-note">Gemini reads while it is on: turn it off in its tab to hear these voices.</div>}
-      <button type="button" className="btn btn-small" disabled={gemini || cannotRead() !== null} onClick={() => read('preview', SAMPLE)}>
+      {gemini && (
+        <div className="muted cmd-approval-note">
+          Gemini reads while it is on: turn it off in its tab to hear these voices.
+        </div>
+      )}
+      <button
+        type="button"
+        className="btn btn-small"
+        disabled={gemini || cannotRead() !== null}
+        onClick={() => read('preview', SAMPLE)}
+      >
         <SpeakerHigh size={13} />
         Preview
       </button>
@@ -295,7 +411,10 @@ function GeminiTab() {
     setError(null)
     try {
       // (A key saved is tried again, whatever went wrong before.)
-      useVoice.setState({ saved: await api.put<GeminiVoice>('/voice/gemini', change), ...(change.api_key && { fallback: false }) })
+      useVoice.setState({
+        saved: await api.put<GeminiVoice>('/voice/gemini', change),
+        ...(change.api_key && { fallback: false }),
+      })
       return true
     } catch (err) {
       setError(errorText(err))
@@ -329,7 +448,16 @@ function GeminiTab() {
       <form className="voice-key" onSubmit={save}>
         <label htmlFor="gemini-key">Gemini API key</label>
         {/* Write-only: once saved it stays on the server, and the page never sees it again. */}
-        <input id="gemini-key" className="input" type="password" autoComplete="off" spellCheck={false} placeholder="From Google AI Studio" value={key} onChange={e => setKey(e.target.value)} />
+        <input
+          id="gemini-key"
+          className="input"
+          type="password"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="From Google AI Studio"
+          value={key}
+          onChange={e => setKey(e.target.value)}
+        />
         <button type="submit" className="btn btn-small" disabled={busy || !key.trim()}>
           Save key
         </button>
@@ -339,7 +467,13 @@ function GeminiTab() {
   const fields = () => (
     <div className="voice-fields">
       <label htmlFor="gemini-model">Model</label>
-      <select id="gemini-model" className="input" value={saved?.model ?? GEMINI_MODELS[0][0]} disabled={!has || busy} onChange={e => void put({ model: e.target.value })}>
+      <select
+        id="gemini-model"
+        className="input"
+        value={saved?.model ?? GEMINI_MODELS[0][0]}
+        disabled={!has || busy}
+        onChange={e => void put({ model: e.target.value })}
+      >
         {GEMINI_MODELS.map(([id, name]) => (
           <option key={id} value={id}>
             {name}
@@ -347,14 +481,29 @@ function GeminiTab() {
         ))}
       </select>
       <label htmlFor="gemini-voice">Voice</label>
-      <select id="gemini-voice" className="input" value={saved?.voice ?? 'Kore'} disabled={!has || busy} onChange={e => void put({ voice: e.target.value })}>
+      <select
+        id="gemini-voice"
+        className="input"
+        value={saved?.voice ?? 'Kore'}
+        disabled={!has || busy}
+        onChange={e => void put({ voice: e.target.value })}
+      >
         {GEMINI_VOICES.map(name => (
           <option key={name}>{name}</option>
         ))}
       </select>
       {/* The same rate as the browser's voices: played faster or slower here, nothing more is sent. */}
       <label htmlFor="gemini-rate">Rate</label>
-      <input id="gemini-rate" type="range" min={0.5} max={2} step={0.1} value={rate} aria-valuetext={`${rate}×`} onChange={e => setVoice({ rate: Number(e.target.value) })} />
+      <input
+        id="gemini-rate"
+        type="range"
+        min={0.5}
+        max={2}
+        step={0.1}
+        value={rate}
+        aria-valuetext={`${rate}×`}
+        onChange={e => setVoice({ rate: Number(e.target.value) })}
+      />
     </div>
   )
   return (
@@ -383,7 +532,11 @@ function GeminiTab() {
       <span id="gemini-on-note" className="choice-note">
         {has ? 'When off, this computer’s voices read.' : 'With no key saved, this computer’s voices read.'}
       </span>
-      {has && on && fallback && <div className="muted cmd-approval-note">Gemini could not read the last time: this computer’s voices read until you preview it again.</div>}
+      {has && on && fallback && (
+        <div className="muted cmd-approval-note">
+          Gemini could not read the last time: this computer’s voices read until you preview it again.
+        </div>
+      )}
       {fields()}
       <label className="voice-style" htmlFor="gemini-style">
         How Gemini says it

@@ -20,7 +20,11 @@ function bigStl() {
     const at = 84 + 50 * n + 12
     const x = n % 1000
     const y = Math.floor(n / 1000)
-    for (const [corner, [dx, dy]] of [[0, [0, 0]], [1, [1, 0]], [2, [0, 1]]] as const) {
+    for (const [corner, [dx, dy]] of [
+      [0, [0, 0]],
+      [1, [1, 0]],
+      [2, [0, 1]],
+    ] as const) {
       data.writeFloatLE(x + dx, at + 12 * corner)
       data.writeFloatLE(y + dy, at + 12 * corner + 4)
       data.writeFloatLE((x * y) % 7, at + 12 * corner + 8)

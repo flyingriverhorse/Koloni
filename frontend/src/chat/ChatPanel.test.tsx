@@ -4,18 +4,36 @@ import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import type { Provider, Role } from '../api/types'
 import { resetStoreForTests, useApp } from '../state/store'
-import { agent, assistantMessage, command, convState, question, run, toolCall, topic, userMessage } from '../test-fixtures'
+import {
+  agent,
+  assistantMessage,
+  command,
+  convState,
+  question,
+  run,
+  toolCall,
+  topic,
+  userMessage,
+} from '../test-fixtures'
 import { ChatPanel } from './ChatPanel'
 
 /** Two topics of the user's - the newer is "docs" - and a trigger's. */
 const state = convState({
-  topics: [topic('ta', 'Fix the greeting'), topic('tn', 'Look the project over', { trigger_id: 'tr' }), topic('tb', 'Write the docs')],
+  topics: [
+    topic('ta', 'Fix the greeting'),
+    topic('tn', 'Look the project over', { trigger_id: 'tr' }),
+    topic('tb', 'Write the docs'),
+  ],
   runs: [
     run('a1', 'completed', { topic_id: 'ta' }),
     run('n1', 'completed', { topic_id: 'tn', unattended: true, trigger_id: 'tr', trigger_name: 'Nightly look' }),
     run('b1', 'completed', { topic_id: 'tb' }),
   ],
-  messages: [userMessage('a1', 'Fix the greeting'), { ...userMessage('n1', 'Look the project over'), id: 't-n1', role: 'trigger' }, userMessage('b1', 'Write the docs')],
+  messages: [
+    userMessage('a1', 'Fix the greeting'),
+    { ...userMessage('n1', 'Look the project over'), id: 't-n1', role: 'trigger' },
+    userMessage('b1', 'Write the docs'),
+  ],
   agents: [agent('a1', 'completed'), agent('n1', 'completed'), agent('b1', 'completed')],
 })
 
@@ -37,7 +55,8 @@ afterEach(() => vi.unstubAllGlobals())
 
 // (No "Continuing" line: "New topic" beside the model says in its tooltip where the message goes.)
 const toggle = () => screen.getByRole('button', { name: 'New topic' })
-const goesOn = (title: string) => expect(toggle()).toHaveAttribute('title', expect.stringContaining(`goes on with ${title}:`))
+const goesOn = (title: string) =>
+  expect(toggle()).toHaveAttribute('title', expect.stringContaining(`goes on with ${title}:`))
 const startsOne = () => expect(screen.queryByRole('button', { name: 'New topic' })).not.toBeInTheDocument()
 const write = (text: string) => userEvent.type(screen.getByLabelText('Message'), `${text}{Enter}`)
 
@@ -99,7 +118,12 @@ test('the choice to write into a trigger’s topic is over when another turn is 
 })
 
 test('with only a trigger’s turns the message starts the user’s first topic, unless they choose the trigger’s', async () => {
-  const only = convState({ topics: state.topics.slice(1, 2), runs: state.runs.slice(1, 2), messages: state.messages.slice(1, 2), agents: state.agents.slice(1, 2) })
+  const only = convState({
+    topics: state.topics.slice(1, 2),
+    runs: state.runs.slice(1, 2),
+    messages: state.messages.slice(1, 2),
+    agents: state.agents.slice(1, 2),
+  })
   // (nothing picked: the trigger's turn is the one on screen, the conversation having no other)
   useApp.setState({ conv: only, projectId: 'p' })
   render(<ChatPanel />)
@@ -221,7 +245,11 @@ test('a click on the line (its ▴) opens the chat itself, with what was typed i
 
 test('while a turn is at work the line says who works', () => {
   closed()
-  const working = convState({ runs: [run('r', 'running')], messages: [userMessage('r', 'Fix it')], agents: [agent('r', 'running')] })
+  const working = convState({
+    runs: [run('r', 'running')],
+    messages: [userMessage('r', 'Fix it')],
+    agents: [agent('r', 'running')],
+  })
   useApp.setState({ conv: working, projectId: 'p' })
   render(<ChatPanel />)
   expect(opener()).toHaveTextContent(/^Chat · Orchestrator is working$/)
@@ -401,8 +429,27 @@ test('with the browser’s storage closed the chat is open at its default width,
 })
 
 test('under the message box: the model, the level, ⚙ Chat and Send; More holds Work together and Compare (Voice is The app’s, in Settings)', async () => {
-  const local = { id: 'p1', name: 'Local', kind: 'openai_compat', base_url: 'http://x/v1', default_model: 'm', mode: null } as Provider
-  const lead = { id: 'Lead', name: 'Lead', description: '', instructions: '', tools: [], builtin: true, provider_id: null, model_id: null, mcp: [], created_at: 't', updated_at: 't' } as unknown as Role
+  const local = {
+    id: 'p1',
+    name: 'Local',
+    kind: 'openai_compat',
+    base_url: 'http://x/v1',
+    default_model: 'm',
+    mode: null,
+  } as Provider
+  const lead = {
+    id: 'Lead',
+    name: 'Lead',
+    description: '',
+    instructions: '',
+    tools: [],
+    builtin: true,
+    provider_id: null,
+    model_id: null,
+    mcp: [],
+    created_at: 't',
+    updated_at: 't',
+  } as unknown as Role
   useApp.setState({ conv: state, projectId: 'p', providers: [local], roles: [lead] })
   render(<ChatPanel />)
   expect(screen.getByRole('button', { name: 'Model: Local · m' })).toBeVisible()
@@ -420,7 +467,9 @@ test('under the message box: the model, the level, ⚙ Chat and Send; More holds
   const names = ['Work together…', 'Compare…']
   for (const name of names) expect(screen.getByRole('button', { name })).toBeVisible()
   // in that order, all in the one place More opens
-  const held = Array.from(document.getElementById(more.getAttribute('aria-controls')!)!.querySelectorAll('button')).map(b => b.textContent)
+  const held = Array.from(document.getElementById(more.getAttribute('aria-controls')!)!.querySelectorAll('button')).map(
+    b => b.textContent,
+  )
   expect(held).toEqual(names)
   // Esc closes More - and only More: the chat stays open - and the focus goes back to it
   await userEvent.keyboard('{Escape}')
@@ -430,13 +479,22 @@ test('under the message box: the model, the level, ⚙ Chat and Send; More holds
   // ⚙ Chat: the link asks for Settings › This project › Runs without asking, and folds the sheet.
   const sheet = screen.getByRole('button', { name: 'This chat’s settings' })
   await userEvent.click(sheet)
-  await userEvent.click(within(screen.getByRole('dialog', { name: 'This chat' })).getByRole('button', { name: '0 run without asking →' }))
+  await userEvent.click(
+    within(screen.getByRole('dialog', { name: 'This chat' })).getByRole('button', { name: '0 run without asking →' }),
+  )
   expect(useApp.getState().settingsAsked).toEqual({ section: 'rules', n: 1 })
   expect(sheet).toHaveAttribute('aria-expanded', 'false')
 })
 
 test('Esc in a panel opened from More closes that panel only; the next one closes More', async () => {
-  const local = { id: 'p1', name: 'Local', kind: 'openai_compat', base_url: 'http://x/v1', default_model: 'm', mode: null } as Provider
+  const local = {
+    id: 'p1',
+    name: 'Local',
+    kind: 'openai_compat',
+    base_url: 'http://x/v1',
+    default_model: 'm',
+    mode: null,
+  } as Provider
   useApp.setState({ conv: state, projectId: 'p', providers: [local] })
   render(<ChatPanel />)
   const more = screen.getByRole('button', { name: 'More' })
@@ -458,8 +516,17 @@ test('the number on the closed line is what the Lead and agents said since the c
   render(<ChatPanel />)
   expect(opener()).toHaveAccessibleName(/^Chat\s*Write the docs$/)
   // two replies and one of your own come while it is closed
-  const later = (more: typeof state.messages) => act(() => useApp.setState({ conv: { ...useApp.getState().conv!, messages: [...useApp.getState().conv!.messages, ...more] } }))
-  later([assistantMessage('m1', 'b1', 'Done.'), { ...assistantMessage('m2', 'b1', 'Also this.'), role: 'agent' }, { ...userMessage('b1', 'thanks'), id: 'u2' }])
+  const later = (more: typeof state.messages) =>
+    act(() =>
+      useApp.setState({
+        conv: { ...useApp.getState().conv!, messages: [...useApp.getState().conv!.messages, ...more] },
+      }),
+    )
+  later([
+    assistantMessage('m1', 'b1', 'Done.'),
+    { ...assistantMessage('m2', 'b1', 'Also this.'), role: 'agent' },
+    { ...userMessage('b1', 'thanks'), id: 'u2' },
+  ])
   expect(opener()).toHaveAccessibleName(/^Chat\s*2 unread\s*thanks$/)
   expect(screen.getByText('2 unread')).toHaveClass('chat-unread')
   // opened, all is read; closed again, nothing until the next reply
@@ -516,7 +583,14 @@ test('tek-ev decision 2: "N more wait elsewhere" only while something waits outs
   const { rerender } = render(<ChatPanel />)
   // (This chat's own question is in the chat itself: no line for it.)
   expect(screen.queryByText(/more waits? elsewhere/)).toBeNull()
-  const proposed = { id: 't1', title: 'Rate-limit login', status: 'proposed', not_in: false, pending: null, conversation_id: null }
+  const proposed = {
+    id: 't1',
+    title: 'Rate-limit login',
+    status: 'proposed',
+    not_in: false,
+    pending: null,
+    conversation_id: null,
+  }
   act(() => useApp.setState({ backlog: [proposed, { ...proposed, id: 't2' }] as never }))
   rerender(<ChatPanel />)
   // (0.1.5: quiet words under the box, not a line of its own over it.)
@@ -530,9 +604,12 @@ test('tek-ev decision 2: "N more wait elsewhere" only while something waits outs
 test('closed, the small box still says that commands run on this machine without asking, in Full auto', () => {
   closed()
   const auto = { ...state, conversation: { ...state.conversation, permission_mode: 'full_auto' as const } }
-  useApp.setState({ conv: auto, projectId: 'p', projects: [{ id: 'p', root_path: 'C:/work/koloni', exec_location: 'host' } as never] })
+  useApp.setState({
+    conv: auto,
+    projectId: 'p',
+    projects: [{ id: 'p', root_path: 'C:/work/koloni', exec_location: 'host' } as never],
+  })
   render(<ChatPanel />)
   expect(screen.getByRole('note')).toHaveTextContent('Commands run on this machine without asking.')
   expect(screen.getByRole('note')).toBeVisible()
 })
-

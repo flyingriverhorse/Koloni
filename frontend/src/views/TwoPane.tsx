@@ -6,7 +6,15 @@
  * button away.
  */
 import { SidebarSimple } from '@phosphor-icons/react'
-import { type KeyboardEvent, type PointerEvent, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  type KeyboardEvent,
+  type PointerEvent,
+  type ReactNode,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 
 export interface TreeFile {
   id: string
@@ -112,7 +120,9 @@ interface Row {
 type Node = { name: string; key: string; kids: Node[]; file?: TreeFile; note?: string; order?: number }
 const changedIn = (node: Node): boolean => Boolean(node.file?.changed) || node.kids.some(changedIn)
 const byName = (a: Node, b: Node) =>
-  Number(Boolean(a.file)) - Number(Boolean(b.file)) || (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+  Number(Boolean(a.file)) - Number(Boolean(b.file)) ||
+  (a.order ?? 0) - (b.order ?? 0) ||
+  a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
 
 /** The rows shown: folders and files depth first, but in closed folders. */
 function rowsOf(files: TreeFile[], isOpen: (key: string) => boolean): Row[] {
@@ -132,7 +142,17 @@ function rowsOf(files: TreeFile[], isOpen: (key: string) => boolean): Row[] {
   const rows: Row[] = []
   const walk = (node: Node, level: number) =>
     (level === 1 ? node.kids : [...node.kids].sort(byName)).forEach((kid, n) => {
-      rows.push({ key: kid.key, name: kid.note ? `${kid.name} · ${kid.note}` : kid.name, level, parent: node.key || null, folder: !kid.file, file: kid.file, changed: !kid.file && changedIn(kid), setSize: node.kids.length, posInSet: n + 1 })
+      rows.push({
+        key: kid.key,
+        name: kid.note ? `${kid.name} · ${kid.note}` : kid.name,
+        level,
+        parent: node.key || null,
+        folder: !kid.file,
+        file: kid.file,
+        changed: !kid.file && changedIn(kid),
+        setSize: node.kids.length,
+        posInSet: n + 1,
+      })
       if (!kid.file && isOpen(kid.key)) walk(kid, level + 1)
     })
   walk(root, 1)
@@ -141,13 +161,31 @@ function rowsOf(files: TreeFile[], isOpen: (key: string) => boolean): Row[] {
 
 /** A row's name as it is read out: a file's with where it is, that it is new and how it stands; a folder's with that something in it changed. */
 const rowLabel = (row: Row) =>
-  row.file ? [row.name, row.file.where && `in ${row.file.where}`, row.file.dot && 'new', row.file.meta].filter(Boolean).join(' ') : row.changed ? `${row.name} changed` : row.name
+  row.file
+    ? [row.name, row.file.where && `in ${row.file.where}`, row.file.dot && 'new', row.file.meta]
+        .filter(Boolean)
+        .join(' ')
+    : row.changed
+      ? `${row.name} changed`
+      : row.name
 
 /** Whether a row is the one chosen: the file shown - or, with no file chosen, the folder asked for while it is the active row. */
 const chosen = (row: Row, selected: Props['selected'], reveal: Props['reveal'], active: string | undefined) =>
   row.file ? row.key === selected : !selected && row.key === reveal?.key && row.key === active ? true : undefined
 
-export function TwoPane({ name, title, label = 'Files', files, selected, reveal, onOpen, isOpen, onFolder, head, children }: Props) {
+export function TwoPane({
+  name,
+  title,
+  label = 'Files',
+  files,
+  selected,
+  reveal,
+  onOpen,
+  isOpen,
+  onFolder,
+  head,
+  children,
+}: Props) {
   const box = useWidth()
   const tree = useRef<HTMLDivElement>(null)
   const narrow = (box.width ?? Infinity) < NARROW
@@ -162,7 +200,9 @@ export function TwoPane({ name, title, label = 'Files', files, selected, reveal,
     setShown(yes)
   }
   const open = shown ?? !narrow
-  const [width, setWidth] = useState(() => stored(`koloni-${name}-files-width`, WIDTH, read => typeof read === 'number' && read >= LEAST && read < 2000))
+  const [width, setWidth] = useState(() =>
+    stored(`koloni-${name}-files-width`, WIDTH, read => typeof read === 'number' && read >= LEAST && read < 2000),
+  )
   const [active, setActive] = useState<string | undefined>(selected)
   const drag = useRef<{ x: number; width: number } | null>(null)
 
@@ -265,7 +305,14 @@ export function TwoPane({ name, title, label = 'Files', files, selected, reveal,
           <div className="two-pane-files" style={{ width: across }}>
             <div className="two-pane-head">
               {title ?? <span className="two-pane-title">Files</span>}
-              <button ref={hide} type="button" className="icon-btn" aria-label="Hide files" title="Hide files" onClick={() => showFiles(false)}>
+              <button
+                ref={hide}
+                type="button"
+                className="icon-btn"
+                aria-label="Hide files"
+                title="Hide files"
+                onClick={() => showFiles(false)}
+              >
                 <SidebarSimple size={14} />
               </button>
             </div>
@@ -290,7 +337,9 @@ export function TwoPane({ name, title, label = 'Files', files, selected, reveal,
                 >
                   <span className="tree-name">{row.name}</span>
                   {row.file?.where && <span className="tree-where">{row.file.where}</span>}
-                  {(row.file?.dot || row.changed) && <span className={row.changed ? 'tree-changed' : 'view-dot'} aria-hidden />}
+                  {(row.file?.dot || row.changed) && (
+                    <span className={row.changed ? 'tree-changed' : 'view-dot'} aria-hidden />
+                  )}
                   {row.file && <span className="tree-meta mono">{row.file.mark ?? row.file.meta}</span>}
                 </div>
               ))}
@@ -312,7 +361,14 @@ export function TwoPane({ name, title, label = 'Files', files, selected, reveal,
       )}
       {!open && (
         <div className="two-pane-rail">
-          <button ref={show} type="button" className="icon-btn" aria-label="Show files" title="Show files" onClick={() => showFiles(true)}>
+          <button
+            ref={show}
+            type="button"
+            className="icon-btn"
+            aria-label="Show files"
+            title="Show files"
+            onClick={() => showFiles(true)}
+          >
             <SidebarSimple size={14} />
           </button>
         </div>

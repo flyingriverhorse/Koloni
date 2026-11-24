@@ -77,7 +77,9 @@ test('the record says what is unknown as unknown, never as a zero', () => {
     changes: { taken: 1, rejected: 0 },
     compared: { chosen: 0, not_chosen: 0 },
     rediscovery: null,
-    taken_in: 2, turned_down: 0, cost: null,
+    taken_in: 2,
+    turned_down: 0,
+    cost: null,
   }
   expect(recordLine(row, true)).toBe(
     'Coder on Local · qwen: 3 ran - 2 done, 1 failed. Middle one: 4.5 steps, 42 s, tokens sent none recorded, written none recorded. Changes: 1 taken, 0 rejected.',
@@ -86,18 +88,32 @@ test('the record says what is unknown as unknown, never as a zero', () => {
 
 test("a role's record reads as one short line in the list, all its models together", () => {
   const row = (model_id: string, done: number, failed: number): RecordRow => ({
-    role_name: 'Lead', provider_name: 'Local', model_id, agents: done + failed,
+    role_name: 'Lead',
+    provider_name: 'Local',
+    model_id,
+    agents: done + failed,
     ended: { done, failed, stopped_by_koloni: 0, stopped_by_user: 0, interrupted: 0 },
-    steps: null, seconds: null, input_tokens: null, output_tokens: null, changes: { taken: 0, rejected: 0 }, compared: { chosen: 0, not_chosen: 0 },
-    rediscovery: null, taken_in: done, turned_down: 0, cost: null,
+    steps: null,
+    seconds: null,
+    input_tokens: null,
+    output_tokens: null,
+    changes: { taken: 0, rejected: 0 },
+    compared: { chosen: 0, not_chosen: 0 },
+    rediscovery: null,
+    taken_in: done,
+    turned_down: 0,
+    cost: null,
   })
   expect(recordSummary([row('a', 29, 0), row('b', 20, 1)])).toBe('50 ran on 2 models · 49 done · 1 failed')
   expect(recordSummary([row('a', 3, 0)])).toBe('3 ran · 3 done')
   // K-devir-0: the reads before the first write, over the agents that have it on record; nothing where none has
   expect(rediscoveryLine([row('a', 3, 0)])).toBe('')
-  expect(rediscoveryLine([{ ...row('a', 3, 0), rediscovery: { mean: 6.5, agents: 2 } }, { ...row('b', 1, 0), rediscovery: { mean: 2, agents: 1 } }])).toBe(
-    'Reads before the first write: 5 · 3 agents',
-  )
+  expect(
+    rediscoveryLine([
+      { ...row('a', 3, 0), rediscovery: { mean: 6.5, agents: 2 } },
+      { ...row('b', 1, 0), rediscovery: { mean: 2, agents: 1 } },
+    ]),
+  ).toBe('Reads before the first write: 5 · 3 agents')
 })
 
 test('the panel says its work was stopped only where it was', () => {

@@ -39,7 +39,8 @@ export function downloadOf(command: string[]): string | null {
   return null
 }
 
-const unwrapped = (command: string[]) => (programOf(command[0]) === 'cmd' && command[1]?.toLowerCase() === '/c' ? command.slice(2) : command)
+const unwrapped = (command: string[]) =>
+  programOf(command[0]) === 'cmd' && command[1]?.toLowerCase() === '/c' ? command.slice(2) : command
 
 // As app/package_look.py has them: what may stand before the package, and a package with its version.
 const QUIET = ['-y', '--yes', '-q', '--quiet']
@@ -72,7 +73,8 @@ export const isValue = (value: string) =>
 const SECRET_NAME = /token|key|secret|password|passwd|pass|pwd|auth|signature|sig|credential|session|jwt|bearer|cookie/i
 const secretName = (name: string) => name === 'k' || SECRET_NAME.test(name)
 // An argument that is a key on its own: sk-… (and sk-sp-…), ghp_…, github_pat_…, xox?-…, long hex, long base64.
-const KEY_LIKE = /^(sk-|gh[pousr]_|github_pat_|xox[a-z]-)\S{6,}$|^[0-9a-f]{32,}$|^(?=.*\d)(?=.*[a-z])[\w+-]{40,}={0,2}$/i
+const KEY_LIKE =
+  /^(sk-|gh[pousr]_|github_pat_|xox[a-z]-)\S{6,}$|^[0-9a-f]{32,}$|^(?=.*\d)(?=.*[a-z])[\w+-]{40,}={0,2}$/i
 // An address in an argument, the user (and password) before its host, a field of its query.
 const URL_IN = /[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+/gi
 const USERINFO = /^([a-z][a-z0-9+.-]*:\/\/)([^/?#@]+)@/i
@@ -87,7 +89,9 @@ function partShown(command: string[], at: number): string {
   const inUrl = (url: string) =>
     url
       .replace(USERINFO, (_, scheme: string) => `${scheme}${MASK}@`)
-      .replace(FIELD, (all, mark: string, name: string, value: string) => (secretName(name) && isValue(value) ? `${mark}${name}=${MASK}` : all))
+      .replace(FIELD, (all, mark: string, name: string, value: string) =>
+        secretName(name) && isValue(value) ? `${mark}${name}=${MASK}` : all,
+      )
   const shown = part.replace(URL_IN, inUrl).replace(AUTHORIZATION, (_, before: string) => before + MASK)
   if (shown !== part) return shown
   const named = NAMED.exec(part)
@@ -114,7 +118,8 @@ export function commandShown(command: string[]): string[] {
 export const argumentKey = (server: string, at: number) => `${server}\nargument ${at}`
 
 const error = { error: UNDERSTOOD }
-const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
 const isScalar = (value: unknown) => ['string', 'number', 'boolean'].includes(typeof value)
 
 // A string is matched whole first and kept as it is: a "//" or ",]" inside one is text.
@@ -123,7 +128,9 @@ const TRAILING_COMMA = /("(?:[^"\\]|\\.)*")|,(?=\s*[}\]])/g
 
 /** JSONC as JSON: its comments, then its trailing commas, taken out (in that order: a comment may sit between the comma and the brace). */
 const jsonOf = (text: string) =>
-  text.replace(COMMENT, (_, string?: string) => string ?? ' ').replace(TRAILING_COMMA, (_, string?: string) => string ?? '')
+  text
+    .replace(COMMENT, (_, string?: string) => string ?? ' ')
+    .replace(TRAILING_COMMA, (_, string?: string) => string ?? '')
 
 /**
  * The servers in a block pasted from a server's page. Never says what was in the text: JSON.parse's
@@ -148,11 +155,19 @@ export function readPasted(text: string): Read {
 }
 
 /** Where a pasted object holds its servers: "mcpServers", VS Code's "servers" or "mcp.servers"; undefined where it names none. */
-const blockOf = (json: Record<string, unknown>) => json.mcpServers ?? json.servers ?? (isObject(json.mcp) ? json.mcp.servers : undefined)
+const blockOf = (json: Record<string, unknown>) =>
+  json.mcpServers ?? json.servers ?? (isObject(json.mcp) ? json.mcp.servers : undefined)
 
 /** One entry with a command as a server; null where its command, arguments or variables are not a server's. */
 function serverOf(name: string, command: string, args: unknown, env: unknown): Pasted | null {
-  if (!command.trim() || !Array.isArray(args) || !args.every(isScalar) || !isObject(env) || !Object.values(env).every(isScalar)) return null
+  if (
+    !command.trim() ||
+    !Array.isArray(args) ||
+    !args.every(isScalar) ||
+    !isObject(env) ||
+    !Object.values(env).every(isScalar)
+  )
+    return null
   return {
     name,
     command: [command, ...args.map(String)],
@@ -188,7 +203,9 @@ function fromClaudeLine(text: string): Read {
   const line = text.replace(/[\\`^]\r?\n/g, ' ')
   if (/[\r\n]/.test(line)) return error
   // A quote with no other to close it ("don't") is a letter of its word.
-  const words = (line.match(/(?:"[^"]*"|'[^']*'|[^\s"']|["'])+/g) ?? []).map(word => word.replace(/"([^"]*)"|'([^']*)'/g, '$1$2'))
+  const words = (line.match(/(?:"[^"]*"|'[^']*'|[^\s"']|["'])+/g) ?? []).map(word =>
+    word.replace(/"([^"]*)"|'([^']*)'/g, '$1$2'),
+  )
   // Pairs, not an object: a variable named __proto__ is a variable.
   const env: [string, string][] = []
   const options = optionsOf(words, env)
@@ -250,12 +267,21 @@ export function masked(text: string): { text: string; away: [string, string][] }
   const away: [string, string][] = []
   const shown = got.servers.map(({ name, command, env }) => {
     for (const [variable, value] of Object.entries(env)) if (isValue(value)) away.push([`${name}\n${variable}`, value])
-    const kept = Object.fromEntries(Object.entries(env).map(([variable, value]) => [variable, isValue(value) ? MASK : value]))
+    const kept = Object.fromEntries(
+      Object.entries(env).map(([variable, value]) => [variable, isValue(value) ? MASK : value]),
+    )
     const [program, ...args] = commandShown(command)
     args.forEach((arg, at) => arg !== command[at + 1] && away.push([argumentKey(name, at + 1), command[at + 1]]))
     return [name, { command: program, args, env: kept }] as const
   })
   if (away.length === 0 && got.unsupported.length === 0) return null
   const all = [...shown, ...got.unsupported.map(name => [name, { url: '…' }] as const)]
-  return { text: JSON.stringify(all.length === 1 && all[0][0] === '' ? all[0][1] : { mcpServers: Object.fromEntries(all) }, null, 2), away }
+  return {
+    text: JSON.stringify(
+      all.length === 1 && all[0][0] === '' ? all[0][1] : { mcpServers: Object.fromEntries(all) },
+      null,
+      2,
+    ),
+    away,
+  }
 }

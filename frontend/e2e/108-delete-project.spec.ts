@@ -7,7 +7,9 @@ import { expect, test } from './fixtures'
 import { LINK, OWN, openFreshConversation, shot } from './helpers'
 import { OUTSIDE_DIR } from './paths.mjs'
 
-test('Delete project: counted, exported first if wished, deleted once its name is typed; another chat opens and the folder stays', async ({ page }) => {
+test('Delete project: counted, exported first if wished, deleted once its name is typed; another chat opens and the folder stays', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await openFreshConversation(page)
   const name = `delete-me-${Date.now()}`
@@ -23,7 +25,9 @@ test('Delete project: counted, exported first if wished, deleted once its name i
   const cid: string = (await chat.json()).id
   // KOLONİ opens on the chat with the latest activity: this one, touched again where another spec's work came between.
   for (let tries = 1; ; tries++) {
-    expect((await page.request.patch(`/api/conversations/${cid}`, { data: { plan_first: false }, headers: OWN })).ok()).toBe(true)
+    expect(
+      (await page.request.patch(`/api/conversations/${cid}`, { data: { plan_first: false }, headers: OWN })).ok(),
+    ).toBe(true)
     await page.goto('about:blank')
     await page.goto(LINK)
     await page.getByLabel('Message').waitFor()
@@ -36,12 +40,17 @@ test('Delete project: counted, exported first if wished, deleted once its name i
   await expect(level).toHaveAttribute('aria-current', 'true')
   await expect(level).toHaveAccessibleDescription(`${name} · every chat of it`)
   // (Under This folder, with its map and rules.)
-  await page.getByRole('form', { name: 'Project settings' }).getByRole('button', { name: /^This folder/ }).click()
+  await page
+    .getByRole('form', { name: 'Project settings' })
+    .getByRole('button', { name: /^This folder/ })
+    .click()
   const strip = page.getByRole('region', { name: 'Delete project' })
   await expect(strip).toContainText('Its folder on disk is not touched')
   await strip.getByRole('button', { name: 'Delete project…' }).click()
   const dialog = page.getByRole('alertdialog', { name: `Delete ${name} from KOLONİ?` })
-  await expect(dialog).toContainText('This deletes 1 chat, 0 memory records, 0 To-do tasks, 0 triggers, 0 knowledge topics')
+  await expect(dialog).toContainText(
+    'This deletes 1 chat, 0 memory records, 0 To-do tasks, 0 triggers, 0 knowledge topics',
+  )
   await expect(dialog).toContainText('It cannot be undone.')
   await expect(dialog.getByRole('button', { name: 'Export first' })).toBeVisible()
   await shot(page, '108-delete-project')
@@ -55,7 +64,9 @@ test('Delete project: counted, exported first if wished, deleted once its name i
   page.on('response', r => void (r.status() === 404 && missing.push(r.url())))
   await remove.click()
   // (Another chat opens, maybe of another project: this one is no level now.)
-  await expect(page.getByRole('navigation', { name: 'Settings levels' }).getByText(`${name} · every chat of it`)).toHaveCount(0)
+  await expect(
+    page.getByRole('navigation', { name: 'Settings levels' }).getByText(`${name} · every chat of it`),
+  ).toHaveCount(0)
   await expect(page.getByRole('tab', { name: new RegExp(`^${name}`) })).toHaveCount(0)
   const projects: { id: string }[] = await (await page.request.get('/api/projects')).json()
   expect(projects.map(p => p.id)).not.toContain(pid)

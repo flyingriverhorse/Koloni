@@ -11,9 +11,14 @@ const NAMES = ['Catalogue Codex', 'Catalogue Claude', 'Catalogue New']
 // What the catalogue proposes for Codex (models.dev's OpenAI, a model of each family and tier): read, not
 // written here, so that an updated catalogue does not break the test.
 const proposed = async (request: APIRequestContext): Promise<string[]> =>
-  (await (await request.post('/api/providers/fill-from-catalogue', { headers: OWN, data: { kind: 'codex_cli', models: [] } })).json()).models.map(
-    (m: { name: string }) => m.name,
-  )
+  (
+    await (
+      await request.post('/api/providers/fill-from-catalogue', {
+        headers: OWN,
+        data: { kind: 'codex_cli', models: [] },
+      })
+    ).json()
+  ).models.map((m: { name: string }) => m.name)
 
 async function remove(request: APIRequestContext) {
   for (const provider of await (await request.get('/api/providers')).json())
@@ -41,7 +46,10 @@ async function openProvider(page: Page, name: string) {
   await expect(page.getByLabel('Name', { exact: true })).toHaveValue(name)
 }
 
-test('Fill from catalogue proposes the known models, marks each, and they are kept only once saved', async ({ page, request }) => {
+test('Fill from catalogue proposes the known models, marks each, and they are kept only once saved', async ({
+  page,
+  request,
+}) => {
   await openFreshConversation(page)
   await openProvider(page, 'Catalogue Codex')
   // Not installed: the vendor's command to run in your own terminal, and its docs (on Connection).
@@ -52,10 +60,13 @@ test('Fill from catalogue proposes the known models, marks each, and they are ke
   await page.getByRole('tab', { name: 'Models' }).click()
   await page.getByRole('button', { name: 'Fill from the catalogue' }).click()
   await expect(page.locator('.provider-dialog .model-name-text').first()).toHaveText('gpt-6-astra')
-  await expect(page.getByRole('img', { name: 'Cannot be used: not installed' })).toHaveCount((await proposed(request)).length)
+  await expect(page.getByRole('img', { name: 'Cannot be used: not installed' })).toHaveCount(
+    (await proposed(request)).length,
+  )
   await expect(page.getByRole('status').filter({ hasText: 'not saved yet' })).toBeVisible()
   const saved = async () =>
-    (await (await request.get('/api/providers')).json()).find((p: { name: string }) => p.name === 'Catalogue Codex').models
+    (await (await request.get('/api/providers')).json()).find((p: { name: string }) => p.name === 'Catalogue Codex')
+      .models
   expect((await saved()) ?? []).toEqual([])
   await page.getByRole('button', { name: 'Save these models' }).click()
   const names = await proposed(request)

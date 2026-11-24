@@ -30,17 +30,34 @@ export function useNotifications(project: Project, desktopAvailable: boolean) {
       <Row
         label="Notification address"
         htmlFor="notify-url"
-        doc={GUIDE.settingsNotifications} why="Your webhook (Slack, Discord, ntfy or your own service). Agents’ notifications are posted there in the format below; an agent never picks the address."
+        doc={GUIDE.settingsNotifications}
+        why="Your webhook (Slack, Discord, ntfy or your own service). Agents’ notifications are posted there in the format below; an agent never picks the address."
         warn={
           <span id="notify-url-note" className="choice-note">
-            {project.has_notify_url ? 'A notification address is set. It is not shown again; type a new one to replace it.' : 'No notification address is set.'}
+            {project.has_notify_url
+              ? 'A notification address is set. It is not shown again; type a new one to replace it.'
+              : 'No notification address is set.'}
           </span>
         }
       >
-        <input id="notify-url" className="input mono" value={notifyUrl} maxLength={500} autoComplete="off" placeholder="https://hooks.example.com/…" aria-describedby="notify-url-note" onChange={e => setNotifyUrl(e.target.value)} />
+        <input
+          id="notify-url"
+          className="input mono"
+          value={notifyUrl}
+          maxLength={500}
+          autoComplete="off"
+          placeholder="https://hooks.example.com/…"
+          aria-describedby="notify-url-note"
+          onChange={e => setNotifyUrl(e.target.value)}
+        />
       </Row>
       <Row label="Post it as" htmlFor="notify-format">
-        <select id="notify-format" className="input" value={notifyFormat} onChange={e => setNotifyFormat(e.target.value as Project['notify_format'])}>
+        <select
+          id="notify-format"
+          className="input"
+          value={notifyFormat}
+          onChange={e => setNotifyFormat(e.target.value as Project['notify_format'])}
+        >
           <option value="slack">{'JSON {"text": …} - Slack, Mattermost'}</option>
           <option value="discord">{'JSON {"content": …} - Discord'}</option>
           <option value="text">Plain text - ntfy</option>
@@ -56,9 +73,16 @@ export function useNotifications(project: Project, desktopAvailable: boolean) {
       <Row
         label="Send the day’s summary at"
         htmlFor="day-note-at"
-        doc={GUIDE.settingsNotifications} why="Once a day, by this computer’s clock: the Board’s Today numbers as text, sent to the address and the desktop above. Counted from the record; no model is asked. Empty: not sent."
+        doc={GUIDE.settingsNotifications}
+        why="Once a day, by this computer’s clock: the Board’s Today numbers as text, sent to the address and the desktop above. Counted from the record; no model is asked. Empty: not sent."
       >
-        <input id="day-note-at" type="time" className="input mono" value={dayNote} onChange={e => setDayNote(e.target.value)} />
+        <input
+          id="day-note-at"
+          type="time"
+          className="input mono"
+          value={dayNote}
+          onChange={e => setDayNote(e.target.value)}
+        />
       </Row>
     </>,
     { saved },
@@ -66,7 +90,17 @@ export function useNotifications(project: Project, desktopAvailable: boolean) {
 }
 
 /** A desktop notification, where this system shows one. */
-function Desktop({ project, available, on, set }: { project: Project; available: boolean; on: boolean; set: (on: boolean) => void }) {
+function Desktop({
+  project,
+  available,
+  on,
+  set,
+}: {
+  project: Project
+  available: boolean
+  on: boolean
+  set: (on: boolean) => void
+}) {
   return (
     <>
       {/* One that is already on can still be taken off. */}

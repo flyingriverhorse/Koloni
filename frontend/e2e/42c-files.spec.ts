@@ -23,7 +23,9 @@ async function check(root: Locator, least: number) {
   await expect
     .poll(async () => {
       const pieces = await root.evaluate(contrasts)
-      return pieces.length < least ? `only ${pieces.length} of ${least} pieces drawn` : pieces.filter(piece => piece.ratio < 4.5)
+      return pieces.length < least
+        ? `only ${pieces.length} of ${least} pieces drawn`
+        : pieces.filter(piece => piece.ratio < 4.5)
     })
     .toEqual([])
 }
@@ -38,7 +40,8 @@ async function rejectWaiting(page: Page, id: string) {
 // The page the changes below change: as spec 39 leaves it, or one of its own when this spec runs alone.
 test.beforeAll(() => {
   const page = path.join(PROJECT_DIR, 'view39.html')
-  if (!existsSync(page)) writeFileSync(page, '<!doctype html>\n<h1>A page before the agent</h1>\n<p id="said">not run</p>\n')
+  if (!existsSync(page))
+    writeFileSync(page, '<!doctype html>\n<h1>A page before the agent</h1>\n<p id="said">not run</p>\n')
 })
 
 /** In the chat open, a change to a page waits for the user: Workspace opens by itself, on it. */
@@ -50,7 +53,9 @@ async function aPageWaits(page: Page) {
   await expect(filesOf(page)).toBeVisible()
 }
 
-test('a change that waits opens Workspace on its file: under the project folder’s name, once, M and a dot; its latest diff coloured, side by side or in one column - remembered, one column when narrow', async ({ page }) => {
+test('a change that waits opens Workspace on its file: under the project folder’s name, once, M and a dot; its latest diff coloured, side by side or in one column - remembered, one column when narrow', async ({
+  page,
+}) => {
   test.setTimeout(60_000)
   const id = await openFreshConversation(page)
   try {
@@ -83,7 +88,9 @@ test('a change that waits opens Workspace on its file: under the project folder�
     // (its button opens it on what waits)
     await workspaceButton(page).click({ timeout: 15_000 })
     await filesOf(page).getByRole('button', { name: 'Expand workspace' }).click()
-    await expect(filesOf(page).getByRole('button', { name: 'Side by side' })).toHaveAttribute('aria-pressed', 'false', { timeout: 15_000 })
+    await expect(filesOf(page).getByRole('button', { name: 'Side by side' })).toHaveAttribute('aria-pressed', 'false', {
+      timeout: 15_000,
+    })
     await expect(filesOf(page).locator('.diff-split')).toHaveCount(0)
     await filesOf(page).getByRole('button', { name: 'Side by side' }).click()
     await expect(filesOf(page).locator('.diff-split')).toBeVisible()
@@ -96,7 +103,9 @@ test('a change that waits opens Workspace on its file: under the project folder�
   }
 })
 
-test('on a 1280-1366 px screen a diff goes side by side in the window as it opens, once the files are hidden (K-42a)', async ({ page }) => {
+test('on a 1280-1366 px screen a diff goes side by side in the window as it opens, once the files are hidden (K-42a)', async ({
+  page,
+}) => {
   test.setTimeout(60_000)
   const id = await openFreshConversation(page)
   try {
@@ -108,7 +117,10 @@ test('on a 1280-1366 px screen a diff goes side by side in the window as it open
     await expect(button).toBeDisabled()
     await expect(button).toHaveAttribute('title', 'Too narrow for two columns: hide the files, or expand the window')
     await files.getByRole('button', { name: 'Hide files' }).click()
-    for (const size of [{ width: 1280, height: 720 }, { width: 1366, height: 768 }]) {
+    for (const size of [
+      { width: 1280, height: 720 },
+      { width: 1366, height: 768 },
+    ]) {
       await page.setViewportSize(size)
       await expect(button).toBeEnabled()
       if ((await button.getAttribute('aria-pressed')) === 'false') await button.click()
@@ -120,7 +132,9 @@ test('on a 1280-1366 px screen a diff goes side by side in the window as it open
   }
 })
 
-test('the Workspace button’s number is what waits for you as the Board counts it; approved, "View changes" opens Workspace at the file', async ({ page }) => {
+test('the Workspace button’s number is what waits for you as the Board counts it; approved, "View changes" opens Workspace at the file', async ({
+  page,
+}) => {
   test.setTimeout(60_000)
   const id = await openFreshConversation(page)
   try {
@@ -128,7 +142,11 @@ test('the Workspace button’s number is what waits for you as the Board counts 
     await expect(workspaceButton(page)).toHaveAccessibleName('Workspace 1 waiting', { timeout: 15_000 })
     // (the first under the open chat's message box, 0.1.5; none in its header nor the top bar - slice 42d)
     await expect(chatOf(page).locator('.composer-below > :first-child')).toHaveAccessibleName(/^Workspace/)
-    await expect(chatOf(page).locator('.chat-top').getByRole('button', { name: /^Workspace/ })).toHaveCount(0)
+    await expect(
+      chatOf(page)
+        .locator('.chat-top')
+        .getByRole('button', { name: /^Workspace/ }),
+    ).toHaveCount(0)
     await expect(page.getByRole('banner').getByRole('button', { name: /^Workspace/ })).toHaveCount(0)
     await chatOf(page).getByRole('button', { name: 'Approve' }).click()
     await expect(chatOf(page).getByText('The page is written.')).toBeVisible({ timeout: 20_000 })
@@ -138,7 +156,10 @@ test('the Workspace button’s number is what waits for you as the Board counts 
     await chatOf(page).getByRole('button', { name: 'details ▸' }).last().click()
     await chatOf(page).getByRole('button', { name: 'View changes' }).last().click()
     await expect(filesOf(page).getByRole('tab', { name: 'view39.html' })).toHaveAttribute('aria-selected', 'true')
-    await expect(treeOf(page).getByRole('treeitem', { name: 'view39.html modified, Applied' })).toHaveAttribute('aria-selected', 'true')
+    await expect(treeOf(page).getByRole('treeitem', { name: 'view39.html modified, Applied' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
     // (taken back: the page is as the next test finds it)
     await filesOf(page).getByRole('button', { name: 'Revert' }).click()
     await expect(filesOf(page).locator('.change-actions').getByText('Reverted', { exact: true })).toBeVisible()
@@ -151,12 +172,17 @@ const PAGE = path.join(PROJECT_DIR, 'page42c.html')
 const SECRET = path.join(PROJECT_DIR, '.env')
 test.describe('a file of the project that did not change', () => {
   test.beforeEach(() => {
-    writeFileSync(PAGE, '<h1>Plain page</h1>\n<p id="said">not run</p>\n<script>document.getElementById("said").textContent = "ran"</script>\n')
+    writeFileSync(
+      PAGE,
+      '<h1>Plain page</h1>\n<p id="said">not run</p>\n<script>document.getElementById("said").textContent = "ran"</script>\n',
+    )
     writeFileSync(SECRET, 'TOKEN=s3cr3t\n')
   })
   test.afterEach(() => [PAGE, SECRET].forEach(file => rmSync(file, { force: true })))
 
-  test('a page is previewed - its script run only once asked - or read as code; any other file is code; a secret is not in the tree; the tree from the keyboard', async ({ page }) => {
+  test('a page is previewed - its script run only once asked - or read as code; any other file is code; a secret is not in the tree; the tree from the keyboard', async ({
+    page,
+  }) => {
     test.setTimeout(60_000)
     await openFreshConversation(page)
     await workspaceButton(page).click()
@@ -178,7 +204,10 @@ test.describe('a file of the project that did not change', () => {
     await expect(files.locator('.changes-body .diff-no').first()).toHaveText('1')
     await tree.getByRole('treeitem', { name: 'hello.py' }).click()
     await expect(files.locator('.changes-body .diff-text').first()).toContainText('print')
-    await expect(files.getByRole('tablist', { name: 'Open files' }).getByRole('tab')).toHaveText(['page42c.html', 'hello.py'])
+    await expect(files.getByRole('tablist', { name: 'Open files' }).getByRole('tab')).toHaveText([
+      'page42c.html',
+      'hello.py',
+    ])
     if (process.env.KOLONI_SHOTS) await shot(page, '42c-code')
 
     // the keyboard: Home to the root, left closes it, right opens it, End and Enter open the last file; Esc closes, back on its button
@@ -210,7 +239,9 @@ test.describe('a file of the project that did not change', () => {
 })
 
 for (const theme of ['light', 'dark'] as const)
-  test(`in the ${theme} theme every text of the Workspace window, its tree, the coloured diff and its button stands out from what it is on (contrast 4.5 or more)`, async ({ page }) => {
+  test(`in the ${theme} theme every text of the Workspace window, its tree, the coloured diff and its button stands out from what it is on (contrast 4.5 or more)`, async ({
+    page,
+  }) => {
     test.setTimeout(60_000)
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     const id = await openFreshConversation(page)

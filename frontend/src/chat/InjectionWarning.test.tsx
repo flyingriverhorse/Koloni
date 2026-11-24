@@ -27,7 +27,10 @@ const chat = (warnings: InjectionWarning[]) =>
   convState({
     runs: [run('r', 'completed')],
     messages: [userMessage('r', 'look it up'), assistantMessage('m', 'r', 'Done.')],
-    agents: [agent('r', 'completed', { depth: 0 }), agent('sub', 'completed', { run_id: 'r', depth: 1, parent_agent_id: 'r', name: 'Coder' })],
+    agents: [
+      agent('r', 'completed', { depth: 0 }),
+      agent('sub', 'completed', { run_id: 'r', depth: 1, parent_agent_id: 'r', name: 'Coder' }),
+    ],
     warnings,
   })
 
@@ -38,19 +41,36 @@ afterEach(() => {
 })
 
 test('a warning is a card that only tells, under its turn: the rule and where, the Lead not named, a sub-agent named', () => {
-  render(<MessageList {...handlers} state={chat([warning(), warning({ id: 8, agent_id: 'sub', where: 'the MCP tool fake__echo', rule: 'hide_from_user' })])} />)
+  render(
+    <MessageList
+      {...handlers}
+      state={chat([
+        warning(),
+        warning({ id: 8, agent_id: 'sub', where: 'the MCP tool fake__echo', rule: 'hide_from_user' }),
+      ])}
+    />,
+  )
   const [lead, sub] = screen.getAllByRole('note')
-  expect(lead.textContent).toBe('Text tried to give ordersText from a web request looks like it tries to give the agent orders (rule: ignore previous).False alarm')
+  expect(lead.textContent).toBe(
+    'Text tried to give ordersText from a web request looks like it tries to give the agent orders (rule: ignore previous).False alarm',
+  )
   expect(lead).toHaveClass('card-tell')
   expect(sub.textContent).toContain('Coder · Text from the MCP tool fake__echo')
   expect(sub.textContent).toContain('hide from user')
   // B-141: its name, as a screen reader reads it, has the rule.
-  expect(screen.getByRole('note', { name: 'Coder · Text from the MCP tool fake__echo looks like it tries to give the agent orders (rule: hide from user).' })).toBe(sub)
+  expect(
+    screen.getByRole('note', {
+      name: 'Coder · Text from the MCP tool fake__echo looks like it tries to give the agent orders (rule: hide from user).',
+    }),
+  ).toBe(sub)
 })
 
 test('False alarm is said once and the count of its rule is shown on every warning of it', async () => {
   const marked = warning({ false_alarm: true, false_alarms: 3 })
-  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(marked), { status: 200 })))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(JSON.stringify(marked), { status: 200 })),
+  )
   useApp.setState({ conv: chat([warning(), warning({ id: 9, run_id: 'r' })]) })
   const Shown = () => <MessageList {...handlers} state={useApp(s => s.conv)!} />
   render(<Shown />)
@@ -61,7 +81,12 @@ test('False alarm is said once and the count of its rule is shown on every warni
 })
 
 test('a False alarm that is not counted says so', async () => {
-  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ detail: 'no such warning in this conversation' }), { status: 404 })))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () => new Response(JSON.stringify({ detail: 'no such warning in this conversation' }), { status: 404 }),
+    ),
+  )
   useApp.setState({ conv: chat([warning()]) })
   const Shown = () => <MessageList {...handlers} state={useApp(s => s.conv)!} />
   render(<Shown />)
@@ -82,9 +107,23 @@ test('a warning that comes as an event is added once, with the id of its event',
 
 test("a skill's card says when its text tries to steer an agent past you", () => {
   const skill = {
-    name: 'tidy', description: '', license: 'MIT', text: '', files: ['SKILL.md'], size: 10, scripts: [], source: 'C:\\tidy',
-    script_texts: {}, skipped: [], sha256: 's', injection_rules: ['hide_from_user', 'without_asking'],
-    allowed_tools: [], programs: [], read_whole: true, runs_as_it_loads: [], shell_blocks: 0,
+    name: 'tidy',
+    description: '',
+    license: 'MIT',
+    text: '',
+    files: ['SKILL.md'],
+    size: 10,
+    scripts: [],
+    source: 'C:\\tidy',
+    script_texts: {},
+    skipped: [],
+    sha256: 's',
+    injection_rules: ['hide_from_user', 'without_asking'],
+    allowed_tools: [],
+    programs: [],
+    read_whole: true,
+    runs_as_it_loads: [],
+    shell_blocks: 0,
     seen: { read: 0, reaches: {}, programs: [], addresses: [], env: [], whole_env: false, hidden: [], unread: [] },
   }
   const { rerender } = render(<SkillShown skill={skill} />)

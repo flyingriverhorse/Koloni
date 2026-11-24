@@ -5,7 +5,15 @@
  * the stage; where it was put is kept in this browser, and a double click (or Enter on the
  * handle) puts it back in its corner. And of all the stage's windows, the one used last is in front.
  */
-import { type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent, type RefObject, useRef, useState } from 'react'
+import {
+  type CSSProperties,
+  type KeyboardEvent,
+  type MouseEvent,
+  type PointerEvent,
+  type RefObject,
+  useRef,
+  useState,
+} from 'react'
 
 /** Where a moved window is: its left edge and its bottom edge, in px from the stage's left and bottom. */
 export interface Spot {
@@ -30,7 +38,9 @@ export function storedSpot(key: string): Spot | null {
     const kept: unknown = JSON.parse(localStorage.getItem(key) ?? 'null')
     if (typeof kept !== 'object' || kept === null) return null
     const { x, y } = kept as Record<string, unknown>
-    return typeof x === 'number' && typeof y === 'number' && x >= 0 && y >= 0 && Number.isFinite(x + y) ? { x, y } : null
+    return typeof x === 'number' && typeof y === 'number' && x >= 0 && y >= 0 && Number.isFinite(x + y)
+      ? { x, y }
+      : null
   } catch {
     return null
   }
@@ -75,7 +85,8 @@ const WINDOWS = '.chat, .view-panel, .changes'
 /** Puts a window in front of the stage's other windows (base.css: `[data-front]`). */
 export function toFront(window: Element) {
   const stage = window.closest('.stage') ?? window.parentElement
-  for (const other of Array.from(stage?.querySelectorAll(WINDOWS) ?? [])) if (other !== window) other.removeAttribute('data-front')
+  for (const other of Array.from(stage?.querySelectorAll(WINDOWS) ?? []))
+    if (other !== window) other.removeAttribute('data-front')
   window.setAttribute('data-front', '')
 }
 
@@ -96,7 +107,8 @@ const LEAST = { width: 240, height: 140 }
 const HEADER = 36
 const GAP = 14
 
-const meets = (a: Area, b: Area) => a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height
+const meets = (a: Area, b: Area) =>
+  a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height
 
 /**
  * K-38b-sinirlar: where a window that opens in the stage's top right (an agent's, a discussion's) goes. Where its CSS
@@ -119,7 +131,12 @@ export function placeWindow(want: Area, stage: Size, chat: (Area & { column?: bo
     // As near where it wants to be as goes inside this part, no bigger than it wants.
     const inside = (left: number, top: number, r: number, b: number): Area => {
       const [width, height] = [Math.min(want.width, r - left), Math.min(want.height, b - top)]
-      return { left: Math.max(left, Math.min(want.left, r - width)), top: Math.max(top, Math.min(want.top, b - height)), width, height }
+      return {
+        left: Math.max(left, Math.min(want.left, r - width)),
+        top: Math.max(top, Math.min(want.top, b - height)),
+        width,
+        height,
+      }
     }
     const ways = [
       inside(GAP, want.top, right, chat.top - GAP),
@@ -131,7 +148,8 @@ export function placeWindow(want: Area, stage: Size, chat: (Area & { column?: bo
   }
   for (const other of others) {
     const by = other.top + HEADER + GAP - box.top
-    if (by > 0 && meets(box, { ...other, height: HEADER }) && box.height - by >= LEAST.height) box = { ...box, top: box.top + by, height: box.height - by }
+    if (by > 0 && meets(box, { ...other, height: HEADER }) && box.height - by >= LEAST.height)
+      box = { ...box, top: box.top + by, height: box.height - by }
   }
   return box
 }
@@ -157,7 +175,12 @@ export function placed(window: HTMLElement | null) {
     .map(area)
     .filter(other => other.width > 0)
   const want = area(window)
-  const to = placeWindow(want, corner, chat && { ...area(chat), column: !chat.classList.contains('chat-closed') }, others)
+  const to = placeWindow(
+    want,
+    corner,
+    chat && { ...area(chat), column: !chat.classList.contains('chat-closed') },
+    others,
+  )
   if (to === want) return
   const inspector = parseFloat(getComputedStyle(window).getPropertyValue('--inspector-w')) || 0
   Object.assign(window.style, {
@@ -242,7 +265,9 @@ export function useMove(key: string, win: RefObject<HTMLElement | null>) {
         event.preventDefault()
         return put(null)
       }
-      const [dx, dy] = { ArrowLeft: [-STEP, 0], ArrowRight: [STEP, 0], ArrowUp: [0, STEP], ArrowDown: [0, -STEP] }[event.key] ?? [0, 0]
+      const [dx, dy] = { ArrowLeft: [-STEP, 0], ArrowRight: [STEP, 0], ArrowUp: [0, STEP], ArrowDown: [0, -STEP] }[
+        event.key
+      ] ?? [0, 0]
       const at = measure()
       if ((!dx && !dy) || !at) return
       event.preventDefault()

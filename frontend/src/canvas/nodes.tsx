@@ -1,4 +1,17 @@
-import { AppWindow, CaretDown, CaretRight, ChatsCircle, Clock, FileText, Lightbulb, ListChecks, Moon, Robot, User, UsersThree } from '@phosphor-icons/react'
+import {
+  AppWindow,
+  CaretDown,
+  CaretRight,
+  ChatsCircle,
+  Clock,
+  FileText,
+  Lightbulb,
+  ListChecks,
+  Moon,
+  Robot,
+  User,
+  UsersThree,
+} from '@phosphor-icons/react'
 import { Handle, type Node, type NodeProps, Position } from '@xyflow/react'
 import { type CSSProperties, type ReactNode, useContext, useEffect, useState } from 'react'
 import { api, errorText } from '../api/client'
@@ -12,7 +25,25 @@ import { StatusLabel } from '../shell/StatusLabel'
 import { AwayReport } from '../backlog/Away'
 import { doneSaid } from '../backlog/awayText'
 import { useApp } from '../state/store'
-import { type AgentData, type AttachmentData, type AwayData, type AwayJobData, type DiscussionData, type GroupData, type PlanData, type PoData, poSaid, poTokens, SCOUT_DOES, type ReadyData, type RequestData, type RoomData, type RoundData, type TeamData, statusWords } from './deriveGraph'
+import {
+  type AgentData,
+  type AttachmentData,
+  type AwayData,
+  type AwayJobData,
+  type DiscussionData,
+  type GroupData,
+  type PlanData,
+  type PoData,
+  poSaid,
+  poTokens,
+  SCOUT_DOES,
+  type ReadyData,
+  type RequestData,
+  type RoomData,
+  type RoundData,
+  type TeamData,
+  statusWords,
+} from './deriveGraph'
 import { runClock } from '../chat/checked'
 import { DOT_WORDS, type Loop, type LoopCard, saysRounds } from './checksLoop'
 import { type ChecksData, toolOf } from './checksNode'
@@ -40,7 +71,8 @@ const Ends = () => (
 
 /** Which of a card's two dots no line ever uses: hidden, the Handle kept (a line that names none still finds it). */
 type Unused = 'in' | 'out' | 'both'
-const hiddenIf = (unused: Unused | undefined, side: 'in' | 'out') => (unused === side || unused === 'both' ? 'found-handle' : undefined)
+const hiddenIf = (unused: Unused | undefined, side: 'in' | 'out') =>
+  unused === side || unused === 'both' ? 'found-handle' : undefined
 
 interface CardProps {
   icon: ReactNode
@@ -61,8 +93,14 @@ function Card({ icon, title, tip, label, tone = 'idle', selected, unused, childr
       <div className="node-head">
         <span className="node-icon">{icon}</span>
         {/* (Whole on hover where the card's width cuts it: "Ended: nothin…" is how a discussion ended.) */}
-        <span className="node-title" title={tip ?? title}>{title}</span>
-        {label && <span className="node-label mono" title={label}>{label}</span>}
+        <span className="node-title" title={tip ?? title}>
+          {title}
+        </span>
+        {label && (
+          <span className="node-label mono" title={label}>
+            {label}
+          </span>
+        )}
       </div>
       <div className="node-body">{children}</div>
       <Handle type="source" position={Position.Right} isConnectable={false} className={hiddenIf(unused, 'out')} />
@@ -87,7 +125,9 @@ export function RequestNode({ data, selected }: NodeProps<Node<RequestData & Rec
       unused="in"
     >
       {/* (Three lines at most - the user's, 5 Nov: what was written, whole, is in the side panel.) */}
-      {data.trigger !== null && data.trigger !== '' && <div className="node-meta mono">{data.trigger} · nobody watching</div>}
+      {data.trigger !== null && data.trigger !== '' && (
+        <div className="node-meta mono">{data.trigger} · nobody watching</div>
+      )}
       <div className={`node-text${data.trigger ? ' node-text-one' : ''}`}>
         {data.queued && <span className="tag tag-accent">Queued</span>} {data.text}
       </div>
@@ -98,7 +138,10 @@ export function RequestNode({ data, selected }: NodeProps<Node<RequestData & Rec
 /** A file the user attached (slice 85b): small, in its kind's colour; a click opens it in the inspector. */
 export function AttachmentNode({ data, selected }: NodeProps<Node<AttachmentData & Record<string, unknown>>>) {
   return (
-    <div className={`node node-attachment${selected ? ' node-selected' : ''}`} style={{ '--c': `var(${data.colour})` } as CSSProperties}>
+    <div
+      className={`node node-attachment${selected ? ' node-selected' : ''}`}
+      style={{ '--c': `var(${data.colour})` } as CSSProperties}
+    >
       {/* (No line comes into a file.) */}
       <Handle type="target" position={Position.Left} isConnectable={false} className="found-handle" />
       <span className="file-ic mono" aria-hidden="true">
@@ -157,7 +200,9 @@ export function DiscussionNode({ data, selected }: NodeProps<Node<DiscussionData
       // arrow is there and covers the dot.)
       unused="out"
     >
-      <div className="node-line" title={data.topic}>{data.topic}</div>
+      <div className="node-line" title={data.topic}>
+        {data.topic}
+      </div>
       {/* Whose turn it is, or who takes part: the last things said are in the side panel (the user's, 5 Nov). */}
       {data.speaking ? (
         <div className="node-meta mono" style={{ color: 'var(--accent)' }}>
@@ -183,7 +228,9 @@ export function RoomNode({ data, selected }: NodeProps<Node<RoomData & Record<st
       selected={selected}
       unused="out"
     >
-      <div className="node-line" title={data.goal}>{data.goal}</div>
+      <div className="node-line" title={data.goal}>
+        {data.goal}
+      </div>
       {data.attention ? (
         <div className="node-meta mono" style={{ color: 'var(--warn)' }}>
           Waits for you
@@ -217,7 +264,14 @@ export function PoNode({ data, selected }: NodeProps<Node<PoData & Record<string
   const { openTodo } = useContext(NodeActions)
   return (
     // (Its line comes straight down into its top.)
-    <Card icon={<Lightbulb size={13} />} title="Scout" tip={SCOUT_DOES} label={data.model_id ?? 'model not known'} selected={selected} unused="both">
+    <Card
+      icon={<Lightbulb size={13} />}
+      title="Scout"
+      tip={SCOUT_DOES}
+      label={data.model_id ?? 'model not known'}
+      selected={selected}
+      unused="both"
+    >
       <div className="node-line" style={data.heard ? undefined : { color: 'var(--warn)' }}>
         {poSaid(data)}
       </div>
@@ -294,10 +348,21 @@ export function ChecksNode({ data, selected }: NodeProps<Node<ChecksData>>) {
  */
 function ChecksBox({ data, loop, selected, now }: { data: ChecksData; loop: Loop; selected: boolean; now: number }) {
   const running = data.running
-  const tests = loop.tests.map(line => ({ state: line.state, text: `${MARK[line.state] ?? '–'} ${line.text}${line.since ? ` · ${runClock(line.since, now)} …` : ''}` }))
-  if (running) tests.unshift({ state: 'running', text: `● ${[toolOf(running.command), ...liveFactList(now, running.since, null, null)].join(' · ')}` })
+  const tests = loop.tests.map(line => ({
+    state: line.state,
+    text: `${MARK[line.state] ?? '–'} ${line.text}${line.since ? ` · ${runClock(line.since, now)} …` : ''}`,
+  }))
+  if (running)
+    tests.unshift({
+      state: 'running',
+      text: `● ${[toolOf(running.command), ...liveFactList(now, running.since, null, null)].join(' · ')}`,
+    })
   return (
-    <div className={['node-checks', 'node-checks-box', loop.loop && 'node-checks-loop', selected && 'node-checks-selected'].filter(Boolean).join(' ')}>
+    <div
+      className={['node-checks', 'node-checks-box', loop.loop && 'node-checks-loop', selected && 'node-checks-selected']
+        .filter(Boolean)
+        .join(' ')}
+    >
       <Handle type="target" position={Position.Left} isConnectable={false} />
       {/* Its panel: a click - by mouse, or Enter / Space on it - is the node's own click (the canvas picks it, as a click on the
           box); its keys go no further (the canvas's own key handling would pick it a second time). */}
@@ -348,7 +413,11 @@ function ChecksBox({ data, loop, selected, now }: { data: ChecksData; loop: Loop
           ))}
         </span>
         {saysRounds(loop) && (
-          <span className="checks-dots" role="img" aria-label={`${loop.dots.length} rounds: ${loop.dots.map(dot => DOT_WORDS[dot]).join(', ')}`}>
+          <span
+            className="checks-dots"
+            role="img"
+            aria-label={`${loop.dots.length} rounds: ${loop.dots.map(dot => DOT_WORDS[dot]).join(', ')}`}
+          >
             {loop.dots.map((dot, n) => (
               <i key={n} data-dot={dot} title={DOT_WORDS[dot]} />
             ))}
@@ -378,11 +447,21 @@ const own = (act: () => void) => ({
 function ChecksCard({ card, stacked }: { card: LoopCard; stacked: boolean }) {
   const more = stacked && card.count > 1
   const tests = card.agentId.startsWith('tests:')
-  const said = tests ? `${card.name}: ${card.said} - open the checks' panel` : `Open ${card.name}'s window: ${card.said}`
+  const said = tests
+    ? `${card.name}: ${card.said} - open the checks' panel`
+    : `Open ${card.name}'s window: ${card.said}`
   // (The Tests card's click is the box's own - its panel -; an agent's, its window alone.)
-  const act = tests ? { onKeyDown: (event: { stopPropagation: () => void }) => event.stopPropagation() } : own(() => useApp.getState().openAgentWindow(card.agentId))
+  const act = tests
+    ? { onKeyDown: (event: { stopPropagation: () => void }) => event.stopPropagation() }
+    : own(() => useApp.getState().openAgentWindow(card.agentId))
   return (
-    <button type="button" className={`checks-card-at nodrag${more ? ' checks-stack' : ''}`} aria-label={said} title={said} {...act}>
+    <button
+      type="button"
+      className={`checks-card-at nodrag${more ? ' checks-stack' : ''}`}
+      aria-label={said}
+      title={said}
+      {...act}
+    >
       {more && <span className="checks-badge">×{card.count}</span>}
       <span className="checks-card" data-tone={card.tone}>
         <b>{card.name}</b>
@@ -412,7 +491,11 @@ function ChecksMenu({ runId, leadId, stoppable }: { runId: string; leadId: strin
     </button>
   )
   return (
-    <span className="node-menu nodrag" onDoubleClick={event => event.stopPropagation()} onKeyDown={event => event.key === 'Escape' && setOpen(false)}>
+    <span
+      className="node-menu nodrag"
+      onDoubleClick={event => event.stopPropagation()}
+      onKeyDown={event => event.key === 'Escape' && setOpen(false)}
+    >
       <button
         type="button"
         className="node-open"
@@ -428,9 +511,28 @@ function ChecksMenu({ runId, leadId, stoppable }: { runId: string; leadId: strin
       </button>
       {open && (
         <div role="menu" aria-label="Checks: more" className="node-menu-panel">
-          {stoppable && item('Stop this check', () => void api.post(`/runs/${runId}/check/stop`).then(() => setError(null), err => setError(errorText(err))))}
+          {stoppable &&
+            item(
+              'Stop this check',
+              () =>
+                void api.post(`/runs/${runId}/check/stop`).then(
+                  () => setError(null),
+                  err => setError(errorText(err)),
+                ),
+            )}
           {/* S10: the same switch as the level menu's Check after a change, for the open chat. */}
-          {chatOn && item('Off for this chat', () => void useApp.getState().setAfterChange('off').then(() => setError(null), err => setError(errorText(err))))}
+          {chatOn &&
+            item(
+              'Off for this chat',
+              () =>
+                void useApp
+                  .getState()
+                  .setAfterChange('off')
+                  .then(
+                    () => setError(null),
+                    err => setError(errorText(err)),
+                  ),
+            )}
           {item('Open its log', () => useApp.getState().openAgentWindow(leadId.replace(/^agent:/, '')))}
         </div>
       )}
@@ -479,9 +581,17 @@ function AgentChip({ id, data, selected }: AgentProps) {
   const name = data.name || data.role
   const chip = data.chip!
   return (
-    <div className={`node node-chip${selected ? ' node-selected' : ''}${data.colour ? ' group-team' : ''}`} style={data.colour ? ({ '--team': data.colour } as CSSProperties) : undefined}>
+    <div
+      className={`node node-chip${selected ? ' node-selected' : ''}${data.colour ? ' group-team' : ''}`}
+      style={data.colour ? ({ '--team': data.colour } as CSSProperties) : undefined}
+    >
       <Handle type="target" position={Position.Left} isConnectable={false} />
-      <button type="button" className="node-chip-button" aria-label={`${name}: ${chip.said}`} title={data.findings?.detail ?? data.activity}>
+      <button
+        type="button"
+        className="node-chip-button"
+        aria-label={`${name}: ${chip.said}`}
+        title={data.findings?.detail ?? data.activity}
+      >
         <span className="node-chip-name">{name}</span>
         <span style={{ color: chip.colour }}>{chip.said}</span>
       </button>
@@ -517,7 +627,9 @@ export function RoundNode({ id, data }: NodeProps<Node<RoundData & Record<string
         </span>
         {/* (Something in it waits for the user: it stays open, and says so - as a closed box does.) */}
         {(data.result || data.attention) && (
-          <span style={{ color: data.attention ? 'var(--warn)' : data.colour }}>{[data.attention && WAITS, data.result].filter(Boolean).join(' · ')}</span>
+          <span style={{ color: data.attention ? 'var(--warn)' : data.colour }}>
+            {[data.attention && WAITS, data.result].filter(Boolean).join(' · ')}
+          </span>
         )}
       </button>
       <Handle type="source" position={Position.Right} isConnectable={false} />
@@ -533,7 +645,11 @@ export function RoundNode({ id, data }: NodeProps<Node<RoundData & Record<string
  */
 /** As an agent's state is drawn: at work, waiting for you, or neither. */
 const toneOf = (status: AgentData['status']): Tone =>
-  status === 'running' || status === 'waiting' ? 'running' : status === 'waiting_approval' || status === 'proposed' ? 'approval' : 'idle'
+  status === 'running' || status === 'waiting'
+    ? 'running'
+    : status === 'waiting_approval' || status === 'proposed'
+      ? 'approval'
+      : 'idle'
 
 /** An agent's state line, in its state's colour; what was counted of its calls first, so that its state is what gets cut off. */
 function StateLine({ id, data, said }: { id: string; data: AgentData; said: string }) {
@@ -572,7 +688,10 @@ function AgentCard({ id, data, selected }: AgentProps) {
   const where = ranOn(data.provider, data.modelId, data.modelFrom) || 'model unknown'
   const said = statusWords(data)
   return (
-    <div className={`node node-agent node-${tone}${selected ? ' node-selected' : ''}${data.colour ? ' group-team' : ''}`} style={data.colour ? ({ '--team': data.colour } as CSSProperties) : undefined}>
+    <div
+      className={`node node-agent node-${tone}${selected ? ' node-selected' : ''}${data.colour ? ' group-team' : ''}`}
+      style={data.colour ? ({ '--team': data.colour } as CSSProperties) : undefined}
+    >
       <Handle type="target" position={Position.Left} isConnectable={false} />
       <div className="node-head">
         <span className="node-icon">
@@ -589,7 +708,9 @@ function AgentCard({ id, data, selected }: AgentProps) {
         {/* Its state's colour, as everywhere; its dot blinks while it is at work. Waiting for your answer, what it asks is
             under the pointer. */}
         <StateLine id={id} data={data} said={said} />
-        {(data.summary || data.spent) && <div className="node-meta mono">{[data.summary, data.spent].filter(Boolean).join(' · ')}</div>}
+        {(data.summary || data.spent) && (
+          <div className="node-meta mono">{[data.summary, data.spent].filter(Boolean).join(' · ')}</div>
+        )}
         <CheckedStrip line={data.checked} />
       </div>
       <Handle type="source" position={Position.Right} isConnectable={false} />
@@ -635,20 +756,35 @@ export function TeamNode({ id, data }: NodeProps<Node<TeamData & Record<string, 
   const words = () => (
     <>
       {atWork && !data.byRoles && (
-        <button type="button" className="btn btn-small team-stop nodrag" aria-label={`Stop ${data.team}`} disabled={sent} onClick={() => send(stopTeam)}>
+        <button
+          type="button"
+          className="btn btn-small team-stop nodrag"
+          aria-label={`Stop ${data.team}`}
+          disabled={sent}
+          onClick={() => send(stopTeam)}
+        >
           Stop
         </button>
       )}
       {/* (A recipe's team: its steps are drawn. Finish now takes its work to Ready for you as it stands.) */}
       {atWork && !data.byRoles && data.steps.length > 0 && (
-        <button type="button" className="btn btn-small team-stop nodrag" aria-label={`Finish ${data.team} now`} disabled={sent} onClick={() => send(finishTeam)}>
+        <button
+          type="button"
+          className="btn btn-small team-stop nodrag"
+          aria-label={`Finish ${data.team} now`}
+          disabled={sent}
+          onClick={() => send(finishTeam)}
+        >
           Finish now
         </button>
       )}
     </>
   )
   return (
-    <div className={`team-frame team-${data.stands}${data.open ? '' : ' team-shut'}`} style={{ '--team': data.colour } as CSSProperties}>
+    <div
+      className={`team-frame team-${data.stands}${data.open ? '' : ' team-shut'}`}
+      style={{ '--team': data.colour } as CSSProperties}
+    >
       <div className="team-head">
         <div className="team-title">
           {data.finished && <span className="team-tick">✓</span>}
@@ -656,16 +792,28 @@ export function TeamNode({ id, data }: NodeProps<Node<TeamData & Record<string, 
           <span className="team-recipe">{data.recipe}</span>
           <span className="team-tokens mono muted">{data.tokens}</span>
           {words()}
-          <button type="button" className="link-btn team-fold nodrag" aria-expanded={data.open} aria-label={`${data.open ? 'Fold' : 'Open'} ${data.team}`} onClick={() => toggle(id)}>
+          <button
+            type="button"
+            className="link-btn team-fold nodrag"
+            aria-expanded={data.open}
+            aria-label={`${data.open ? 'Fold' : 'Open'} ${data.team}`}
+            onClick={() => toggle(id)}
+          >
             {data.open ? 'fold' : 'open'}
           </button>
         </div>
         <ol className="team-steps" aria-label={`${data.recipe}: its steps`}>
           {data.steps.map(step => (
-            <li key={step.id} className={`team-step team-step-${step.unmet ? 'unmet' : step.state}`} title={step.unmet ? `${step.name} · skipped: ${step.unmet}` : step.name} aria-current={step.state === 'now' ? 'step' : undefined}>
+            <li
+              key={step.id}
+              className={`team-step team-step-${step.unmet ? 'unmet' : step.state}`}
+              title={step.unmet ? `${step.name} · skipped: ${step.unmet}` : step.name}
+              aria-current={step.state === 'now' ? 'step' : undefined}
+            >
               {step.name}
               {/* K-tarif-kol: a group's branches, each its steps in order - "Checks: Build it ✓ → Test it … · Docs ✓". */}
-              {step.branches && `: ${step.branches.map(line => line.map(one => one.name + BRANCH_MARK[one.state]).join(' → ')).join(' · ')}`}
+              {step.branches &&
+                `: ${step.branches.map(line => line.map(one => one.name + BRANCH_MARK[one.state]).join(' → ')).join(' · ')}`}
               {data.many?.[step.id]?.map(many => ` · ${many}`)}
               {/* K-evrim: a step of candidates, the best score its measure gave. */}
               {step.best != null && ` · best ${step.best}`}
@@ -693,7 +841,12 @@ export function TeamNode({ id, data }: NodeProps<Node<TeamData & Record<string, 
       )}
       {/* (Its line to Ready for you: low, under its card - canvas.css. A frame of roles has none: its dot hidden, kept for
           a member's line and a line moved onto it, folded.) */}
-      <Handle type="source" position={Position.Right} isConnectable={false} className={data.byRoles ? 'team-out found-handle' : 'team-out'} />
+      <Handle
+        type="source"
+        position={Position.Right}
+        isConnectable={false}
+        className={data.byRoles ? 'team-out found-handle' : 'team-out'}
+      />
       {/* Findings handed out of it, from under it (only the line shows). After team-out: a line that names no dot leaves
           by the first. */}
       <Handle type="source" id="found-out" position={Position.Bottom} isConnectable={false} className="found-handle" />
@@ -717,7 +870,9 @@ function readyStands(data: ReadyData) {
 /** What Ready for you says of the work: kept, waited for, at its end, in the project or not all of it. */
 function readySaid(data: ReadyData, kept: string | null, needs: boolean): string {
   // B-84: what is in the project is said team by team - one taken in before is not "nothing".
-  const inSoFar = data.inProject.length ? `In the project: ${data.inProject.join(', ')}.` : 'Nothing is in the project yet.'
+  const inSoFar = data.inProject.length
+    ? `In the project: ${data.inProject.join(', ')}.`
+    : 'Nothing is in the project yet.'
   return kept
     ? `The work ended before Take in${data.left ? ` (${data.left})` : ''}: the work is kept in the recipe’s copy, not in the project.`
     : data.waits
@@ -744,7 +899,9 @@ export function ReadyNode({ data, selected }: NodeProps<Node<ReadyData & Record<
   const { asked, kept, needs, label } = readyStands(data)
   const said = readySaid(data, kept, needs)
   return (
-    <div className={`node ready-node ${needs ? 'ready-needs' : data.taken ? 'ready-in' : 'ready-waits'}${selected ? ' node-selected' : ''}`}>
+    <div
+      className={`node ready-node ${needs ? 'ready-needs' : data.taken ? 'ready-in' : 'ready-waits'}${selected ? ' node-selected' : ''}`}
+    >
       <Handle type="target" position={Position.Left} isConnectable={false} className="ready-door" />
       <div className="node-head">
         <span className="node-icon">
@@ -790,7 +947,15 @@ export function ReadyNode({ data, selected }: NodeProps<Node<ReadyData & Record<
   )
 }
 
-const JOB_WORD = { planned: '', next: 'NEXT', working: 'WORKING', waits: 'WAITS', done: 'DONE', failed: 'NOT DONE', stopped: 'STOPPED' } as const
+const JOB_WORD = {
+  planned: '',
+  next: 'NEXT',
+  working: 'WORKING',
+  waits: 'WAITS',
+  done: 'DONE',
+  failed: 'NOT DONE',
+  stopped: 'STOPPED',
+} as const
 const openChat = (cid: string) => void useApp.getState().openConversation(cid)
 
 /** A job of a night while you were away (slice 106), closed: its chat holds its agents, opened from here. */
@@ -800,7 +965,9 @@ export function AwayJobNode({ data, selected }: NodeProps<Node<AwayJobData & Rec
   const chat = job.conversation_id
   return (
     <Card icon={<Moon size={13} />} title={job.title} label={JOB_WORD[job.state]} tone={tone} selected={selected}>
-      <div className="node-said">{[job.team, job.state === 'done' ? doneSaid(job) : job.why].filter(Boolean).join(' · ')}</div>
+      <div className="node-said">
+        {[job.team, job.state === 'done' ? doneSaid(job) : job.why].filter(Boolean).join(' · ')}
+      </div>
       {chat && (
         <button type="button" className="link-btn nodrag" onClick={() => openChat(chat)}>
           ▸ open its chat

@@ -25,7 +25,10 @@ export function TriggerProposalCard({ proposal, onDecide, onEdit }: Props) {
   if (proposal.status !== 'proposed') {
     return (
       <p className="muted away-said" role="note">
-        <Clock size={13} /> {proposal.status === 'approved' ? `The trigger “${proposal.name}” was made: it is on the Triggers page.` : `The trigger “${proposal.name}” was rejected: nothing was made.`}
+        <Clock size={13} />{' '}
+        {proposal.status === 'approved'
+          ? `The trigger “${proposal.name}” was made: it is on the Triggers page.`
+          : `The trigger “${proposal.name}” was rejected: nothing was made.`}
       </p>
     )
   }
@@ -48,7 +51,12 @@ export function TriggerProposalCard({ proposal, onDecide, onEdit }: Props) {
       </div>
       <p className="card-said">Its runs start by themselves in this chat, with nobody watching.</p>
       <div className="change-actions">
-        <button type="button" className="btn btn-small btn-primary" disabled={busy} onClick={() => void ask(() => onDecide('approve'))}>
+        <button
+          type="button"
+          className="btn btn-small btn-primary"
+          disabled={busy}
+          onClick={() => void ask(() => onDecide('approve'))}
+        >
           <Check size={13} />
           Approve
         </button>
@@ -56,7 +64,12 @@ export function TriggerProposalCard({ proposal, onDecide, onEdit }: Props) {
           <PencilSimple size={13} />
           Edit
         </button>
-        <button type="button" className="btn btn-small" disabled={busy} onClick={() => void ask(() => onDecide('reject'))}>
+        <button
+          type="button"
+          className="btn btn-small"
+          disabled={busy}
+          onClick={() => void ask(() => onDecide('reject'))}
+        >
           <X size={13} />
           Reject
         </button>

@@ -112,7 +112,14 @@ export function chainOf(state: ConvState, agentId: string, numbers = turnNumbers
 }
 
 /** The link a chain goes on to: the agent of that id with its turn, in the chain's topic and at its depth, before `first`; null ends the walk. */
-function linkBefore(state: ConvState, id: string, topicId: string, depth: number, first: number, numbers: Map<string, number>): Link | null {
+function linkBefore(
+  state: ConvState,
+  id: string,
+  topicId: string,
+  depth: number,
+  first: number,
+  numbers: Map<string, number>,
+): Link | null {
   const before = state.agents.find(a => a.id === id)
   const run = before && state.runs.find(r => r.id === before.run_id)
   const turn = before && numbers.get(before.run_id)
@@ -154,7 +161,9 @@ export function earlierLinks(state: ConvState, agentId: string): Link[] {
  * and not declined. One that still waits to be opened has not gone on yet.
  */
 export function wentOnIn(state: ConvState, agentId: string): Link | null {
-  const later = state.agents.findLast(a => a.continues_id === agentId && a.depth > 0 && a.status !== 'rejected' && a.status !== 'proposed')
+  const later = state.agents.findLast(
+    a => a.continues_id === agentId && a.depth > 0 && a.status !== 'rejected' && a.status !== 'proposed',
+  )
   if (!later) return null
   const chain = chainOf(state, later.id)
   // Only as a link of that agent's chain: the same walk, from the other end.

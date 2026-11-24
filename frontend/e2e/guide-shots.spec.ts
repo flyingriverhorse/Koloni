@@ -2,7 +2,18 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { type Browser, expect, type Locator, type Page, test } from './fixtures'
-import { LINK, OWN, appSettings, e2eProject, level, openFreshConversation, rail, say, setProject, settled } from './helpers'
+import {
+  LINK,
+  OWN,
+  appSettings,
+  e2eProject,
+  level,
+  openFreshConversation,
+  rail,
+  say,
+  setProject,
+  settled,
+} from './helpers'
 import { APP_URL, PROJECT_DIR, REPO_ROOT } from './paths.mjs'
 
 // The guide's pictures (docs/images) and short videos (docs/videos), taken from the real app with the fake model, light,
@@ -18,7 +29,12 @@ const HOMES = [os.homedir(), os.homedir().replaceAll('\\', '/')].map(one => one.
 async function showsNoHome(target: Page | Locator, name: string) {
   const root = 'mainFrame' in target ? target.locator('body') : target
   const seen = await root.evaluate(el =>
-    [(el as HTMLElement).innerText, ...[...el.querySelectorAll('input, textarea')].map(one => (one as HTMLInputElement).value)].join('\n').toLowerCase(),
+    [
+      (el as HTMLElement).innerText,
+      ...[...el.querySelectorAll('input, textarea')].map(one => (one as HTMLInputElement).value),
+    ]
+      .join('\n')
+      .toLowerCase(),
   )
   for (const home of HOMES) expect(seen, `${name} shows ${home}`).not.toContain(home)
 }
@@ -41,14 +57,24 @@ const beat = (page: Page, ms = 1000) => page.waitForTimeout(ms)
  */
 async function video(browser: Browser, name: string, flow: (page: Page, poster: () => Promise<void>) => Promise<void>) {
   mkdirSync(VIDEOS, { recursive: true })
-  const context = await browser.newContext({ baseURL: APP_URL, viewport: FRAME, recordVideo: { dir: path.join(os.tmpdir(), 'koloni-guide-videos'), size: FRAME } })
+  const context = await browser.newContext({
+    baseURL: APP_URL,
+    viewport: FRAME,
+    recordVideo: { dir: path.join(os.tmpdir(), 'koloni-guide-videos'), size: FRAME },
+  })
   await context.addInitScript(() => localStorage.setItem('koloni-theme', 'light'))
   const page = await context.newPage()
   await page.goto(LINK)
   await page.getByLabel('Message').waitFor()
   await flow(page, async () => {
     await showsNoHome(page, name)
-    await page.screenshot({ path: path.join(VIDEOS, `${name}.jpg`), type: 'jpeg', quality: 80, animations: 'disabled', caret: 'hide' })
+    await page.screenshot({
+      path: path.join(VIDEOS, `${name}.jpg`),
+      type: 'jpeg',
+      quality: 80,
+      animations: 'disabled',
+      caret: 'hide',
+    })
   })
   await showsNoHome(page, name)
   await beat(page, 1500)
@@ -63,7 +89,10 @@ test('the main screen and the agent window', async ({ page }) => {
   await expect(page.locator('.react-flow__node-agent')).toHaveCount(2)
   await settled(page)
   await picture(page, 'main-screen')
-  await page.getByRole('region', { name: 'Chat' }).getByRole('button', { name: /Reviewer.*Review hello\.py/ }).click()
+  await page
+    .getByRole('region', { name: 'Chat' })
+    .getByRole('button', { name: /Reviewer.*Review hello\.py/ })
+    .click()
   await page.getByRole('complementary', { name: 'Inspector' }).getByRole('button', { name: 'Open window' }).click()
   await expect(page.getByRole('region', { name: 'Agent window' }).getByText('Did', { exact: true })).toBeVisible()
   await picture(page, 'agent-window')
@@ -71,7 +100,9 @@ test('the main screen and the agent window', async ({ page }) => {
 
 test('an approval card in Ready for you', async ({ page }) => {
   const id = await openFreshConversation(page)
-  expect((await page.request.patch(`/api/conversations/${id}`, { headers: OWN, data: { permission_mode: 'ask' } })).ok()).toBe(true)
+  expect(
+    (await page.request.patch(`/api/conversations/${id}`, { headers: OWN, data: { permission_mode: 'ask' } })).ok(),
+  ).toBe(true)
   await page.getByLabel('Message').fill('run the tests')
   await page.getByRole('button', { name: 'Send' }).click()
   const chat = page.getByRole('region', { name: 'Chat' })
@@ -93,11 +124,18 @@ test('a team on the canvas, and Take in', async ({ page, request }) => {
     version: 1,
     steps: [{ id: 'build', name: 'Build it', who: { role: 'Coder' } }],
     ends: [{ id: 'end', then: 'in' }],
-    arrows: [{ from: 'start', to: 'build' }, { from: 'build', to: 'end' }],
+    arrows: [
+      { from: 'start', to: 'build' },
+      { from: 'build', to: 'end' },
+    ],
   }
   await request.post('/api/recipes', { headers: OWN, data: { name: RECIPE, graph } })
-  const recipe = ((await (await request.get('/api/recipes')).json()).recipes as { id: string; name: string }[]).find(r => r.name === RECIPE)
-  const web = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(t => t.name === 'Web app')
+  const recipe = ((await (await request.get('/api/recipes')).json()).recipes as { id: string; name: string }[]).find(
+    r => r.name === RECIPE,
+  )
+  const web = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(
+    t => t.name === 'Web app',
+  )
   await setProject(page, { spawn_approval: 'never' })
   const set = await request.patch(`/api/conversations/${id}`, {
     headers: OWN,
@@ -159,7 +197,9 @@ test('the To-do page with the Hive keeper’s draft', async ({ page }) => {
 test('Memory search, Triggers and Usage', async ({ page, request }) => {
   const id = await openFreshConversation(page)
   await say(page, 'Answer only: The ZEPPELIN hangar is in Kayseri.', 'The ZEPPELIN hangar is in Kayseri.')
-  expect((await request.patch(`/api/conversations/${id}`, { headers: OWN, data: { title: 'Morning checks' } })).ok()).toBe(true)
+  expect(
+    (await request.patch(`/api/conversations/${id}`, { headers: OWN, data: { title: 'Morning checks' } })).ok(),
+  ).toBe(true)
   // (Loaded again: the turn's "Done" toast is not in the pictures.)
   await page.reload()
   await rail(page, 'Memory').click()
@@ -172,7 +212,13 @@ test('Memory search, Triggers and Usage', async ({ page, request }) => {
   const pid = await e2eProject(page)
   const made = await request.post(`/api/projects/${pid}/triggers`, {
     headers: OWN,
-    data: { name: 'Morning check', kind: 'schedule', conversation_id: id, message: 'Run the tests and say what failed.', config: { at: '07:30', days: 'weekdays' } },
+    data: {
+      name: 'Morning check',
+      kind: 'schedule',
+      conversation_id: id,
+      message: 'Run the tests and say what failed.',
+      config: { at: '07:30', days: 'weekdays' },
+    },
   })
   expect(made.ok(), await made.text()).toBe(true)
   await rail(page, 'Triggers').click()
@@ -202,7 +248,9 @@ test.describe('the guide’s videos', () => {
   test('an agent asks, you approve', async ({ page, browser }) => {
     test.setTimeout(60_000)
     const id = await openFreshConversation(page)
-    expect((await page.request.patch(`/api/conversations/${id}`, { headers: OWN, data: { permission_mode: 'ask' } })).ok()).toBe(true)
+    expect(
+      (await page.request.patch(`/api/conversations/${id}`, { headers: OWN, data: { permission_mode: 'ask' } })).ok(),
+    ).toBe(true)
     await video(browser, 'approval', async (shown, poster) => {
       await beat(shown, 500)
       await shown.getByLabel('Message').pressSequentially('run the tests', { delay: 50 })
@@ -224,15 +272,26 @@ test.describe('the guide’s videos', () => {
       version: 1,
       steps: [{ id: 'build', name: 'Build it', who: { role: 'Coder' } }],
       ends: [{ id: 'end', then: 'in' }],
-      arrows: [{ from: 'start', to: 'build' }, { from: 'build', to: 'end' }],
+      arrows: [
+        { from: 'start', to: 'build' },
+        { from: 'build', to: 'end' },
+      ],
     }
     await request.post('/api/recipes', { headers: OWN, data: { name: RECIPE, graph } })
-    const recipe = ((await (await request.get('/api/recipes')).json()).recipes as { id: string; name: string }[]).find(r => r.name === RECIPE)
-    const web = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(t => t.name === 'Web app')
+    const recipe = ((await (await request.get('/api/recipes')).json()).recipes as { id: string; name: string }[]).find(
+      r => r.name === RECIPE,
+    )
+    const web = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(
+      t => t.name === 'Web app',
+    )
     await setProject(page, { spawn_approval: 'never' })
     const set = await request.patch(`/api/conversations/${id}`, {
       headers: OWN,
-      data: { permission_mode: 'auto_edit', teams_mode: 'manual', teams: [{ team_id: web!.id, recipe_id: recipe!.id }] },
+      data: {
+        permission_mode: 'auto_edit',
+        teams_mode: 'manual',
+        teams: [{ team_id: web!.id, recipe_id: recipe!.id }],
+      },
     })
     expect(set.ok()).toBe(true)
     await video(browser, 'team', async (shown, poster) => {
@@ -264,7 +323,9 @@ test.describe('the guide’s videos', () => {
     test.setTimeout(90_000)
     for (const words of ['run the tests, the shop', 'run the tests, the blog']) {
       const id = await openFreshConversation(page)
-      expect((await page.request.patch(`/api/conversations/${id}`, { headers: OWN, data: { permission_mode: 'ask' } })).ok()).toBe(true)
+      expect(
+        (await page.request.patch(`/api/conversations/${id}`, { headers: OWN, data: { permission_mode: 'ask' } })).ok(),
+      ).toBe(true)
       await say(page, words, 'Run this command?')
     }
     await video(browser, 'ready', async (shown, poster) => {
@@ -275,7 +336,9 @@ test.describe('the guide’s videos', () => {
       await poster()
       await beat(shown)
       await panel.getByRole('region', { name: 'Needs your answer' }).getByRole('button', { name: 'Run once' }).click()
-      await expect(shown.getByRole('region', { name: 'Chat' }).getByText('The tests pass.')).toBeVisible({ timeout: 15_000 })
+      await expect(shown.getByRole('region', { name: 'Chat' }).getByText('The tests pass.')).toBeVisible({
+        timeout: 15_000,
+      })
       await beat(shown)
       await panel.getByRole('button', { name: 'Open all as a page →' }).click()
       const row = shown.locator('.ready-page').getByRole('group', { name: /the shop/ })
@@ -296,7 +359,11 @@ test('☾ Away: the Away panel, and the summary when you are back', async ({ pag
   // (A little taller than the others: the panel whole, with its Go away.)
   await page.setViewportSize({ width: 1280, height: 900 })
   await openFreshConversation(page)
-  await say(page, "I'm going away for the night, guide: add a bye line and say hello twice", 'Two tasks are on your To-do: press Go away when you go.')
+  await say(
+    page,
+    "I'm going away for the night, guide: add a bye line and say hello twice",
+    'Two tasks are on your To-do: press Go away when you go.',
+  )
   const chat = page.getByRole('region', { name: 'Chat' })
   await expect(chat.getByRole('group', { name: 'Go away now?' })).toBeVisible()
   // (From ☾ Away on the status line: the panel whole, over the message box.)
@@ -326,9 +393,22 @@ const WRITTEN = [
   'kanit.py',
   ...['a', 'b', 'c', 'd'].map(one => `rehber_${one}.py`),
   // (The Checks loop's turn: its three Coders' modules - fake-model.mjs `LOOPED_WORK`.)
-  ...['runner', 'runner_cli', 'runner_log', 'runner_conf', 'runner_util', 'auth_check', 'auth_rules', 'auth_util', 'netcheck', 'netcheck_cli', 'netcheck_util'].map(one => `${one}.py`),
+  ...[
+    'runner',
+    'runner_cli',
+    'runner_log',
+    'runner_conf',
+    'runner_util',
+    'auth_check',
+    'auth_rules',
+    'auth_util',
+    'netcheck',
+    'netcheck_cli',
+    'netcheck_util',
+  ].map(one => `${one}.py`),
 ]
-const WORKFLOW = 'name: ci\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: python -m pytest -q\n'
+const WORKFLOW =
+  'name: ci\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: python -m pytest -q\n'
 
 /** The project's After a change on, with `command`, and the page read again: the composer says what the chat checks. */
 async function checksOn(page: Page, command: string) {
@@ -344,7 +424,9 @@ test.describe('proven finish (0.1.6)', () => {
     await setProject(page, { check_command: '', after_change: 'nothing' })
   })
 
-  test('Settings: After a change, Fix rounds and Check by kind of work; the app’s test runs; the level menu’s switch', async ({ page }) => {
+  test('Settings: After a change, Fix rounds and Check by kind of work; the app’s test runs; the level menu’s switch', async ({
+    page,
+  }) => {
     await openFreshConversation(page)
     await setProject(page, { after_change: 'check' })
     // (No message yet: the First steps panel would show the project's folder - under this machine's user.)
@@ -354,7 +436,9 @@ test.describe('proven finish (0.1.6)', () => {
     // The permission level's menu: Test and review changes, for this chat.
     const chat = page.getByRole('region', { name: 'Chat' })
     await chat.getByRole('button', { name: /^Permission level:/ }).click()
-    await expect(chat.getByRole('dialog', { name: 'Permission level' }).getByText('Test and review changes')).toBeVisible()
+    await expect(
+      chat.getByRole('dialog', { name: 'Permission level' }).getByText('Test and review changes'),
+    ).toBeVisible()
     await picture(page, 'level-menu-checks')
     await page.keyboard.press('Escape')
     // This project › Checks and git: After a change with its live line, Fix rounds (Then a stronger model, once in),
@@ -434,12 +518,18 @@ test.describe('proven finish (0.1.6)', () => {
       await page.getByRole('button', { name: 'Hide chat' }).click()
       await settled(page)
       await box.getByText('Checks · KOLONİ').click()
-      await expect(page.getByRole('complementary', { name: 'Inspector' }).getByRole('region', { name: 'Round 3' })).toBeVisible()
+      await expect(
+        page.getByRole('complementary', { name: 'Inspector' }).getByRole('region', { name: 'Round 3' }),
+      ).toBeVisible()
       await settled(page)
       // (Drawn larger - fitted beside the panel, its cards' words are too small to read -, the turn moved to the middle of the canvas.)
       await page.locator('.react-flow__controls-zoomin').click()
       await settled(page)
-      const [first, last, stage] = await Promise.all([page.locator('.react-flow__node-request').first(), box, page.locator('.react-flow')].map(async one => (await one.boundingBox())!))
+      const [first, last, stage] = await Promise.all(
+        [page.locator('.react-flow__node-request').first(), box, page.locator('.react-flow')].map(
+          async one => (await one.boundingBox())!,
+        ),
+      )
       const shift = stage.x + (stage.width - (last.x + last.width - first.x)) / 2 - first.x
       await page.mouse.move(stage.x + stage.width / 2, stage.y + stage.height - 180)
       await page.mouse.down()
@@ -466,11 +556,18 @@ test.describe('proven finish (0.1.6)', () => {
       version: 1,
       steps: [{ id: 'write', name: 'Write it', who: { role: 'Coder' } }],
       ends: [{ id: 'end', then: 'in' }],
-      arrows: [{ from: 'start', to: 'write' }, { from: 'write', to: 'end' }],
+      arrows: [
+        { from: 'start', to: 'write' },
+        { from: 'write', to: 'end' },
+      ],
     }
     await request.post('/api/recipes', { headers: OWN, data: { name: RECIPE, graph } })
-    const recipe = ((await (await request.get('/api/recipes')).json()).recipes as { id: string; name: string }[]).find(r => r.name === RECIPE)
-    const web = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(t => t.name === 'Web app')
+    const recipe = ((await (await request.get('/api/recipes')).json()).recipes as { id: string; name: string }[]).find(
+      r => r.name === RECIPE,
+    )
+    const web = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(
+      t => t.name === 'Web app',
+    )
     await setProject(page, { spawn_approval: 'never' })
     try {
       await checksOn(page, PASSING)
