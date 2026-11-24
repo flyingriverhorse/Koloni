@@ -931,7 +931,7 @@ and each card are buttons: Enter or Space opens its panel, or that agent's windo
 
 **Click the box** for its panel on the right - the canvas stays as it is, the box's frame amber: **Tests**, the Checked
 section's test runs; then **Round 1, 2, …**: who looked (its name opens its window), what each said
-("MERGE", "HOLD · 3 blocking"), the first blocking finding, and "→ fixed by Coder 4 · 3 files" - or,
+("MERGE", "HOLD · 3 blocking", "HOLD · 1 blocking - its report said MERGE"), the first blocking finding, and "→ fixed by Coder 4 · 3 files" - or,
 where the Orchestrator fixed it itself, what sent it back; under the last round why it was the last
 ("Still on hold after 2 fix rounds: you decide (Fix it)", "Stopped after round 3: no progress").
 **Fix it** is the one under the answer (on the chat's latest turn), and **Open the Checked section** -

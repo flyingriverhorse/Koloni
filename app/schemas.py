@@ -905,11 +905,13 @@ class CheckedRow(BaseModel):
 
 
 class CheckedLook(BaseModel):
-    """One look of a pass: KOLONİ's agent, its role and its verdict (None: none said)."""
+    """One look of a pass: KOLONİ's agent, its role and the verdict KOLONİ acted on (None: none
+    said) - and its report's own word where that differs (a MERGE with a blocking finding)."""
 
     agent_id: str
     role: str
     verdict: str | None
+    said: str | None = None
 
 
 class CheckedPass(BaseModel):

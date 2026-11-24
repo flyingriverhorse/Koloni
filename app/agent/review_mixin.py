@@ -743,18 +743,34 @@ class ReviewMixin:
         verdict, found = verdict_of(report), _findings(report, [FIXER])
         # (Blocking findings with no verdict line: a hold, as written.)
         verdict = verdict or ("HOLD" if _blocking(found) else None)
-        self._pass_looked(ctx, agent, role, verdict)
+        # (A MERGE with a blocking finding holds the work - `_review_said`: on record as the hold
+        # it is, its own word beside it)
+        held = verdict == "MERGE" and _blocking(found)
+        self._pass_looked(ctx, agent, role, "HOLD" if held else verdict, "MERGE" if held else None)
         return Look(
             role, sign, verdict, _held_in_words(report, found) if verdict == "HOLD" else found, None
         )
 
-    def _pass_looked(self: "AgentRunner", ctx: Ctx, agent, role: str, verdict: str | None) -> None:
-        """A look of this pass, on its record (`proof.new_pass`): its agent, role and verdict
-        (None: it said none, or did not look)."""
+    def _pass_looked(
+        self: "AgentRunner",
+        ctx: Ctx,
+        agent,
+        role: str,
+        verdict: str | None,
+        said: str | None = None,
+    ) -> None:
+        """A look of this pass, on its record (`proof.new_pass`): its agent, role and the verdict
+        KOLONİ acted on (None: it said none, or did not look) - and, where that is not the word
+        its report said (a MERGE with a blocking finding is a hold), that word."""
         held = self._proofs.get(ctx.run_id)
         if agent is not None and held is not None and held.passes:
             held.passes[-1]["looks"].append(
-                {"agent_id": agent.id, "role": role, "verdict": verdict}
+                {
+                    "agent_id": agent.id,
+                    "role": role,
+                    "verdict": verdict,
+                    **({"said": said} if said else {}),
+                }
             )
 
     @contextlib.asynccontextmanager

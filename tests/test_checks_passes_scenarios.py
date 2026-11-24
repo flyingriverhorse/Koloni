@@ -69,7 +69,7 @@ def test_each_pass_says_its_tests_its_looks_why_it_went_back_and_who_fixed_it(
             "n": 2,
             "kind": "check",
             "tests": "passed",
-            "looks": [{"agent_id": first, "role": "Reviewer", "verdict": "HOLD"}],
+            "looks": [{"agent_id": first, "role": "Reviewer", "verdict": "HOLD", "said": None}],
             "why": "1 blocking finding",
             "sent": "fix",
             "fixers": [],  # (the Orchestrator fixed it itself)
@@ -80,7 +80,7 @@ def test_each_pass_says_its_tests_its_looks_why_it_went_back_and_who_fixed_it(
             "n": 3,
             "kind": "check",
             "tests": "passed",
-            "looks": [{"agent_id": second, "role": "Reviewer", "verdict": "MERGE"}],
+            "looks": [{"agent_id": second, "role": "Reviewer", "verdict": "MERGE", "said": None}],
             "why": None,
             "sent": None,
             "fixers": [],
