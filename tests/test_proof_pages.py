@@ -6,6 +6,7 @@ stand-in browser (`tests/fake_browser.py`) plays Chrome; one test drives the rea
 machine has it."""
 
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -523,6 +524,9 @@ async def test_a_page_still_changing_is_not_judged_and_one_with_no_root_is_said(
     changed = "accessibility not judged at {} px for what changed after it loaded - {}"
     assert rows == [
         ("ui", "passed", f"grows.html: no console errors at {ALL} px"),
+        # (one at the first read, two at the second: the one both found fails, the other is not
+        # judged)
+        ("ui", "failed", f"grows.html: 1 images without alt text at {ALL} px - late.png"),
         ("ui", "note", "grows.html: " + changed.format(ALL, "images without alt text")),
         ("ui", "passed", f"late.html: no console errors at {ALL} px"),
         ("ui", "note", "late.html: " + changed.format(ALL, "images without alt text")),
@@ -571,9 +575,12 @@ def test_two_reads_judge_what_stands_in_both():
     assert proof_kinds._settled({"alt": alt, "name": (2, ("button#a", "button#b"), 2)}, moved) == (
         moved
     )
-    assert proof_kinds._settled({"alt": (2, ("x.png", "y.png"), 2)}, {"alt": alt}) == {
-        "changed": (1, ("images without alt text",), 0)
-    }
+    # (found in both, more in one: the fewer fail - named as the second read names them - and the
+    # rest is not judged; an image shown, hidden, shown again beside one that stays)
+    two = (2, ("x.png", "y.png"), 2)
+    note = (1, ("images without alt text",), 0)
+    assert proof_kinds._settled({"alt": two}, {"alt": alt}) == {"alt": alt, "changed": note}
+    assert proof_kinds._settled({"alt": alt}, {"alt": two}) == {"alt": alt, "changed": note}
 
 
 @pytest.mark.anyio
@@ -1340,6 +1347,7 @@ async def main():
         ["late", "grows", "rootless"],
         ["countup", "clock", "plainclock"],
         ["rotating", "swapping", "renumbered"],
+        ["flip"],
         ["nested"],
     ]
     if sys.platform == "win32":  # (the depth Chrome's tab crashes at is measured here alone)
@@ -1427,6 +1435,11 @@ def test_the_real_chrome_reads_a_page_once_it_settles_and_goes_on_after_a_crash(
             "style='width:30px;height:20px'></button><script>setInterval(()=>{"
             "document.body.append(document.querySelector('button'))},20)</script>"
         ),
+        flip=a11y(
+            "<img src='dot.png' width='20' height='20'><img id='k' src='a.png' width='20' "
+            "height='20'><script>setInterval(()=>{const k=document.getElementById('k');"
+            "k.hidden=!k.hidden},150)</script>"
+        ),
         renumbered=a11y(
             f"<img src='{PX}' width='20' height='20'><script>setInterval(()=>{{const m="
             "document.createElement('img');m.alt='x';m.src='dot.png';m.width=m.height=2;"
@@ -1444,14 +1457,23 @@ def test_the_real_chrome_reads_a_page_once_it_settles_and_goes_on_after_a_crash(
     )
     assert done.returncode == 0, done.stderr[-2000:]
     said = json.loads(done.stdout.strip().splitlines()[-1])
-    assert said["late grows rootless"] == [
+    # (what grew between the reads is not judged; the images both reads found fail - how many is
+    # the page's timer's)
+    grows = [one for one in said["late grows rootless"] if one.startswith("grows.")]
+    assert [one for one in said["late grows rootless"] if one not in grows] == [
         f"late.html: no console errors at {ALL} px",
-        f"grows.html: no console errors at {ALL} px",
-        f"grows.html: accessibility not judged at {ALL} px for what changed after it loaded - "
-        "images without alt text",
         f"rootless.html: no console errors at {ALL} px",
         f"rootless.html: accessibility not read at {ALL} px - the page has no root",
     ], said
+    assert grows[0] == f"grows.html: no console errors at {ALL} px", said
+    assert grows[-1] == (
+        f"grows.html: accessibility not judged at {ALL} px for what changed after it loaded - "
+        "images without alt text"
+    ), said
+    assert (
+        all(re.match(r"grows\.html: \d+ images without alt text at ", one) for one in grows[1:-1])
+        and grows[1:-1]
+    ), said
     for name in ("countup", "clock", "plainclock"):
         lines = [one for one in said["countup clock plainclock"] if one.startswith(name + ".")]
         assert lines[1:3] == [
@@ -1459,6 +1481,11 @@ def test_the_real_chrome_reads_a_page_once_it_settles_and_goes_on_after_a_crash(
             f"{name}.html: 1 buttons, links or fields with no name at {ALL} px - button",
         ], said
         assert not any("not judged" in one for one in lines), said
+    # (one image with no alt that stays, one hidden and shown again: one fails whatever the
+    # reads saw, any more is not judged)
+    assert any(
+        re.match(r"flip\.html: [12] images without alt text at ", one) for one in said["flip"]
+    ), said
     lines = said["rotating swapping renumbered"]
     assert not any("not judged" in one for one in lines), said
     for name, rule in (

@@ -147,12 +147,12 @@ def _passing(held):
     ]
 
 
-def test_a_later_pass_that_passes_lets_a_hold_for_tests_or_a_kind_go(make_client, monkeypatch):
+def test_a_later_pass_that_runs_every_test_to_a_pass_lets_a_tests_hold_go(make_client, monkeypatch):
     # (the review: the Lead, told "Not taken in", changed the work and its next pass passed - it
     # stayed "Not taken in" for the rest of the turn)
     from app.agent.proof_mixin import Proof
 
-    for was in (s11.KINDS_FAILING, s11.TESTS_FAILING, s11.TESTS_REMOVED):
+    for was in (s11.TESTS_FAILING, s11.TESTS_REMOVED):
         held = Proof(most=1)
         held.rounds, held.verdict = 1, "MERGE"
         _passing(held)
@@ -160,6 +160,76 @@ def test_a_later_pass_that_passes_lets_a_hold_for_tests_or_a_kind_go(make_client
         runner._held_back["r"] = was
         _gate_end(runner, held)
         assert ("r" not in runner._held_back, readied) == (True, ["mark", "ready"]), was
+
+
+def _no_pass_rows():
+    """The final review's table: what a later pass may leave of what held the work - a kind not
+    checked again (not judged, the look out of time, a crashed tab, a tool not run, a kind off,
+    a check that broke and left no row; all passing too), a test command not run to a pass."""
+    from app import proof, proof_kinds
+
+    ok = proof.row("tests", "passed", "pytest: 3 passed", "pytest -q")
+    page = "index.html: "
+    return {
+        "kinds all passing": (s11.KINDS_FAILING, [proof.row("ui", "passed", page + "fine"), ok]),
+        "kinds not judged": (
+            s11.KINDS_FAILING,
+            [
+                proof.row("ui", "passed", page + "no console errors at 375 px"),
+                proof.row("ui", "note", page + "accessibility not judged at 375 px - x"),
+                ok,
+            ],
+        ),
+        "kinds out of time": (
+            s11.KINDS_FAILING,
+            [proof.row("ui", "note", proof_kinds.PAGES_SLOW.format(seconds=120)), ok],
+        ),
+        "kinds tab crashed": (
+            s11.KINDS_FAILING,
+            [proof.row("ui", "note", page + "not checked: the page crashed the browser's tab"), ok],
+        ),
+        "kinds not run": (
+            s11.KINDS_FAILING,
+            [proof.row("style", "note", "ruff: not run - needs your leave"), ok],
+        ),
+        "kinds off": (
+            s11.KINDS_FAILING,
+            [proof.row("ui", "note", "Not checked: pages switched off for this project"), ok],
+        ),
+        "kinds check broke": (s11.KINDS_FAILING, [ok]),
+        "tests one of two not run": (
+            s11.TESTS_FAILING,
+            [ok, proof.row("tests", "not_run", "Not run: npm test - declined", "npm test")],
+        ),
+        "tests timed out": (
+            s11.TESTS_FAILING,
+            [ok, proof.row("tests", "timed_out", "Tests not waited for", "npm test")],
+        ),
+        "tests still running": (
+            s11.TESTS_REMOVED,
+            [ok, proof.row("tests", "running", "Tests running: npm test", "npm test")],
+        ),
+        "tests none run": (
+            s11.TESTS_FAILING,
+            [proof.row("tests", "not_run", "Not run: pytest -q - too slow", "pytest -q")],
+        ),
+    }
+
+
+def test_a_later_pass_that_did_not_check_again_what_held_it_keeps_the_hold(
+    make_client, monkeypatch
+):
+    # (a kind's hold is never let go by a later pass - Take in anyway or Fix it; a tests hold
+    # only where every test command ran to a pass)
+    from app.agent.proof_mixin import Proof
+
+    for case, (was, rows) in _no_pass_rows().items():
+        held = Proof(most=1)
+        held.rounds, held.verdict, held.rows = 1, "MERGE", list(rows)
+        runner, readied = _held_at(make_client, monkeypatch, held)
+        runner._held_back["r"] = was
+        _gate_end(runner, held)
+        assert (runner._held_back.get("r"), readied) == (was, []), case
 
 
 def test_a_later_pass_that_still_fails_keeps_the_hold(make_client, monkeypatch):

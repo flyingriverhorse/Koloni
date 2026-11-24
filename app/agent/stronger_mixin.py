@@ -127,8 +127,12 @@ TESTS_REMOVED = "fewer of its tests run, or more are skipped, after its fix roun
 ON_HOLD = "on hold - a look's findings still stand after its fix rounds"
 # k-a11y-2: ...and work a kind's check of still fails after them (a page, a document, a config).
 KINDS_FAILING = "KOLONİ's checks of what it wrote still fail after its fix rounds"
-# (the holds a later pass lets go once nothing of them stands: `_on_hold`)
-LET_GO = (ON_HOLD, TESTS_FAILING, TESTS_REMOVED, KINDS_FAILING)
+# (the holds a later pass lets go once nothing of them stands: `_on_hold`. Never a kind's: a
+# later pass may not check it again - not judged, not run, cut by the look's time - the user's
+# Take in anyway or Fix it)
+LET_GO = (ON_HOLD, TESTS_FAILING, TESTS_REMOVED)
+# (a tests row that is no pass: what a tests hold stands on)
+NO_PASS = ("not_run", "timed_out", "running")
 AFTER_ROUNDS = " after its fix rounds"
 
 
@@ -355,13 +359,13 @@ class StrongerMixin:
         if held.verdict == "HOLD" and not held.left_failing:
             self._held_back[ctx.run_id] = ON_HOLD
         elif held.verdict != "HOLD" and self._held_back.get(ctx.run_id) in LET_GO:
-            # (the look lets it go - or, held for its tests or a kind's check, a later pass
-            # found them passing, the Lead having changed it; failing tests, fewer of them or a
-            # kind's failing check still keep it out, and so do tests held for that were not run
-            # again to a pass)
+            # (the look lets it go - or, held for its tests, a later pass ran every test command
+            # to a pass, the Lead having changed it; failing tests, fewer of them or a kind's
+            # failing check still keep it out, and so does a tests row that is no pass)
             was = self._held_back[ctx.run_id]
-            unseen = was in (TESTS_FAILING, TESTS_REMOVED) and not any(
-                one["kind"] == "tests" and one["state"] == "passed" for one in held.rows
+            tests = [one["state"] for one in held.rows if one["kind"] == "tests"]
+            unseen = was in (TESTS_FAILING, TESTS_REMOVED) and (
+                "passed" not in tests or any(one in NO_PASS for one in tests)
             )
             if (kept := self._still_kept(held)) or unseen:
                 self._held_back[ctx.run_id] = kept or was

@@ -1802,19 +1802,21 @@ _CHANGED = {
 
 
 def _settled(first: dict[str, Found], second: dict[str, Found]) -> dict[str, Found]:
-    """Two reads as one: a failing rule that finds as many in both stands (fails), named as the
-    second read names them - an image's address that rotates, controls that swap places, an
-    inline image renumbered by one put above it are the same problems; one whose count differs
-    (found in one read only, or more in one) is not judged - said (`CHANGED`), by its rule. The
-    notes are the second read's: one that moves (a count going up in grey, a clock over a
+    """Two reads as one, by each failing rule's count: found in both, the fewer fail, named as
+    the second read names them - an image's address that rotates, controls that swap places, an
+    inline image renumbered by one put above it are the same problems - and more in one read
+    than the other, or found in one read only, is not judged - said (`CHANGED`), by its rule.
+    The notes are the second read's: one that moves (a count going up in grey, a clock over a
     gradient) never keeps a failure the page has from failing."""
     found = {kind: one for kind, one in second.items() if kind not in _CHANGED}
     moved = []
     for kind in _CHANGED:
-        if first.get(kind, _NONE)[0] != second.get(kind, _NONE)[0]:
+        was, now = first.get(kind, _NONE), second.get(kind, _NONE)
+        if was[0] != now[0]:
             moved.append(_CHANGED[kind])
-        elif kind in second:
-            found[kind] = second[kind]
+        if was[0] and now[0]:
+            n = min(was[0], now[0])
+            found[kind] = now if n == now[0] else (n, now[1][:n], n)
     if moved:
         found["changed"] = (1, tuple(moved), 0)
     return found

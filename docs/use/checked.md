@@ -448,10 +448,12 @@ not taken in by itself either, at any level: no Ready for you card, not even at 
 not at Full auto; the section says "Not taken in: on hold - a look's findings still stand after
 its fix rounds", with **Take in anyway** and **Fix it**. So is work in a copy whose check by kind
 of work (a page, a document, a config file, a script) still fails after its fix rounds: "Not taken
-in: KOLONİ's checks of what it wrote still fail after its fix rounds". Where the Orchestrator
-changes such work in the same turn and KOLONİ's next pass finds its tests run to a pass and its
-checks passing, it goes to Ready for you; one stopped at the turn's token limit or the month's
-budget with tests failing stays out too. **Fix it** goes on in the kept work's
+in: KOLONİ's checks of what it wrote still fail after its fix rounds". A later pass of the
+same turn never lets that one go - it may not check the kind again (not judged, not run, out of
+time): **Take in anyway** or **Fix it**. Work held for its tests goes to Ready for you where the
+Orchestrator changes it in the same turn and KOLONİ's next pass runs every test command to a pass
+(one not run, timed out or still running keeps it out). Work stopped at the turn's token limit or
+the month's budget with tests failing stays out too. **Fix it** goes on in the kept work's
 copy, and that turn's end check covers the whole kept work as Take in would bring it - the held
 change and the fix, by the same rule (a big or security-touching change gets the look), never
 the fix alone: a MERGE takes it in (Full auto) or asks on its card, a hold keeps it held again.
@@ -574,13 +576,14 @@ the Orchestrator of a page is only these lines, as data. **Pages** is switched o
 kinds.
 
 At each width the page is also read for accessibility - by KOLONİ, in the page, with no model and
-nothing installed - half a second after it loaded, and again 0.3 s later (some 0.8 s a width). A
-rule that finds as many in both reads fails as below, named as the second read names them, however
-the rest of the page moves (a count going up, a clock, an image's address that rotates, controls
-that swap places). A rule that finds more in one read than in the other - an image with no alt
-drawn as its data comes, a name put a moment late - is not judged, said by its rule:
-"accessibility not judged at 375 px for what changed after it loaded - images without alt text";
-it is neither sent back for what the page had not drawn yet nor passed for what it drew late. The
+nothing installed - half a second after it loaded, and again 0.3 s later (some 0.8 s a width). Each
+rule is judged by how many it finds in each read. Found in both, the fewer fail as below, named as
+the second read names them, however the rest of the page moves (a count going up, a clock, an
+image's address that rotates, controls that swap places); what one read finds more of - an image
+with no alt drawn as its data comes - and a rule found in one read only - a name put a moment late
+- are not judged, said by the rule: "accessibility not judged at 375 px for what changed after it
+loaded - images without alt text". Neither is sent back for what the page had not drawn yet nor
+passed for what it drew late. The
 notes (contrast and what it could not judge) are the second read's; a second read cut at its 3
 seconds leaves the width to the first. A change after the second read is not seen. What the read
 finds:
