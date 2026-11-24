@@ -666,3 +666,11 @@ def test_fix_it_on_work_not_taken_in_goes_on_in_its_kept_copy(make_client, wait_
         ],
         [(f["path"], f["status"]) for f in snap["file_changes"] if f["run_id"] == second],
     )
+    # (N2: nothing was written after its check - its take in at the end is no later change)
+    rows = [
+        r["text"]
+        for m in snap["messages"]
+        if m["role"] == "checked" and m["run_id"] == second
+        for r in m["checked"]
+    ]
+    assert rows and not any("on the last change" in one for one in rows), rows

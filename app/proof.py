@@ -1117,6 +1117,8 @@ COUNT_ROWS = ("Tests went from ", "Skipped rose from ")
 STILL_FEWER = "Still fewer tests, or more skipped, after {most} fix rounds: you decide (Fix it)"
 RECIPE_SPENT = "Still failing after the recipe's fix rounds: you decide (Fix it)"
 WAITING = "Not in this run: {name}'s work waits in Ready for you"
+# N1: a turn that changed nothing after one whose checks still failed - those rows, carried.
+UNCHANGED = "Still failing as last checked - this turn changed nothing"
 RUN_BY = "Tests passed: {command} - run by {who} after the last change"
 NOT_CHECKED = "Not checked: After a change is set to Nothing"
 # CL-321 Bulgu D: a turn whose only change a command made - no change of it on record.
@@ -1168,6 +1170,13 @@ def row(
     if reason is not None:
         made["reason"] = reason
     return made
+
+
+def held_rows(blocks: dict | None) -> list[Row]:
+    """A Checked section's rows, to read what still held it - none of one a turn that changed
+    nothing said again (N1, its first row "unchanged"): its turn before told the same."""
+    rows = (blocks or {}).get("rows") or []
+    return [] if rows[:1] and rows[0]["kind"] == "unchanged" else rows
 
 
 def counts_only(rows: list[Row]) -> bool:
