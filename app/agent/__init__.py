@@ -2057,7 +2057,7 @@ class AgentRunner(
                 self._watch_the_budget(session, run)
             # The lead of a topic's later turn goes on from the lead before it.
             before = topics.previous_lead(session, run)
-            self._forget_other_topics(run)  # (0.1.8: Copilot's sessions of other topics)
+            self._forget_other_topics(run)  # (0.1.8: Copilot's and Codex's of other topics)
             lead_effort = conversation.lead_effort
             t.unattended = run.unattended
             # K-dal-takim: a backlog task started while another works (`backlog.chain`).
