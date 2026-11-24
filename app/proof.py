@@ -129,9 +129,16 @@ class TestRun(NamedTuple):
         return not (self.yours or self.saved)
 
 
+def root_off(project: Project) -> bool:
+    """Whether the user set the whole project's test command to none on the map ("" at its
+    root): no guess, nor a saved one, stands in for it (0.1.7 round 2)."""
+    return (project.test_commands or {}).get(project_map.ROOT) == ""
+
+
 def test_runs(project: Project, found: dict | None) -> list[TestRun]:
     """The project's whole test command(s): each part's test of its map (the user's, or the map's
-    guess); else the guess from its files; else none."""
+    guess); else the guess from its files - not where the user said the root has none; else
+    none."""
     parts = project_map.edited(found, project.test_commands or {})["parts"] if found else []
     runs = [
         TestRun(
@@ -140,7 +147,7 @@ def test_runs(project: Project, found: dict | None) -> list[TestRun]:
         for part in parts
         if part["test"]
     ]
-    guess = None if runs else finish_tests.command_of(project.root_path, None)
+    guess = None if runs or root_off(project) else finish_tests.command_of(project.root_path, None)
     return runs or ([TestRun(guess, ".", False)] if guess else [])
 
 

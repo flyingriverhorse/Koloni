@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from sqlalchemy import literal_column, or_, select
 
-from app import away, injection, ledger, proof, proof_before, recipe_run
+from app import away, injection, ledger, proof, proof_before, proof_related, recipe_run
 from app.agent import merge
 from app.agent.before_mixin import NOT_YOURS
 from app.agent.ctx import Ctx, _GateRefused
@@ -30,7 +30,17 @@ from app.agent.proof_later_mixin import WORKERS_ENV, Check, Slots
 from app.agent.words import MAX_SENT_BACK, TESTS_TAIL_LINES
 from app.api.usage import over_month
 from app.commands import web_off_reason
-from app.db.models import Agent, Command, Conversation, FileChange, Message, Run, ToolCall, now
+from app.db.models import (
+    Agent,
+    Command,
+    Conversation,
+    FileChange,
+    Merge,
+    Message,
+    Run,
+    ToolCall,
+    now,
+)
 from app.model_client import ToolCallRequest
 from app.proof import Change, Row, TestRun
 from app.serialize import message_out
@@ -1186,6 +1196,7 @@ class ProofMixin:
         tested = [
             *self._test_rows(session, run_id, lead.agent_id if lead else None, found, held),
             *self._kinds_left(session, run_id, cid, found, held),
+            *self._take_in_rows(session, run_id),
         ]  # (S5a)
         rounds += self._not_taken_row(session, run_id, held)  # (S11: held back, in its copy)
         # (CL-321 Bulgu D: said where the command is why it was tested - no recorded change, or
@@ -1197,6 +1208,24 @@ class ProofMixin:
             else []
         )
         return [*unrecorded, *held.rows, *tested, *rounds, *waiting]  # (S2's rows: `TestAskMixin`)
+
+    @staticmethod
+    def _take_in_rows(session, run_id: str) -> list[Row]:
+        """Round 2, B2: what Take in's check of each sub-agent's work could not run, and why (a
+        part whose command cannot run just its files, one with none) - said here as on its card,
+        never left out of a pass."""
+        found = session.execute(
+            select(Merge.check, Agent.name)
+            .join(Agent, Agent.id == Merge.agent_id)
+            .where(Merge.run_id == run_id)
+            .order_by(Merge.created_at, literal_column("merges.rowid"))
+        ).all()
+        return [
+            proof.row("take_in", "note", f"Take in's check of {name}'s work: {said}")
+            for check, name in found
+            for said in dict.fromkeys((check or {}).get("said") or [])
+            if said != proof_related.NO_OWN_TESTS
+        ]
 
     @staticmethod
     def _waiting_rows(session, found: list[Change]) -> list[Row]:

@@ -43,6 +43,7 @@ from tests.test_take_in_scenarios import (
     OWN,
     card,
     edit,
+    guessed,
     lines,
     meanwhile,
     needs_git,
@@ -1515,9 +1516,9 @@ def test_a_commit_of_nothing_and_one_without_a_message_are_refused(
 
 
 @needs_git
-@pytest.mark.parametrize("ticked", [True, False])
+@pytest.mark.parametrize("yours", [True, False])
 def test_what_a_turn_nobody_watched_left_is_offered_its_commit_only_once_the_user_takes_it(
-    make_client, wait_run, project_dir, ticked
+    make_client, wait_run, project_dir, monkeypatch, yours
 ):
     """Never in the trigger's own turn; a copy it kept is then the user's own Apply."""
     (project_dir / "lines.txt").write_bytes(LINES.encode())
@@ -1534,16 +1535,21 @@ def test_what_a_turn_nobody_watched_left_is_offered_its_commit_only_once_the_use
     )
     client.headers["Origin"] = ORIGIN
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    assert client.patch(f"/api/projects/{pid}", json=root_runs(git_commit=True)).status_code == 200
+    # (the user's own test command runs in such a turn; KOLONİ's guess never - 0.1.7 round 2)
+    if not yours:
+        guessed(monkeypatch, project_dir)
+    project = (
+        root_runs(git_commit=True) if yours else {"git_commit": True, "after_change": "nothing"}
+    )
+    assert client.patch(f"/api/projects/{pid}", json=project).status_code == 200
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    rules = [allow(client, cid, CHECKED)] if ticked else []
-    made = trigger(client, pid, cid, permissions={"write": True, "commands": rules, "agents": 1})
+    made = trigger(client, pid, cid, permissions={"write": True, "commands": [], "agents": 1})
     snap = wait_run(client, cid, run_now(client, made["id"]), timeout=LONG)
     (merge,) = snap["merges"]
     # taken in the turn itself where the check may not run, kept where it ran and failed
-    assert merge["status"] == ("kept" if ticked else "applied")
+    assert merge["status"] == ("kept" if yours else "applied")
     assert merge["commit"] is None
-    if ticked:
+    if yours:
         done = client.post(f"/api/merges/{merge['id']}/approve")
         assert done.status_code == 200 and done.json()["status"] == "applied"
         assert done.json()["commit"]["state"] == "offered"

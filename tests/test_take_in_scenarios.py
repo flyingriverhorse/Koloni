@@ -445,10 +445,20 @@ def test_where_commands_are_asked_about_the_check_runs_before_the_card_and_again
     assert (project_dir / "a.txt").exists()
 
 
-@pytest.mark.parametrize("ticked, taken", [(True, False), (False, True)])
+def guessed(monkeypatch, project_dir):
+    """KOLONİ's guess of the project's test command (`RUNS`) - none of the user's on its map."""
+    from app import proof
+
+    monkeypatch.setattr(proof.finish_tests, "command_of", lambda _root, _check: RUNS)
+
+
+@pytest.mark.parametrize("yours, taken", [(True, False), (False, True)])
 def test_in_a_turn_nobody_watches_a_failed_check_takes_nothing_and_keeps_the_copy(
-    make_client, wait_run, project_dir, ticked, taken
+    make_client, wait_run, project_dir, monkeypatch, yours, taken
 ):
+    """0.1.7 round 2: in a turn nobody watches the user's own test command - theirs on the map,
+    which such a turn runs unticked (K-buyuk-proje) - runs on the Coder's tests; KOLONİ's guess
+    never runs there (B1): the work is taken as before, said unchecked."""
     (project_dir / "lines.txt").write_bytes(LINES.encode())
     (project_dir / "check.py").write_bytes(CHECK.encode())
     client, _model = make_client(
@@ -462,19 +472,22 @@ def test_in_a_turn_nobody_watches_a_failed_check_takes_nothing_and_keeps_the_cop
     )
     client.headers["Origin"] = ORIGIN
     pid = client.post("/api/projects", json={"root_path": str(project_dir)}).json()["id"]
-    assert client.patch(f"/api/projects/{pid}", json=root_runs()).status_code == 200
+    if not yours:
+        guessed(monkeypatch, project_dir)
+    project = root_runs() if yours else {"after_change": "nothing"}
+    assert client.patch(f"/api/projects/{pid}", json=project).status_code == 200
     cid = client.post(f"/api/projects/{pid}/conversations").json()["id"]
-    rules = [allow(client, cid, CHECKED)] if ticked else []
-    made = trigger(client, pid, cid, permissions={"write": True, "commands": rules, "agents": 1})
+    made = trigger(client, pid, cid, permissions={"write": True, "commands": [], "agents": 1})
     run_id = run_now(client, made["id"])
     snap = wait_run(client, cid, run_id, timeout=LONG)
     (merge,) = snap["merges"]
     assert (project_dir / "a.txt").exists() is taken
-    if ticked:  # the trigger lets this very command run: it ran, failed, and nothing is taken
+    if yours:  # it ran, failed, and nothing is taken
         assert merge["check"]["state"] == "failed"
         assert merge["status"] == "kept" and merge["kept_in"]  # there for the user
     else:  # it may not run here: taken as before, and said to be unchecked
         assert merge["check"]["state"] == "not_run" and merge["status"] == "applied"
+        assert "not run in a turn nobody watches" in merge["check"]["note"], merge["check"]
     assert merge["commit"] is None  # and nothing is ever committed here
 
 

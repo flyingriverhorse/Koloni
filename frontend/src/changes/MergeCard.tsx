@@ -180,6 +180,14 @@ function Check({ merge, onRun, onBranch = false }: { merge: Merge; onRun?: { off
   const [error, setError] = useState<string | null>(null)
   const check = merge.check
   if (!check) return <div className="muted cmd-approval-note">No tests of its own to run before it is added - KOLONİ’s check at the turn’s end runs every test.</div>
+  // (0.1.7: tests it wrote that no part's command can run alone - why, and nothing to run)
+  if (!check.command)
+    return (
+      <div className="merge-files" role="group" aria-label="Test">
+        <div className="kicker">Test</div>
+        <div className="muted cmd-approval-note">{check.note} - KOLONİ’s check at the turn’s end runs every test.</div>
+      </div>
+    )
   const ran = check.state === 'passed' || check.state === 'failed'
 
   async function run() {

@@ -12,7 +12,9 @@ import json
 import os
 import re
 import tomllib
+from functools import partial
 from pathlib import Path, PurePosixPath
+from typing import NamedTuple
 
 from app.proof import NO_TESTS, TestRun, kind_of
 
@@ -101,9 +103,12 @@ JEST_VALUES = {"--config", "-c", "--selectProjects", "--maxWorkers", "-w"}
 WATCHING = {"--watch", "--watchAll"}
 
 
-def related(run: TestRun, paths: list[str], root: Path) -> TestRun | None:
+def related(run: TestRun, paths: list[str], root: Path, anywhere: bool = False) -> TestRun | None:
     """`run` narrowed to the tests related to `paths` (the turn's changed files in the project,
-    project-relative POSIX), in `root` (where the work is); None: no narrower run is known."""
+    project-relative POSIX), in `root` (where the work is); None: no narrower run is known.
+    `anywhere` (Take in's check of a sub-agent's own tests): pytest runs a file named on its
+    command line whatever `testpaths` says - the end gate's related run keeps to what the
+    suite collects."""
     if COMPOUND.search(run.command):
         return None
     top = "" if run.cwd == "." else f"{run.cwd.rstrip('/')}/"
@@ -113,7 +118,7 @@ def related(run: TestRun, paths: list[str], root: Path) -> TestRun | None:
     if not mine or len(mine) > MOST:
         return None
     words, cwd = run.command.split(), root / run.cwd
-    for reader in (_pytest, _js, _go, _cargo, _dotnet):
+    for reader in (partial(_pytest, anywhere=anywhere), _js, _go, _cargo, _dotnet):
         said = reader(words, mine, cwd)
         if said is not None:
             return None if said == words else run._replace(command=" ".join(said))
@@ -158,7 +163,9 @@ def _walk(cwd: Path, wanted) -> list[str]:
     return found
 
 
-def _pytest(words: list[str], paths: list[str], cwd: Path) -> list[str] | None:
+def _pytest(
+    words: list[str], paths: list[str], cwd: Path, anywhere: bool = False
+) -> list[str] | None:
     """The changed test files, and the test files named for a changed module (`test_x.py`,
     `x_test.py`) where pytest collects in the part. Not for `conftest.py`, nor any change but
     Python's, nor where the user left tests out (`_collected`)."""
@@ -171,6 +178,7 @@ def _pytest(words: list[str], paths: list[str], cwd: Path) -> list[str] | None:
     within = _collected(cwd)
     if within is None:
         return None
+    within = [""] if anywhere else within
     tests = {name for name in names if name.startswith("test_") or name.endswith("_test.py")}
     stems = {name[:-3] for name in names if name not in tests and name != "__init__.py"}
     wanted = {one for stem in stems for one in (f"test_{stem}.py", f"{stem}_test.py")}
@@ -355,7 +363,9 @@ def _npm_test(words: list[str], files: list[str], cwd: Path) -> list[str] | None
         script = scripts["test"]
     except (OSError, ValueError, KeyError, TypeError):
         return None
-    said = script.split() if isinstance(script, str) and not COMPOUND.search(script) else []
+    # (`#`: npm's shell would end the line there - the files given after it never run)
+    plain = isinstance(script, str) and not COMPOUND.search(script) and "#" not in script
+    said = script.split() if plain else []
     if said and said[0] == "vitest":
         # (as npx finds it: in a node_modules/.bin here or above - a workspace's root)
         own = any(
@@ -485,18 +495,45 @@ def _is_test(csproj: Path) -> bool:
 # them. The end gate still runs every test once, at the turn's end.
 
 NO_OWN_TESTS = "no tests of its own to run"
-NOT_NARROWED = "{part}: its test command ({command}) cannot run just these files - not run"
+NOT_NARROWED = "{part}: its test command ({command}) cannot run just these files ({why}) - not run"
+NO_PART = "{path}: no test command of its part - not run"
+SCRIPT_CHANGED = (
+    "{part}: the sub-agent changed package.json's test scripts - its tests are not run before it "
+    "is added"
+)
+NPM_TESTS = (["npm", "test"], ["npm", "t"], ["npm", "run", "test"])
+# Test files of languages the end gate's narrowing knows no more of than their names (round 2):
+# JUnit's `*Test.java`, xUnit's `*Tests.cs`, Rust's integration `tests/*.rs`, RSpec's and
+# Minitest's `*_spec.rb`, `*_test.rb` - beside `proof_before.TEST_FILE`'s.
+_MORE_TESTS = re.compile(
+    r"(?:^|/)(?:[^/]+Tests?\.(?:java|cs)|tests/[^/]+\.rs|[^/]+_(?:spec|test)\.rb)$"
+)
 
 
-def own_tests(runs: list[TestRun], paths: list[str], root: Path) -> tuple[list[TestRun], list[str]]:
-    """The take-in check's runs: of `paths` (what a sub-agent changed, from the root) its test
-    files (`proof_before.TEST_FILE`), each with the runner of the part it is in (`runs`: the
-    project's by part - its map's, KOLONİ's saved, the guess - the deepest folder holding it),
-    narrowed to them (`related`, in `root`: where the copy is) - and what is said instead: none
-    written, a part with no runner, one that cannot be narrowed (never the whole suite)."""
+class Own(NamedTuple):
+    """One part's run of Take in's check: the part's test command as the project has it (its
+    `yours` says whose), and that command narrowed to the sub-agent's own tests there."""
+
+    part: TestRun
+    run: TestRun
+
+
+def is_test_file(path: str) -> bool:
     from app.proof_before import TEST_FILE
 
-    tests = [path for path in paths if TEST_FILE.search(path)]
+    return bool(TEST_FILE.search(path) or _MORE_TESTS.search(path))
+
+
+def own_tests(
+    runs: list[TestRun], paths: list[str], root: Path, project: Path | None = None
+) -> tuple[list[Own], list[str]]:
+    """The take-in check's runs: of `paths` (what a sub-agent changed, from the root) its test
+    files (`is_test_file`), each with the runner of the part it is in (`runs`: the project's by
+    part - its map's, KOLONİ's saved, the guess - the deepest folder holding it), narrowed to them
+    (`related`, in `root`: where the copy is) - and what is said instead, with why: none written,
+    a part with no runner, one that cannot be narrowed (never the whole suite), an `npm test`
+    whose scripts the copy changed from the `project`'s (they would run in its stead)."""
+    tests = [path for path in paths if is_test_file(path)]
     if not tests:
         return [], [NO_OWN_TESTS]
     by_run: dict[TestRun, list[str]] = {}
@@ -506,13 +543,56 @@ def own_tests(runs: list[TestRun], paths: list[str], root: Path) -> tuple[list[T
             run for run in runs if run.cwd == "." or path.startswith(f"{run.cwd.rstrip('/')}/")
         ]
         if not holding:
-            said.append(f"{path}: no test command of its part - not run")
+            said.append(NO_PART.format(path=path))
             continue
         by_run.setdefault(max(holding, key=lambda run: len(run.cwd)), []).append(path)
-    narrowed = []
+    owns = []
     for run, mine in by_run.items():
-        if (one := related(run, mine, root)) is None:
-            said.append(NOT_NARROWED.format(part=run.cwd, command=run.command))
+        top = "" if run.cwd == "." else f"{run.cwd.rstrip('/')}/"
+        if run.command.split() in NPM_TESTS and _scripts_moved(root, project, f"{top}package.json"):
+            said.append(SCRIPT_CHANGED.format(part=run.cwd))
+        elif (one := related(run, mine, root, anywhere=True)) is None:
+            why = _why_not(run, mine, root)
+            said.append(NOT_NARROWED.format(part=run.cwd, command=run.command, why=why))
         else:
-            narrowed.append(one)
-    return narrowed, said
+            owns.append(Own(run, one))
+    return owns, said
+
+
+def _scripts_moved(root: Path, project: Path | None, rel: str) -> bool:
+    """Whether the copy's `rel` package.json runs other test scripts than the project's (a new
+    one too): npm reads the copy's, `pretest` and `posttest` with `test`."""
+
+    def scripts(at: Path) -> object:
+        try:
+            found = json.loads((at / rel).read_text(encoding="utf-8")).get("scripts") or {}
+        except (OSError, ValueError, AttributeError):
+            return None
+        return {key: found.get(key) for key in ("pretest", "test", "posttest")}
+
+    return project is None or scripts(root) != scripts(project) or scripts(project) is None
+
+
+def _why_not(run: TestRun, paths: list[str], root: Path) -> str:
+    """Why `related` gives no narrower run (`own_tests`): said on the card, never guessed past."""
+    words = run.command.split()
+    top = "" if run.cwd == "." else f"{run.cwd.rstrip('/')}/"
+    mine = [path[len(top) :] for path in paths if path.startswith(top)]
+    odd = next((one for one in mine if not SAFE.fullmatch(one)), None)
+    if COMPOUND.search(run.command):
+        return "it is more than one plain command"
+    if len(mine) > MOST:
+        return f"more than {MOST} files"
+    if odd is not None:
+        return f"{odd}: a name KOLONİ does not put on a command line"
+    if (at := _runner(words, "pytest", "py.test")) is not None:
+        if not _plain_pytest(words[at + 1 :]):
+            return "its options leave tests out or pick another config"
+        if _collected(root / run.cwd) is None:
+            return "the project's pytest settings leave tests out"
+        return "pytest does not collect them there"
+    if words in NPM_TESTS:
+        return "its test script is not vitest or jest alone"
+    if _runner(words, "vitest", "jest") is not None:
+        return "its options are not ones KOLONİ reads"
+    return "its runner is not one KOLONİ narrows"

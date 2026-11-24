@@ -69,9 +69,11 @@ class FoundMixin:
             if project is None:
                 return []
             runs = proof.test_runs(project, found)
+            off = proof.root_off(project)  # (the user's "no test" for the whole project)
             saved = {
                 test_found.folder_key(folder): one
                 for folder, one in (project.tests_found or {}).items()
+                if not (off and test_found.folder_key(folder) == ".")
             }
             root = project.root_path
             rules = [
@@ -101,9 +103,9 @@ class FoundMixin:
         ran = {test_found.folder_key(run.cwd) for run in runs}
         runs += [kept(folder, one) for folder, one in saved.items() if folder not in ran]
         runs += self._parts_guessed(root, found, {run.cwd for run in runs})
-        if not runs and (adopted := self._agents_test(ctx, held)) is not None:
+        if not runs and not off and (adopted := self._agents_test(ctx, held)) is not None:
             runs = [adopted]
-        if not runs:
+        if not runs and not off:
             runs = await self._look_for_tests(ctx, held, root, found)
         return runs
 

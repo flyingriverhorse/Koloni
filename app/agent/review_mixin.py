@@ -892,9 +892,9 @@ class ReviewMixin:
             raise ToolError(ASKED_FOR_REVIEW.format(command=command, why=why))
 
     async def _approved_tests(self: "AgentRunner", ctx: Ctx) -> list[tuple[str, str]]:
-        """The project's approved test commands, (line, folder): the user's check command and
-        part tests, a saved one an Always rule covers (`FoundMixin._runs_found`'s `kept`), and
-        the CI lines the user approved while no workflow changed since (`_ci_runs`)."""
+        """The project's approved test commands, (line, folder): the user's part tests on the
+        map (the whole project's too), a saved one an Always rule covers (`FoundMixin._runs_found`'s
+        `kept`), and the CI lines the user approved while no workflow changed since (`_ci_runs`)."""
         with self._factory() as session:
             project = self._project(session, ctx.cid)
             if project is None:

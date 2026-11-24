@@ -129,8 +129,9 @@ async def _decide(
         await _decide_kept(merge, decision, choices, request, session)
         as_seen(after=True)
         return merge_out(merge)
-    if decision == "check" and merge.check is None:
-        raise HTTPException(409, "no check command is set for this project")
+    if decision == "check" and not (merge.check or {}).get("command"):
+        # (0.1.7: none written, or none its part's command can run alone - the card says why)
+        raise HTTPException(409, "no test of its own can be run before it is added")
     said = {"keep_branch": body.keep_branch, "way": body.way} if body else None
     if not request.app.state.runner.decide_merge(merge_id, decision, choices, said):
         if merge.status == "pending" and (merge.check or {}).get("state") == "running":
