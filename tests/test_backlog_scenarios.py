@@ -21,13 +21,10 @@ Contract:
   `assessment`, no card.
 - `POST /api/backlog/{id}/decide {decision: approve|reject}` (own page): a proposed task becomes
   todo, or is removed; a pending change is applied, or dropped.
-- `POST /api/projects/{pid}/backlog/next` (own page) → `{task_id, conversation_id}`: the first todo
-  starts in a new conversation whose first message holds its title and criteria; the task is doing
-  and linked; its turn ended, it is review. No todo, a task doing (or a task's
-  conversation still at work), or over the month's budget: 409.
-- `GET|PUT /api/projects/{pid}/backlog/auto {on}` (PUT: own page) → `{on, halt}`: on, the next todo
-  never worked on starts when none is doing - at once, and when a task's turn ends. A failed or
-  stopped turn, or the month's budget spent, turns it off with `halt` saying why (22 Oct).
+- `POST /api/projects/{pid}/backlog/do-in-chat {task_ids, conversation_id?}` (own page, 0.1.8) →
+  `{conversation_id, queued}`: the tasks wait in the chat's queue (a new chat where none is named)
+  and start there one by one, the first message holding a task's title and criteria; the task is
+  doing and linked; its turn ended, it is review. One not to do: 422.
 - When a task's turn ends, the first fast model that can be asked with no tools writes the
   Scout's `assessment`; with none, it stays null (22 Oct).
 """

@@ -58,7 +58,7 @@ def evening(make_client, project_dir, steps, mode="full_auto", plan=None, **proj
     assert (
         client.patch(f"/api/conversations/{cid}", json={"permission_mode": mode}).status_code == 200
     )
-    # (A job runs at the lower of the chat's level and the To-do page's: here both are `mode`.)
+    # (A job runs at the level of the chat gone from: `mode`.)
     client.todo_mode = mode
     run_id = client.post(
         f"/api/conversations/{cid}/messages", json={"content": "I'm going to sleep: do one and two"}

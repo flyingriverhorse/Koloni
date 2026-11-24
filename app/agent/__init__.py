@@ -2213,11 +2213,11 @@ class AgentRunner(
             # (A side of a comparison has found nothing that stands: what it found goes
             # into no journal the other side reads. The chosen one's is noted at the
             # choice: `note_chosen`.)
-            if not t.run_compare:
+            if not (t.run_compare or run_id in self._closes_story):
                 await self._note_what_it_found(ctx)
             # The Scout, once the turn has let go of everything (`_po_later`): not of a
             # task's own turn; a night's job's and a trigger's wait for the user, undecided.
-            if not (t.run_compare or t.todo_turn):
+            if not (t.run_compare or t.todo_turn or run_id in self._closes_story):
                 t.po = self._po_turn(ctx, decides=not (t.unattended or t.job))
         await self._tell_budget(cid)  # after the notes: what they cost counts too
 
@@ -2647,13 +2647,20 @@ class AgentRunner(
             return
         self._on_branch[ctx.agent_id] = git.task_branch(*t.on_branch)
         self._branch_runs[run_id] = ctx.agent_id
-        if t.story_id is None:
-            return
-        self._story_runs[run_id] = t.story_id
+        if t.story_id is not None:
+            self._story_runs[run_id] = t.story_id
+        # (Its story's last turn on the branch - a task of no story's own last, kept where it did
+        # not finish: its fix round, a run again after a Stop, goes on there.)
         with self._factory() as session:
-            earlier = stories.branch_lead(session, t.story_id)
+            earlier = stories.branch_lead(
+                session, t.story_id, None if t.story_id else t.on_branch[1]
+            )
         if earlier is not None:
             self._branch_again(ctx, earlier)
+        if ctx.agent_id in self._left_on:
+            # Its worktree at once, not at its first change: what it reads is the branch's work.
+            await self._git_start(ctx)
+            await self._working_copy(ctx, ctx.agent_id)
 
     def close_story(self, run_id: str, story_id: str) -> None:
         """Close the story (`app.api.stories`): this turn, on the story's branch, runs no model -
@@ -2668,7 +2675,9 @@ class AgentRunner(
         await self._git_start(ctx)
         copy = await self._working_copy(ctx, ctx.agent_id)
         if copy is None or not copy.branch:
-            return "failed", "the story's branch could not be opened"
+            # (Its branch is gone - deleted by hand, say: nothing of it waits; the story is done.)
+            self._drop_copy(ctx.agent_id)
+            self._went_in.add(ctx.run_id)
         return "completed", None
 
     def _story_closed(self, run_id: str) -> None:
@@ -2682,6 +2691,13 @@ class AgentRunner(
             story = session.get(Story, story_id)
             if story is None:
                 return
+            # (Gone in, or turned down on its card: no later turn goes on on that branch.)
+            gone = run_id in self._went_in or session.scalar(
+                select(Merge.id).where(Merge.run_id == run_id, Merge.status == "rejected").limit(1)
+            )
+            if gone and (lead := stories.branch_lead(session, story_id)) is not None:
+                agent = session.get_one(Agent, lead)
+                agent.copy = {**(agent.copy or {}), stories.BRANCH_GONE: True}  # (replaced whole)
             if run_id in self._went_in:
                 story.closed_at = now()
             elif (red := self._closed_red.get(run_id)) and (

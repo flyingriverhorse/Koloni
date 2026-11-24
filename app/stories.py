@@ -264,24 +264,31 @@ def add_notes(story: Story, texts: Sequence[str], by: str, kind: str = "decision
     story.notes = [*(story.notes or []), *added][-NOTEBOOK_MOST:]  # (replaced whole)
 
 
-def _story_runs(story_id: str):
-    return (
-        select(Run.id)
-        .join(BacklogTask, BacklogTask.id == Run.task_id)
-        .where(BacklogTask.story_id == story_id)
+# On an Orchestrator's record (`Agent.copy`): its branch went in, or was turned down, at Close the
+# story - no later turn goes on from it (`branch_lead`).
+BRANCH_GONE = "branch_gone"
+
+
+def branch_lead(
+    session: Session, story_id: str | None = None, task_id: str | None = None
+) -> str | None:
+    """The Orchestrator of the latest turn of the story's tasks (or of one task of no story) that
+    left its work on a git branch (its record's `on_branch`, or `left_on` where it could not open
+    it again) still there: the one the next turn goes on from (`AgentRunner._branch_again`).
+    None: no branch yet, or its last went in or was turned down at Close the story."""
+    runs = select(Run.id).join(BacklogTask, BacklogTask.id == Run.task_id)
+    runs = runs.where(
+        BacklogTask.story_id == story_id if story_id is not None else BacklogTask.id == task_id
     )
-
-
-def branch_lead(session: Session, story_id: str) -> str | None:
-    """The Orchestrator of the story's latest turn that left its work on a git branch (its
-    record's `on_branch`, or `left_on` where it could not open it again): the one the story's
-    next turn goes on from (`AgentRunner._branch_again`). None: the story has no branch yet."""
     for agent_id, copy in session.execute(
         select(Agent.id, Agent.copy)
-        .where(Agent.run_id.in_(_story_runs(story_id)), Agent.depth == 0)
+        .where(Agent.run_id.in_(runs), Agent.depth == 0)
         .order_by(Agent.created_at.desc(), literal_column("agents.rowid").desc())
     ):
-        if (copy or {}).get("on_branch") or (copy or {}).get("left_on"):
+        held = copy or {}
+        if held.get(BRANCH_GONE):
+            return None
+        if held.get("on_branch") or held.get("left_on"):
             return agent_id
     return None
 

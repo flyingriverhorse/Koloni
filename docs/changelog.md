@@ -17,7 +17,6 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 ### Changed
 
-- **To-do**: **Breaking:** **Run the backlog**, **Runs by itself** and **Run settings** are gone: tasks run in a chat you give them to (Do in chat), at that chat's level and on its model; a project whose backlog ran by itself stops, and the To-do page's level, model and Who changes the files are not kept ([docs](automation/todo.md)).
 - **To-do**: a night's job while you are ☾ Away runs at the level of the chat you went away from - no longer the lower of it and the To-do page's.
 - **To-do**: the board is read again when a turn's status moves, not at every update of a turn.
 
@@ -45,6 +44,10 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 - **Chat**: **Check what I said first** no longer lets a command run on a Turkish sentence that sets a condition with "-se" / "-sa" after any consonant or an apostrophe ("Kontroller yeşilse k-* dallarını push edebilirsin.", "Hata yoksa …", "Testler OK'se …") - only "-rse" / "-yse" were read so -, nor with "-ınca", "-dığında" or "sürece" ("Testler bitince …"); such a sentence now asks on the card, and so does one with "-dığımda" / "-diklerinde", "-ken", "-dikçe", "ise" / "isen", "durumunda", "-dığı zaman", "sonra", "-ene kadar", "dek", "madem", "yeter ki", or "as long as", "so long as", "provided", "providing", "whenever", "while", "in case", "assuming", "else"; an apostrophe written as ´, ʼ or ‘ is read as one ([docs](use/permissions.md#check-what-i-said-first)).
 - **Chat**: on Windows, KOLONİ writes no file whose name, or a folder's in its path, ends in a dot or a space - Windows dropped them and wrote `pyproject.toml` for `pyproject.toml.`, while the record named another file, so no rule's check of what an agent wrote saw it ([docs](use/permissions.md#what-a-rule-never-covers)).
 - **Chat**: a node runner's rule also stops at an agent's yarn `.env.yarn` or bun `.env`, `.env.local`, `.env.production` or `.env.development` in the folder or above it, and a tsc rule at `node node_modules/typescript/lib/tsc.js`; what the rules do not see is listed in the guide's **Known limits** ([docs](use/permissions.md#known-limits)).
+
+### Removed
+
+- **To-do**: **Breaking:** **Run the backlog**, **Runs by itself** and **Run settings**: tasks run in a chat you give them to (Do in chat), at that chat's level and on its model; a project whose backlog ran by itself stops, and the To-do page's level, model and Who changes the files are not kept ([docs](automation/todo.md)).
 
 ## [0.1.7] - 2026-11-24
 

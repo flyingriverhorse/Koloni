@@ -77,7 +77,7 @@ JOB_TOO_LONG = (
     "Stopped after {hours} hour{s}, the most one job works: what it did is kept in its copy."
 )
 CLOSED = "Stopped: KOLONİ was closed while you were away."
-# What starts no other work while the user is away (Run the backlog, Try again).
+# What starts no other work while the user is away (Try again; a chat's To-do queue waits).
 AWAY_NOW = "You're away from this project: press I'm back first"
 KEPT_OUT = (
     "{path} is kept out: the user asked that nothing touches it while they are away. "

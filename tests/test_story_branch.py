@@ -120,3 +120,58 @@ def test_with_no_git_a_storys_tasks_work_in_the_project_and_close_at_once(make_c
     client.patch(f"/api/backlog/{t1}", json={"status": "done"})
     closed = client.patch(f"/api/stories/{s}", json={"closed": True}).json()
     assert closed["closed_at"] and closed["state"] == "done"
+
+
+def test_closed_again_after_its_branch_went_in_it_closes_at_once(make_client, repo):
+    client, pid, cid, s, (t1, t2) = two_tasks(make_client, repo)
+    for task_id in (t1, t2):
+        client.patch(f"/api/backlog/{task_id}", json={"status": "done"})
+    client.patch(f"/api/stories/{s}", json={"closed": True})
+    until(lambda: client.get(f"/api/projects/{pid}/stories").json()["stories"][0]["closed_at"])
+    turns = len(snap(client, cid)["runs"])
+    # reopened, then closed again: its branch went in already - no turn, done at once
+    assert client.patch(f"/api/stories/{s}", json={"closed": False}).json()["closed_at"] is None
+    again = client.patch(f"/api/stories/{s}", json={"closed": True}).json()
+    assert again["closed_at"] and len(snap(client, cid)["runs"]) == turns
+
+
+def test_a_story_whose_branch_was_deleted_by_hand_closes_all_the_same(make_client, repo):
+    client, pid, cid, s, (t1, t2) = two_tasks(make_client, repo)
+    (branch,) = branches(repo)
+    run(repo, "branch", "-D", branch)
+    for task_id in (t1, t2):
+        client.patch(f"/api/backlog/{task_id}", json={"status": "done"})
+    client.patch(f"/api/stories/{s}", json={"closed": True})
+    until(lambda: client.get(f"/api/projects/{pid}/stories").json()["stories"][0]["closed_at"])
+    assert branches(repo) == [] and len(worktrees(repo)) == 1
+
+
+def test_a_lone_tasks_fix_round_goes_on_on_its_branch(make_client, repo):
+    from app.model_client import ModelUnavailable
+    from tests.test_spawn import call, step
+
+    client, _model = make_client(
+        [
+            write("lone.py", "x = 1\n"),
+            ModelUnavailable("model server unreachable: refused"),
+            step(call("read_file", {"path": "lone.py"}, "r1")),
+            text("done"),
+        ]
+    )
+    pid, (a,) = setup(client, repo, "lone")
+    cid = chat_at(client, pid)
+    do_in_chat(client, pid, [a], cid)
+    runs = ended(client, cid, 2)
+    assert [r["status"] for r in runs] == ["failed", "completed"], [r["error"] for r in runs]
+    (read,) = [c for c in snap(client, cid)["tool_calls"] if c["name"] == "read_file"]
+    assert "x = 1" in (read["result"] or "")  # (its first turn's work, kept on its branch)
+    assert (repo / "lone.py").read_text() == "x = 1\n" and branches(repo) == []
+
+
+def test_the_storys_next_task_reads_what_the_one_before_left_on_its_branch(make_client, repo):
+    from tests.test_spawn import call, step
+
+    read = step(call("read_file", {"path": "one.py"}, "r1"))
+    client, pid, cid, _s, _ids = two_tasks(make_client, repo, text("two done"), second=read)
+    (seen,) = [c for c in snap(client, cid)["tool_calls"] if c["name"] == "read_file"]
+    assert seen["result"] and "1" in seen["result"] and not (repo / "one.py").exists()
