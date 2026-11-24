@@ -39,14 +39,23 @@ const AGY_TOOLS =
 // Since slice 19b: where a native sub-agent works.
 const NATIVE_COPY =
   'A sub-agent works in a copy of the project of its own, and what it changed is taken into the project when it is done; the Orchestrator works in the project folder itself.'
-const NOT_BY_TRIGGER = 'It is not started by a trigger: with nobody watching, only an agent that works with KOLONİ’s tools runs.'
+const NOT_BY_TRIGGER =
+  'It is not started by a trigger: with nobody watching, only an agent that works with KOLONİ’s tools runs.'
 const modeLabel = (kind: ProviderKind, mode: Mode) =>
   mode !== 'native' || !NATIVE_ASKS[kind] ? MODE_LABEL[mode] : `${MODE_LABEL.native}; ${NATIVE_ASKS[kind]}`
 
 type Setter<T> = (value: T) => void
 
 /** How to install the CLI, or sign in to it, where the last check found it is not. */
-export function CliHelp({ avail, kind, onCheck }: { avail?: Availability | null; kind: ProviderKind; onCheck?: () => void }) {
+export function CliHelp({
+  avail,
+  kind,
+  onCheck,
+}: {
+  avail?: Availability | null
+  kind: ProviderKind
+  onCheck?: () => void
+}) {
   return (
     <>
       {avail?.installed === false && avail.install && (
@@ -59,13 +68,16 @@ export function CliHelp({ avail, kind, onCheck }: { avail?: Availability | null;
       )}
       {avail?.login ? (
         <LogIn kind={kind} told={avail.login} onCheck={onCheck} />
-      ) : avail?.signed_in === false && avail.sign_in && (
-        <RunIt
-          label={`How to sign in to ${COMMAND[kind]}`}
-          text={`${COMMAND[kind]} is not signed in. Sign in in your own terminal (KOLONİ does not), then press Check on the Models tab:`}
-          link="Sign-in docs"
-          told={avail.sign_in}
-        />
+      ) : (
+        avail?.signed_in === false &&
+        avail.sign_in && (
+          <RunIt
+            label={`How to sign in to ${COMMAND[kind]}`}
+            text={`${COMMAND[kind]} is not signed in. Sign in in your own terminal (KOLONİ does not), then press Check on the Models tab:`}
+            link="Sign-in docs"
+            told={avail.sign_in}
+          />
+        )
       )}
     </>
   )
@@ -92,7 +104,23 @@ interface CliProps extends CopilotProps {
 
 /** A CLI's connection: its command, how it runs, whose sign-in, and what each way of running does. */
 export function CliFields(props: CliProps) {
-  const { kind, provider, executable, setExecutable, modes, runs, setMode, signs, claudeNative, ownSetup, setOwnSetup, ownServer, address, setAddress, copilot } = props
+  const {
+    kind,
+    provider,
+    executable,
+    setExecutable,
+    modes,
+    runs,
+    setMode,
+    signs,
+    claudeNative,
+    ownSetup,
+    setOwnSetup,
+    ownServer,
+    address,
+    setAddress,
+    copilot,
+  } = props
   return (
     <>
       <div className="field">
@@ -135,9 +163,8 @@ export function CliFields(props: CliProps) {
           <span>
             Use my own Claude Code setup
             <span className="choice-note">
-              Off: only the project's own .claude settings are loaded — none of your personal skills,
-              plugins, hooks or MCP servers. On: the agent starts with your own setup, which KOLONİ neither
-              shows nor approves.
+              Off: only the project's own .claude settings are loaded — none of your personal skills, plugins, hooks or
+              MCP servers. On: the agent starts with your own setup, which KOLONİ neither shows nor approves.
             </span>
           </span>
         </label>
@@ -147,9 +174,9 @@ export function CliFields(props: CliProps) {
         <details className="more provider-server" open={!!provider?.base_url || !!address.trim() || undefined}>
           <summary>Use a model server of your own instead (optional)</summary>
           <div className="muted provider-note">
-            With the address of your model server (llama-server) on this machine or your local network, it runs on
-            that server&rsquo;s model: your sign-in and keys are not used and nothing counts against your plan.
-            Start the server first: while it does not answer, a run is refused.
+            With the address of your model server (llama-server) on this machine or your local network, it runs on that
+            server&rsquo;s model: your sign-in and keys are not used and nothing counts against your plan. Start the
+            server first: while it does not answer, a run is refused.
           </div>
           <div className="field">
             <label htmlFor="cli-server-address">Model server address</label>
@@ -173,13 +200,18 @@ function SignInField({ kind, signIn, setSignIn, savedSignIn }: CliProps) {
   return (
     <div className="field">
       <label htmlFor="provider-sign-in">Sign-in</label>
-      <select id="provider-sign-in" className="input" value={signIn} onChange={e => setSignIn(e.target.value as SignIn)}>
+      <select
+        id="provider-sign-in"
+        className="input"
+        value={signIn}
+        onChange={e => setSignIn(e.target.value as SignIn)}
+      >
         <option value="own">My own ({kind === 'claude_cli' ? '~\\.claude' : '~\\.codex'})</option>
         <option value="koloni">Its own for KOLONİ</option>
       </select>
       <Hint doc={GUIDE.cliSignIn}>
-        Its own: a sign-in folder for this provider alone, so several {COMMAND[kind]} accounts can run side by side, each
-        its own provider, without switching accounts. You log in to it once from your own terminal.
+        Its own: a sign-in folder for this provider alone, so several {COMMAND[kind]} accounts can run side by side,
+        each its own provider, without switching accounts. You log in to it once from your own terminal.
       </Hint>
       {signIn === 'koloni' && savedSignIn !== 'koloni' && (
         // (R125: said before it is saved - the command to log in comes once its folder is made)
@@ -214,7 +246,21 @@ interface CopilotProps {
   setOffline: Setter<boolean>
 }
 
-function CopilotFields({ provider, apiKey: key, setKey, address, setAddress, serverType, setServerType, maxPrompt, setMaxPrompt, maxOutput, setMaxOutput, offline, setOffline }: CopilotProps) {
+function CopilotFields({
+  provider,
+  apiKey: key,
+  setKey,
+  address,
+  setAddress,
+  serverType,
+  setServerType,
+  maxPrompt,
+  setMaxPrompt,
+  maxOutput,
+  setMaxOutput,
+  offline,
+  setOffline,
+}: CopilotProps) {
   return (
     <>
       <div className="field">
@@ -229,11 +275,11 @@ function CopilotFields({ provider, apiKey: key, setKey, address, setAddress, ser
           onChange={e => setKey(e.target.value)}
         />
         <span className="muted provider-note">
-          Leave empty to use your own GitHub sign-in (gh). Or a fine-grained GitHub token with the Copilot
-          Requests permission; with a model server of your own, that server&rsquo;s key, if it needs one.{' '}
+          Leave empty to use your own GitHub sign-in (gh). Or a fine-grained GitHub token with the Copilot Requests
+          permission; with a model server of your own, that server&rsquo;s key, if it needs one.{' '}
           <Hint doc={GUIDE.copilot}>
-            A token has not been tried on a real account yet. Either way Copilot starts with a home of its own,
-            so your Copilot settings and plugins stay out; without a token it signs in through gh.
+            A token has not been tried on a real account yet. Either way Copilot starts with a home of its own, so your
+            Copilot settings and plugins stay out; without a token it signs in through gh.
           </Hint>
         </span>
       </div>
@@ -241,8 +287,8 @@ function CopilotFields({ provider, apiKey: key, setKey, address, setAddress, ser
       <details className="more provider-server" open={!!provider?.base_url || undefined}>
         <summary>Use a model server of your own instead (optional)</summary>
         <div className="muted provider-note">
-          With the address of a model server of your own (llama.cpp, Ollama, any OpenAI-compatible address)
-          Copilot runs on that model: no GitHub sign-in is needed and nothing counts against a plan.
+          With the address of a model server of your own (llama.cpp, Ollama, any OpenAI-compatible address) Copilot runs
+          on that model: no GitHub sign-in is needed and nothing counts against a plan.
         </div>
         <div className="field">
           <label htmlFor="copilot-address">Model server address</label>
@@ -289,12 +335,7 @@ function CopilotFields({ provider, apiKey: key, setKey, address, setAddress, ser
           />
         </div>
         <label className="choice" htmlFor="copilot-offline">
-          <input
-            id="copilot-offline"
-            type="checkbox"
-            checked={offline}
-            onChange={e => setOffline(e.target.checked)}
-          />
+          <input id="copilot-offline" type="checkbox" checked={offline} onChange={e => setOffline(e.target.checked)} />
           <span>
             Never connect to GitHub
             <span className="choice-note">No sign-in, telemetry or update check; web tools are off.</span>
@@ -320,8 +361,8 @@ function cliLine({ kind, copilot, ownServer, address, signs, signIn }: CliProps)
 function ToolsHint({ kind, runs }: Pick<CliProps, 'kind' | 'runs'>) {
   return (
     <Hint doc={GUIDE.cliRuns}>
-      Its own tools are switched off: every tool it uses is KOLONİ's, so approvals, records and Stop work as
-      with any other model.{' '}
+      Its own tools are switched off: every tool it uses is KOLONİ's, so approvals, records and Stop work as with any
+      other model.{' '}
       {runs === 'session' &&
         "It keeps its own loop for the whole of an agent's work and reaches KOLONİ's tools as they are needed, so it is quick and you see its text piece by piece as it works."}
       {runs === 'step' &&
@@ -329,8 +370,7 @@ function ToolsHint({ kind, runs }: Pick<CliProps, 'kind' | 'runs'>) {
       {kind === 'codex_cli' &&
         runs === 'session' &&
         " Codex's own patch tool cannot be switched off, so KOLONİ refuses every patch it asks to make and it writes with KOLONİ's write_file and edit_file instead. Unlike Native, it runs wherever the other sessions run: triggers, To-do, While you're away, recipe steps and comparisons. Tried on short work so far."}
-      {kind === 'qoder_cli' &&
-        " A model name has to be set below if Qoder's own default model does not answer."}
+      {kind === 'qoder_cli' && " A model name has to be set below if Qoder's own default model does not answer."}
     </Hint>
   )
 }
@@ -349,44 +389,44 @@ function CliNotes(props: CliProps) {
         <p role="note" className="composer-warning provider-note">
           Native: Claude Code works with its own file and shell tools, its own sub-agents and the project's own .claude
           settings. Skills, commands, your personal plugins, hooks and MCP servers come in only with “Use my own Claude
-          Code setup” on. It asks KOLONİ before every tool
-          of its own, its reads too. A change shows as a diff to approve and a command as a command to approve, as the
-          permission level says. A secret file is asked about at every level; an ordinary read in the project is not. A
-          read-only role stays read-only. {NATIVE_COPY} {NOT_BY_TRIGGER}
+          Code setup” on. It asks KOLONİ before every tool of its own, its reads too. A change shows as a diff to
+          approve and a command as a command to approve, as the permission level says. A secret file is asked about at
+          every level; an ordinary read in the project is not. A read-only role stays read-only. {NATIVE_COPY}{' '}
+          {NOT_BY_TRIGGER}
         </p>
       )}
       <AgyNotes agy={agy} runs={runs} />
       {runs === 'native' && kind === 'codex_cli' && (
         <p role="note" className="composer-warning provider-note">
-          Native: Codex works with its own shell and patch tool; your own Codex skills and MCP servers are switched
-          off. {NATIVE_COPY} It asks KOLONİ before each command it runs and each patch it makes, at any permission
-          level, by KOLONİ&apos;s own rules: a new file shows as a diff to approve, an edit of an existing file as a
-          sentence with its diff, and a command as a command to approve. It reads files by running commands, so its role
-          has to be allowed to write and run them. What its own Codex rules let it do unasked is marked so on the record.
-          It can open sub-agents and ask you questions through KOLONİ. {NOT_BY_TRIGGER}
+          Native: Codex works with its own shell and patch tool; your own Codex skills and MCP servers are switched off.{' '}
+          {NATIVE_COPY} It asks KOLONİ before each command it runs and each patch it makes, at any permission level, by
+          KOLONİ&apos;s own rules: a new file shows as a diff to approve, an edit of an existing file as a sentence with
+          its diff, and a command as a command to approve. It reads files by running commands, so its role has to be
+          allowed to write and run them. What its own Codex rules let it do unasked is marked so on the record. It can
+          open sub-agents and ask you questions through KOLONİ. {NOT_BY_TRIGGER}
         </p>
       )}
       {runs === 'native' && kind === 'qoder_cli' && (
         <p role="note" className="composer-warning provider-note">
           Native: the Qoder versions measured so far do not apply KOLONİ&apos;s hook, so a native turn stops before
-          Qoder does anything and says to run it as a session (One session per agent) instead. A Qoder that applies
-          the hook passes that check; how it works natively after that, asking KOLONİ before each tool of its own as
-          Claude Code does, is not measured. It does not run natively in a project with Qoder settings of its own
-          (.qoder). {NATIVE_COPY} {NOT_BY_TRIGGER}
+          Qoder does anything and says to run it as a session (One session per agent) instead. A Qoder that applies the
+          hook passes that check; how it works natively after that, asking KOLONİ before each tool of its own as Claude
+          Code does, is not measured. It does not run natively in a project with Qoder settings of its own (.qoder).{' '}
+          {NATIVE_COPY} {NOT_BY_TRIGGER}
         </p>
       )}
       {runs === 'native' && kind === 'copilot_cli' && (
         <p role="note" className="composer-warning provider-note">
           Native: Copilot works in the project folder with its own file and shell tools. It starts with a home of its
-          own, so your Copilot plugins and MCP servers stay out. It asks KOLONİ before each command it runs, each file it
-          writes and each file it reads, at any permission level, by KOLONİ&apos;s own rules: a new file shows as a diff
-          to approve, an edit of an existing file as a sentence with its diff, a command as a command to approve and a
-          secret file as a read to approve. Anything else it asks for, such as a web page, is refused. What it does
-          unasked is marked so on the record. Where this machine can, its commands run in Copilot’s sandbox, denied the
-          project’s secret files (Settings › This project › Commands and secrets); where it cannot, the run says so. It can open sub-agents
-          and ask you questions through KOLONİ. Copilot (native) runs its sub-agents one at a time here; session mode
-          runs them at once. Copilot’s own sandbox cannot start Python here (measured): tests run only through a
-          sub-agent or in session mode. {NOT_BY_TRIGGER}
+          own, so your Copilot plugins and MCP servers stay out. It asks KOLONİ before each command it runs, each file
+          it writes and each file it reads, at any permission level, by KOLONİ&apos;s own rules: a new file shows as a
+          diff to approve, an edit of an existing file as a sentence with its diff, a command as a command to approve
+          and a secret file as a read to approve. Anything else it asks for, such as a web page, is refused. What it
+          does unasked is marked so on the record. Where this machine can, its commands run in Copilot’s sandbox, denied
+          the project’s secret files (Settings › This project › Commands and secrets); where it cannot, the run says so.
+          It can open sub-agents and ask you questions through KOLONİ. Copilot (native) runs its sub-agents one at a
+          time here; session mode runs them at once. Copilot’s own sandbox cannot start Python here (measured): tests
+          run only through a sub-agent or in session mode. {NOT_BY_TRIGGER}
         </p>
       )}
     </>
@@ -411,10 +451,10 @@ function AgyNotes({ agy, runs }: Pick<CliProps, 'agy' | 'runs'>) {
           Native: agy works with all its own tools, in a home of KOLONİ&apos;s, so your own agy settings, hooks and MCP
           servers stay out. It is started with --dangerously-skip-permissions, and a hook of KOLONİ&apos;s asks KOLONİ
           before each tool it uses: a change shows as a change to approve and a command as a command to approve, at any
-          permission level, by KOLONİ&apos;s own rules. A read-only role stays read-only. If agy does not load that hook,
-          or uses a tool without it, the run is stopped. As a sub-agent it works in its own copy of the project, without
-          the project&apos;s dependency folders (node_modules, .venv), so what needs them does not run there; what it
-          changed is taken into the project when it is done. {AGY_TOOLS} {NOT_BY_TRIGGER}
+          permission level, by KOLONİ&apos;s own rules. A read-only role stays read-only. If agy does not load that
+          hook, or uses a tool without it, the run is stopped. As a sub-agent it works in its own copy of the project,
+          without the project&apos;s dependency folders (node_modules, .venv), so what needs them does not run there;
+          what it changed is taken into the project when it is done. {AGY_TOOLS} {NOT_BY_TRIGGER}
         </p>
       )}
     </>
@@ -437,7 +477,20 @@ interface ServiceProps {
 }
 
 /** An API's connection: its address, key and, for Anthropic, workspace. */
-export function ServiceFields({ kind, provider, address, setAddress, setAsked, suggested, listId, apiKey: key, setKey, anthropic, workspace, setWorkspace }: ServiceProps) {
+export function ServiceFields({
+  kind,
+  provider,
+  address,
+  setAddress,
+  setAsked,
+  suggested,
+  listId,
+  apiKey: key,
+  setKey,
+  anthropic,
+  workspace,
+  setWorkspace,
+}: ServiceProps) {
   return (
     <>
       <div className="field">
@@ -467,12 +520,20 @@ export function ServiceFields({ kind, provider, address, setAddress, setAsked, s
           type="password"
           autoComplete="off"
           value={key}
-          placeholder={provider?.has_key ? 'Type a new key to replace the saved one' : suggested?.env?.[0] ? `Your ${suggested.env[0]}` : 'None'}
+          placeholder={
+            provider?.has_key
+              ? 'Type a new key to replace the saved one'
+              : suggested?.env?.[0]
+                ? `Your ${suggested.env[0]}`
+                : 'None'
+          }
           onChange={e => setKey(e.target.value)}
         />
         <span className="muted provider-note">
           {provider?.has_key && 'A key is saved and is never shown again. '}
-          {!provider && suggested?.service && suggested.env?.length ? `${suggested.service} calls its key ${suggested.env.join(' or ')}. ` : null}
+          {!provider && suggested?.service && suggested.env?.length
+            ? `${suggested.service} calls its key ${suggested.env.join(' or ')}. `
+            : null}
           Keys are kept in plain text in KOLONİ's local database on this machine.
         </span>
         {keyMisfit(key, address) && (
@@ -514,14 +575,32 @@ interface ModelFieldProps extends Pick<PageProps, 'onModels' | 'onFacts'> {
   facts: ModelFacts | null | undefined
 }
 
-export function DefaultModelField({ kind, cli, provider, model, setModel, listId, suggested, down, facts, onModels, onFacts }: ModelFieldProps) {
+export function DefaultModelField({
+  kind,
+  cli,
+  provider,
+  model,
+  setModel,
+  listId,
+  suggested,
+  down,
+  facts,
+  onModels,
+  onFacts,
+}: ModelFieldProps) {
   return (
     <div className="field">
       <label htmlFor="provider-model">Default model</label>
       <ModelNameInput
         id="provider-model"
         value={model}
-        placeholder={cli ? "The CLI's own default" : kind === 'anthropic' ? 'Needed, e.g. claude-sonnet-5-5' : 'First model the server lists'}
+        placeholder={
+          cli
+            ? "The CLI's own default"
+            : kind === 'anthropic'
+              ? 'Needed, e.g. claude-sonnet-5-5'
+              : 'First model the server lists'
+        }
         providerId={provider?.id ?? null}
         loadModels={onModels}
         listId={listId}
@@ -541,8 +620,8 @@ export function DefaultModelField({ kind, cli, provider, model, setModel, listId
       <span className="muted provider-note">
         Offered here: your own list, then the catalogue’s models, then the provider’s own list.{' '}
         <Hint doc={GUIDE.providerModels}>
-          The provider is asked only after it is saved: Anthropic and hosted services with your key, so the list is
-          what that key’s account can use; a server on this machine lists the model it has loaded.
+          The provider is asked only after it is saved: Anthropic and hosted services with your key, so the list is what
+          that key’s account can use; a server on this machine lists the model it has loaded.
         </Hint>
       </span>
     </div>
@@ -573,9 +652,11 @@ export function AtOnceField({ kind, atOnce, setAtOnce, usualAtOnce, most, onThis
         onChange={e => setAtOnce(e.target.value)}
       />
       <span id="provider-at-once-note" className="muted provider-note">
-        {most === undefined ? 'A whole number from 1 to 1000, or empty for the default: as written, it is not saved. ' : ''}
-        How many agents may work on this provider at the same time, across all projects. One more waits in line, and
-        its node says so. Empty:{' '}
+        {most === undefined
+          ? 'A whole number from 1 to 1000, or empty for the default: as written, it is not saved. '
+          : ''}
+        How many agents may work on this provider at the same time, across all projects. One more waits in line, and its
+        node says so. Empty:{' '}
         {kind.endsWith('_cli')
           ? '3, the default for a CLI: each agent on it spends your subscription.'
           : onThisMachine
@@ -598,7 +679,16 @@ interface GuideProps {
 }
 
 /** What agents are told of the provider as a whole, beside its models. */
-export function ProviderGuide({ rows, forAgents, setForAgents, note, setNote, listed, only, setOnlyListed }: GuideProps) {
+export function ProviderGuide({
+  rows,
+  forAgents,
+  setForAgents,
+  note,
+  setNote,
+  listed,
+  only,
+  setOnlyListed,
+}: GuideProps) {
   return (
     <>
       {/* With models listed, each says it in its row; with none, the provider itself. */}
@@ -695,11 +785,7 @@ export function TestResult({ tested, kind, cli, provider, ownServer, canAdd, onA
           {canAdd && (
             <>
               {' '}
-              <button
-                type="button"
-                className="btn btn-small"
-                onClick={onAdd}
-              >
+              <button type="button" className="btn btn-small" onClick={onAdd}>
                 Add it to the list
               </button>
             </>
@@ -733,7 +819,20 @@ interface ActionsProps extends Pick<PageProps, 'onSave' | 'onDelete' | 'onTest' 
 }
 
 /** A saved provider's buttons: Save, the checks, and what is done to it. */
-export function ProviderActions({ provider, cli, busy, canSave, isDefault, onlyOne, run, setTested, onSave, onDelete, onTest, onMakeDefault }: ActionsProps) {
+export function ProviderActions({
+  provider,
+  cli,
+  busy,
+  canSave,
+  isDefault,
+  onlyOne,
+  run,
+  setTested,
+  onSave,
+  onDelete,
+  onTest,
+  onMakeDefault,
+}: ActionsProps) {
   return (
     <>
       <button type="submit" className="btn btn-primary" disabled={busy || !canSave}>
@@ -769,12 +868,22 @@ export function ProviderActions({ provider, cli, busy, canSave, isDefault, onlyO
         </button>
       )}
       {!isDefault && onMakeDefault && (
-        <button type="button" className="btn" disabled={busy} onClick={() => void run(() => onMakeDefault(provider.id))}>
+        <button
+          type="button"
+          className="btn"
+          disabled={busy}
+          onClick={() => void run(() => onMakeDefault(provider.id))}
+        >
           Make default
         </button>
       )}
       {provider.has_key && (
-        <button type="button" className="btn" disabled={busy} onClick={() => void run(() => onSave(provider.id, { api_key: '' }))}>
+        <button
+          type="button"
+          className="btn"
+          disabled={busy}
+          onClick={() => void run(() => onSave(provider.id, { api_key: '' }))}
+        >
           Remove key
         </button>
       )}

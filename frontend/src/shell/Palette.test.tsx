@@ -9,34 +9,129 @@ import { conversation, projectMemory, run } from '../test-fixtures'
 // Ctrl+K and the first steps, in the app as it is put together (slice 38f-1).
 
 const project = {
-  id: 'p', name: 'demo', root_path: 'C:/demo', created_at: 't', exec_location: 'host', docker_image: null, docker_network: false,
-  search_url: null, search_order: 'builtin', search_agy: false, has_notify_url: false, notify_format: 'slack', notify_desktop: false,
-  turn_token_limit: null, max_agents: null, monthly_budget: null, git_commit: false, auto_notes: false, observe_reports: false, day_note_at: null, also_in: [], read_in: [],
-  hide_secrets: true, lead_work: 'delegates', pass_env: null, held_env: [], koloni: { settings_kept: false, rules_kept: false, rules: null, broken: [], asks: {} },
+  id: 'p',
+  name: 'demo',
+  root_path: 'C:/demo',
+  created_at: 't',
+  exec_location: 'host',
+  docker_image: null,
+  docker_network: false,
+  search_url: null,
+  search_order: 'builtin',
+  search_agy: false,
+  has_notify_url: false,
+  notify_format: 'slack',
+  notify_desktop: false,
+  turn_token_limit: null,
+  max_agents: null,
+  monthly_budget: null,
+  git_commit: false,
+  auto_notes: false,
+  observe_reports: false,
+  day_note_at: null,
+  also_in: [],
+  read_in: [],
+  hide_secrets: true,
+  lead_work: 'delegates',
+  pass_env: null,
+  held_env: [],
+  koloni: { settings_kept: false, rules_kept: false, rules: null, broken: [], asks: {} },
 }
 const health = {
-  desktop_available: true, docker_available: true, docker_error: null, error: null, model_base_url: 'http://127.0.0.1:8080/v1',
-  model_id: 'qwen', model_reachable: true, not_listed: false, provider_name: 'Local', tools_supported: true,
-  api_hash: import.meta.env.VITE_API_HASH, shell: 'PowerShell 7', shell_note: null,
+  desktop_available: true,
+  docker_available: true,
+  docker_error: null,
+  error: null,
+  model_base_url: 'http://127.0.0.1:8080/v1',
+  model_id: 'qwen',
+  model_reachable: true,
+  not_listed: false,
+  provider_name: 'Local',
+  tools_supported: true,
+  api_hash: import.meta.env.VITE_API_HASH,
+  shell: 'PowerShell 7',
+  shell_note: null,
 }
 const role = (id: string, name: string) => ({
-  id, name, description: '', instructions: `${name}'s instructions`, tools: ['read_file'], builtin: false, created_by_agent: false, models: null,
-  provider_id: null, model_id: null, tier: null, tier_min: null, tier_max: null, kind: 'build', enabled: true, teams: [], pick_from: null, max_steps: null, max_tokens: null, mcp: [], locked_tools: [], created_at: 't', updated_at: 't',
+  id,
+  name,
+  description: '',
+  instructions: `${name}'s instructions`,
+  tools: ['read_file'],
+  builtin: false,
+  created_by_agent: false,
+  models: null,
+  provider_id: null,
+  model_id: null,
+  tier: null,
+  tier_min: null,
+  tier_max: null,
+  kind: 'build',
+  enabled: true,
+  teams: [],
+  pick_from: null,
+  max_steps: null,
+  max_tokens: null,
+  mcp: [],
+  locked_tools: [],
+  created_at: 't',
+  updated_at: 't',
 })
-const listed = (id: string, title: string) => ({ ...conversation, id, title, kept: false, created_at: '2026-10-17T10:00:00Z', updated_at: '2026-10-17T10:00:00Z' })
+const listed = (id: string, title: string) => ({
+  ...conversation,
+  id,
+  title,
+  kept: false,
+  created_at: '2026-10-17T10:00:00Z',
+  updated_at: '2026-10-17T10:00:00Z',
+})
 const snapshot = (id: string, messages: unknown[] = []) => ({
-  conversation: { ...conversation, id }, messages, runs: messages.length ? [run('r', 'completed')] : [], tool_calls: [], file_changes: [], commands: [], allowed_commands: [], agents: [],
-  channel_messages: [], pending_roles: [], questions: [], discussions: [], discussion_posts: [], board_posts: [], last_event_id: 0,
+  conversation: { ...conversation, id },
+  messages,
+  runs: messages.length ? [run('r', 'completed')] : [],
+  tool_calls: [],
+  file_changes: [],
+  commands: [],
+  allowed_commands: [],
+  agents: [],
+  channel_messages: [],
+  pending_roles: [],
+  questions: [],
+  discussions: [],
+  discussion_posts: [],
+  board_posts: [],
+  last_event_id: 0,
 })
-const said = { id: 'm', conversation_id: 'c1', run_id: 'r', role: 'user', content: 'hello', status: 'completed', created_at: 't' }
+const said = {
+  id: 'm',
+  conversation_id: 'c1',
+  run_id: 'r',
+  role: 'user',
+  content: 'hello',
+  status: 'completed',
+  created_at: 't',
+}
 
 let answers: Record<string, unknown>
 let asked: string[]
 
 beforeEach(() => {
   localStorage.clear()
-  vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
-  vi.stubGlobal('EventSource', class { addEventListener() {} close() {} })
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  )
+  vi.stubGlobal(
+    'EventSource',
+    class {
+      addEventListener() {}
+      close() {}
+    },
+  )
   answers = {
     '/api/projects': [project],
     '/api/health': health,
@@ -51,7 +146,16 @@ beforeEach(() => {
     '/api/roles/r2/jobs': { jobs: [], days30: { jobs: 0, failed: 0, tokens: 0, unreported: 0 } },
     '/api/projects/p/board': { limit: null, running: 0, conversations: [], conflicts: [] },
     '/api/board': { backlog_waiting: 0, limit: null, running: 0, conversations: [], conflicts: [] },
-    '/api/hold': { held: false, since: null, running: 0, triggers: 0, backlogs: [], nights: [], stopped: [], stopping: 0 },
+    '/api/hold': {
+      held: false,
+      since: null,
+      running: 0,
+      triggers: 0,
+      backlogs: [],
+      nights: [],
+      stopped: [],
+      stopping: 0,
+    },
     '/api/tiers': { strongest: [], balanced: [], fast: [] },
     '/api/projects/p/others-instructions': { paths: [], more: 0, partial: false },
   }
@@ -61,9 +165,11 @@ beforeEach(() => {
     vi.fn(async (url: string, init?: RequestInit) => {
       asked.push(url)
       const path = url.split('?')[0]
-      if (init?.method === 'POST' && path === '/api/conversations') return new Response(JSON.stringify(listed('c3', 'New conversation')), { status: 200 })
+      if (init?.method === 'POST' && path === '/api/conversations')
+        return new Response(JSON.stringify(listed('c3', 'New conversation')), { status: 200 })
       if (path === '/api/conversations/c3') return new Response(JSON.stringify(snapshot('c3')), { status: 200 })
-      if (path === '/api/projects/p/memory/search') return new Response(JSON.stringify({ memory: [], turns: [] }), { status: 200 })
+      if (path === '/api/projects/p/memory/search')
+        return new Response(JSON.stringify({ memory: [], turns: [] }), { status: 200 })
       return new Response(JSON.stringify(answers[path] ?? []), { status: 200 })
     }),
   )
@@ -76,7 +182,10 @@ afterEach(() => {
 })
 
 const palette = () => screen.queryByRole('dialog', { name: 'Go to' })
-const options = () => within(palette()!).getAllByRole('option').map(option => option.textContent)
+const options = () =>
+  within(palette()!)
+    .getAllByRole('option')
+    .map(option => option.textContent)
 
 test('Ctrl+K opens it from inside the message box; it finds by name as it is typed; Esc closes it and the focus is back in the box', async () => {
   render(<App />)
@@ -136,13 +245,19 @@ test('Enter goes there: a page, a role on its page, a conversation by its name',
 test('a section picked while the settings are open is shown, and what is not saved in another stays', async () => {
   render(<App />)
   await screen.findByLabelText('Message')
-  await userEvent.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Settings' }))
-  await userEvent.click(within(screen.getByRole('form', { name: 'Project settings' })).getByRole('button', { name: /^Limits and money/ }))
+  await userEvent.click(
+    within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Settings' }),
+  )
+  await userEvent.click(
+    within(screen.getByRole('form', { name: 'Project settings' })).getByRole('button', { name: /^Limits and money/ }),
+  )
   await userEvent.type(screen.getByLabelText('At most this many agents at work in this project'), '3')
   await userEvent.keyboard('{Control>}k{/Control}')
   await userEvent.type(within(palette()!).getByRole('combobox'), 'notifications{Enter}')
   expect(screen.getByRole('heading', { name: 'Notifications' })).toBeInTheDocument()
-  await userEvent.click(within(screen.getByRole('form', { name: 'Project settings' })).getByRole('button', { name: /^Limits and money/ }))
+  await userEvent.click(
+    within(screen.getByRole('form', { name: 'Project settings' })).getByRole('button', { name: /^Limits and money/ }),
+  )
   expect(screen.getByLabelText('At most this many agents at work in this project')).toHaveValue('3')
 })
 
@@ -162,7 +277,9 @@ test('a section of the settings picked over a page picked before leaves that pag
   expect(screen.getByRole('heading', { name: 'Notifications' })).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Close settings' }))
   expect(screen.getByRole('textbox', { name: 'Instructions' })).toHaveValue("Documenter's instructions Not saved yet.")
-  await userEvent.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Settings' }))
+  await userEvent.click(
+    within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Settings' }),
+  )
   expect(screen.getByRole('heading', { name: 'Agents' })).toBeInTheDocument()
 })
 
@@ -191,7 +308,12 @@ test('the first steps are one path - a provider, a folder, a message: the first 
   answers['/api/projects'] = []
   answers['/api/conversations'] = []
   // (The provider made at the first start, "Local", with no model server behind it: that is not done.)
-  answers['/api/health'] = { ...health, provider_id: 'pv', model_reachable: false, error: 'model server unreachable: refused' }
+  answers['/api/health'] = {
+    ...health,
+    provider_id: 'pv',
+    model_reachable: false,
+    error: 'model server unreachable: refused',
+  }
   // (What the add-a-provider form asks as it opens: nothing known.)
   answers['/api/providers/suggest'] = { models: [], service: null, api: null, env: [], addresses: [] }
   render(<App />)
@@ -210,10 +332,14 @@ test('the first steps are one path - a provider, a folder, a message: the first 
   // a provider that answers: the folder is the next
   answers['/api/health'] = { ...health, provider_id: 'pv' }
   await act(() => import('../state/store').then(({ useApp }) => useApp.getState().loadHealth()))
-  await userEvent.click(within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Canvas' }))
+  await userEvent.click(
+    within(screen.getByRole('navigation', { name: 'Main' })).getByRole('button', { name: 'Canvas' }),
+  )
   expect(items()[0]).toHaveTextContent('Done: A provider is set up.')
   expect(current()).toBe(1)
-  await userEvent.click(within(screen.getByRole('region', { name: 'First steps' })).getByRole('button', { name: 'Choose a folder' }))
+  await userEvent.click(
+    within(screen.getByRole('region', { name: 'First steps' })).getByRole('button', { name: 'Choose a folder' }),
+  )
   expect(screen.getByRole('dialog', { name: 'This chat’s folders' })).toBeInTheDocument()
   await userEvent.keyboard('{Escape}')
   // a folder: the message is the next, and its button takes the focus to the message box
@@ -221,10 +347,19 @@ test('the first steps are one path - a provider, a folder, a message: the first 
   await act(() => import('../state/store').then(({ useApp }) => useApp.getState().loadProjects()))
   expect(items()[1]).toHaveTextContent('Done: A project folder is added.')
   expect(current()).toBe(2)
-  await userEvent.click(within(screen.getByRole('region', { name: 'First steps' })).getByRole('button', { name: 'Write your first message' }))
+  await userEvent.click(
+    within(screen.getByRole('region', { name: 'First steps' })).getByRole('button', {
+      name: 'Write your first message',
+    }),
+  )
   expect(screen.getByLabelText('Message')).toHaveFocus()
   // a message written in any chat: gone - in a new, empty chat too, with the model down since, and nothing kept to say so
-  answers['/api/health'] = { ...health, provider_id: 'pv', model_reachable: false, error: 'model server unreachable: refused' }
+  answers['/api/health'] = {
+    ...health,
+    provider_id: 'pv',
+    model_reachable: false,
+    error: 'model server unreachable: refused',
+  }
   await act(() => import('../state/store').then(({ useApp }) => useApp.getState().loadHealth()))
   answers['/api/conversations'] = [{ ...listed('c1', 'Fix the login'), wrote: true }]
   await act(() => import('../state/store').then(({ useApp }) => useApp.getState().loadProjects()))
@@ -259,7 +394,9 @@ test('Hide puts them away for good; Help shows them again', async () => {
   await screen.findByLabelText('Message')
   expect(screen.queryByRole('region', { name: 'First steps' })).not.toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Help' }))
-  await userEvent.click(within(screen.getByRole('dialog', { name: 'Help' })).getByRole('button', { name: 'Show the first steps' }))
+  await userEvent.click(
+    within(screen.getByRole('dialog', { name: 'Help' })).getByRole('button', { name: 'Show the first steps' }),
+  )
   expect(await screen.findByRole('region', { name: 'First steps' })).toBeInTheDocument()
 })
 
@@ -269,7 +406,12 @@ test('with no conversation, the Conversations page offers to start one', async (
   await userEvent.click(await screen.findByRole('button', { name: 'Chats' }))
   expect(screen.getByText(/No conversations yet/)).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'New chat' }))
-  await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith('/api/conversations', expect.objectContaining({ method: 'POST', body: JSON.stringify({ project_id: null }) })))
+  await waitFor(() =>
+    expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+      '/api/conversations',
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ project_id: null }) }),
+    ),
+  )
 })
 
 test('Esc is the palette’s while it is open: a panel under it that listens for Esc on the document does not hear it, wherever the focus went', async () => {
@@ -315,7 +457,16 @@ test('with Help open, Esc closes the palette over it and leaves Help open', asyn
 })
 
 test('a name is found without its accents or case: “ilk” finds “İlk deneme”, “cagri” finds “Çağrı”', async () => {
-  render(<Palette places={[{ kind: 'Conversation', name: 'İlk deneme', go: () => {} }, { kind: 'Role', name: 'Çağrı', go: () => {} }]} onOpen={() => {}} onSearch={() => {}} />)
+  render(
+    <Palette
+      places={[
+        { kind: 'Conversation', name: 'İlk deneme', go: () => {} },
+        { kind: 'Role', name: 'Çağrı', go: () => {} },
+      ]}
+      onOpen={() => {}}
+      onSearch={() => {}}
+    />,
+  )
   await userEvent.keyboard('{Control>}k{/Control}')
   await userEvent.type(within(palette()!).getByRole('combobox'), 'ilk')
   expect(options()[0]).toBe('İlk denemeConversation')

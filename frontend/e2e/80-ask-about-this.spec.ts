@@ -9,7 +9,9 @@ import { PROJECT_DIR } from './paths.mjs'
 test.use({ viewport: { width: 1440, height: 900 } })
 
 const FILE = path.join(PROJECT_DIR, 'ask80.py')
-test.beforeAll(() => writeFileSync(FILE, 'def pay():\n    total = 1\n    total += 2\n    return total\n\nprint(pay())\n'))
+test.beforeAll(() =>
+  writeFileSync(FILE, 'def pay():\n    total = 1\n    total += 2\n    return total\n\nprint(pay())\n'),
+)
 test.afterAll(() => rmSync(FILE, { force: true }))
 
 /** Lines 2 to 4 of the file view, selected as a drag would: from the start of one line's text to the end of another's. */

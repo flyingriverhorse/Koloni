@@ -47,9 +47,18 @@ function noted(state: ConvState, call: ToolCall): string {
     // not readable: nothing is made up for it
   }
   const { text, file, start_line: start, end_line: end } = args
-  const where = typeof file === 'string' && typeof start === 'number' ? `${file}:${start}-${typeof end === 'number' ? end : start}` : null
+  const where =
+    typeof file === 'string' && typeof start === 'number'
+      ? `${file}:${start}-${typeof end === 'number' ? end : start}`
+      : null
   const who = titleOf(state.agents.find(a => a.id === call.agent_id)?.name || 'Agent')
-  return [`${who}: ${typeof text === 'string' ? text : '(not readable)'}`, where, args.propose === true && 'put forward'].filter(Boolean).join(' · ')
+  return [
+    `${who}: ${typeof text === 'string' ? text : '(not readable)'}`,
+    where,
+    args.propose === true && 'put forward',
+  ]
+    .filter(Boolean)
+    .join(' · ')
 }
 
 const time = (at: string) => new Date(at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
@@ -62,7 +71,14 @@ const time = (at: string) => new Date(at).toLocaleTimeString(undefined, { hour: 
  * a request's contract is a card of its own, on an arm from the request's line. Nothing used, no card.
  * `nodes`, `edges`: the turn's, as drawn so far.
  */
-export function sharedColumn(state: ConvState, run: Run, turn: number | null, nodes: GraphNode[], edges: GraphEdge[], shared: SharedFile[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
+export function sharedColumn(
+  state: ConvState,
+  run: Run,
+  turn: number | null,
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+  shared: SharedFile[],
+): { nodes: GraphNode[]; edges: GraphEdge[] } {
   const own = nodes.filter(n => n.runId === run.id)
   const lead = state.agents.find(a => a.run_id === run.id && a.depth === 0)
   // Whose an agent's use is: its team's frame; the Lead's (or the user's) everyone's; with no frame, its own box.
@@ -76,7 +92,8 @@ export function sharedColumn(state: ConvState, run: Run, turn: number | null, no
   const contracts = contractsOf(state, run, edges, files)
   const notes = new Map<string, BoardPost[]>()
   // The notebook: each note by whoever wrote it (KOLONİ's own are on the Notes tab).
-  for (const post of state.boardPosts.filter(p => p.run_id === run.id && !p.koloni).sort((a, b) => a.seq - b.seq)) add(notes, anchorOf(post.agent_id), post)
+  for (const post of state.boardPosts.filter(p => p.run_id === run.id && !p.koloni).sort((a, b) => a.seq - b.seq))
+    add(notes, anchorOf(post.agent_id), post)
   const used: Used = { state, run, turn, shared, files, notes, memory: memoryUsed(state, run, calls, anchorOf) }
 
   const added: GraphNode[] = []
@@ -84,9 +101,21 @@ export function sharedColumn(state: ConvState, run: Run, turn: number | null, no
   topCard(used, own, lead, added, lines)
   frameCards(used, own, added, lines)
   for (const [request, paths] of contracts) {
-    const one = block(used, request.id, null, 'var(--request)', [...paths].map(path => ({ kind: 'file' as const, text: path, path })))
+    const one = block(
+      used,
+      request.id,
+      null,
+      'var(--request)',
+      [...paths].map(path => ({ kind: 'file' as const, text: path, path })),
+    )
     added.push(one)
-    lines.push({ id: `shared:${one.id}`, source: request.source, target: one.id, active: false, shared: { colour: 'var(--request)', arm: request.id } })
+    lines.push({
+      id: `shared:${one.id}`,
+      source: request.source,
+      target: one.id,
+      active: false,
+      shared: { colour: 'var(--request)', arm: request.id },
+    })
   }
   return { nodes: added, edges: lines }
 }
@@ -114,14 +143,21 @@ function writtenFiles(run: Run, calls: ToolCall[], shared: SharedFile[], anchorO
   // What a room between teams decided in the turn: no call names its file - the folder's own times do.
   // shortcut: a decision of another turn written while this one ran is shown with it; name its turn in the listing if met.
   const [from, to] = [Date.parse(run.started_at ?? ''), run.ended_at ? Date.parse(run.ended_at) : Infinity]
-  for (const file of shared) if (file.path.startsWith('decisions/') && Date.parse(file.at) >= from && Date.parse(file.at) <= to) add(files, 'top', file.path)
+  for (const file of shared)
+    if (file.path.startsWith('decisions/') && Date.parse(file.at) >= from && Date.parse(file.at) <= to)
+      add(files, 'top', file.path)
   return files
 }
 
 // A request's contract: on an arm from its line where that is drawn, else everyone's. Several requests on one line
 // (asked twice one way) have one card, a row for each contract: two cards of one id had the arm end short of it.
 /** The contracts on an arm, by their request's line; one whose line is not drawn is added to `files` as everyone's. */
-function contractsOf(state: ConvState, run: Run, edges: GraphEdge[], files: Used['files']): Map<GraphEdge, Set<string>> {
+function contractsOf(
+  state: ConvState,
+  run: Run,
+  edges: GraphEdge[],
+  files: Used['files'],
+): Map<GraphEdge, Set<string>> {
   const contracts = new Map<GraphEdge, Set<string>>()
   for (const request of requestsOf(state, run.id)) {
     // (N7: not the full stop after it.)
@@ -136,12 +172,15 @@ function contractsOf(state: ConvState, run: Run, edges: GraphEdge[], files: Used
 // The memory: the facts its agents were given as they started, what they looked up and wrote.
 function memoryUsed(state: ConvState, run: Run, calls: ToolCall[], anchorOf: AnchorOf): Used['memory'] {
   const memory = new Map<string, { facts: Set<string>; lookups: number; written: string[] }>()
-  const used = (anchor: string) => memory.get(anchor) ?? memory.set(anchor, { facts: new Set(), lookups: 0, written: [] }).get(anchor)!
-  for (const agent of state.agents.filter(a => a.run_id === run.id)) for (const fact of agent.facts_given ?? []) used(anchorOf(agent.id)).facts.add(fact)
+  const used = (anchor: string) =>
+    memory.get(anchor) ?? memory.set(anchor, { facts: new Set(), lookups: 0, written: [] }).get(anchor)!
+  for (const agent of state.agents.filter(a => a.run_id === run.id))
+    for (const fact of agent.facts_given ?? []) used(anchorOf(agent.id)).facts.add(fact)
   for (const call of calls) {
     if (call.name === 'recall') used(anchorOf(call.agent_id)).lookups++
     // What was written, as the removed inspector said it: who, the words, the lines they rest on, put forward. (A refused one is not.)
-    if (call.name === 'remember' && call.status === 'succeeded') used(anchorOf(call.agent_id)).written.push(noted(state, call))
+    if (call.name === 'remember' && call.status === 'succeeded')
+      used(anchorOf(call.agent_id)).written.push(noted(state, call))
   }
   return memory
 }
@@ -150,32 +189,71 @@ function memoryUsed(state: ConvState, run: Run, calls: ToolCall[], anchorOf: Anc
 const kept = (rows: SharedRow[], what: string, newest = false, all = false): SharedRow[] =>
   all || rows.length <= OF_A_KIND
     ? rows
-    : [...(newest ? rows.slice(-OF_A_KIND) : rows.slice(0, OF_A_KIND)), { kind: 'more' as const, text: `+${plural(rows.length - OF_A_KIND, `more ${what}`)}` }]
+    : [
+        ...(newest ? rows.slice(-OF_A_KIND) : rows.slice(0, OF_A_KIND)),
+        { kind: 'more' as const, text: `+${plural(rows.length - OF_A_KIND, `more ${what}`)}` },
+      ]
 
 /** The rows of one card: its files, its notes and its use of the memory; everyone's, the way to all the shared files too. */
-function rowsOf({ state, turn, shared, files, notes, memory }: Used, anchor: string, team: string | null, all = false): SharedRow[] {
+function rowsOf(
+  { state, turn, shared, files, notes, memory }: Used,
+  anchor: string,
+  team: string | null,
+  all = false,
+): SharedRow[] {
   const part = memory.get(anchor)
-  const said = part && [part.facts.size && `${plural(part.facts.size, 'fact')} given`, part.lookups && plural(part.lookups, 'lookup'), part.written.length && `${part.written.length} written`].filter(Boolean).join(' · ')
+  const said =
+    part &&
+    [
+      part.facts.size && `${plural(part.facts.size, 'fact')} given`,
+      part.lookups && plural(part.lookups, 'lookup'),
+      part.written.length && `${part.written.length} written`,
+    ]
+      .filter(Boolean)
+      .join(' · ')
   return [
-    ...kept([...new Set(files.get(anchor))].map(path => ({ kind: 'file' as const, text: path, path })), 'file', false, all),
+    ...kept(
+      [...new Set(files.get(anchor))].map(path => ({ kind: 'file' as const, text: path, path })),
+      'file',
+      false,
+      all,
+    ),
     ...kept(
       (notes.get(anchor) ?? []).map(post => {
         const who = writerOf(state, post)
-        const head = [team, who, turn && `turn ${turn}`, time(post.created_at), 'to the notebook'].filter(Boolean).join(' · ')
-        return { kind: 'notebook' as const, text: `${who}: “${post.content.split('\n')[0]}”`, note: post.id, title: `${head}\n${post.content}` }
+        const head = [team, who, turn && `turn ${turn}`, time(post.created_at), 'to the notebook']
+          .filter(Boolean)
+          .join(' · ')
+        return {
+          kind: 'notebook' as const,
+          text: `${who}: “${post.content.split('\n')[0]}”`,
+          note: post.id,
+          title: `${head}\n${post.content}`,
+        }
       }),
       'note',
       true,
       all,
     ),
-    ...(said ? [{ kind: 'memory' as const, text: said, ...(part.written.length && { title: part.written.join('\n') }) }] : []),
+    ...(said
+      ? [{ kind: 'memory' as const, text: said, ...(part.written.length && { title: part.written.join('\n') }) }]
+      : []),
     // The whole shared folder, where it has files - written in this turn or before (the user: things gather there).
-    ...(anchor === 'top' && shared.length ? [{ kind: 'folder' as const, text: `All shared files (${shared.length}) →` }] : []),
+    ...(anchor === 'top' && shared.length
+      ? [{ kind: 'folder' as const, text: `All shared files (${shared.length}) →` }]
+      : []),
   ]
 }
 
 // (A block with rows left out unfolds in place, as an output card does: its "+N more" rows and "Fewer" fold it again.)
-const block = ({ state, run }: Used, anchor: string, who: string | null, colour: string, rows: SharedRow[], all?: SharedRow[]): GraphNode => ({
+const block = (
+  { state, run }: Used,
+  anchor: string,
+  who: string | null,
+  colour: string,
+  rows: SharedRow[],
+  all?: SharedRow[],
+): GraphNode => ({
   id: `shared:${run.id}:${anchor}`,
   kind: 'shared',
   runId: run.id,
@@ -198,19 +276,34 @@ function topCard(used: Used, own: GraphNode[], lead: Agent | undefined, added: G
     added.push(one)
     // Joined to the Lead's box as a team's card to its frame (the user, 28 Oct: with no line it read as no one's).
     if (lead && own.some(n => n.id === `agent:${lead.id}`))
-      lines.push({ id: `shared:${one.id}`, source: `agent:${lead.id}`, target: one.id, active: false, shared: { colour: 'var(--accent)', dotted: false } })
+      lines.push({
+        id: `shared:${one.id}`,
+        source: `agent:${lead.id}`,
+        target: one.id,
+        active: false,
+        shared: { colour: 'var(--accent)', dotted: false },
+      })
   }
 }
 
 /** A card for each team's frame - and each agent's box - that has rows, joined to it. */
 function frameCards(used: Used, own: GraphNode[], added: GraphNode[], lines: GraphEdge[]) {
   for (const node of own.filter(n => n.kind === 'team' || n.kind === 'agent')) {
-    const who = node.kind === 'team' ? (node.data as TeamData).team : (used.state.agents.find(a => a.id === node.agentId)?.name ?? 'Agent')
+    const who =
+      node.kind === 'team'
+        ? (node.data as TeamData).team
+        : (used.state.agents.find(a => a.id === node.agentId)?.name ?? 'Agent')
     const rows = rowsOf(used, node.id, node.kind === 'team' ? who : null)
     if (!rows.length) continue
     const colour = node.kind === 'team' ? (node.data as TeamData).colour : 'var(--accent)'
     const one = block(used, node.id, who, colour, rows, rowsOf(used, node.id, node.kind === 'team' ? who : null, true))
     added.push(one)
-    lines.push({ id: `shared:${one.id}`, source: node.id, target: one.id, active: false, shared: { colour, dotted: node.kind !== 'team' } })
+    lines.push({
+      id: `shared:${one.id}`,
+      source: node.id,
+      target: one.id,
+      active: false,
+      shared: { colour, dotted: node.kind !== 'team' },
+    })
   }
 }

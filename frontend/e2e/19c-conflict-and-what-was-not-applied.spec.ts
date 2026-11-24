@@ -24,11 +24,15 @@ async function twoCoders(page: import('@playwright/test').Page) {
   for (const _ of [1, 2]) await chat.getByRole('button', { name: 'Open agent' }).first().click()
   // The quick one is done and asks; the other has written its file in its copy and is at work.
   await expect(chat.getByText("Take in Coder 2's work? · 1 file")).toBeVisible({ timeout: 15_000 })
-  await expect(page.locator('.react-flow__node-agent').filter({ has: page.locator('.node-title', { hasText: /^Coder$/ }) })).toContainText('1 file')
+  await expect(
+    page.locator('.react-flow__node-agent').filter({ has: page.locator('.node-title', { hasText: /^Coder$/ }) }),
+  ).toContainText('1 file')
   return chat
 }
 
-test('a file that changed in the project meanwhile stands apart on the card, and what you discard says so', async ({ page }) => {
+test('a file that changed in the project meanwhile stands apart on the card, and what you discard says so', async ({
+  page,
+}) => {
   const chat = await twoCoders(page)
   // Meanwhile the same file appears in the project, by the user's own hand.
   writeFileSync(ALPHA, 'mine\n')
@@ -38,7 +42,9 @@ test('a file that changed in the project meanwhile stands apart on the card, and
   await expect(card).toBeVisible({ timeout: 15_000 })
   // Both sides made the file anew: there is nothing to merge it by, and whose file is taken is asked.
   const apart = chat.getByRole('group', { name: 'Changed on both sides' })
-  await expect(apart).toContainText('alpha.txt — changed in the project meanwhile, and not merged line by line: both sides made it anew')
+  await expect(apart).toContainText(
+    'alpha.txt — changed in the project meanwhile, and not merged line by line: both sides made it anew',
+  )
   await expect(apart.getByRole('radio', { name: "Take Coder's file" })).not.toBeChecked()
   await expect(apart.getByRole('radio', { name: "Keep the project's file" })).not.toBeChecked()
   await expect(chat.getByRole('button', { name: 'Take in', exact: true })).toBeDisabled()
@@ -56,7 +62,9 @@ test('a file that changed in the project meanwhile stands apart on the card, and
 })
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`B-56 (${theme}): a file that changed since you looked is not written over - Apply takes nothing, says why and shows the card as it is now`, async ({ page }) => {
+  test(`B-56 (${theme}): a file that changed since you looked is not written over - Apply takes nothing, says why and shows the card as it is now`, async ({
+    page,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     const chat = await twoCoders(page)
     await chat.getByRole('button', { name: 'Take in', exact: true }).click()
@@ -65,7 +73,9 @@ for (const theme of ['light', 'dark'] as const) {
     // While the card waits, the same file appears in the project by the user's own hand.
     writeFileSync(ALPHA, 'mine\n')
     await chat.getByRole('button', { name: 'Take in', exact: true }).click()
-    await expect(chat.getByRole('alert')).toHaveText('alpha.txt changed since you looked: nothing was taken in. Check the card again')
+    await expect(chat.getByRole('alert')).toHaveText(
+      'alpha.txt changed since you looked: nothing was taken in. Check the card again',
+    )
     const apart = chat.getByRole('group', { name: 'Changed on both sides' })
     await expect(apart).toContainText('alpha.txt')
     await expect(chat.getByRole('button', { name: 'Take in', exact: true })).toBeDisabled()
@@ -78,7 +88,9 @@ for (const theme of ['light', 'dark'] as const) {
     expect(readFileSync(ALPHA, 'utf8')).toBe('mine\n')
   })
 
-  test(`K-dikkat-satiri (${theme}): a config file the agent wrote is worth a look - the card says why and which file, no score`, async ({ page }) => {
+  test(`K-dikkat-satiri (${theme}): a config file the agent wrote is worth a look - the card says why and which file, no score`, async ({
+    page,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page)
     const chat = page.getByRole('region', { name: 'Chat' })
@@ -105,7 +117,9 @@ test('Stop keeps the copies: their changes stay in the copy for you to take in, 
   await chat.getByRole('button', { name: /^Coder Write alpha\.txt/ }).click()
   const inspector = page.getByRole('complementary', { name: 'Inspector' })
   // (its Changes are open from the start)
-  await expect(agentFold(inspector, 'Changes').locator('.chat-change', { hasText: 'alpha.txt' })).toContainText('In its copy')
+  await expect(agentFold(inspector, 'Changes').locator('.chat-change', { hasText: 'alpha.txt' })).toContainText(
+    'In its copy',
+  )
   await page.waitForTimeout(400) // the canvas moves its view over a fifth of a second
   await shot(page, '19c-kept')
   // Leave nothing kept for the specs after this one (a kept copy holds a restore off): Discard each.

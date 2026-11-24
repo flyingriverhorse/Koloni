@@ -53,7 +53,11 @@ const FROM: Record<string, string> = {
 export function dayOf(when: string, time = when.length > 10): string {
   const [y, m, d] = when.slice(0, 10).split('-').map(Number)
   const at = when.length > 10 ? new Date(when) : new Date(y, m - 1, d)
-  return at.toLocaleString('en-GB', { day: 'numeric', month: 'short', ...(time ? { hour: '2-digit', minute: '2-digit' } : {}) })
+  return at.toLocaleString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    ...(time ? { hour: '2-digit', minute: '2-digit' } : {}),
+  })
 }
 
 /** Where a fact came from, in words: models.dev's with the day its copy was read - "models.dev (deepseek)" where
@@ -69,9 +73,11 @@ export function factsText(facts: ModelFacts | null | undefined): string {
   if (facts === undefined) return 'Looking up the model…'
   if (facts === null) return 'Could not look up the model.'
   const said = [
-    facts.context_window && `reads ${facts.context_window.toLocaleString('en-US')} tokens at most, ${sourceOf(facts, 'context_window')}`,
+    facts.context_window &&
+      `reads ${facts.context_window.toLocaleString('en-US')} tokens at most, ${sourceOf(facts, 'context_window')}`,
     facts.max_output && `writes ${facts.max_output.toLocaleString('en-US')} at most`,
-    facts.price && `${facts.price.input} / ${facts.price.output} ${facts.price.currency} a million tokens in / out, ${sourceOf(facts, 'price')}`,
+    facts.price &&
+      `${facts.price.input} / ${facts.price.output} ${facts.price.currency} a million tokens in / out, ${sourceOf(facts, 'price')}`,
     facts.tier && `${facts.tier}, ${sourceOf(facts, 'tier')}`,
     facts.deprecated && 'being retired: it still runs, and is no longer offered',
   ]
@@ -89,7 +95,10 @@ export const namedLevel = (facts: ModelFacts | null | undefined): Named => NAMED
 export const namedOf = (levelNamed: boolean | undefined, model: string | null | undefined): Named =>
   levelNamed ? (model === 'auto' || model === 'fusion' ? 'auto' : 'name') : false
 /** Why none is sent, in a line's words. */
-export const NAMED_WHY: Record<'name' | 'auto', string> = { name: 'its name sets its level', auto: 'Copilot picks the model and its level' }
+export const NAMED_WHY: Record<'name' | 'auto', string> = {
+  name: 'its name sets its level',
+  auto: 'Copilot picks the model and its level',
+}
 
 /** What is known of a model's levels, for the note under a level's select. `named`: why it takes none. */
 export function levelsKnown(takes: Takes, named: Named = false): string {
@@ -104,7 +113,8 @@ export function levelsKnown(takes: Takes, named: Named = false): string {
 export const levelsDisabled = (takes: Takes, value: Effort | null) => !takes?.length && value === null
 
 /** A saved level its model does not take: none goes where it takes none, else the nearest lower one it takes (if any). */
-const untaken = (takes: Effort[]) => (takes.length ? ' (not taken: the nearest lower level it takes is sent, if any)' : ' (not sent to this model)')
+const untaken = (takes: Effort[]) =>
+  takes.length ? ' (not taken: the nearest lower level it takes is sent, if any)' : ' (not sent to this model)'
 
 /** Default, the levels the model takes, and a saved level it is known not to take, said as such. */
 export function LevelOptions({ takes, value }: { takes: Takes; value: Effort | null }) {

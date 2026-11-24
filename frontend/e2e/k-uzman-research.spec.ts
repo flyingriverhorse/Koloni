@@ -24,15 +24,19 @@ type Named = { id: string; name: string }
 
 test.afterEach(async ({ request }) => {
   for (const role of (await (await request.get('/api/roles')).json()) as Named[])
-    if (role.name === 'Hooks expert') expect((await request.delete(`/api/roles/${role.id}`, { headers: OWN })).ok()).toBe(true)
+    if (role.name === 'Hooks expert')
+      expect((await request.delete(`/api/roles/${role.id}`, { headers: OWN })).ok()).toBe(true)
   await dropKnowledge(request, 'Hooks')
   rmSync(KEPT, { recursive: true, force: true })
 })
 
-const lowContrast = async (page: Page) => (await page.locator('.knowledge-page').evaluate(contrasts)).filter(piece => piece.ratio < 4.5)
+const lowContrast = async (page: Page) =>
+  (await page.locator('.knowledge-page').evaluate(contrasts)).filter(piece => piece.ratio < 4.5)
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`a researching expert's Knowledge page row shows its labels, the version warning and the pages found (${theme})`, async ({ page }) => {
+  test(`a researching expert's Knowledge page row shows its labels, the version warning and the pages found (${theme})`, async ({
+    page,
+  }) => {
     test.setTimeout(60_000)
     mkdirSync(KEPT, { recursive: true })
     writeFileSync(path.join(KEPT, 'guide.md'), `${GUIDE}\n`)
@@ -62,7 +66,10 @@ for (const theme of ['light', 'dark'] as const) {
     // (Before the page opens: it reads the roles as it starts.)
     // (K-bilgi: its knowledge on the project's Knowledge page, the role using it in full.)
     const pid = await e2eProject(page)
-    const known = await page.request.post(`/api/projects/${pid}/knowledge`, { headers: OWN, data: { topic: 'Hooks', sources: SOURCES } })
+    const known = await page.request.post(`/api/projects/${pid}/knowledge`, {
+      headers: OWN,
+      data: { topic: 'Hooks', sources: SOURCES },
+    })
     expect(known.ok()).toBe(true)
     const kid: string = (await known.json()).id
     const made = await page.request.post('/api/roles', {
@@ -70,7 +77,14 @@ for (const theme of ['light', 'dark'] as const) {
       data: { name: 'Hooks expert', description: 'Knows Pay webhooks.', tools: ['read_file', 'search'] },
     })
     expect(made.ok()).toBe(true)
-    expect((await page.request.put(`/api/knowledge/${kid}/roles/${(await made.json()).id}`, { headers: OWN, data: { mode: 'full' } })).ok()).toBe(true)
+    expect(
+      (
+        await page.request.put(`/api/knowledge/${kid}/roles/${(await made.json()).id}`, {
+          headers: OWN,
+          data: { mode: 'full' },
+        })
+      ).ok(),
+    ).toBe(true)
     await openFreshConversation(page)
     await page.getByRole('button', { name: 'Knowledge', exact: true }).click()
     const hooks = page.locator('.knowledge-card').filter({ hasText: 'Hooks expert' })
@@ -90,7 +104,9 @@ for (const theme of ['light', 'dark'] as const) {
     await panel.getByText('Found while answering: 1, each a single source').click()
     await expect(panel.getByRole('button', { name: 'Remove Retries back off exponentially' })).toBeVisible()
     await hooks.getByRole('tab', { name: 'Guide' }).click()
-    await expect(panel.locator('.knowledge-guide')).toContainText('Webhooks are retried for 3 days · https://docs.example.com/v2/hooks · official')
+    await expect(panel.locator('.knowledge-guide')).toContainText(
+      'Webhooks are retried for 3 days · https://docs.example.com/v2/hooks · official',
+    )
     await shot(page, `k-uzman-research-${theme}`)
     expect(await lowContrast(page)).toEqual([])
 
@@ -102,7 +118,9 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(panel.getByText(/old: a page was removed from its sources since/)).toBeVisible()
     await hooks.getByRole('tab', { name: /^Pages/ }).click()
     await expect(panel.getByRole('button', { name: `Remove ${FOUND}` })).toHaveCount(0)
-    const kept = (await (await page.request.get(`/api/knowledge/${kid}?project_id=${pid}`)).json()) as { knowledge: { removed: string[] } }
+    const kept = (await (await page.request.get(`/api/knowledge/${kid}?project_id=${pid}`)).json()) as {
+      knowledge: { removed: string[] }
+    }
     expect(kept.knowledge.removed).toEqual([FOUND])
   })
 }

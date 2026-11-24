@@ -19,7 +19,8 @@ export function codeKind(text: string): 'path' | 'command' | null {
   if (URL.test(text)) return null
   const unquoted = text.match(/^(["'])(.+)\1$/)?.[2]
   const name = unquoted ?? text
-  if ((unquoted || !/\s/.test(name)) && (/[/\\]/.test(name) || EXTENSION.test(name) || /^\.[a-z_]/i.test(name))) return 'path'
+  if ((unquoted || !/\s/.test(name)) && (/[/\\]/.test(name) || EXTENSION.test(name) || /^\.[a-z_]/i.test(name)))
+    return 'path'
   const [first, ...rest] = text.split(' ')
   if (rest.length && rest.join('') && (PROGRAMS.has(first.toLowerCase()) || POWERSHELL.test(first))) return 'command'
   return null

@@ -8,7 +8,8 @@ import { useCheckKinds } from './CheckKinds'
 import { part, Row } from './part'
 
 /** When a commit of what was taken is offered, and the rest of that note, which is folded under it. */
-const COMMIT_OFFERED = 'One commit per piece of work. Offered on the card once the changes are in, and only where this folder is the top folder of a git repository.'
+const COMMIT_OFFERED =
+  'One commit per piece of work. Offered on the card once the changes are in, and only where this folder is the top folder of a git repository.'
 const COMMIT_REST =
   'Always your click: never made by itself, never in a trigger’s turn. It commits only the files taken in from the sub-agent, edited ones too, with your repository’s own name and hooks. Nothing is pushed.'
 
@@ -56,13 +57,27 @@ export function useChecks(project: Project, shown: boolean) {
         label="Measure command"
         htmlFor="measure-command"
         whyId="measure-command-more"
-        doc={GUIDE.settingsChecks} why="The last line of its output is a number from 0 to 100: the score of a sub-agent’s work, measured in its working copy. Empty: nothing is measured."
+        doc={GUIDE.settingsChecks}
+        why="The last line of its output is a number from 0 to 100: the score of a sub-agent’s work, measured in its working copy. Empty: nothing is measured."
       >
-        <input id="measure-command" className="input mono" value={measureCommand} maxLength={500} placeholder="python measure.py" aria-describedby="measure-command-more" onChange={e => setMeasureCommand(e.target.value)} />
+        <input
+          id="measure-command"
+          className="input mono"
+          value={measureCommand}
+          maxLength={500}
+          placeholder="python measure.py"
+          aria-describedby="measure-command-more"
+          onChange={e => setMeasureCommand(e.target.value)}
+        />
       </Row>
       <label className="choice">
         {/* Named as it was, by all of its note: a browser leaves a closed hint out of a name, and would add its button’s name to it. */}
-        <input type="checkbox" aria-label={`Save each sub-agent’s work as a git commit ${COMMIT_OFFERED} ${COMMIT_REST}`} checked={gitCommit} onChange={e => setGitCommit(e.target.checked)} />
+        <input
+          type="checkbox"
+          aria-label={`Save each sub-agent’s work as a git commit ${COMMIT_OFFERED} ${COMMIT_REST}`}
+          checked={gitCommit}
+          onChange={e => setGitCommit(e.target.checked)}
+        />
         <span>
           Save each sub-agent’s work as a git commit
           <span className="choice-note">
@@ -76,23 +91,38 @@ export function useChecks(project: Project, shown: boolean) {
 }
 
 /** How a team's finished branch reaches yours; a pull request greyed out with why, where it cannot be one. */
-function FinishWay({ finishWay, setFinishWay, prOff }: { finishWay: Project['finish_way']; setFinishWay: (way: 'merge' | 'pull_request') => void; prOff: string | null | undefined }) {
+function FinishWay({
+  finishWay,
+  setFinishWay,
+  prOff,
+}: {
+  finishWay: Project['finish_way']
+  setFinishWay: (way: 'merge' | 'pull_request') => void
+  prOff: string | null | undefined
+}) {
   return (
     <fieldset className="choice" aria-label="How finished work reaches main">
       <legend>How a team’s finished branch reaches yours</legend>
       <label>
-        <input type="radio" name="finish-way" checked={finishWay === 'merge'} onChange={() => setFinishWay('merge')} /> Merge here
+        <input type="radio" name="finish-way" checked={finishWay === 'merge'} onChange={() => setFinishWay('merge')} />{' '}
+        Merge here
       </label>{' '}
       <label title={prOff ?? undefined}>
-        <input type="radio" name="finish-way" checked={finishWay === 'pull_request'} disabled={prOff !== null} onChange={() => setFinishWay('pull_request')} />{' '}
+        <input
+          type="radio"
+          name="finish-way"
+          checked={finishWay === 'pull_request'}
+          disabled={prOff !== null}
+          onChange={() => setFinishWay('pull_request')}
+        />{' '}
         Open a pull request
         {prOff && <span className="choice-note"> Not now: {prOff}.</span>}
       </label>
       <span className="choice-note">
-        {finishWay === null ? 'Not chosen yet: the first finished branch on a GitHub project asks. ' : ''}A pull request lets
-        KOLONİ push this project’s finished <span className="mono">koloni/</span> branches to GitHub and open one with gh; it
-        never merges it. Only once your branch is on GitHub: none of your own commits go up with it. A pushed branch runs
-        the repository’s own CI (<span className="mono">on: push</span>).
+        {finishWay === null ? 'Not chosen yet: the first finished branch on a GitHub project asks. ' : ''}A pull request
+        lets KOLONİ push this project’s finished <span className="mono">koloni/</span> branches to GitHub and open one
+        with gh; it never merges it. Only once your branch is on GitHub: none of your own commits go up with it. A
+        pushed branch runs the repository’s own CI (<span className="mono">on: push</span>).
       </span>
     </fieldset>
   )

@@ -1,5 +1,14 @@
 import { CaretDown, CaretUp, ChatsCircle, FolderSimple } from '@phosphor-icons/react'
-import { type KeyboardEvent, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  type KeyboardEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { waitingIn } from '../board/waiting'
 import { inProject } from '../changes/copies'
 import { currentTurn, turnOf, turnRows } from '../canvas/turns'
@@ -60,7 +69,8 @@ function keep(key: string, value: string) {
 const tabId = (name: string) => `chat-tab-${name.replaceAll(' ', '-')}`
 
 /** The Workspace button's name, with what waits for you and whether something is new. */
-const workspaceLabel = (waiting: number | null, fresher: boolean) => ['Workspace', waiting !== null && `${waiting} waiting`, fresher && 'new'].filter(Boolean).join(' ')
+const workspaceLabel = (waiting: number | null, fresher: boolean) =>
+  ['Workspace', waiting !== null && `${waiting} waiting`, fresher && 'new'].filter(Boolean).join(' ')
 
 /**
  * The open column's right edge (0.1.4): dragged, or moved with the arrow keys, it makes the chat wider or narrower,
@@ -142,7 +152,8 @@ function useNextTopic(conv: ConvState | null, shown: string | null) {
   if (into && into.turn !== shown) setInto(null)
   const next = conv ? nextTopic(conv, shown, into && into.turn === shown ? into.topic : null) : null
   // Sent to the topic the line names, by its id: never to another the server might take.
-  const topicOf = (fresh: boolean) => (fresh && next ? { new_topic: true } : next?.kind === 'topic' ? { topic_id: next.topic.id } : {})
+  const topicOf = (fresh: boolean) =>
+    fresh && next ? { new_topic: true } : next?.kind === 'topic' ? { topic_id: next.topic.id } : {}
   return { topicOf, goesTo: goesToOf(conv, next), other: otherOf(conv, next, shown, setInto), setInto }
 }
 
@@ -150,18 +161,32 @@ type Next = ReturnType<typeof nextTopic> | null
 
 /** The topic the line above the message box names. */
 function goesToOf(conv: ConvState | null, next: Next): ComposerTopic | 'new' | null {
-  if (next?.kind === 'topic' && conv) return { title: titleOf(conv, next.topic), scheduled: next.topic.trigger_id !== null }
+  if (next?.kind === 'topic' && conv)
+    return { title: titleOf(conv, next.topic), scheduled: next.topic.trigger_id !== null }
   return next?.kind === 'new' ? 'new' : null
 }
 
 /** The one other place a message could go: into the trigger's topic on screen, or back out of it. */
-function otherOf(conv: ConvState | null, next: Next, shown: string | null, setInto: (into: { turn: string; topic: string } | null) => void) {
+function otherOf(
+  conv: ConvState | null,
+  next: Next,
+  shown: string | null,
+  setInto: (into: { turn: string; topic: string } | null) => void,
+) {
   const instead = next?.instead ?? null
   if (!conv || !next) return null
   if (next.kind === 'topic' && next.topic.trigger_id !== null) {
-    return { label: instead ? `Continue ${titleOf(conv, instead)} instead` : 'Start a new topic instead', onPick: () => setInto(null) }
+    return {
+      label: instead ? `Continue ${titleOf(conv, instead)} instead` : 'Start a new topic instead',
+      onPick: () => setInto(null),
+    }
   }
-  return instead && shown ? { label: `Write into ${titleOf(conv, instead)} instead`, onPick: () => setInto({ turn: shown, topic: instead.id }) } : null
+  return instead && shown
+    ? {
+        label: `Write into ${titleOf(conv, instead)} instead`,
+        onPick: () => setInto({ turn: shown, topic: instead.id }),
+      }
+    : null
 }
 
 /**
@@ -196,7 +221,9 @@ function useWorkspace(open: boolean, conv: ConvState | null) {
   // opened by itself and was not touched since; else it is marked new there.
   const opened = useRef(new Set<string>())
   const byItself = useRef(false)
-  const arrived = views.find(v => fresh.includes(v.id) && !opened.current.has(v.id) && (v.kind !== 'server' || v.command.preview_url))
+  const arrived = views.find(
+    v => fresh.includes(v.id) && !opened.current.has(v.id) && (v.kind !== 'server' || v.command.preview_url),
+  )
   const arrivedKey = arrived && (arrived.kind === 'server' ? `preview:${arrived.id}` : keyOf(arrived.path))
   useEffect(() => {
     if (!arrived || !arrivedKey) return
@@ -224,59 +251,71 @@ function useWorkspace(open: boolean, conv: ConvState | null) {
   const fresher = fresh.length > 0 && !filesOpen
   const glows = !filesOpen && (fresh.length > 0 || (waitingHere ?? 0) > 0)
   // (A plain chat has no folder, so no Workspace either.)
-  const files = (className: string, own: typeof filesButton, glow: boolean) => project && (
-    <button
-      ref={own}
-      type="button"
-      className={`${className}${glow ? ' glow' : ''}`}
-      aria-expanded={filesOpen}
-      aria-controls="files-window"
-      // (named in words, as it reads: "Workspace 2 waiting new")
-      aria-label={workspaceLabel(waitingHere, fresher)}
-      title="Workspace: the project's files, what agents changed, wrote or showed, and what waits for you"
-      onClick={event => {
-        if (filesOpen) return closeFiles()
-        opener.current = event.currentTarget
-        byItself.current = false
-        openFiles()
-      }}
-    >
-      <FolderSimple size={14} />
-      <span className="dock-label">Workspace</span>
-      {waitingHere !== null && <span className="mono dock-count">{waitingHere}</span>}
-      {fresher && <span className="view-dot" aria-hidden />}
-    </button>
-  )
+  const files = (className: string, own: typeof filesButton, glow: boolean) =>
+    project && (
+      <button
+        ref={own}
+        type="button"
+        className={`${className}${glow ? ' glow' : ''}`}
+        aria-expanded={filesOpen}
+        aria-controls="files-window"
+        // (named in words, as it reads: "Workspace 2 waiting new")
+        aria-label={workspaceLabel(waitingHere, fresher)}
+        title="Workspace: the project's files, what agents changed, wrote or showed, and what waits for you"
+        onClick={event => {
+          if (filesOpen) return closeFiles()
+          opener.current = event.currentTarget
+          byItself.current = false
+          openFiles()
+        }}
+      >
+        <FolderSimple size={14} />
+        <span className="dock-label">Workspace</span>
+        {waitingHere !== null && <span className="mono dock-count">{waitingHere}</span>}
+        {fresher && <span className="view-dot" aria-hidden />}
+      </button>
+    )
   // (0.1.5: the open chat's is the first under its message box, by its name, glowing while something is new or waits.)
-  const button = (where: 'dock' | 'chat') => (where === 'dock' ? files('dock-btn', filesButton, false) : files('btn btn-small composer-files', footButton, glows))
+  const button = (where: 'dock' | 'chat') =>
+    where === 'dock' ? files('dock-btn', filesButton, false) : files('btn btn-small composer-files', footButton, glows)
   const window = project && (
-        <FilesWindow
-          // (anew in another conversation: its tabs were that one's; and on another branch, looked at or switched to -
-          // its folders were read on the one before)
-          key={`${project.id} ${conv?.conversation.id} ${filesRef} ${gitSwitches}`}
-          project={project}
-          branch={filesRef}
-          changes={inProject(conv?.fileChanges ?? [])}
-          views={views}
-          fresh={fresh}
-          agents={conv?.agents ?? []}
-          open={filesOpen}
-          at={filesAt}
-          height={HEIGHT}
-          expanded={wide}
-          onExpand={() => setWide(!wide)}
-          onClose={closeFiles}
-          onSeen={see}
-          onDecide={decide}
-          // (used: what comes new is marked there, not opened over it)
-          onTouch={() => (byItself.current = false)}
-        />
+    <FilesWindow
+      // (anew in another conversation: its tabs were that one's; and on another branch, looked at or switched to -
+      // its folders were read on the one before)
+      key={`${project.id} ${conv?.conversation.id} ${filesRef} ${gitSwitches}`}
+      project={project}
+      branch={filesRef}
+      changes={inProject(conv?.fileChanges ?? [])}
+      views={views}
+      fresh={fresh}
+      agents={conv?.agents ?? []}
+      open={filesOpen}
+      at={filesAt}
+      height={HEIGHT}
+      expanded={wide}
+      onExpand={() => setWide(!wide)}
+      onClose={closeFiles}
+      onSeen={see}
+      onDecide={decide}
+      // (used: what comes new is marked there, not opened over it)
+      onTouch={() => (byItself.current = false)}
+    />
   )
   return { button, window }
 }
 
 /** The closed chat's one line: what is unread, what happened last, what waits for you; a click opens the chat. */
-function ClosedLine({ unread, latest, waits, onOpen }: { unread: number; latest: string; waits: number; onOpen: () => void }) {
+function ClosedLine({
+  unread,
+  latest,
+  waits,
+  onOpen,
+}: {
+  unread: number
+  latest: string
+  waits: number
+  onOpen: () => void
+}) {
   return (
     <button type="button" className="chat-line" aria-expanded={false} title="Open the chat" onClick={onOpen}>
       <ChatsCircle size={16} color="var(--accent)" />
@@ -293,43 +332,66 @@ function ClosedLine({ unread, latest, waits, onOpen }: { unread: number; latest:
           <span className="chat-summary">{latest}</span>
         </>
       )}
-      {waits > 0 && <span className="chat-waits">{waits} {waits === 1 ? 'waits' : 'wait'} for you</span>}
+      {waits > 0 && (
+        <span className="chat-waits">
+          {waits} {waits === 1 ? 'waits' : 'wait'} for you
+        </span>
+      )}
       <CaretUp className="chat-line-open" size={14} aria-hidden />
     </button>
   )
 }
 
 /** The open chat's top: its tabs, how many messages it holds, and Hide. */
-function ChatTabs({ tab, handoffs, notes, count, onHide }: { tab: ChatTab; handoffs: number; notes: number; count: number; onHide: () => void }) {
+function ChatTabs({
+  tab,
+  handoffs,
+  notes,
+  count,
+  onHide,
+}: {
+  tab: ChatTab
+  handoffs: number
+  notes: number
+  count: number
+  onHide: () => void
+}) {
   const setTab = useApp(s => s.showChatTab)
   return (
-        <div className="chat-top">
-        <div className="tabs chat-tabs" role="tablist">
-          {(['Chat', 'Talk', 'Notes'] as const).map(name => (
-            <button
-              key={name}
-              type="button"
-              role="tab"
-              id={tabId(name)}
-              aria-controls="chat-tabpanel"
-              aria-selected={tab === name}
-              className="tab"
-              title={TAB_HINTS[name]}
-              onClick={() => setTab(name)}
-            >
-              {name}
-              {name === 'Talk' && handoffs > 0 && <span className="mono muted"> {handoffs}</span>}
-              {name === 'Notes' && notes > 0 && <span className="mono muted"> {notes}</span>}
-            </button>
-          ))}
-          </div>
-          <span className="mono muted chat-count" title="Messages in the chat">
-            {count}
-          </span>
-          <button type="button" className="icon-btn" aria-expanded aria-label="Hide chat" title="Hide chat" onClick={onHide}>
-            <CaretDown size={14} />
+    <div className="chat-top">
+      <div className="tabs chat-tabs" role="tablist">
+        {(['Chat', 'Talk', 'Notes'] as const).map(name => (
+          <button
+            key={name}
+            type="button"
+            role="tab"
+            id={tabId(name)}
+            aria-controls="chat-tabpanel"
+            aria-selected={tab === name}
+            className="tab"
+            title={TAB_HINTS[name]}
+            onClick={() => setTab(name)}
+          >
+            {name}
+            {name === 'Talk' && handoffs > 0 && <span className="mono muted"> {handoffs}</span>}
+            {name === 'Notes' && notes > 0 && <span className="mono muted"> {notes}</span>}
           </button>
-        </div>
+        ))}
+      </div>
+      <span className="mono muted chat-count" title="Messages in the chat">
+        {count}
+      </span>
+      <button
+        type="button"
+        className="icon-btn"
+        aria-expanded
+        aria-label="Hide chat"
+        title="Hide chat"
+        onClick={onHide}
+      >
+        <CaretDown size={14} />
+      </button>
+    </div>
   )
 }
 
@@ -393,14 +455,16 @@ function useChatOpen(conv: ConvState | null, tab: ChatTab) {
 function useCounts(conv: ConvState | null, open: boolean) {
   const subAgents = new Set(conv?.agents.filter(a => a.depth > 0).map(a => a.id))
   // A note the lead was handed from the notebook is counted with the notes, not here.
-  const inChat = conv?.messages.filter(m => m.content && !m.board_post_id && !(m.agent_id && subAgents.has(m.agent_id))) ?? []
+  const inChat =
+    conv?.messages.filter(m => m.content && !m.board_post_id && !(m.agent_id && subAgents.has(m.agent_id))) ?? []
   // What the chat held when it was last open, per conversation; one first met closed counts as read.
   // shortcut: kept while the panel is on screen, so a reload or another page starts with nothing unread,
   // and open on another tab counts as read; upgrade to a read mark on the server if the user misses one.
   const [seen, setSeen] = useState<Record<string, ReadonlySet<string>>>({})
   const convId = conv?.conversation.id
   const known = convId ? seen[convId] : undefined
-  if (convId && (!known || (open && inChat.some(m => !known.has(m.id))))) setSeen({ ...seen, [convId]: new Set(inChat.map(m => m.id)) })
+  if (convId && (!known || (open && inChat.some(m => !known.has(m.id)))))
+    setSeen({ ...seen, [convId]: new Set(inChat.map(m => m.id)) })
   // The notebook the Notes tab shows: the turn at work, or the last one.
   const notebook = conv && notebookRun(conv)
   return {
@@ -503,12 +567,21 @@ function Rooms({ conv }: { conv: ConvState | null }) {
 }
 
 /** Another way to start a turn, under More: a room ("Work together…"), where there are roles to fill it. */
-function roomStarter(conv: ConvState | null, roles: Role[], providers: Provider[], project: Project | undefined): ReactNode {
+function roomStarter(
+  conv: ConvState | null,
+  roles: Role[],
+  providers: Provider[],
+  project: Project | undefined,
+): ReactNode {
   if (!conv || roles.length === 0) return null
   // (The project's: every chat of it follows them - tek-ev.)
   const limits = project
     ? { posts: project.room_posts, tokens: project.room_tokens, minutes: project.room_minutes }
-    : { posts: conv.conversation.room_posts, tokens: conv.conversation.room_tokens, minutes: conv.conversation.room_minutes }
+    : {
+        posts: conv.conversation.room_posts,
+        tokens: conv.conversation.room_tokens,
+        minutes: conv.conversation.room_minutes,
+      }
   return (
     <WorkTogether
       // (What was written in it is not carried to another conversation.)
@@ -553,7 +626,10 @@ export function ChatPanel() {
   const tab = useApp(s => s.chatTab)
   // The turn on screen: the one picked, else the newest - not the canvas's front (slice 107), so
   // the next message goes on with the topic last written in, whatever work the canvas shows.
-  const shown = useMemo(() => (conv ? currentTurn(turnRows(conv), turnId && turnOf(conv, turnId)) : null), [conv, turnId])
+  const shown = useMemo(
+    () => (conv ? currentTurn(turnRows(conv), turnId && turnOf(conv, turnId)) : null),
+    [conv, turnId],
+  )
   const { topicOf, goesTo, other, setInto } = useNextTopic(conv, shown)
   const location = useApp(s => s.projects.find(p => p.id === s.projectId)?.exec_location)
   const { open, toggle, onKeyDown, box } = useChatOpen(conv, tab)
@@ -590,7 +666,9 @@ export function ChatPanel() {
         permissionMode={conv?.conversation.permission_mode ?? 'ask'}
         onSend={async (content, fresh, overBudget, files) => {
           // Auto-read of a short summary: the Lead is asked for the line to say, in the language and manner chosen.
-          await useApp.getState().send(content, { ...topicOf(fresh), ...spokenOf(), ...(overBudget && { over_budget: true }), ...files })
+          await useApp
+            .getState()
+            .send(content, { ...topicOf(fresh), ...spokenOf(), ...(overBudget && { over_budget: true }), ...files })
           // Writing into a trigger's topic was chosen for that one message.
           setInto(null)
         }}
@@ -602,10 +680,20 @@ export function ChatPanel() {
         planFirst={conv?.conversation.plan_first}
         onPlanFirst={on => void useApp.getState().setPlanFirst(on)}
         checkFirst={project?.full_auto_check === 'judge'}
-        onCheckFirst={conv?.conversation.project_id ? on => void useApp.getState().saveProjectSettings({ full_auto_check: on ? 'judge' : 'ask' }) : undefined}
+        onCheckFirst={
+          conv?.conversation.project_id
+            ? on => void useApp.getState().saveProjectSettings({ full_auto_check: on ? 'judge' : 'ask' })
+            : undefined
+        }
         checks={
           conv && project
-            ? { chat: conv.conversation.after_change, project: project.after_change, command: testsRun(project, false), rounds: project.fix_rounds, onChange: value => void useApp.getState().setAfterChange(value) }
+            ? {
+                chat: conv.conversation.after_change,
+                project: project.after_change,
+                command: testsRun(project, false),
+                rounds: project.fix_rounds,
+                onChange: value => void useApp.getState().setAfterChange(value),
+              }
             : undefined
         }
         location={location}

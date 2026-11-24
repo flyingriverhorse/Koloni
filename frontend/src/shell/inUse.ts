@@ -1,6 +1,15 @@
 import { titleOf } from '../agents/agentStatus'
 import { canSwitch } from '../agents/chart'
-import { TIERS, type Conversation, type Provider, type Role, type RoleModel, type Team, type Tier, type Tiers } from '../api/types'
+import {
+  TIERS,
+  type Conversation,
+  type Provider,
+  type Role,
+  type RoleModel,
+  type Team,
+  type Tier,
+  type Tiers,
+} from '../api/types'
 
 /** What the store knows besides the rows: the roles, teams and providers, the tiers' models, whether the project looks over reports. */
 export interface Known {
@@ -31,17 +40,29 @@ function tiersOf(role: Role, chat: Conversation | null): Tier[] {
  * and a tier's first model is counted even where `pick` would pass over it (past its limit, down, its plan used);
  * follow them if a warning about such a provider is met.
  */
-export function inUseBy(chat: Conversation | null, rows: RoleModel[], { roles, teams, providers, tiers, observes }: Known) {
-  const picked = chat && chat.teams_mode !== 'none' ? teams.filter(team => chat.teams.some(row => row.team_id === team.id)) : []
+export function inUseBy(
+  chat: Conversation | null,
+  rows: RoleModel[],
+  { roles, teams, providers, tiers, observes }: Known,
+) {
+  const picked =
+    chat && chat.teams_mode !== 'none' ? teams.filter(team => chat.teams.some(row => row.team_id === team.id)) : []
   const leads = picked.length > 1 ? picked.filter(team => team.lead_on).map(team => team.lead.name) : []
   const opens = (role: Role) =>
     role.builtin && role.name === 'Observer'
       ? observes
       : !canSwitch(role) ||
-        (role.enabled && (leads.includes(role.name) || picked.length === 0 || role.teams.some(id => picked.some(team => team.id === id))))
-  const used = rows.flatMap(row => roles.filter(role => role.name === row.role && opens(role)).map(role => ({ row, role })))
+        (role.enabled &&
+          (leads.includes(role.name) ||
+            picked.length === 0 ||
+            role.teams.some(id => picked.some(team => team.id === id))))
+  const used = rows.flatMap(row =>
+    roles.filter(role => role.name === row.role && opens(role)).map(role => ({ row, role })),
+  )
   const tiered = ({ row, role }: (typeof used)[number]) =>
-    tiersOf(role, chat).map(tier => tiers?.[tier].find(one => one.agents && row.pick_from.includes(one.provider_name))?.provider_name)
+    tiersOf(role, chat).map(
+      tier => tiers?.[tier].find(one => one.agents && row.pick_from.includes(one.provider_name))?.provider_name,
+    )
   const names = used.flatMap(one => [one.row.provider_name, one.row.asks_how_hard?.provider_name, ...tiered(one)])
   // (A provider's name is its own: two are never named alike.)
   const ids = providers.filter(one => names.includes(one.name)).map(one => one.id)

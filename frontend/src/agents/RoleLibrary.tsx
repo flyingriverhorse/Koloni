@@ -23,7 +23,19 @@ export function Avatar({ name, colour }: { name: string; colour: string }) {
 }
 
 /** A category's name and colour, typed in place: Enter saves, Esc puts it away. */
-export function CategoryForm({ name = '', colour = 'rose', button, onSave, onCancel }: { name?: string; colour?: Colour; button: string; onSave: (name: string, colour: Colour) => void; onCancel: () => void }) {
+export function CategoryForm({
+  name = '',
+  colour = 'rose',
+  button,
+  onSave,
+  onCancel,
+}: {
+  name?: string
+  colour?: Colour
+  button: string
+  onSave: (name: string, colour: Colour) => void
+  onCancel: () => void
+}) {
   const [text, setText] = useState(name)
   const [picked, pick] = useState<Colour>(colour)
   return (
@@ -40,10 +52,26 @@ export function CategoryForm({ name = '', colour = 'rose', button, onSave, onCan
         onCancel()
       }}
     >
-      <input className="input" aria-label="Category’s name" maxLength={40} autoFocus value={text} onChange={e => setText(e.target.value)} />
+      <input
+        className="input"
+        aria-label="Category’s name"
+        maxLength={40}
+        autoFocus
+        value={text}
+        onChange={e => setText(e.target.value)}
+      />
       <span role="radiogroup" aria-label="Category’s colour" className="cat-swatches">
         {COLOURS.map(one => (
-          <input key={one} type="radio" name="category-colour" className="cat-swatch" aria-label={one} checked={picked === one} style={{ '--c': colourVar(one) } as CSSProperties} onChange={() => pick(one)} />
+          <input
+            key={one}
+            type="radio"
+            name="category-colour"
+            className="cat-swatch"
+            aria-label={one}
+            checked={picked === one}
+            style={{ '--c': colourVar(one) } as CSSProperties}
+            onChange={() => pick(one)}
+          />
         ))}
       </span>
       <button type="submit" className="btn btn-small" disabled={!text.trim()}>
@@ -59,7 +87,8 @@ export function CategoryForm({ name = '', colour = 'rose', button, onSave, onCan
 type Filter = 'all' | 'loose' | 'off'
 const teamsText = (n: number) => (n === 0 ? 'no team' : n === 1 ? '1 team' : `${n} teams`)
 /** A category's Delete, as its menu says it: one that still has roles says to move them first. */
-const deleteTitle = (roles: number) => (roles ? `Delete — move its ${roles === 1 ? 'role' : `${roles} roles`} first` : 'Delete')
+const deleteTitle = (roles: number) =>
+  roles ? `Delete — move its ${roles === 1 ? 'role' : `${roles} roles`} first` : 'Delete'
 
 interface Props {
   /** Every role the library shows: not the Lead, not a team's lead. */
@@ -80,7 +109,19 @@ interface Props {
 }
 
 /** The roles (slice 63b): each once, by category, folded or not; found by name, in no team or off; dragged into a team's stage. */
-export function RoleLibrary({ roles, categories, selected, onOpen, onSwitch, onKind, onDrag, actions, act, open, onClose }: Props) {
+export function RoleLibrary({
+  roles,
+  categories,
+  selected,
+  onOpen,
+  onSwitch,
+  onKind,
+  onDrag,
+  actions,
+  act,
+  open,
+  onClose,
+}: Props) {
   const [words, setWords] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [shut, setShut] = useState<Set<string>>(new Set())
@@ -94,13 +135,16 @@ export function RoleLibrary({ roles, categories, selected, onOpen, onSwitch, onK
   const wanted = fold(words.trim())
   const loose = roles.filter(role => role.teams.length === 0)
   const off = roles.filter(role => !role.enabled)
-  const shown = (filter === 'loose' ? loose : filter === 'off' ? off : roles).filter(role => !wanted || fold(`${role.name} ${role.description}`).includes(wanted))
+  const shown = (filter === 'loose' ? loose : filter === 'off' ? off : roles).filter(
+    role => !wanted || fold(`${role.name} ${role.description}`).includes(wanted),
+  )
   // Looking for some, a category with none of them is left out; else every one stands, an empty one too.
   const looking = !!wanted || filter !== 'all'
   const groups = groupsOf(shown, categories).filter(group => !looking || group.roles.length > 0)
   const all = groupsOf(roles, categories)
   const byId = new Map(roles.map(role => [role.id, role]))
-  const toggle = (key: string) => setShut(was => (was.has(key) ? new Set([...was].filter(one => one !== key)) : new Set([...was, key])))
+  const toggle = (key: string) =>
+    setShut(was => (was.has(key) ? new Set([...was].filter(one => one !== key)) : new Set([...was, key])))
   const move = (at: number, by: number) => {
     const order = categories.map(one => one.key)
     ;[order[at], order[at + by]] = [order[at + by], order[at]]
@@ -114,7 +158,11 @@ export function RoleLibrary({ roles, categories, selected, onOpen, onSwitch, onK
   }
   return (
     // A narrow window's drawer closes on Esc, and is gone into when opened (its search).
-    <aside className={`role-lib${open ? ' role-lib-open' : ''}`} aria-label="Roles" onKeyDown={e => open && e.key === 'Escape' && onClose()}>
+    <aside
+      className={`role-lib${open ? ' role-lib-open' : ''}`}
+      aria-label="Roles"
+      onKeyDown={e => open && e.key === 'Escape' && onClose()}
+    >
       {/* 0.1.0-ui: its head and filter stay at the top while its list scrolls under them. */}
       <div className="role-lib-top">
         <div className="role-lib-head">
@@ -144,7 +192,13 @@ export function RoleLibrary({ roles, categories, selected, onOpen, onSwitch, onK
               ['off', `Off · ${off.length}`],
             ] as const
           ).map(([one, title]) => (
-            <button key={one} type="button" className="agents-pill" aria-pressed={filter === one} onClick={() => setFilter(one)}>
+            <button
+              key={one}
+              type="button"
+              className="agents-pill"
+              aria-pressed={filter === one}
+              onClick={() => setFilter(one)}
+            >
               {title}
             </button>
           ))}
@@ -170,7 +224,9 @@ export function RoleLibrary({ roles, categories, selected, onOpen, onSwitch, onK
                 name={group.name}
                 colour={group.colour}
                 button="Save"
-                onSave={(name, colour) => act(actions?.changeCategory(group.key, { name, colour }).then(() => setEditing(null)))}
+                onSave={(name, colour) =>
+                  act(actions?.changeCategory(group.key, { name, colour }).then(() => setEditing(null)))
+                }
                 onCancel={() => setEditing(null)}
               />
             ) : (
@@ -184,7 +240,13 @@ export function RoleLibrary({ roles, categories, selected, onOpen, onSwitch, onK
                   </span>
                 </button>
                 {group.listed && (
-                  <button type="button" className="icon-btn cat-more" aria-label={`${group.name}: more`} aria-expanded={menu === group.key} onClick={() => setMenu(menu === group.key ? null : group.key)}>
+                  <button
+                    type="button"
+                    className="icon-btn cat-more"
+                    aria-label={`${group.name}: more`}
+                    aria-expanded={menu === group.key}
+                    onClick={() => setMenu(menu === group.key ? null : group.key)}
+                  >
                     ⋯
                   </button>
                 )}
@@ -209,7 +271,11 @@ export function RoleLibrary({ roles, categories, selected, onOpen, onSwitch, onK
                     ['Rename…', false, () => setEditing(group.key)],
                     ['Move up', at === 0, () => move(at, -1)],
                     ['Move down', at === categories.length - 1, () => move(at, 1)],
-                    ['Fold all others', false, () => setShut(new Set(all.map(one => one.key).filter(key => key !== group.key)))],
+                    [
+                      'Fold all others',
+                      false,
+                      () => setShut(new Set(all.map(one => one.key).filter(key => key !== group.key))),
+                    ],
                     // Only an empty one of the user's goes: no role is ever left without a category, and KOLONİ's four stay.
                     BUILT_IN_CATEGORIES.includes(group.key)
                       ? ['Delete — one of KOLONİ’s four: rename it instead', true, () => undefined]
@@ -247,13 +313,29 @@ export function RoleLibrary({ roles, categories, selected, onOpen, onSwitch, onK
                   <span className="lib-grip" aria-hidden="true">
                     ⋮⋮
                   </span>
-                  <button type="button" className="lib-row-open" aria-current={selected === role.id || undefined} onClick={() => onOpen(role.id)}>
+                  <button
+                    type="button"
+                    className="lib-row-open"
+                    aria-current={selected === role.id || undefined}
+                    onClick={() => onOpen(role.id)}
+                  >
                     <Avatar name={role.name} colour={colourVar(group.colour)} />
                     <span className="lib-row-name">{role.name}</span>
-                    <span className={`lib-uses${role.teams.length ? '' : ' lib-uses-none'}`}>{teamsText(role.teams.length)}</span>
+                    <span className={`lib-uses${role.teams.length ? '' : ' lib-uses-none'}`}>
+                      {teamsText(role.teams.length)}
+                    </span>
                   </button>
                   {/* The Lead, the Planner and the Observer are always there: no switch. */}
-                  {hasSwitch(role) && <input type="checkbox" role="switch" className="model-agents lib-switch" aria-label={`${role.name} on`} checked={role.enabled} onChange={e => onSwitch(role, e.target.checked)} />}
+                  {hasSwitch(role) && (
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      className="model-agents lib-switch"
+                      aria-label={`${role.name} on`}
+                      checked={role.enabled}
+                      onChange={e => onSwitch(role, e.target.checked)}
+                    />
+                  )}
                 </div>
               ))}
           </section>
@@ -261,13 +343,20 @@ export function RoleLibrary({ roles, categories, selected, onOpen, onSwitch, onK
       })}
       {groups.length === 0 && <p className="muted provider-note">No role is like that.</p>}
       {adding ? (
-        <CategoryForm button="Add" onSave={(name, colour) => act(actions?.addCategory(name, colour).then(() => setAdding(false)))} onCancel={() => setAdding(false)} />
+        <CategoryForm
+          button="Add"
+          onSave={(name, colour) => act(actions?.addCategory(name, colour).then(() => setAdding(false)))}
+          onCancel={() => setAdding(false)}
+        />
       ) : (
         <button type="button" className="agents-add role-lib-new" onClick={() => setAdding(true)}>
           + New category
         </button>
       )}
-      <p className="muted role-lib-foot">Drag a role into a team’s stage, or onto a category. Click one to open it. A category is a label to find roles by: it changes no team’s stages.</p>
+      <p className="muted role-lib-foot">
+        Drag a role into a team’s stage, or onto a category. Click one to open it. A category is a label to find roles
+        by: it changes no team’s stages.
+      </p>
     </aside>
   )
 }

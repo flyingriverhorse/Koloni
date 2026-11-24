@@ -74,14 +74,27 @@ test('a plan’s gauge says what is left of its narrowest window, and the others
     ],
     { balance: '42558', has_credits: true, unlimited: false },
   )
-  expect(readingOf(codex, { limits: fresh })).toEqual({ share: 1, value: '100%', label: 'left of 5 hours', more: 'This week 100% left · 42,558 credits' })
+  expect(readingOf(codex, { limits: fresh })).toEqual({
+    share: 1,
+    value: '100%',
+    label: 'left of 5 hours',
+    more: 'This week 100% left · 42,558 credits',
+  })
 })
 
 test('a plan’s gauge says how old its reading is: Claude Code’s comes from its last run here, and its use elsewhere since is not in it', () => {
   // As on 23 Oct: read at 11:34 with the week 83% used; by 15:23 the week was 93% used, in other sessions.
-  const old = { ...reading([{ name: 'seven_day', minutes: 10080, used_percent: 83 }]), read_at: new Date(Date.now() - 4 * 3600_000).toISOString(), source: 'its last run' }
+  const old = {
+    ...reading([{ name: 'seven_day', minutes: 10080, used_percent: 83 }]),
+    read_at: new Date(Date.now() - 4 * 3600_000).toISOString(),
+    source: 'its last run',
+  }
   expect(readingOf(claude, { limits: old })).toMatchObject({ value: '17%', more: 'read 4 h ago, in its last run here' })
-  const asked = { ...reading([{ minutes: 300, used_percent: 10 }]), read_at: new Date(Date.now() - 5 * 60_000).toISOString(), source: 'account/rateLimits/read' }
+  const asked = {
+    ...reading([{ minutes: 300, used_percent: 10 }]),
+    read_at: new Date(Date.now() - 5 * 60_000).toISOString(),
+    source: 'account/rateLimits/read',
+  }
   expect(readingOf(codex, { limits: asked })).toMatchObject({ more: 'read 5 min ago' })
 })
 
@@ -151,16 +164,29 @@ test('Copilot’s own model server is folded away; the key stays outside the fol
   unmount()
 
   // One saved with a server of its own shows it open.
-  const saved = provider({ id: 'cp', name: 'Copilot', kind: 'copilot_cli', base_url: 'http://localhost:8080/v1', mode: 'session' })
+  const saved = provider({
+    id: 'cp',
+    name: 'Copilot',
+    kind: 'copilot_cli',
+    base_url: 'http://localhost:8080/v1',
+    mode: 'session',
+  })
   render(<ModelsPage providers={[saved]} picked="cp" {...handlers()} />)
   await userEvent.click(screen.getByRole('tab', { name: 'Connection' }))
-  expect(screen.getByText('Use a model server of your own instead (optional)').closest('details')).toHaveAttribute('open')
+  expect(screen.getByText('Use a model server of your own instead (optional)').closest('details')).toHaveAttribute(
+    'open',
+  )
 })
 
 test('a provider past its limit asks before the turn, in its own words', async () => {
   const onSend = vi
     .fn()
-    .mockRejectedValueOnce(new ApiError(409, "this project is over DeepSeek's limit of 5.00 USD a day (10.50 spent today): say to go on over it"))
+    .mockRejectedValueOnce(
+      new ApiError(
+        409,
+        "this project is over DeepSeek's limit of 5.00 USD a day (10.50 spent today): say to go on over it",
+      ),
+    )
     .mockResolvedValueOnce(undefined)
   render(<Composer running={false} permissionMode="ask" onSend={onSend} onStop={vi.fn()} onPermissionMode={vi.fn()} />)
   await userEvent.type(screen.getByLabelText('Message'), 'more{Enter}')
@@ -171,18 +197,54 @@ test('a provider past its limit asks before the turn, in its own words', async (
 })
 
 test('a limit that cannot be kept says so on its card and in its tab, never "$6 / $5"', async () => {
-  const today = [{ provider_name: 'DeepSeek', provider_id: 'p1', model_id: 'chat', runs: 1, agents: 1, input_tokens: 1, output_tokens: 1, cache_read_tokens: null, cache_write_tokens: null, unknown_agents: 0, cost: { amount: 6, currency: 'USD' } }]
+  const today = [
+    {
+      provider_name: 'DeepSeek',
+      provider_id: 'p1',
+      model_id: 'chat',
+      runs: 1,
+      agents: 1,
+      input_tokens: 1,
+      output_tokens: 1,
+      cache_read_tokens: null,
+      cache_write_tokens: null,
+      unknown_agents: 0,
+      cost: { amount: 6, currency: 'USD' },
+    },
+  ]
   const unkept = "This limit can't be kept: your prices are in EUR"
-  expect(readingOf(provider({ day_limit: 5 }), { today, unkept })).toEqual({ share: null, value: '$6', label: 'today', plain: true, more: unkept })
+  expect(readingOf(provider({ day_limit: 5 }), { today, unkept })).toEqual({
+    share: null,
+    value: '$6',
+    label: 'today',
+    plain: true,
+    more: unkept,
+  })
   expect(readingOf(provider({ day_limit: 5 }), { today, unkept: null })).toMatchObject({ value: '$6 / $5', share: 1.2 })
-  render(<ModelsPage providers={[provider({ day_limit: 5 })]} picked="p1" {...handlers()} prices={[{ model_id: 'x', input: 1, output: 1, currency: 'eur' }]} />)
+  render(
+    <ModelsPage
+      providers={[provider({ day_limit: 5 })]}
+      picked="p1"
+      {...handlers()}
+      prices={[{ model_id: 'x', input: 1, output: 1, currency: 'eur' }]}
+    />,
+  )
   await userEvent.click(screen.getByRole('tab', { name: 'Limits' }))
   expect(screen.getByRole('note')).toHaveTextContent(unkept)
 })
 
 test('a provider named like the budget is still a provider: the server’s whole sentence is read', async () => {
-  const onSend = vi.fn().mockRejectedValueOnce(new ApiError(409, "this project is over Budget box's limit of 5.00 USD a month (7.00 spent this month): say to go on over it"))
+  const onSend = vi
+    .fn()
+    .mockRejectedValueOnce(
+      new ApiError(
+        409,
+        "this project is over Budget box's limit of 5.00 USD a month (7.00 spent this month): say to go on over it",
+      ),
+    )
   render(<Composer running={false} permissionMode="ask" onSend={onSend} onStop={vi.fn()} onPermissionMode={vi.fn()} />)
   await userEvent.type(screen.getByLabelText('Message'), 'more{Enter}')
-  expect(screen.getByRole('group', { name: "Over Budget box's limit of 5.00 USD a month (7.00 spent this month)" })).toBeInTheDocument()
+  expect(
+    screen.getByRole('group', { name: "Over Budget box's limit of 5.00 USD a month (7.00 spent this month)" }),
+  ).toBeInTheDocument()
 })

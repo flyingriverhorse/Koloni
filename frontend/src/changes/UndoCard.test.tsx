@@ -37,20 +37,36 @@ function serve(answers: Record<string, (Undo | [number, string])[]>) {
 }
 
 test('it looks ahead first - the messages whose changes go, the copy whose folder is deleted, what stays - and restores only when confirmed; the chat stays (slice 107)', async () => {
-  const asked = serve({ GET: [ahead], POST: [{ ...ahead, skip: [], note: 'A turn started while this was done: what it does is not taken back.' }] })
+  const asked = serve({
+    GET: [ahead],
+    POST: [{ ...ahead, skip: [], note: 'A turn started while this was done: what it does is not taken back.' }],
+  })
   const onClose = vi.fn()
-  render(<UndoCard path="/conversations/c1/restore?before=r2" title="Restore to before your 10:42 message" confirm="Restore" onClose={onClose} />)
+  render(
+    <UndoCard
+      path="/conversations/c1/restore?before=r2"
+      title="Restore to before your 10:42 message"
+      confirm="Restore"
+      onClose={onClose}
+    />,
+  )
   const card = screen.getByRole('region', { name: 'Restore to before your 10:42 message' })
   const turns = await within(card).findByRole('region', { name: 'Messages whose changes are taken back' })
-  expect(within(turns).getAllByRole('listitem').map(li => li.textContent)).toEqual(['“Make a.txt”', 'A message with no words', '“eight”'])
+  expect(
+    within(turns)
+      .getAllByRole('listitem')
+      .map(li => li.textContent),
+  ).toEqual(['“Make a.txt”', 'A message with no words', '“eight”'])
   // What it does and does not do, first (§6).
   expect(card).toHaveTextContent('The chat stays as it is: no message is deleted.')
   expect(card).toHaveTextContent('What commands did, and notes put in memory, are not taken back.')
   expect(within(card).getByRole('region', { name: 'Will be reverted' })).toHaveTextContent('b.txt')
-  expect(within(card).getByRole('region', { name: 'Will be skipped' })).toHaveTextContent('a.txt — a.txt has changed since')
-  expect(within(card).getByRole('region', { name: 'Kept working copy to discard — the folder is deleted' })).toHaveTextContent(
-    'C:/kept/tree — these files exist only there: c.txt',
+  expect(within(card).getByRole('region', { name: 'Will be skipped' })).toHaveTextContent(
+    'a.txt — a.txt has changed since',
   )
+  expect(
+    within(card).getByRole('region', { name: 'Kept working copy to discard — the folder is deleted' }),
+  ).toHaveTextContent('C:/kept/tree — these files exist only there: c.txt')
   expect(within(card).getByRole('region', { name: /cannot be taken back/ })).toHaveTextContent('pip install something')
   expect(within(card).getByRole('region', { name: 'Also not taken back' })).toHaveTextContent('stays in git history')
   expect(asked).toHaveBeenCalledTimes(1) // the look ahead alone
@@ -70,7 +86,14 @@ test('it looks ahead first - the messages whose changes go, the copy whose folde
 test('a refused restore says why and looks again', async () => {
   const more = { ...ahead, turns: [...ahead.turns, { run_id: 'r5', topic: 'Nightly look', turn: 2, request: '' }] }
   const asked = serve({ GET: [ahead, more], POST: [[409, 'a turn ended since you looked; look again']] })
-  render(<UndoCard path="/conversations/c1/restore?before=r2" title="Restore to before your 10:42 message" confirm="Restore" onClose={() => {}} />)
+  render(
+    <UndoCard
+      path="/conversations/c1/restore?before=r2"
+      title="Restore to before your 10:42 message"
+      confirm="Restore"
+      onClose={() => {}}
+    />,
+  )
   await userEvent.click(await screen.findByRole('button', { name: 'Restore' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('look again')
   await vi.waitFor(() => expect(screen.getAllByText('A message with no words')).toHaveLength(2))
@@ -78,7 +101,10 @@ test('a refused restore says why and looks again', async () => {
 })
 
 test('a long request is cut as the turn list cuts a message; one that never started says so', async () => {
-  const turns = [{ run_id: 'r1', topic: 'Talk', turn: 1, request: `${'x'.repeat(60)}yz` }, { run_id: 'r2', topic: 'Talk', turn: null, request: 'later' }]
+  const turns = [
+    { run_id: 'r1', topic: 'Talk', turn: 1, request: `${'x'.repeat(60)}yz` },
+    { run_id: 'r2', topic: 'Talk', turn: null, request: 'later' },
+  ]
   serve({ GET: [{ ...none, turns }] })
   render(<UndoCard path="/runs/r1/undo" title="Undo these changes" confirm="Undo" onClose={() => {}} />)
   expect(await screen.findByText(`“${'x'.repeat(60)}…”`)).toBeInTheDocument()
@@ -86,7 +112,10 @@ test('a long request is cut as the turn list cuts a message; one that never star
 })
 
 test('an undo posts to the turn alone, with no turns to check', async () => {
-  const asked = serve({ GET: [{ ...none, turns: [{ run_id: 'r1', topic: 'Talk', turn: 1, request: '' }], revert: ['a.txt'] }], POST: [none] })
+  const asked = serve({
+    GET: [{ ...none, turns: [{ run_id: 'r1', topic: 'Talk', turn: 1, request: '' }], revert: ['a.txt'] }],
+    POST: [none],
+  })
   render(<UndoCard path="/runs/r1/undo" title="Undo these changes" confirm="Undo" onClose={() => {}} />)
   await userEvent.click(await screen.findByRole('button', { name: 'Undo' }))
   await screen.findByRole('button', { name: 'Close' })
@@ -102,16 +131,20 @@ test('what the card says while it looks, and once done; a copy with no files on 
   render(<UndoCard path="/runs/r1/undo" title="Undo these changes" confirm="Undo" onClose={() => {}} />)
   expect(screen.getByText('Looking at what it would take back…')).toBeInTheDocument()
   expect(screen.getByText('Undo these changes?')).toBeInTheDocument()
-  expect(await screen.findByRole('region', { name: 'Kept working copy to discard — the folder is deleted' })).toHaveTextContent(
-    'C:/kept/tree — these files exist only there: none on record',
-  )
+  expect(
+    await screen.findByRole('region', { name: 'Kept working copy to discard — the folder is deleted' }),
+  ).toHaveTextContent('C:/kept/tree — these files exist only there: none on record')
   expect(screen.queryByText('Looking at what it would take back…')).toBeNull()
   expect(screen.queryByText('Nothing to take back.')).toBeNull()
   await userEvent.click(screen.getByRole('button', { name: 'Undo' }))
   expect(await screen.findByText('Undo these changes: done')).toBeInTheDocument()
-  expect(screen.getByRole('region', { name: 'Messages whose changes were taken back' })).toHaveTextContent('A message with no words')
+  expect(screen.getByRole('region', { name: 'Messages whose changes were taken back' })).toHaveTextContent(
+    'A message with no words',
+  )
   expect(screen.getByRole('region', { name: 'Skipped' })).toHaveTextContent('a.txt — changed since')
-  expect(screen.getByRole('region', { name: 'Kept working copy discarded — the folder is deleted' })).toBeInTheDocument()
+  expect(
+    screen.getByRole('region', { name: 'Kept working copy discarded — the folder is deleted' }),
+  ).toBeInTheDocument()
   expect(screen.queryByRole('note')).toBeNull()
 })
 

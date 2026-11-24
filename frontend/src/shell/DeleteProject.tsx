@@ -85,7 +85,8 @@ export function DeleteProject({ project }: { project: Project }) {
             <strong>Delete {project.name} from KOLONİ?</strong>
           </p>
           <p>
-            This deletes {goneWith(preview)}, with their messages, agents’ work, usage and history. {KEPT_ON_DISK} It cannot be undone.
+            This deletes {goneWith(preview)}, with their messages, agents’ work, usage and history. {KEPT_ON_DISK} It
+            cannot be undone.
           </p>
           <p>
             <button type="button" className="btn btn-small" disabled={exporting} onClick={() => void exportFirst()}>
@@ -103,7 +104,12 @@ export function DeleteProject({ project }: { project: Project }) {
             </div>
           )}
           <div className="confirm-actions">
-            <button type="button" className="btn btn-danger" disabled={busy || typed.normalize('NFC') !== project.name.normalize('NFC')} onClick={() => void remove()}>
+            <button
+              type="button"
+              className="btn btn-danger"
+              disabled={busy || typed.normalize('NFC') !== project.name.normalize('NFC')}
+              onClick={() => void remove()}
+            >
               {busy ? 'Deleting…' : 'Delete project'}
             </button>
             <button type="button" className="btn" onClick={close}>

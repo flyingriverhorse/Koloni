@@ -3,7 +3,18 @@ import userEvent from '@testing-library/user-event'
 import { type Node, type NodeProps, ReactFlowProvider } from '@xyflow/react'
 import { expect, test, vi } from 'vitest'
 import type { Away, ChatTeamState, Merge, Room } from '../api/types'
-import { agent, assistantMessage, command, conversation, convState, fileChange, note, question, run, toolCall } from '../test-fixtures'
+import {
+  agent,
+  assistantMessage,
+  command,
+  conversation,
+  convState,
+  fileChange,
+  note,
+  question,
+  run,
+  toolCall,
+} from '../test-fixtures'
 import { waitingCards } from '../chat/chatLine'
 import { type ReadyData, type TeamData, deriveGraph } from './deriveGraph'
 import { copyLine } from '../changes/copies'
@@ -22,7 +33,16 @@ import { NodeActions, ToggleGroup } from './toggleGroup'
 const steps = (now: string): ChatTeamState['steps'] =>
   ['Write the spec', 'Build it', 'Reviews', 'You'].map((name, at, all) => {
     const index = all.indexOf(now)
-    return { id: String(at), name, state: at < index ? 'done' : at === index ? 'now' : 'next', round: name === 'Build it' ? 1 : 0, room: false, own_check: false, left_out: [], group: false }
+    return {
+      id: String(at),
+      name,
+      state: at < index ? 'done' : at === index ? 'now' : 'next',
+      round: name === 'Build it' ? 1 : 0,
+      room: false,
+      own_check: false,
+      left_out: [],
+      group: false,
+    }
   })
 const row = (status: ChatTeamState['status'], now: string, agents = ['spec', 'coder']) => ({
   team_id: 'web',
@@ -30,7 +50,17 @@ const row = (status: ChatTeamState['status'], now: string, agents = ['spec', 'co
   no_recipe: false,
   picked_by: 'user' as const,
   why: null,
-  state: { run_id: 'r', team: 'Web app', recipe: 'Feature', status, why: null, steps: steps(now), agents, ended_ready: false, passes: [] },
+  state: {
+    run_id: 'r',
+    team: 'Web app',
+    recipe: 'Feature',
+    status,
+    why: null,
+    steps: steps(now),
+    agents,
+    ended_ready: false,
+    passes: [],
+  },
 })
 const team = (status: ChatTeamState['status'], now: string, more: Parameters<typeof convState>[0] = {}) =>
   convState({
@@ -38,7 +68,14 @@ const team = (status: ChatTeamState['status'], now: string, more: Parameters<typ
     runs: [run('r')],
     agents: [
       agent('r'),
-      agent('r', 'completed', { id: 'spec', role_name: 'Spec writer', depth: 1, parent_agent_id: 'r', input_tokens: 9000, output_tokens: 1000 }),
+      agent('r', 'completed', {
+        id: 'spec',
+        role_name: 'Spec writer',
+        depth: 1,
+        parent_agent_id: 'r',
+        input_tokens: 9000,
+        output_tokens: 1000,
+      }),
       agent('r', status === 'running' ? 'running' : 'completed', {
         id: 'coder',
         role_name: 'Coder',
@@ -49,17 +86,26 @@ const team = (status: ChatTeamState['status'], now: string, more: Parameters<typ
         findings: [],
       }),
     ],
-    fileChanges: [fileChange('f1', 'r', { agent_id: 'coder', path: 'a.py' }), fileChange('f2', 'r', { agent_id: 'coder', path: 'a.py' })],
+    fileChanges: [
+      fileChange('f1', 'r', { agent_id: 'coder', path: 'a.py' }),
+      fileChange('f2', 'r', { agent_id: 'coder', path: 'a.py' }),
+    ],
     ...more,
   })
 
 test('K-shared-bagli, batch-26: Ready for you stands right of the turn at its top, past the frame’s card; the frame’s line to it leaves low, under the card - folded too', () => {
-  const written = toolCall('w', 'r', 'write_shared', 'succeeded', '{}', { agent_id: 'coder', result: 'written: .koloni/shared/web-app/spec.md - every team reads it' })
+  const written = toolCall('w', 'r', 'write_shared', 'succeeded', '{}', {
+    agent_id: 'coder',
+    result: 'written: .koloni/shared/web-app/spec.md - every team reads it',
+  })
   const g = deriveGraph(team('ready', 'You', { toolCalls: [written] }))
   for (const folds of [{}, { 'team:r:web': false }]) {
     const drawn = foldGraph(g, folds)
     const { positions, sizes } = layoutGraph(drawn.nodes, drawn.edges)
-    const [card, ready, frame] = ['shared:r:team:r:web', 'ready:r', 'team:r:web'].map(id => ({ ...positions[id], ...(sizes[id] ?? { width: 220, height: 104 }) }))
+    const [card, ready, frame] = ['shared:r:team:r:web', 'ready:r', 'team:r:web'].map(id => ({
+      ...positions[id],
+      ...(sizes[id] ?? { width: 220, height: 104 }),
+    }))
     expect(ready.y).toBe(0)
     // (The lane's bus is just left of Ready: past the card.)
     expect(ready.x - DOOR_PAD / 2).toBeGreaterThan(card.x + card.width)
@@ -78,8 +124,19 @@ test('K-shared-bagli, three teams: each one’s line to its card crosses no box 
   const state = convState({
     conversation: { ...conversation, teams_mode: 'manual', teams: three },
     runs: [run('r')],
-    agents: [agent('r'), ...[0, 1, 2].flatMap(at => [agent('r', 'completed', { id: `a${at}`, role_name: 'Spec writer', depth: 1, parent_agent_id: 'r' }), agent('r', 'completed', { id: `b${at}`, role_name: 'Coder', depth: 1, parent_agent_id: 'r' })])],
-    toolCalls: [0, 1, 2].map(at => toolCall(`w${at}`, 'r', 'write_shared', 'succeeded', '{}', { agent_id: `b${at}`, result: `written: .koloni/shared/t${at}/a.md - every team reads it` })),
+    agents: [
+      agent('r'),
+      ...[0, 1, 2].flatMap(at => [
+        agent('r', 'completed', { id: `a${at}`, role_name: 'Spec writer', depth: 1, parent_agent_id: 'r' }),
+        agent('r', 'completed', { id: `b${at}`, role_name: 'Coder', depth: 1, parent_agent_id: 'r' }),
+      ]),
+    ],
+    toolCalls: [0, 1, 2].map(at =>
+      toolCall(`w${at}`, 'r', 'write_shared', 'succeeded', '{}', {
+        agent_id: `b${at}`,
+        result: `written: .koloni/shared/t${at}/a.md - every team reads it`,
+      }),
+    ),
   })
   const g = deriveGraph(state)
   const { positions, sizes, lines } = layoutGraph(g.nodes, g.edges)
@@ -89,7 +146,9 @@ test('K-shared-bagli, three teams: each one’s line to its card crosses no box 
   for (const e of shared) {
     const line = lines[e.id]
     expect(line).toBeDefined()
-    const others = g.nodes.filter(n => !n.parent && positions[n.id] && n.id !== e.source && n.id !== e.target).map(n => box(n.id))
+    const others = g.nodes
+      .filter(n => !n.parent && positions[n.id] && n.id !== e.source && n.id !== e.target)
+      .map(n => box(n.id))
     expect(crosses(line, others), e.id).toBe(false)
   }
 })
@@ -100,11 +159,21 @@ test('batch-26 review, S2: three folded frames, with cards of 7 rows and 3 - eac
     team_id: id,
     state: { ...row('ready', 'You').state, team: ['Web app', 'Backend', 'Docs'][at], agents: [`a${at}`, `b${at}`] },
   }))
-  const wrote = (id: string, by: string, path: string) => toolCall(id, 'r', 'write_shared', 'succeeded', '{}', { agent_id: by, result: `written: .koloni/shared/${path} - every team reads it` })
+  const wrote = (id: string, by: string, path: string) =>
+    toolCall(id, 'r', 'write_shared', 'succeeded', '{}', {
+      agent_id: by,
+      result: `written: .koloni/shared/${path} - every team reads it`,
+    })
   const state = convState({
     conversation: { ...conversation, teams_mode: 'manual', teams: three },
     runs: [run('r')],
-    agents: [agent('r'), ...[0, 1, 2].flatMap(at => [agent('r', 'completed', { id: `a${at}`, role_name: 'Spec writer', depth: 1, parent_agent_id: 'r' }), agent('r', 'completed', { id: `b${at}`, role_name: 'Coder', depth: 1, parent_agent_id: 'r' })])],
+    agents: [
+      agent('r'),
+      ...[0, 1, 2].flatMap(at => [
+        agent('r', 'completed', { id: `a${at}`, role_name: 'Spec writer', depth: 1, parent_agent_id: 'r' }),
+        agent('r', 'completed', { id: `b${at}`, role_name: 'Coder', depth: 1, parent_agent_id: 'r' }),
+      ]),
+    ],
     // Web app: three files and three notes (two of each, then "+1 more") and a lookup - 7 rows; Backend: a file, a
     // note and a lookup - 3; Docs: a file.
     toolCalls: [
@@ -114,7 +183,10 @@ test('batch-26 review, S2: three folded frames, with cards of 7 rows and 3 - eac
       toolCall('m0', 'r', 'recall', 'succeeded', '{}', { agent_id: 'a0' }),
       toolCall('m1', 'r', 'recall', 'succeeded', '{}', { agent_id: 'a1' }),
     ],
-    boardPosts: [...[1, 2, 3].map(n => note(`n${n}`, 'r', { agent_id: 'a0', content: `web note ${n}` })), note('n4', 'r', { agent_id: 'a1', content: 'api note' })],
+    boardPosts: [
+      ...[1, 2, 3].map(n => note(`n${n}`, 'r', { agent_id: 'a0', content: `web note ${n}` })),
+      note('n4', 'r', { agent_id: 'a1', content: 'api note' }),
+    ],
   })
   const g = foldGraph(deriveGraph(state), { 'team:r:web': false, 'team:r:api': false, 'team:r:docs': false })
   const { positions, sizes, lines } = layoutGraph(g.nodes, g.edges)
@@ -128,34 +200,65 @@ test('batch-26 review, S2: three folded frames, with cards of 7 rows and 3 - eac
     expect(lines[`shared:shared:r:team:r:${id}`], id).toBeDefined()
     expect(card.y + card.height).toBeLessThan(frame.y + frame.height - TEAM_OUT)
     for (const other of placed.filter(n => n.id !== `shared:r:team:r:${id}`).map(n => box(n.id)))
-      expect(card.x < other.x + other.width && other.x < card.x + card.width && card.y < other.y + other.height && other.y < card.y + card.height, id).toBe(false)
+      expect(
+        card.x < other.x + other.width &&
+          other.x < card.x + card.width &&
+          card.y < other.y + other.height &&
+          other.y < card.y + card.height,
+        id,
+      ).toBe(false)
   }
 })
 
 test('the user’s (6 Nov): a card says what it left out - “+1 more file”, “+2 more notes” - and a click on either unfolds it in place, “Fewer” folds it again', async () => {
-  const wrote = (n: number) => toolCall(`w${n}`, 'r', 'write_shared', 'succeeded', '{}', { agent_id: 'coder', result: `written: .koloni/shared/web/${n}.md - every team reads it` })
-  const g = deriveGraph(team('running', 'Build it', { toolCalls: [1, 2, 3].map(wrote), boardPosts: [1, 2, 3, 4].map(n => note(`n${n}`, 'r', { agent_id: 'coder', content: `web note ${n}` })) }))
+  const wrote = (n: number) =>
+    toolCall(`w${n}`, 'r', 'write_shared', 'succeeded', '{}', {
+      agent_id: 'coder',
+      result: `written: .koloni/shared/web/${n}.md - every team reads it`,
+    })
+  const g = deriveGraph(
+    team('running', 'Build it', {
+      toolCalls: [1, 2, 3].map(wrote),
+      boardPosts: [1, 2, 3, 4].map(n => note(`n${n}`, 'r', { agent_id: 'coder', content: `web note ${n}` })),
+    }),
+  )
   const id = 'shared:r:team:r:web'
   const card = (folds: Record<string, boolean>) => foldGraph(g, folds).nodes.find(n => n.id === id)!.data as SharedData
-  const said = (data: SharedData) => data.rows.map(r => (r.kind === 'notebook' ? r.text.replace(/^.*“(.*)”$/, '$1') : r.text))
+  const said = (data: SharedData) =>
+    data.rows.map(r => (r.kind === 'notebook' ? r.text.replace(/^.*“(.*)”$/, '$1') : r.text))
   // Folded: two of each kind - the files first, the newest notes - and what is left out, by its name.
   expect(said(card({}))).toEqual(['web/1.md', 'web/2.md', '+1 more file', 'web note 3', 'web note 4', '+2 more notes'])
-  expect(said(card({ [id]: true }))).toEqual(['web/1.md', 'web/2.md', 'web/3.md', 'web note 1', 'web note 2', 'web note 3', 'web note 4', 'Fewer'])
+  expect(said(card({ [id]: true }))).toEqual([
+    'web/1.md',
+    'web/2.md',
+    'web/3.md',
+    'web note 1',
+    'web note 2',
+    'web note 3',
+    'web note 4',
+    'Fewer',
+  ])
   // Unfolded, laid out as tall as it is, on no other box.
   const open = foldGraph(g, { [id]: true })
   const { positions, sizes } = layoutGraph(open.nodes, open.edges)
   const box = (one: string) => ({ ...positions[one], ...(sizes[one] ?? { width: 220, height: 104 }) })
   const drawn = { ...positions[id], width: 234, height: blockSize(card({ [id]: true })).height }
   expect(drawn.height).toBeGreaterThan(blockSize(card({})).height)
-  for (const other of open.nodes.filter(n => !n.parent && n.id !== id && n.kind !== 'team' && positions[n.id]).map(n => box(n.id)))
-    expect(crosses({ x1: drawn.x, y1: drawn.y, x2: drawn.x + drawn.width, y2: drawn.y + drawn.height }, [other])).toBe(false)
+  for (const other of open.nodes
+    .filter(n => !n.parent && n.id !== id && n.kind !== 'team' && positions[n.id])
+    .map(n => box(n.id)))
+    expect(crosses({ x1: drawn.x, y1: drawn.y, x2: drawn.x + drawn.width, y2: drawn.y + drawn.height }, [other])).toBe(
+      false,
+    )
   // Each "+N more" a button that unfolds the card; "Fewer" folds it.
   const toggle = vi.fn()
   const draw = (data: SharedData) =>
     render(
       <ReactFlowProvider>
         <ToggleGroup.Provider value={toggle}>
-          <SharedNode {...({ id, data, selected: false } as unknown as NodeProps<Node<SharedData & Record<string, unknown>>>)} />
+          <SharedNode
+            {...({ id, data, selected: false } as unknown as NodeProps<Node<SharedData & Record<string, unknown>>>)}
+          />
         </ToggleGroup.Provider>
       </ReactFlowProvider>,
     )
@@ -168,7 +271,8 @@ test('the user’s (6 Nov): a card says what it left out - “+1 more file”, �
   expect(toggle.mock.calls).toEqual([[id], [id], [id]])
   cleanup()
   // With no more than two of a kind, nothing to unfold.
-  const two = deriveGraph(team('running', 'Build it', { toolCalls: [1, 2].map(wrote) })).nodes.find(n => n.id === id)!.data as SharedData
+  const two = deriveGraph(team('running', 'Build it', { toolCalls: [1, 2].map(wrote) })).nodes.find(n => n.id === id)!
+    .data as SharedData
   expect(two.rows.map(r => r.text)).toEqual(['web/1.md', 'web/2.md'])
   expect(two.all).toBeUndefined()
 })
@@ -178,7 +282,14 @@ test('a team frame stands before its agents, in the team colour, its agents mark
   const ids = g.nodes.map(n => n.id)
   expect(ids.indexOf('team:r:web')).toBeLessThan(ids.indexOf('agent:spec'))
   const frame = g.nodes.find(n => n.id === 'team:r:web')!.data as TeamData
-  expect(frame).toMatchObject({ team: 'Web app', recipe: 'Feature', stands: 'running', tokens: '32k tokens', parentId: 'r', inside: 2 })
+  expect(frame).toMatchObject({
+    team: 'Web app',
+    recipe: 'Feature',
+    stands: 'running',
+    tokens: '32k tokens',
+    parentId: 'r',
+    inside: 2,
+  })
   expect(frame.summary).toBe('at Build it · round 2')
   expect(g.nodes.filter(n => n.team === 'team:r:web').map(n => n.id)).toEqual(['agent:spec', 'agent:coder'])
   // The Lead is no agent of the team; and the teams meet in one node, joined by the frame.
@@ -199,7 +310,10 @@ test('a team frame folds only by the user, and folded hides its agents; Fold all
 test('the frame is laid out round its agents, its header above them; folded, it stands under the Lead', () => {
   const g = foldGraph(deriveGraph(team('running', 'Build it')), {})
   const { positions, sizes } = layoutGraph(g.nodes, g.edges)
-  const [frame, spec, coder] = ['team:r:web', 'agent:spec', 'agent:coder'].map(id => ({ ...positions[id], ...sizes[id] }))
+  const [frame, spec, coder] = ['team:r:web', 'agent:spec', 'agent:coder'].map(id => ({
+    ...positions[id],
+    ...sizes[id],
+  }))
   expect(frame.y).toBe(spec.y - TEAM_HEAD)
   expect(frame.x).toBeLessThan(spec.x)
   expect(frame.y + frame.height).toBeGreaterThan(coder.y + coder.height)
@@ -210,8 +324,19 @@ test('the frame is laid out round its agents, its header above them; folded, it 
 })
 
 test('a room in a recipe’s step (84e) is drawn inside its team’s frame, the frame round it, its step marked Room', () => {
-  const room = { id: 'o', run_id: 'r', agent_id: 'r', goal: 'Meet on it', status: 'working', outcome: null, why: null, members: [
-    { agent_id: 'spec', role: 'Spec writer', status: 'in' }, { agent_id: 'coder', role: 'Coder', status: 'in' }] } as unknown as Room
+  const room = {
+    id: 'o',
+    run_id: 'r',
+    agent_id: 'r',
+    goal: 'Meet on it',
+    status: 'working',
+    outcome: null,
+    why: null,
+    members: [
+      { agent_id: 'spec', role: 'Spec writer', status: 'in' },
+      { agent_id: 'coder', role: 'Coder', status: 'in' },
+    ],
+  } as unknown as Room
   const state = team('running', 'Build it', { rooms: [room] })
   state.conversation.teams[0].state!.steps[1].room = true
   const g = foldGraph(deriveGraph(state), {})
@@ -222,12 +347,20 @@ test('a room in a recipe’s step (84e) is drawn inside its team’s frame, the 
   expect(met.y + NODE_H).toBeLessThanOrEqual(frame.y + frame.height)
   const data = g.nodes.find(n => n.id === 'team:r:web')!.data as TeamData
   draw(<TeamNode {...props('team:r:web', data)} />)
-  expect(within(screen.getByRole('list', { name: 'Feature: its steps' })).getAllByRole('listitem')[1]).toHaveTextContent('Build itRoom · round 2')
+  expect(
+    within(screen.getByRole('list', { name: 'Feature: its steps' })).getAllByRole('listitem')[1],
+  ).toHaveTextContent('Build itRoom · round 2')
 })
 
 const draw = (
   node: React.ReactNode,
-  on = { expand: vi.fn(), raw: vi.fn(), openList: vi.fn(), stopTeam: vi.fn().mockResolvedValue(undefined), openChange: vi.fn() },
+  on = {
+    expand: vi.fn(),
+    raw: vi.fn(),
+    openList: vi.fn(),
+    stopTeam: vi.fn().mockResolvedValue(undefined),
+    openChange: vi.fn(),
+  },
   toggle = vi.fn(),
 ) => {
   render(
@@ -239,13 +372,18 @@ const draw = (
   )
   return { on, toggle }
 }
-const props = <T,>(id: string, data: T) => ({ id, data, selected: false }) as unknown as NodeProps<Node<T & Record<string, unknown>>>
+const props = <T,>(id: string, data: T) =>
+  ({ id, data, selected: false }) as unknown as NodeProps<Node<T & Record<string, unknown>>>
 
 test('the step strip ticks the steps done, fills the one now, and Stop and fold are the frame own', async () => {
   const data = deriveGraph(team('running', 'Build it')).nodes.find(n => n.id === 'team:r:web')!.data as TeamData
   const { on, toggle } = draw(<TeamNode {...props('team:r:web', data)} />)
   const strip = screen.getByRole('list', { name: 'Feature: its steps' })
-  expect(within(strip).getAllByRole('listitem').map(li => li.textContent)).toEqual(['Write the spec ✓', 'Build it · round 2', 'Reviews', 'You'])
+  expect(
+    within(strip)
+      .getAllByRole('listitem')
+      .map(li => li.textContent),
+  ).toEqual(['Write the spec ✓', 'Build it · round 2', 'Reviews', 'You'])
   expect(within(strip).getByText('Build it · round 2')).toHaveAttribute('aria-current', 'step')
   await userEvent.click(screen.getByRole('button', { name: 'Stop Web app' }))
   expect(on.stopTeam).toHaveBeenCalledWith('web')
@@ -264,9 +402,13 @@ test('K-evrim: a step of candidates says how many ran, the best score its measur
     agent('r', 'completed', { id: 'coder3', role_name: 'Coder', depth: 1, parent_agent_id: 'r' }),
   )
   row.passes = [{ part: '1', agents: ['coder', 'coder2', 'coder3'] }]
-  draw(<TeamNode {...props('team:r:web', deriveGraph(state).nodes.find(n => n.id === 'team:r:web')!.data as TeamData)} />)
+  draw(
+    <TeamNode {...props('team:r:web', deriveGraph(state).nodes.find(n => n.id === 'team:r:web')!.data as TeamData)} />,
+  )
   const strip = screen.getByRole('list', { name: 'Feature: its steps' })
-  expect(within(strip).getAllByRole('listitem')[1]).toHaveTextContent('Build it · Coder ×3 · best 85 · target 90 not reached ✓')
+  expect(within(strip).getAllByRole('listitem')[1]).toHaveTextContent(
+    'Build it · Coder ×3 · best 85 · target 90 not reached ✓',
+  )
 })
 
 test('K-tarif-kol: a group at work shows its branches in the strip - each step done, now, next or stopped', () => {
@@ -281,7 +423,9 @@ test('K-tarif-kol: a group at work shows its branches in the strip - each step d
     [{ name: 'Review', state: 'next' }],
     [{ name: 'Docs', state: 'stopped' }],
   ]
-  draw(<TeamNode {...props('team:r:web', deriveGraph(state).nodes.find(n => n.id === 'team:r:web')!.data as TeamData)} />)
+  draw(
+    <TeamNode {...props('team:r:web', deriveGraph(state).nodes.find(n => n.id === 'team:r:web')!.data as TeamData)} />,
+  )
   const items = within(screen.getByRole('list', { name: 'Feature: its steps' })).getAllByRole('listitem')
   expect(items[2]).toHaveTextContent('Reviews: Tests ✓ → Fix … · Review · Docs (stopped)')
   // (A step that is no group, as before.)
@@ -302,10 +446,16 @@ test('K-rol-cogul: a step drawn "at most 3" that opened two of its role says so 
     { part: '1', agents: ['coder', 'coder2', 'coder3'] },
   ]
   const many = () => (deriveGraph(state).nodes.find(n => n.id === 'team:r:web')!.data as TeamData).many?.['1']
-  draw(<TeamNode {...props('team:r:web', deriveGraph(state).nodes.find(n => n.id === 'team:r:web')!.data as TeamData)} />)
+  draw(
+    <TeamNode {...props('team:r:web', deriveGraph(state).nodes.find(n => n.id === 'team:r:web')!.data as TeamData)} />,
+  )
   const strip = screen.getByRole('list', { name: 'Feature: its steps' })
   // (The one that failed is no part of it.)
-  expect(within(strip).getAllByRole('listitem').map(li => li.textContent)).toEqual(['Write the spec ✓', 'Build it · Coder ×2 ✓ · round 2', 'Reviews', 'You'])
+  expect(
+    within(strip)
+      .getAllByRole('listitem')
+      .map(li => li.textContent),
+  ).toEqual(['Write the spec ✓', 'Build it · Coder ×2 ✓ · round 2', 'Reviews', 'You'])
   // One the user declined never ran.
   state.agents.find(one => one.id === 'coder2')!.status = 'rejected'
   expect(many()).toEqual([])
@@ -341,12 +491,16 @@ test('a finished team says what it did, and has no Stop', () => {
 
 test('B-126: a team whose agents ran commands says what those changed is counted at Take in', () => {
   const ran = { commands: [command('k1', 'r', { agent_id: 'coder' })] }
-  const line = (status: ChatTeamState['status']) => (deriveGraph(team(status, 'You', ran)).nodes.find(n => n.id === 'team:r:web')!.data as TeamData).summary
-  expect(line('ready')).toBe("done · 1 file · commands' changes, if any, counted at Take in · 1 round back · 32k tokens")
+  const line = (status: ChatTeamState['status']) =>
+    (deriveGraph(team(status, 'You', ran)).nodes.find(n => n.id === 'team:r:web')!.data as TeamData).summary
+  expect(line('ready')).toBe(
+    "done · 1 file · commands' changes, if any, counted at Take in · 1 round back · 32k tokens",
+  )
   expect(line('in')).toBe('done · 1 file · 1 round back · 32k tokens')
 })
 
-const ready = (state: ReturnType<typeof team>) => deriveGraph(state).nodes.find(n => n.id === 'ready:r')!.data as ReadyData
+const ready = (state: ReturnType<typeof team>) =>
+  deriveGraph(state).nodes.find(n => n.id === 'ready:r')!.data as ReadyData
 
 test('Ready for you waits, dashed, saying for whom; ready, it needs you, with the checks reported only', async () => {
   draw(<ReadyNode {...props('ready:r', ready(team('running', 'Build it')))} />)
@@ -366,19 +520,32 @@ test('B-192: a suggestion is no finding left - the check passes, saying how many
 })
 
 test('ready, it needs you: its checks are what agents reported; what waits is counted and said as the chat’s list has it, answered there', async () => {
-  const asked = question('q', 'r', { question: 'Ready for you: Web app (Feature): ready. Take the work into the project?', leave: true, options: ['Take in', 'Ask for changes'] })
-  const state = team('ready', 'You', { questions: [asked, question('w', 'r', { agent_id: 'coder' })], commands: [command('k', 'r', { status: 'proposed' })] })
+  const asked = question('q', 'r', {
+    question: 'Ready for you: Web app (Feature): ready. Take the work into the project?',
+    leave: true,
+    options: ['Take in', 'Ask for changes'],
+  })
+  const state = team('ready', 'You', {
+    questions: [asked, question('w', 'r', { agent_id: 'coder' })],
+    commands: [command('k', 'r', { status: 'proposed' })],
+  })
   const data = ready(state)
   // The Coder said "Findings: none"; the Spec writer said nothing of findings: no check is made up for it.
   expect(data.checks).toEqual([{ text: 'Coder: no findings', passed: true }])
   // K-bekleyenler: one count, the chat's - the list is one, and the node only points to it.
-  expect(data.waiting).toEqual({ count: waitingCards(state), summary: '1 question · 1 command · 1 copy to take in', mine: 0, decided: 0 })
+  expect(data.waiting).toEqual({
+    count: waitingCards(state),
+    summary: '1 question · 1 command · 1 copy to take in',
+    mine: 0,
+    decided: 0,
+  })
   const { on } = draw(<ReadyNode {...props('ready:r', data)} />)
   expect(screen.getByText('NEEDS YOU')).toBeInTheDocument()
   expect(screen.getByText('Every team is at its end. Nothing is in the project yet.')).toBeInTheDocument()
   expect(screen.getByText('3')).toBeInTheDocument()
   expect(screen.getByText('1 question · 1 command · 1 copy to take in')).toBeInTheDocument()
-  for (const word of ['Take in', 'Ask for changes', 'See the changes', 'Discard']) expect(screen.queryByRole('button', { name: word })).toBeNull()
+  for (const word of ['Take in', 'Ask for changes', 'See the changes', 'Discard'])
+    expect(screen.queryByRole('button', { name: word })).toBeNull()
   await userEvent.click(screen.getByRole('button', { name: 'Open the list →' }))
   expect(on.openList).toHaveBeenCalled()
 })
@@ -393,7 +560,14 @@ test('B-142: a Take in that met a clash needs you - its card waits in the list',
 
 test('B-142 review: what else of the chat waits - a job of Away, another turn’s clash - is counted, but needs no Take in here', () => {
   const card = { id: 'a1', run_id: 'r', status: 'running', jobs: [{ task_id: 't', state: 'waits' }] } as unknown as Away
-  const theirs = { id: 'm', run_id: 'other', agent_id: 'r', status: 'pending', files: [], kept_in: null } as unknown as Merge
+  const theirs = {
+    id: 'm',
+    run_id: 'other',
+    agent_id: 'r',
+    status: 'pending',
+    files: [],
+    kept_in: null,
+  } as unknown as Merge
   const data = ready(team('in', 'You', { away: [card], merges: [theirs] }))
   expect([data.waiting.count, data.waiting.mine]).toEqual([2, 0])
   draw(<ReadyNode {...props('ready:r', data)} />)
@@ -401,7 +575,14 @@ test('B-142 review: what else of the chat waits - a job of Away, another turn’
 })
 
 test('B-67: a turn that ended before Take in keeps the recipe’s copy - said, and counted for the chat’s list', () => {
-  const kept = { id: 'm', run_id: 'r', agent_id: 'r', status: 'interrupted', files: [{ path: 'a.py', state: 'refused' }], kept_in: 'C:/copies/r' } as unknown as Merge
+  const kept = {
+    id: 'm',
+    run_id: 'r',
+    agent_id: 'r',
+    status: 'interrupted',
+    files: [{ path: 'a.py', state: 'refused' }],
+    kept_in: 'C:/copies/r',
+  } as unknown as Merge
   const state = team('stopped', 'Reviews', { merges: [kept] })
   state.conversation.teams[0].state!.why = 'the turn ended at its Reviews step'
   draw(<ReadyNode {...props('ready:r', ready(state))} />)
@@ -412,7 +593,11 @@ test('B-67: a turn that ended before Take in keeps the recipe’s copy - said, a
   expect(screen.queryByRole('button', { name: 'Take in' })).toBeNull()
   // Decided, nothing waits: the way to the list is gone too.
   cleanup()
-  draw(<ReadyNode {...props('ready:r', ready(team('stopped', 'Reviews', { merges: [{ ...kept, status: 'rejected' }] })))} />)
+  draw(
+    <ReadyNode
+      {...props('ready:r', ready(team('stopped', 'Reviews', { merges: [{ ...kept, status: 'rejected' }] })))}
+    />,
+  )
   expect(screen.queryByRole('button', { name: 'Open the list →' })).toBeNull()
 })
 
@@ -424,7 +609,11 @@ test('after Take in: In the project', () => {
 
 test('a Take in that left files out is not said to be in the project', () => {
   const state = team('in', 'You')
-  state.conversation.teams[0].state = { ...state.conversation.teams[0].state!, status: 'stopped', why: 'not applied: a.py clashes' }
+  state.conversation.teams[0].state = {
+    ...state.conversation.teams[0].state!,
+    status: 'stopped',
+    why: 'not applied: a.py clashes',
+  }
   draw(<ReadyNode {...props('ready:r', ready(state))} />)
   expect(screen.queryByText('In the project ✓')).toBeNull()
   expect(screen.getByText('Not all of it is in the project: not applied: a.py clashes')).toBeInTheDocument()
@@ -451,24 +640,56 @@ test('Ready for you, each way it stands: its class, its word and its line', () =
     cleanup()
     draw(<ReadyNode {...props('ready:r', data)} selected={selected} />)
     const node = document.querySelector('.ready-node')
-    return [node?.className, node?.querySelector('.node-label')?.textContent, node?.querySelector('.node-said')?.textContent]
+    return [
+      node?.className,
+      node?.querySelector('.node-label')?.textContent,
+      node?.querySelector('.node-said')?.textContent,
+    ]
   }
   expect(shows(readyData())).toEqual(['node ready-node ready-waits', 'DONE', 'Nothing waits to be taken in.'])
   expect(shows(readyData(), true)[0]).toBe('node ready-node ready-waits node-selected')
   expect(shows(readyData({ taken: true }))).toEqual(['node ready-node ready-in', 'IN', 'In the project ✓'])
-  expect(shows(readyData({ waits: 'Web app: Build it' }))).toEqual(['node ready-node ready-waits', 'WAITS', 'Waits for Web app: Build it.'])
-  expect(shows(readyData({ left: 'a.py clashes' }))).toEqual(['node ready-node ready-waits', 'DONE', 'Not all of it is in the project: a.py clashes'])
-  expect(shows(readyData({ notStarted: ['Docs', 'QA'] }))).toEqual(['node ready-node ready-waits', 'DONE', 'Docs, QA did not start.'])
+  expect(shows(readyData({ waits: 'Web app: Build it' }))).toEqual([
+    'node ready-node ready-waits',
+    'WAITS',
+    'Waits for Web app: Build it.',
+  ])
+  expect(shows(readyData({ left: 'a.py clashes' }))).toEqual([
+    'node ready-node ready-waits',
+    'DONE',
+    'Not all of it is in the project: a.py clashes',
+  ])
+  expect(shows(readyData({ notStarted: ['Docs', 'QA'] }))).toEqual([
+    'node ready-node ready-waits',
+    'DONE',
+    'Docs, QA did not start.',
+  ])
   // Kept, why it ended said - and without a why.
   const keptLine = 'the work is kept in the recipe’s copy, not in the project.'
-  expect(shows(readyData({ kept: 'm', left: 'the turn ended', taken: true }))).toEqual(['node ready-node ready-needs', 'NEEDS YOU', `The work ended before Take in (the turn ended): ${keptLine}`])
+  expect(shows(readyData({ kept: 'm', left: 'the turn ended', taken: true }))).toEqual([
+    'node ready-node ready-needs',
+    'NEEDS YOU',
+    `The work ended before Take in (the turn ended): ${keptLine}`,
+  ])
   expect(shows(readyData({ kept: 'm' }))[2]).toBe(`The work ended before Take in: ${keptLine}`)
   // Asked, a kept copy is not said: what is in the project is.
-  expect(shows(readyData({ questionId: 'q', kept: 'm', inProject: ['Web app', 'Docs'] }))).toEqual(['node ready-node ready-needs', 'NEEDS YOU', 'Every team is at its end. In the project: Web app, Docs.'])
+  expect(shows(readyData({ questionId: 'q', kept: 'm', inProject: ['Web app', 'Docs'] }))).toEqual([
+    'node ready-node ready-needs',
+    'NEEDS YOU',
+    'Every team is at its end. In the project: Web app, Docs.',
+  ])
   // A row's own kept copy, or a Take in of this turn's to finish, needs you too.
   const row = { team: 'Docs', recipe: 'no recipe', colour: '#888', line: 'its own kept copy', done: false, kept: 'm2' }
-  expect(shows(readyData({ rows: [row], waits: 'Web app: Build it' }))).toEqual(['node ready-node ready-needs', 'NEEDS YOU', 'Waits for Web app: Build it.'])
-  expect(shows(readyData({ waiting: { count: 1, summary: '1 Take in to finish', mine: 1, decided: 0 }, notStarted: ['QA'] }))).toEqual(['node ready-node ready-needs', 'NEEDS YOU', 'QA did not start. Nothing is in the project yet.'])
+  expect(shows(readyData({ rows: [row], waits: 'Web app: Build it' }))).toEqual([
+    'node ready-node ready-needs',
+    'NEEDS YOU',
+    'Waits for Web app: Build it.',
+  ])
+  expect(
+    shows(
+      readyData({ waiting: { count: 1, summary: '1 Take in to finish', mine: 1, decided: 0 }, notStarted: ['QA'] }),
+    ),
+  ).toEqual(['node ready-node ready-needs', 'NEEDS YOU', 'QA did not start. Nothing is in the project yet.'])
 })
 
 test('Ready for you: its checks only while it asks, what Take in also takes, and what waits or was decided for you', () => {
@@ -478,7 +699,9 @@ test('Ready for you: its checks only while it asks, what Take in also takes, and
     { text: 'Reviewer: 1 finding left', passed: false },
   ]
   draw(<ReadyNode {...props('ready:r', readyData({ questionId: 'q', alsoTakes: also, checks }))} />)
-  expect(Array.from(document.querySelectorAll('.ready-checks > span'), span => `${span.className}: ${span.textContent}`)).toEqual(['ready-check: Coder: no findings', 'ready-check ready-check-left: Reviewer: 1 finding left'])
+  expect(
+    Array.from(document.querySelectorAll('.ready-checks > span'), span => `${span.className}: ${span.textContent}`),
+  ).toEqual(['ready-check: Coder: no findings', 'ready-check ready-check-left: Reviewer: 1 finding left'])
   expect(screen.getByText(also)).toHaveClass('muted')
   cleanup()
   draw(<ReadyNode {...props('ready:r', readyData({ questionId: 'q' }))} />)
@@ -495,13 +718,21 @@ test('Ready for you: its checks only while it asks, what Take in also takes, and
   expect(document.querySelector('.ready-checks')).toBeNull()
   cleanup()
   // Only decided for you: no count, how many decided, and the way to the list.
-  draw(<ReadyNode {...props('ready:r', readyData({ waiting: { count: 0, summary: '2 decided for you', mine: 0, decided: 2 } }))} />)
+  draw(
+    <ReadyNode
+      {...props('ready:r', readyData({ waiting: { count: 0, summary: '2 decided for you', mine: 0, decided: 2 } }))}
+    />,
+  )
   expect(document.querySelector('.node-head .tag-warn')).toBeNull()
   expect(screen.getByText('2 decided')).toHaveClass('mono muted')
   expect(screen.getByText('2 decided for you')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Open the list →' })).toBeInTheDocument()
   cleanup()
-  draw(<ReadyNode {...props('ready:r', readyData({ waiting: { count: 2, summary: '2 questions', mine: 0, decided: 0 } }))} />)
+  draw(
+    <ReadyNode
+      {...props('ready:r', readyData({ waiting: { count: 2, summary: '2 questions', mine: 0, decided: 0 } }))}
+    />,
+  )
   expect(document.querySelector('.node-head .tag-warn')).toHaveTextContent('2')
   expect(screen.queryByText(/decided/)).toBeNull()
   cleanup()
@@ -510,7 +741,11 @@ test('Ready for you: its checks only while it asks, what Take in also takes, and
 })
 
 test('B-84: a picked team not started is waited for and named; what is in the project is said team by team', () => {
-  const docs = { ...row('waiting', 'none', []), team_id: 'docs', state: { ...row('waiting', 'none', []).state, team: 'Docs', recipe: 'Just write' } }
+  const docs = {
+    ...row('waiting', 'none', []),
+    team_id: 'docs',
+    state: { ...row('waiting', 'none', []).state, team: 'Docs', recipe: 'Just write' },
+  }
   const state = team('ready', 'You')
   state.conversation.teams.push(docs)
   // The turn still runs: the card waits for Docs, which has no frame of its own.
@@ -562,7 +797,30 @@ test('a step that runs only if a problem was found, passed, says so on the strip
 
 test('B-90: a picked team that did not run, alone, is named - with no frame, and laid out', () => {
   const state = convState({
-    conversation: { ...conversation, teams_mode: 'manual', teams: [{ team_id: 'p', recipe_id: null, no_recipe: false, picked_by: 'user', why: null, state: { run_id: 'r', team: 'Product', recipe: '', status: 'waiting', why: null, steps: [], agents: [], ended_ready: false, passes: [] } }] },
+    conversation: {
+      ...conversation,
+      teams_mode: 'manual',
+      teams: [
+        {
+          team_id: 'p',
+          recipe_id: null,
+          no_recipe: false,
+          picked_by: 'user',
+          why: null,
+          state: {
+            run_id: 'r',
+            team: 'Product',
+            recipe: '',
+            status: 'waiting',
+            why: null,
+            steps: [],
+            agents: [],
+            ended_ready: false,
+            passes: [],
+          },
+        },
+      ],
+    },
     runs: [run('r', 'completed')],
     agents: [agent('r', 'completed')],
   })
@@ -587,19 +845,39 @@ test('a recipe turn says its copy is the recipe’s, not a room’s', () => {
 })
 
 test('two teams at once: each frame round its own lead and agents, one under the other', () => {
-  const two = (team_id: string, name: string, agents: string[]) => ({ ...row('running', 'Build it', agents), team_id, state: { ...row('running', 'Build it', agents).state, team: name } })
-  const sub = (id: string, role: string, parent: string, depth: number) => agent('r', 'running', { id, role_name: role, parent_agent_id: parent, depth })
+  const two = (team_id: string, name: string, agents: string[]) => ({
+    ...row('running', 'Build it', agents),
+    team_id,
+    state: { ...row('running', 'Build it', agents).state, team: name },
+  })
+  const sub = (id: string, role: string, parent: string, depth: number) =>
+    agent('r', 'running', { id, role_name: role, parent_agent_id: parent, depth })
   const state = convState({
-    conversation: { ...conversation, teams_mode: 'manual', teams: [two('web', 'Web app', ['wl', 'coder']), two('docs', 'Docs', ['dl', 'writer'])] },
+    conversation: {
+      ...conversation,
+      teams_mode: 'manual',
+      teams: [two('web', 'Web app', ['wl', 'coder']), two('docs', 'Docs', ['dl', 'writer'])],
+    },
     runs: [run('r')],
-    agents: [agent('r'), sub('wl', 'Web app lead', 'r', 1), sub('coder', 'Coder', 'wl', 2), sub('dl', 'Docs lead', 'r', 1), sub('writer', 'Docs writer', 'dl', 2)],
+    agents: [
+      agent('r'),
+      sub('wl', 'Web app lead', 'r', 1),
+      sub('coder', 'Coder', 'wl', 2),
+      sub('dl', 'Docs lead', 'r', 1),
+      sub('writer', 'Docs writer', 'dl', 2),
+    ],
   })
   const g = foldGraph(deriveGraph(state), {})
   const { positions, sizes } = layoutGraph(g.nodes, g.edges)
   const box = (id: string) => ({ ...positions[id], ...sizes[id] })
   const inside = (frame: ReturnType<typeof box>, id: string) => {
     const at = positions[id]
-    return at.x > frame.x && at.y > frame.y && at.x + sizes[id].width < frame.x + frame.width && at.y + sizes[id].height < frame.y + frame.height
+    return (
+      at.x > frame.x &&
+      at.y > frame.y &&
+      at.x + sizes[id].width < frame.x + frame.width &&
+      at.y + sizes[id].height < frame.y + frame.height
+    )
   }
   const [web, docs] = [box('team:r:web'), box('team:r:docs')]
   expect(web.y + web.height).toBeLessThan(docs.y)
@@ -618,7 +896,10 @@ test('G1.2: ready with findings left says why on Ready for you, and is not ticke
 
 test('B-84: Ready for you says Take in also takes in what a team that ended early left - not one stopped at its end', () => {
   const asked = question('q', 'r', { question: 'Ready for you: …', leave: true })
-  const state = team('stopped', 'Reviews', { questions: [asked], fileChanges: [fileChange('f1', 'r', { agent_id: 'coder', status: 'in_copy' })] })
+  const state = team('stopped', 'Reviews', {
+    questions: [asked],
+    fileChanges: [fileChange('f1', 'r', { agent_id: 'coder', status: 'in_copy' })],
+  })
   state.conversation.teams[0].state!.why = 'Web app lead ended before its end'
   draw(<ReadyNode {...props('ready:r', ready(state))} />)
   expect(screen.getByText('Take in also takes in what Web app left before it stopped.')).toBeInTheDocument()
@@ -628,13 +909,31 @@ test('B-84: Ready for you says Take in also takes in what a team that ended earl
 })
 
 test('B-101: a team with no recipe beside one has its row, and its own kept copy counted', () => {
-  const apart = { id: 'm2', run_id: 'r', agent_id: 'dl', status: 'interrupted', files: [{ path: 'a.py', state: 'refused' }], kept_in: 'C:/copies/dl' } as unknown as Merge
+  const apart = {
+    id: 'm2',
+    run_id: 'r',
+    agent_id: 'dl',
+    status: 'interrupted',
+    files: [{ path: 'a.py', state: 'refused' }],
+    kept_in: 'C:/copies/dl',
+  } as unknown as Merge
   const asked = question('q', 'r', { question: 'Ready for you: …', leave: true })
   // (The recipe's copy holds a change: its card is a copy to take in too - B-156.)
-  const state = team('ready', 'You', { questions: [asked], merges: [apart], fileChanges: [fileChange('fc', 'r', { status: 'in_copy' })] })
-  state.conversation.teams.push({ ...row('done', 'none', ['dl', 'writer']), team_id: 'docs', state: { ...row('done', 'none', ['dl', 'writer']).state, team: 'Docs', recipe: '', steps: [] } })
+  const state = team('ready', 'You', {
+    questions: [asked],
+    merges: [apart],
+    fileChanges: [fileChange('fc', 'r', { status: 'in_copy' })],
+  })
+  state.conversation.teams.push({
+    ...row('done', 'none', ['dl', 'writer']),
+    team_id: 'docs',
+    state: { ...row('done', 'none', ['dl', 'writer']).state, team: 'Docs', recipe: '', steps: [] },
+  })
   const data = ready(state)
-  expect(data.rows.map(one => [one.team, one.recipe, one.kept])).toEqual([['Web app', 'Feature', null], ['Docs', 'no recipe', 'm2']])
+  expect(data.rows.map(one => [one.team, one.recipe, one.kept])).toEqual([
+    ['Web app', 'Feature', null],
+    ['Docs', 'no recipe', 'm2'],
+  ])
   expect((deriveGraph(state).nodes.find(n => n.id === 'team:r:docs')!.data as TeamData).recipe).toBe('no recipe')
   // Its copy is taken in or discarded from the chat's list: here, counted with the rest.
   draw(<ReadyNode {...props('ready:r', data)} />)
@@ -643,9 +942,18 @@ test('B-101: a team with no recipe beside one has its row, and its own kept copy
 })
 
 test('B-110: an agent kept beside the recipe has its row at Ready for you, with Take in or Discard for its copy', () => {
-  const apart = { id: 'm3', run_id: 'r', agent_id: 'dbg', status: 'interrupted', files: [{ path: 'a.py', state: 'refused' }], kept_in: 'C:/copies/dbg' } as unknown as Merge
+  const apart = {
+    id: 'm3',
+    run_id: 'r',
+    agent_id: 'dbg',
+    status: 'interrupted',
+    files: [{ path: 'a.py', state: 'refused' }],
+    kept_in: 'C:/copies/dbg',
+  } as unknown as Merge
   const state = team('ready', 'You', { merges: [apart] })
-  state.agents.push(agent('r', 'completed', { id: 'dbg', name: 'Debugger', role_name: 'Debugger', depth: 1, parent_agent_id: 'r' }))
+  state.agents.push(
+    agent('r', 'completed', { id: 'dbg', name: 'Debugger', role_name: 'Debugger', depth: 1, parent_agent_id: 'r' }),
+  )
   const data = ready(state)
   expect(data.rows.map(one => [one.team, one.recipe, one.line, one.kept])).toEqual([
     ['Web app', 'Feature', expect.any(String), null],
@@ -655,7 +963,11 @@ test('B-110: an agent kept beside the recipe has its row at Ready for you, with 
 
 test('a team with no recipe at work says so - no "step 0 of 0"', () => {
   const state = team('running', 'Build it')
-  state.conversation.teams.push({ ...row('running', 'none', ['dl']), team_id: 'docs', state: { ...row('running', 'none', ['dl']).state, team: 'Docs', recipe: '', steps: [] } })
+  state.conversation.teams.push({
+    ...row('running', 'none', ['dl']),
+    team_id: 'docs',
+    state: { ...row('running', 'none', ['dl']).state, team: 'Docs', recipe: '', steps: [] },
+  })
   const data = ready(state)
   expect(data.rows[1].line).toBe('at work')
   expect(data.waits).toBe('Web app: Build it; Docs: at work')
@@ -663,7 +975,11 @@ test('a team with no recipe at work says so - no "step 0 of 0"', () => {
 
 test('a team with no recipe beside one has Stop and no Finish now: it has no recipe to finish', () => {
   const state = team('running', 'Build it')
-  state.conversation.teams.push({ ...row('running', 'none', ['dl']), team_id: 'docs', state: { ...row('running', 'none', ['dl']).state, team: 'Docs', recipe: '', steps: [] } })
+  state.conversation.teams.push({
+    ...row('running', 'none', ['dl']),
+    team_id: 'docs',
+    state: { ...row('running', 'none', ['dl']).state, team: 'Docs', recipe: '', steps: [] },
+  })
   const data = deriveGraph(state).nodes.find(n => n.id === 'team:r:docs')!.data as TeamData
   draw(<TeamNode {...props('team:r:docs', data)} />)
   expect(screen.getByRole('button', { name: 'Stop Docs' })).toBeInTheDocument()
@@ -672,7 +988,10 @@ test('a team with no recipe beside one has Stop and no Finish now: it has no rec
 
 test('a row of before batch-16, whose end is not known, is not said to have ended early', () => {
   const asked = question('q', 'r', { question: 'Ready for you: …', leave: true })
-  const state = team('stopped', 'Reviews', { questions: [asked], fileChanges: [fileChange('f1', 'r', { agent_id: 'coder', status: 'in_copy' })] })
+  const state = team('stopped', 'Reviews', {
+    questions: [asked],
+    fileChanges: [fileChange('f1', 'r', { agent_id: 'coder', status: 'in_copy' })],
+  })
   state.conversation.teams[0].state!.ended_ready = null
   expect(ready(state).alsoTakes).toBe('')
 })
@@ -680,7 +999,12 @@ test('a row of before batch-16, whose end is not known, is not said to have ende
 test('B-107: a finished turn is drawn as it was - the chat’s teams changed after it change neither its frame nor Ready for you', () => {
   const state = team('in', 'You')
   // The page heard the turn's rows as they were; then the user took the team off the chat.
-  const later = applyEvent(applyEvent(state, null, 'conversation.updated', state.conversation), null, 'conversation.updated', { ...state.conversation, teams_mode: 'none', teams: [] })
+  const later = applyEvent(
+    applyEvent(state, null, 'conversation.updated', state.conversation),
+    null,
+    'conversation.updated',
+    { ...state.conversation, teams_mode: 'none', teams: [] },
+  )
   expect(later.conversation.teams).toEqual([])
   const g = deriveGraph(later)
   expect((g.nodes.find(n => n.id === 'team:r:web')!.data as TeamData).stands).toBe('in')
@@ -705,12 +1029,23 @@ test('B-103: teams shown together are told apart - their hues far apart - and a 
 
 test('B-103: an agent kept beside the recipe never takes a team’s colour at Ready for you; a frame is the chat’s colour', () => {
   // ("ml" wants Web app's colour.)
-  const apart = { id: 'm3', run_id: 'r', agent_id: 'ml', status: 'interrupted', files: [{ path: 'a.py', state: 'refused' }], kept_in: 'C:/copies/ml' } as unknown as Merge
+  const apart = {
+    id: 'm3',
+    run_id: 'r',
+    agent_id: 'ml',
+    status: 'interrupted',
+    files: [{ path: 'a.py', state: 'refused' }],
+    kept_in: 'C:/copies/ml',
+  } as unknown as Merge
   const state = team('ready', 'You', { merges: [apart] })
-  state.agents.push(agent('r', 'completed', { id: 'ml', name: 'Debugger', role_name: 'Debugger', depth: 1, parent_agent_id: 'r' }))
+  state.agents.push(
+    agent('r', 'completed', { id: 'ml', name: 'Debugger', role_name: 'Debugger', depth: 1, parent_agent_id: 'r' }),
+  )
   const [web, beside] = ready(state).rows
   expect(beside.colour).not.toBe(web.colour)
-  expect((deriveGraph(state).nodes.find(n => n.id === 'team:r:web')!.data as TeamData).colour).toBe(chatColours(state).get('web'))
+  expect((deriveGraph(state).nodes.find(n => n.id === 'team:r:web')!.data as TeamData).colour).toBe(
+    chatColours(state).get('web'),
+  )
 })
 
 test('B-101: a frame drawn from its roles has nothing to stop or finish, and no line to Ready for you: that dot is hidden', () => {
@@ -742,13 +1077,28 @@ test('a step says what your choice left out of it, after its tick and round; its
   draw(<TeamNode {...props('team:r:web', data)} />)
   const container = document.body
   const items = within(screen.getByRole('list', { name: 'Feature: its steps' })).getAllByRole('listitem')
-  expect(items.map(li => li.textContent)).toEqual(['Write the spec ✓', 'Build it ✓ · round 2 · left out by your choice: Tester, Writer', 'Reviews', 'You'])
-  expect(items.map(li => li.className)).toEqual(['team-step team-step-done', 'team-step team-step-done', 'team-step team-step-now', 'team-step team-step-next'])
+  expect(items.map(li => li.textContent)).toEqual([
+    'Write the spec ✓',
+    'Build it ✓ · round 2 · left out by your choice: Tester, Writer',
+    'Reviews',
+    'You',
+  ])
+  expect(items.map(li => li.className)).toEqual([
+    'team-step team-step-done',
+    'team-step team-step-done',
+    'team-step team-step-now',
+    'team-step team-step-next',
+  ])
   expect(items.map(li => li.title)).toEqual(['Write the spec', 'Build it', 'Reviews', 'You'])
   expect(items.map(li => li.getAttribute('aria-current'))).toEqual([null, null, 'step', null])
   // at work and open: Stop, Finish now, then fold - and no line at its foot
   expect(container.querySelector('.team-foot')).toBeNull()
-  expect(Array.from(container.querySelectorAll('.team-title > button'), button => `${button.className}: ${button.textContent}`)).toEqual([
+  expect(
+    Array.from(
+      container.querySelectorAll('.team-title > button'),
+      button => `${button.className}: ${button.textContent}`,
+    ),
+  ).toEqual([
     'btn btn-small team-stop nodrag: Stop',
     'btn btn-small team-stop nodrag: Finish now',
     'link-btn team-fold nodrag: fold',
@@ -762,7 +1112,17 @@ test('k-sira-016: KOLONİ checks before Ready for you - the Checks node is the r
     ...assistantMessage('k', 'r', 'x'),
     role: 'checked' as const,
     agent_id: null,
-    checked: [{ kind: 'tests', state: 'passed' as const, text: 'Tests passed', command: null, guessed: false, started_at: null, counts: null }],
+    checked: [
+      {
+        kind: 'tests',
+        state: 'passed' as const,
+        text: 'Tests passed',
+        command: null,
+        guessed: false,
+        started_at: null,
+        counts: null,
+      },
+    ],
   }
   const g = deriveGraph(team('ready', 'You', { messages: [checked] }))
   // (The Checks node is the frame's last part; a line out of a frame is drawn from the frame, `framed`: Checks, then Ready.)

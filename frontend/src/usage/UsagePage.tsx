@@ -14,7 +14,10 @@ import { PlanLimits } from './PlanLimits'
 import { Prices } from './Prices'
 import { HowItWorks } from '../shell/HowItWorks'
 
-type Numbers = Pick<Usage['by_start'][number], 'runs' | 'agents' | 'input_tokens' | 'output_tokens' | 'cache_read_tokens' | 'cache_write_tokens' | 'unknown_agents'>
+type Numbers = Pick<
+  Usage['by_start'][number],
+  'runs' | 'agents' | 'input_tokens' | 'output_tokens' | 'cache_read_tokens' | 'cache_write_tokens' | 'unknown_agents'
+>
 type Cost = Usage['by_model'][number]['cost']
 /** One line of a table: what it is of (and its words, to sort by), its numbers and - in the table that has one - its cost. */
 interface Row {
@@ -64,7 +67,11 @@ const count = (n: number | null) => (n === null ? '–' : n.toLocaleString('en-U
 
 type Start = Usage['by_start'][number]
 /** Who started it, as its row says: KOLONİ's own requests with no message are "KOLONİ itself" (K-56). */
-const STARTERS: Record<Start['started_by'], string> = { user: 'You', trigger: 'A trigger, with nobody watching', koloni: 'KOLONİ itself' }
+const STARTERS: Record<Start['started_by'], string> = {
+  user: 'You',
+  trigger: 'A trigger, with nobody watching',
+  koloni: 'KOLONİ itself',
+}
 /** A starter in the fold's line: "3 messages by you", "2 requests by KOLONİ itself" (these are in no message). */
 const started = (row: Start) =>
   row.started_by === 'koloni'
@@ -80,7 +87,9 @@ function total(rows: Numbers[], of: (row: Numbers) => number | null): { value: s
   if (known.length === 0) return { value: '–', short: null }
   const short = rows.filter(row => of(row) === null || row.unknown_agents > 0).length
   const sum = count(known.reduce((a, b) => a + b, 0))
-  return short ? { value: `≥ ${sum}`, short: `${short} of ${rows.length} rows not fully known` } : { value: sum, short: null }
+  return short
+    ? { value: `≥ ${sum}`, short: `${short} of ${rows.length} rows not fully known` }
+    : { value: sum, short: null }
 }
 
 /** Opens the Prices fold and moves to it, which brings it into view. */
@@ -113,7 +122,11 @@ function UsageTable({ label, first, rows, cost }: { label: string; first: string
   const shown = sort ? [...rows].sort((a, b) => compare(valueOf(a, sort.by), valueOf(b, sort.by), sort.down)) : rows
   const head = (by: Column, text: string) => (
     <th scope="col" aria-sort={sort?.by === by ? (sort.down ? 'descending' : 'ascending') : undefined}>
-      <button type="button" className="sort-head" onClick={() => setSort({ by, down: sort?.by === by ? !sort.down : by !== 'name' })}>
+      <button
+        type="button"
+        className="sort-head"
+        onClick={() => setSort({ by, down: sort?.by === by ? !sort.down : by !== 'name' })}
+      >
         {text}
       </button>
     </th>
@@ -141,12 +154,19 @@ function UsageTable({ label, first, rows, cost }: { label: string; first: string
                     {n.unknown_agents === 1 ? '1 agent' : `${n.unknown_agents} agents`} reported nothing or only part
                   </span>
                 )}
-                {requests && <span className="choice-note">{n.agents === 1 ? '1 request' : `${count(n.agents)} requests`} of its own, in no message</span>}
+                {requests && (
+                  <span className="choice-note">
+                    {n.agents === 1 ? '1 request' : `${count(n.agents)} requests`} of its own, in no message
+                  </span>
+                )}
                 {cached(n) && <span className="choice-note">{cached(n)}</span>}
-                {unpriced && <span className="choice-note">Cache tokens without a price are left out of the cost.</span>}
+                {unpriced && (
+                  <span className="choice-note">Cache tokens without a price are left out of the cost.</span>
+                )}
                 {paid?.price_from && (
                   <span className="choice-note">
-                    Priced at {paid.price_from}’s price{paid.price_read_on ? ` (${day(paid.price_read_on)})` : ''}: you gave it none.
+                    Priced at {paid.price_from}’s price{paid.price_read_on ? ` (${day(paid.price_read_on)})` : ''}: you
+                    gave it none.
                   </span>
                 )}
               </th>
@@ -181,7 +201,15 @@ function Totals({ usage, prices, onPrices }: { usage: Usage; prices: Price[]; on
   const agents = usage.by_start.reduce((n, row) => n + (row.started_by === 'koloni' ? 0 : row.agents), 0)
   const boxes: [string, string, ...ReactNode[]][] = [
     ['Messages', count(turns), agents === 1 ? '1 agent' : `${count(agents)} agents`],
-    ['Tokens sent', sent.value, cache.filter(([sum]) => sum.value !== '–').map(([sum, what]) => `${sum.value} ${what}`).join(' · '), sent.short],
+    [
+      'Tokens sent',
+      sent.value,
+      cache
+        .filter(([sum]) => sum.value !== '–')
+        .map(([sum, what]) => `${sum.value} ${what}`)
+        .join(' · '),
+      sent.short,
+    ],
     ['Tokens written', written.value, written.short],
     [
       'Cost',
@@ -220,7 +248,24 @@ function Totals({ usage, prices, onPrices }: { usage: Usage; prices: Price[]; on
  * model reported is counted; what none reported is "unknown", and money is shown only from
  * prices the user wrote.
  */
-export function UsagePage({ project, projects, onLoad, onOpen, providers = [], onLimits, prices = [], cataloguePrices = [], onPrice, onRemovePrice, budget, onModels, onSettings, today, onCards, onAddCardRule }: Props) {
+export function UsagePage({
+  project,
+  projects,
+  onLoad,
+  onOpen,
+  providers = [],
+  onLimits,
+  prices = [],
+  cataloguePrices = [],
+  onPrice,
+  onRemovePrice,
+  budget,
+  onModels,
+  onSettings,
+  today,
+  onCards,
+  onAddCardRule,
+}: Props) {
   const [all, setAll] = useState(false)
   // A plain chat has no folder of its own: every one's is shown.
   const everywhere = all || !project
@@ -252,7 +297,8 @@ export function UsagePage({ project, projects, onLoad, onOpen, providers = [], o
     }
   }, [onLoad, scope, period, priced])
 
-  const nameOf = (projectId: string | null) => (projectId ? (projects.find(p => p.id === projectId)?.name ?? 'another project') : 'No folder')
+  const nameOf = (projectId: string | null) =>
+    projectId ? (projects.find(p => p.id === projectId)?.name ?? 'another project') : 'No folder'
   const costed = usage?.by_model.some(row => row.cost) ?? false
 
   /** The boxes on top, or why there are none. */
@@ -275,7 +321,8 @@ export function UsagePage({ project, projects, onLoad, onOpen, providers = [], o
   )
 
   /** Cards measured (0.1.7): where the page is given how to read them. */
-  const cardsSection = () => onCards && <CardsSection projectId={scope} period={period} onLoad={onCards} onAdd={onAddCardRule} />
+  const cardsSection = () =>
+    onCards && <CardsSection projectId={scope} period={period} onLoad={onCards} onAdd={onAddCardRule} />
 
   /** The tables by provider and model, by conversation and by who started it: where some agent reported. */
   const tables = () =>
@@ -315,7 +362,12 @@ export function UsagePage({ project, projects, onLoad, onOpen, providers = [], o
             </Hint>
           </div>
         </section>
-        <Fold title="By conversation" count={usage.by_conversation.length === 1 ? '1 conversation' : `${usage.by_conversation.length} conversations`}>
+        <Fold
+          title="By conversation"
+          count={
+            usage.by_conversation.length === 1 ? '1 conversation' : `${usage.by_conversation.length} conversations`
+          }
+        >
           <UsageTable
             label="Usage by conversation"
             first="Conversation"
@@ -327,7 +379,9 @@ export function UsagePage({ project, projects, onLoad, onOpen, providers = [], o
                   <button type="button" className="usage-open" onClick={() => onOpen(row.conversation_id)}>
                     {row.title}
                   </button>
-                  {(!project || row.project_id !== project.id) && <span className="muted"> · {nameOf(row.project_id)}</span>}
+                  {(!project || row.project_id !== project.id) && (
+                    <span className="muted"> · {nameOf(row.project_id)}</span>
+                  )}
                 </>
               ),
               numbers: row,
@@ -341,7 +395,14 @@ export function UsagePage({ project, projects, onLoad, onOpen, providers = [], o
             cost
             rows={usage.by_start.map(row => {
               const name = STARTERS[row.started_by]
-              return { key: row.started_by, name, text: name, numbers: row, cost: row.cost, requests: row.started_by === 'koloni' }
+              return {
+                key: row.started_by,
+                name,
+                text: name,
+                numbers: row,
+                cost: row.cost,
+                requests: row.started_by === 'koloni',
+              }
             })}
           />
         </Fold>
@@ -353,11 +414,21 @@ export function UsagePage({ project, projects, onLoad, onOpen, providers = [], o
       <div className="conv-head">
         <h2>Usage</h2>
         <div className="usage-filters">
-          <select className="input" aria-label="Projects" value={everywhere ? 'all' : 'this'} onChange={e => setAll(e.target.value === 'all')}>
+          <select
+            className="input"
+            aria-label="Projects"
+            value={everywhere ? 'all' : 'this'}
+            onChange={e => setAll(e.target.value === 'all')}
+          >
             {project && <option value="this">This project</option>}
             <option value="all">All projects</option>
           </select>
-          <select className="input" aria-label="Period" value={period} onChange={e => setPeriod(e.target.value as Period)}>
+          <select
+            className="input"
+            aria-label="Period"
+            value={period}
+            onChange={e => setPeriod(e.target.value as Period)}
+          >
             {PERIODS.map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
@@ -369,12 +440,12 @@ export function UsagePage({ project, projects, onLoad, onOpen, providers = [], o
       <HowItWorks page="usage">
         <p className="muted memory-hint">
           Tokens as the agents’ models reported them, for work started in the period. What an agent sent is the sum of
-          its steps, and every step sends the whole conversation again. Nothing is estimated: what was not reported shows
-          as “–”, and an agent from before totals were kept has no total of what it sent. “≥” means part of a total was
-          not reported. Where a conversation has “Orchestrator model: automatic”, the question asked for each message counts as
-          one more agent, under the model that was asked. What KOLONİ asks a model outside any message (the day in words,
-          a recipe’s draft, an expert’s guide, a Check that runs a CLI) shows as “KOLONİ itself”, in the totals and in its
-          project’s budget.
+          its steps, and every step sends the whole conversation again. Nothing is estimated: what was not reported
+          shows as “–”, and an agent from before totals were kept has no total of what it sent. “≥” means part of a
+          total was not reported. Where a conversation has “Orchestrator model: automatic”, the question asked for each
+          message counts as one more agent, under the model that was asked. What KOLONİ asks a model outside any message
+          (the day in words, a recipe’s draft, an expert’s guide, a Check that runs a CLI) shows as “KOLONİ itself”, in
+          the totals and in its project’s budget.
         </p>
       </HowItWorks>
       {error && (

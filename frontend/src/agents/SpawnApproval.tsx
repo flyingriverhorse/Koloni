@@ -28,7 +28,17 @@ interface CardProps {
 }
 
 /** A question with two answers; locked while the answer travels, and says why it failed. */
-export function DecisionCard({ kicker, approve, reject = 'Reject', approveOff = false, off = false, onDecide, also, children, more }: CardProps) {
+export function DecisionCard({
+  kicker,
+  approve,
+  reject = 'Reject',
+  approveOff = false,
+  off = false,
+  onDecide,
+  also,
+  children,
+  more,
+}: CardProps) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -50,7 +60,12 @@ export function DecisionCard({ kicker, approve, reject = 'Reject', approveOff = 
       {children}
       <div className="change-actions">
         {approve && (
-          <button type="button" className="btn btn-small btn-primary" disabled={busy || off || approveOff} onClick={() => decide('approve')}>
+          <button
+            type="button"
+            className="btn btn-small btn-primary"
+            disabled={busy || off || approveOff}
+            onClick={() => decide('approve')}
+          >
             <Check size={13} />
             {approve}
           </button>
@@ -143,7 +158,9 @@ export function SpawnApproval({ agent, openedBy, continuesTurn, stays, onDecide,
       {where && (
         <div className="spawn-line">
           <span className="mono">{where}</span>
-          {agent.chosen && <span className="tag tag-warn">chosen by {openedBy ? titleOf(openedBy) : 'the agent that opened it'}</span>}
+          {agent.chosen && (
+            <span className="tag tag-warn">chosen by {openedBy ? titleOf(openedBy) : 'the agent that opened it'}</span>
+          )}
         </div>
       )}
       {stays && (
@@ -152,7 +169,9 @@ export function SpawnApproval({ agent, openedBy, continuesTurn, stays, onDecide,
         </div>
       )}
       {agent.chosen && (
-        <div className="muted cmd-approval-note">This is not its role's own model: the agent picked it from your team guide.</div>
+        <div className="muted cmd-approval-note">
+          This is not its role's own model: the agent picked it from your team guide.
+        </div>
       )}
       {/* The agent's own words, shown as such: in quotes. */}
       {agent.chosen_why && (
@@ -177,7 +196,12 @@ export function SpawnApproval({ agent, openedBy, continuesTurn, stays, onDecide,
 /** Asks before an agent adds a role to your list. */
 export function RoleCard({ role, onDecide }: { role: PendingRole; onDecide: Props['onDecide'] }) {
   return (
-    <DecisionCard kicker="Create this role?" approve="Create role" onDecide={onDecide} more="The role is kept on the Agents page. A sub-agent never gets tools its parent lacks.">
+    <DecisionCard
+      kicker="Create this role?"
+      approve="Create role"
+      onDecide={onDecide}
+      more="The role is kept on the Agents page. A sub-agent never gets tools its parent lacks."
+    >
       <div className="cmd-approval-where">
         <strong>{role.name}</strong>
       </div>
@@ -187,7 +211,8 @@ export function RoleCard({ role, onDecide }: { role: PendingRole; onDecide: Prop
       {role.knowledge && (
         // K-uzman: an expert - what it knows and where it reads it. No cost is shown: it is not known before it reads.
         <div className="spawn-line">
-          <span className="chip-knows">knows: {role.knowledge.topic}</span> advises · reads only. Learns from: {role.knowledge.sources.join(', ')} (at most {role.knowledge.max_pages} pages, {role.knowledge.max_usd} USD)
+          <span className="chip-knows">knows: {role.knowledge.topic}</span> advises · reads only. Learns from:{' '}
+          {role.knowledge.sources.join(', ')} (at most {role.knowledge.max_pages} pages, {role.knowledge.max_usd} USD)
         </div>
       )}
     </DecisionCard>

@@ -19,9 +19,13 @@ interface Props {
 }
 
 /** Whether the day is sent as text each day, and when - or where that is set. */
-const sentNote = (noteAt: string | null) => (noteAt ? ` Sent as text at ${noteAt} each day.` : ' It can be sent each evening: project settings, Notifications.')
+const sentNote = (noteAt: string | null) =>
+  noteAt ? ` Sent as text at ${noteAt} each day.` : ' It can be sent each evening: project settings, Notifications.'
 /** The conversation whose Orchestrator's model writes the day in words: the open one, or the day's latest. */
-const writtenIn = (currentId: string | null, day: Day) => (currentId ? 'the open conversation' : `“${day.conversations[0]?.title}”, the latest of the day: no conversation is open`)
+const writtenIn = (currentId: string | null, day: Day) =>
+  currentId
+    ? 'the open conversation'
+    : `“${day.conversations[0]?.title}”, the latest of the day: no conversation is open`
 
 /**
  * Usage's Today for this project (tek-ev §3), beside the boxes the usage adds up: what the record alone knows of the
@@ -109,7 +113,9 @@ export function TodayView({ currentId, noteAt, onLoad, onWords, onOpenTurn }: Pr
                     aria-label={`Show the work that failed in ${run.conversation.title}`}
                     onClick={() => {
                       setNotOpened(null)
-                      onOpenTurn(run.conversation.conversation_id, run.run_id).catch(err => setNotOpened(errorText(err)))
+                      onOpenTurn(run.conversation.conversation_id, run.run_id).catch(err =>
+                        setNotOpened(errorText(err)),
+                      )
                     }}
                   >
                     Show its work
@@ -126,19 +132,26 @@ export function TodayView({ currentId, noteAt, onLoad, onWords, onOpenTurn }: Pr
       </p>
       {asked && (
         <p>
-          <button ref={sayButton} type="button" className="btn btn-small" disabled={asking} aria-describedby="day-words-note day-words-more" onClick={() => void say()}>
+          <button
+            ref={sayButton}
+            type="button"
+            className="btn btn-small"
+            disabled={asking}
+            aria-describedby="day-words-note day-words-more"
+            onClick={() => void say()}
+          >
             Say it in words
           </button>{' '}
           <span className="muted">
             <span id="day-words-note">
-              A model sums up the day, once: a request you pay for, on the Usage page as KOLONİ itself. It is sent the numbers
-              above, the conversations’ titles, the changed files’ paths (the first 20) and the agents’ names. With no fast
-              model, the Orchestrator’s own model writes it, in{' '}
-              {writtenIn(currentId, day)}.
+              A model sums up the day, once: a request you pay for, on the Usage page as KOLONİ itself. It is sent the
+              numbers above, the conversations’ titles, the changed files’ paths (the first 20) and the agents’ names.
+              With no fast model, the Orchestrator’s own model writes it, in {writtenIn(currentId, day)}.
             </span>{' '}
             <Hint id="day-words-more">
-              A fast model writes this summary: the first one the Orchestrator may pick. To have one, give a model the fast tier on the
-              Models page and tick “Agents may choose this” for its provider. The answer shows which model wrote it.
+              A fast model writes this summary: the first one the Orchestrator may pick. To have one, give a model the
+              fast tier on the Models page and tick “Agents may choose this” for its provider. The answer shows which
+              model wrote it.
             </Hint>
           </span>
         </p>
@@ -168,7 +181,9 @@ export function TodayView({ currentId, noteAt, onLoad, onWords, onOpenTurn }: Pr
       )}
       {words && (
         <figure aria-label="Model text" className="memory-hint">
-          <figcaption className="kicker">Model text · {ranOn(words.provider_name, words.model_id)} · may be wrong: the numbers above are the record</figcaption>
+          <figcaption className="kicker">
+            Model text · {ranOn(words.provider_name, words.model_id)} · may be wrong: the numbers above are the record
+          </figcaption>
           <p>{words.text}</p>
         </figure>
       )}

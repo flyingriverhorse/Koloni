@@ -12,7 +12,19 @@ import { stepsOf } from './AgentSteps'
  * a sub-agent it opened and an ask of the user are phases of their own. A command that waits for the user is not one:
  * the window shows it as its last step, with its card.
  */
-export type PhaseKind = 'read' | 'change' | 'command' | 'opened' | 'own' | 'talked' | 'asked' | 'tool' | 'heard' | 'reminded' | 'said' | 'report'
+export type PhaseKind =
+  | 'read'
+  | 'change'
+  | 'command'
+  | 'opened'
+  | 'own'
+  | 'talked'
+  | 'asked'
+  | 'tool'
+  | 'heard'
+  | 'reminded'
+  | 'said'
+  | 'report'
 
 export interface Phase {
   kind: PhaseKind
@@ -30,7 +42,11 @@ export interface Phase {
 /** [verb, one, more] of each tool that only looks: KOLONİ's and Claude Code's as KOLONİ records them (`app/handoff.py`). */
 // shortcut: Codex reads with shell commands and Copilot's, agy's and Qoder's own read tools are not measured by name: they
 // are "Used <tool>"; add their names here once a live run shows what KOLONİ records them as.
-const [READ, SEARCH, LIST]: [string, string, string][] = [['read', 'file', 'files'], ['searched', 'time', 'times'], ['listed', 'folder', 'folders']]
+const [READ, SEARCH, LIST]: [string, string, string][] = [
+  ['read', 'file', 'files'],
+  ['searched', 'time', 'times'],
+  ['listed', 'folder', 'folders'],
+]
 const LOOKS: Record<string, [string, string, string]> = {
   read_file: READ,
   claude__Read: READ,
@@ -44,7 +60,14 @@ const LOOKS: Record<string, [string, string, string]> = {
   recall: ['recalled', 'memory', 'memories'],
 }
 /** Tools that write a file: a failed one has no change on record, and is a change phase all the same. */
-const WRITES = new Set(['write_file', 'edit_file', 'claude__Write', 'claude__Edit', 'claude__MultiEdit', 'claude__NotebookEdit'])
+const WRITES = new Set([
+  'write_file',
+  'edit_file',
+  'claude__Write',
+  'claude__Edit',
+  'claude__MultiEdit',
+  'claude__NotebookEdit',
+])
 const ASKS = new Set(['ask_user', 'create_role'])
 /** Phases that take the next call of their kind; the others stand alone (each has a row to act on). */
 const GROUPS = new Set<PhaseKind>(['read', 'change', 'command', 'talked', 'tool'])
@@ -53,7 +76,10 @@ const many = (n: number, one: string, more = `${one}s`) => `${n} ${n === 1 ? one
 
 /** The first sentence of some words, on one line. */
 export function firstSentence(words: string): string {
-  const line = words.trim().split(/\n\s*\n|(?<=[.!?:])\s/)[0].replace(/\s+/g, ' ')
+  const line = words
+    .trim()
+    .split(/\n\s*\n|(?<=[.!?:])\s/)[0]
+    .replace(/\s+/g, ' ')
   return line.length > 160 ? `${line.slice(0, 159)}…` : line
 }
 
@@ -69,7 +95,14 @@ function kindOf(state: ConvState, call: ToolCall, subAgents: Set<string>): Phase
 
 /** A message handed to it or KOLONİ's reminder: a phase of its own. */
 function heardOf(message: Message, count: number): Phase {
-  return { kind: message.role === 'memory' ? 'reminded' : 'heard', at: message.created_at, said: null, calls: [], message, count }
+  return {
+    kind: message.role === 'memory' ? 'reminded' : 'heard',
+    at: message.created_at,
+    said: null,
+    calls: [],
+    message,
+    count,
+  }
 }
 
 /** Its phases, in order (see `Phase`). */
@@ -81,7 +114,13 @@ export function phasesOf(state: ConvState, agent: Pick<Agent, 'id' | 'report' | 
   const alone = (call: ToolCall) => state.commands.some(c => c.tool_call_id === call.id && c.danger)
   const add = (call: ToolCall, kind: PhaseKind, quote: string | null, at: string) => {
     const last = phases[phases.length - 1]
-    const joins = quote === null && last?.kind === kind && GROUPS.has(kind) && !alone(call) && !alone(last.calls[0]) && (kind !== 'tool' || last.calls[0].name === call.name)
+    const joins =
+      quote === null &&
+      last?.kind === kind &&
+      GROUPS.has(kind) &&
+      !alone(call) &&
+      !alone(last.calls[0]) &&
+      (kind !== 'tool' || last.calls[0].name === call.name)
     if (joins) last.calls.push(call)
     else phases.push({ kind, at, said: quote, calls: [call] })
   }
@@ -100,12 +139,17 @@ export function phasesOf(state: ConvState, agent: Pick<Agent, 'id' | 'report' | 
     if (quote !== null) phases.push({ kind: 'said', at: message.created_at, said: quote, calls: [], message })
   }
   // Its report: the last phase, once written (the report itself is on top of the window, not said again).
-  if (agent.report !== null) phases.push({ kind: 'report', at: agent.ended_at ?? phases[phases.length - 1]?.at ?? '', said: null, calls: [] })
+  if (agent.report !== null)
+    phases.push({ kind: 'report', at: agent.ended_at ?? phases[phases.length - 1]?.at ?? '', said: null, calls: [] })
   return phases
 }
 
 /** How a call that did not end well ended, in a word: "failed", "refused", "interrupted"; null for one that went. */
-const MISHAP: Partial<Record<ToolCall['status'], string>> = { failed: 'failed', denied: 'refused', interrupted: 'interrupted' }
+const MISHAP: Partial<Record<ToolCall['status'], string>> = {
+  failed: 'failed',
+  denied: 'refused',
+  interrupted: 'interrupted',
+}
 
 /** Words counted, in the order first seen: "2 failed, 1 refused"; each count with its noun where one is given. */
 function counted(words: string[], noun = ''): string {
@@ -130,7 +174,10 @@ function looked(calls: ToolCall[]): string {
 
 /** A test run: it is "the tests", and it "passed".
  * shortcut: known test runners by name only; a project's own test script ("make check") is "Ran make check". */
-export const isTest = (command: string) => /\b(pytest|vitest|jest|unittest|npm (run )?test|pnpm test|yarn test|go test|cargo test|playwright test)\b/.test(command)
+export const isTest = (command: string) =>
+  /\b(pytest|vitest|jest|unittest|npm (run )?test|pnpm test|yarn test|go test|cargo test|playwright test)\b/.test(
+    command,
+  )
 
 /** How one command came out, in a word or two: every state has its own, so none is lost from a count. */
 const WORDS: Partial<Record<Command['status'], string>> = {
@@ -145,7 +192,8 @@ const WORDS: Partial<Record<Command['status'], string>> = {
 }
 // A CLI's own command that failed is on record as ended with no exit code, its call as failed (`callFailed`).
 function outcome(command: Command, fine: string, callFailed = false): string {
-  if (command.status === 'exited') return command.exit_code === 0 ? fine : command.exit_code !== null || callFailed ? 'failed' : 'exit not reported'
+  if (command.status === 'exited')
+    return command.exit_code === 0 ? fine : command.exit_code !== null || callFailed ? 'failed' : 'exit not reported'
   if (command.status === 'interrupted' && command.started_at === null) return 'approved, never ran'
   return WORDS[command.status] ?? command.status
 }
@@ -160,15 +208,19 @@ function ran(state: ConvState, commands: Command[]): string | null {
   const fine = commands.every(c => isTest(c.command)) ? 'passed' : 'OK'
   const words = wordsOf(state, commands, fine)
   const code = commands[0].exit_code
-  if (commands.length === 1) return words[0] === 'failed' ? `failed (${code === null ? 'its CLI said so' : `exit ${code}`})` : words[0]
-  if (fixed(commands, words, fine)) return `failed ${words.length === 2 ? 'once' : `${words.length - 1} times`}, then ${fine}`
+  if (commands.length === 1)
+    return words[0] === 'failed' ? `failed (${code === null ? 'its CLI said so' : `exit ${code}`})` : words[0]
+  if (fixed(commands, words, fine))
+    return `failed ${words.length === 2 ? 'once' : `${words.length - 1} times`}, then ${fine}`
   return counted(words)
 }
 
 /** One command run again until it went: every run before the last failed with an exit code, and the last exited 0. */
 // shortcut: only reruns in a row are seen; a rerun with an edit between them is two phases (NOTLAR's rule 3 joins them).
 const fixed = (commands: Command[], words: string[], fine: string) =>
-  words[words.length - 1] === fine && words.slice(0, -1).every(word => word === 'failed') && new Set(commands.map(c => c.command)).size === 1
+  words[words.length - 1] === fine &&
+  words.slice(0, -1).every(word => word === 'failed') &&
+  new Set(commands.map(c => c.command)).size === 1
 
 /** What a command that never ran was, as its line starts: not "Ran". */
 const NOT_RAN: Record<string, string> = {
@@ -178,7 +230,8 @@ const NOT_RAN: Record<string, string> = {
   'approved, never ran': 'Did not run',
 }
 
-const commandsOf = (state: ConvState, calls: ToolCall[]) => calls.flatMap(call => state.commands.filter(c => c.tool_call_id === call.id))
+const commandsOf = (state: ConvState, calls: ToolCall[]) =>
+  calls.flatMap(call => state.commands.filter(c => c.tool_call_id === call.id))
 
 /** A run_command call with no command on record: how it stands, in a word. */
 const bareWord = (call: ToolCall) => MISHAP[call.status] ?? (call.status === 'succeeded' ? 'done' : 'now…')
@@ -192,11 +245,15 @@ function commandLine(state: ConvState, calls: ToolCall[]) {
   const bare = calls.filter(call => !commands.some(c => c.tool_call_id === call.id)).map(bareWord)
   if (commands.length === 0) {
     const verb = bare.every(word => word === bare[0]) ? (BARE[bare[0]] ?? 'Tried to run') : 'Tried to run'
-    return { title: `${verb} ${bare.length === 1 ? 'a command' : many(bare.length, 'command')}`, result: bare.length === 1 ? bare[0] : counted(bare) }
+    return {
+      title: `${verb} ${bare.length === 1 ? 'a command' : many(bare.length, 'command')}`,
+      result: bare.length === 1 ? bare[0] : counted(bare),
+    }
   }
   const names = [...new Set(commands.map(c => c.command))]
   const never = commands.every(c => NOT_RAN[outcome(c, 'OK')]) ? NOT_RAN[outcome(commands[0], 'OK')] : null
-  const what = names.length === 1 ? (never || !isTest(names[0]) ? names[0] : 'the tests') : many(commands.length, 'command')
+  const what =
+    names.length === 1 ? (never || !isTest(names[0]) ? names[0] : 'the tests') : many(commands.length, 'command')
   const more = bare.length > 0 ? `; ${counted(bare, 'more command')}` : ''
   return { title: `${never ?? 'Ran'} ${what}`, result: `${ran(state, commands)}${more}` }
 }
@@ -212,8 +269,14 @@ export function phaseTone(state: ConvState, phase: Phase): Tone {
   const bare = phase.calls.filter(call => !commands.some(c => c.tool_call_id === call.id))
   const words = wordsOf(state, commands, 'OK')
   if (working(bare) || words.includes('running…')) return 'now'
-  if (bare.some(c => c.status === 'failed') || words.includes('failed') || commands.some(c => commandStatus(c).tone === 'del')) return 'bad'
-  if (bare.some(c => c.status === 'denied' || c.status === 'interrupted') || words.some(word => word !== 'OK')) return 'warn'
+  if (
+    bare.some(c => c.status === 'failed') ||
+    words.includes('failed') ||
+    commands.some(c => commandStatus(c).tone === 'del')
+  )
+    return 'bad'
+  if (bare.some(c => c.status === 'denied' || c.status === 'interrupted') || words.some(word => word !== 'OK'))
+    return 'warn'
   return 'ok'
 }
 
@@ -232,16 +295,25 @@ const argOf = (call: ToolCall, key: string): string | null => {
 }
 
 /** Where a call looked: its file, folder or pattern, else its own line. */
-export const targetOf = (call: ToolCall) => argOf(call, 'file_path') ?? argOf(call, 'path') ?? argOf(call, 'pattern') ?? argOf(call, 'query') ?? toolName(call)
+export const targetOf = (call: ToolCall) =>
+  argOf(call, 'file_path') ?? argOf(call, 'path') ?? argOf(call, 'pattern') ?? argOf(call, 'query') ?? toolName(call)
 
 const LINES: Record<PhaseKind, (state: ConvState, phase: Phase) => { title: string; result: string | null }> = {
-  read: (_, { calls }) => ({ title: 'Looked around', result: [looked(calls), working(calls) && 'now…', callMarks(calls)].filter(Boolean).join(' · ') }),
+  read: (_, { calls }) => ({
+    title: 'Looked around',
+    result: [looked(calls), working(calls) && 'now…', callMarks(calls)].filter(Boolean).join(' · '),
+  }),
   change: (state, { calls }) => {
     const changes = state.fileChanges.filter(f => calls.some(c => c.id === f.tool_call_id))
     // (A write with no change on record - it failed, or waits for a file - by the path it was given.)
     const paths = [...new Set(calls.map(c => changes.find(f => f.tool_call_id === c.id)?.path ?? targetOf(c)))]
-    const lines = changes.length ? `+${changes.reduce((n, f) => n + f.additions, 0)} −${changes.reduce((n, f) => n + f.deletions, 0)}` : null
-    return { title: paths.length === 1 ? `Changed ${paths[0]}` : `Changed ${many(paths.length, 'file')}`, result: [lines, working(calls) && 'now…', callMarks(calls)].filter(Boolean).join(' · ') || null }
+    const lines = changes.length
+      ? `+${changes.reduce((n, f) => n + f.additions, 0)} −${changes.reduce((n, f) => n + f.deletions, 0)}`
+      : null
+    return {
+      title: paths.length === 1 ? `Changed ${paths[0]}` : `Changed ${many(paths.length, 'file')}`,
+      result: [lines, working(calls) && 'now…', callMarks(calls)].filter(Boolean).join(' · ') || null,
+    }
   },
   command: (state, { calls }) => commandLine(state, calls),
   opened: (state, { calls }) => {
@@ -249,9 +321,18 @@ const LINES: Record<PhaseKind, (state: ConvState, phase: Phase) => { title: stri
     return { title: `Opened ${titleOf(child?.name || child?.role_name || 'an agent')}`, result: null }
   },
   own: () => ({ title: 'Opened a sub-agent of its CLI', result: null }),
-  talked: (_, { calls }) => ({ title: `Talked to ${[...new Set(calls.map(c => titleOf(argOf(c, 'to') ?? 'an agent')))].join(', ')}`, result: callMarks(calls) }),
-  asked: (_, { calls }) => ({ title: calls[0].name === 'create_role' ? 'Asked you for a new role' : 'Asked you a question', result: working(calls) ? 'waits for you' : callMarks(calls) }),
-  tool: (_, { calls }) => ({ title: `Used ${toolName(calls[0])}${calls.length > 1 ? ` ×${calls.length}` : ''}`, result: [working(calls) && 'now…', callMarks(calls)].filter(Boolean).join(' · ') || null }),
+  talked: (_, { calls }) => ({
+    title: `Talked to ${[...new Set(calls.map(c => titleOf(argOf(c, 'to') ?? 'an agent')))].join(', ')}`,
+    result: callMarks(calls),
+  }),
+  asked: (_, { calls }) => ({
+    title: calls[0].name === 'create_role' ? 'Asked you for a new role' : 'Asked you a question',
+    result: working(calls) ? 'waits for you' : callMarks(calls),
+  }),
+  tool: (_, { calls }) => ({
+    title: `Used ${toolName(calls[0])}${calls.length > 1 ? ` ×${calls.length}` : ''}`,
+    result: [working(calls) && 'now…', callMarks(calls)].filter(Boolean).join(' · ') || null,
+  }),
   heard: (state, { message }) => ({ title: heardFrom(state, message!), result: null }),
   reminded: (_, { count = 1 }) => ({ title: `KOLONİ reminded it${count > 1 ? ` ×${count}` : ''}`, result: null }),
   said: () => ({ title: 'Said', result: null }),
@@ -259,7 +340,9 @@ const LINES: Record<PhaseKind, (state: ConvState, phase: Phase) => { title: stri
 }
 
 function heardFrom(state: ConvState, message: Message): string {
-  const from = message.from_agent_id ? titleOf(state.agents.find(a => a.id === message.from_agent_id)?.name || 'an agent') : null
+  const from = message.from_agent_id
+    ? titleOf(state.agents.find(a => a.id === message.from_agent_id)?.name || 'an agent')
+    : null
   if (message.board_post_id) return `Got a note from the notebook, by ${from ?? 'you'}`
   if (message.room_post_id) return 'Got a message from its room'
   return `Got a message from ${from ?? 'KOLONİ'}`

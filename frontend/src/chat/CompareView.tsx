@@ -43,7 +43,11 @@ const sideMeta = (side: CompareSide) => (
     </div>
     <div>
       <dt>Tokens</dt>
-      <dd>{side.input_tokens === null && side.output_tokens === null ? '–' : `in ${n(side.input_tokens)} · out ${n(side.output_tokens)}`}</dd>
+      <dd>
+        {side.input_tokens === null && side.output_tokens === null
+          ? '–'
+          : `in ${n(side.input_tokens)} · out ${n(side.output_tokens)}`}
+      </dd>
     </div>
     <div>
       {/* (A sum for each currency, as the turn's summary says it: one is never added to another.) */}
@@ -57,7 +61,16 @@ const sideMeta = (side: CompareSide) => (
  * it changed in its own copy (with their diffs), its time, tokens and cost. Nothing of either is in
  * the project until you pick one; the other's work is thrown away.
  */
-export function CompareView({ compareId, state, providers, onLoad, onDecide, onDecideMerge, onCheckMerge, onCommitMerge }: Props) {
+export function CompareView({
+  compareId,
+  state,
+  providers,
+  onLoad,
+  onDecide,
+  onDecideMerge,
+  onCheckMerge,
+  onCommitMerge,
+}: Props) {
   const [compare, setCompare] = useState<Compare | null>(null)
   const [busy, setBusy] = useState(false)
   const [undoing, setUndoing] = useState(false)
@@ -77,7 +90,12 @@ export function CompareView({ compareId, state, providers, onLoad, onDecide, onD
     }
   }, [compareId, stamp, onLoad])
 
-  if (!compare) return error ? <div role="alert" className="alert">{error}</div> : null
+  if (!compare)
+    return error ? (
+      <div role="alert" className="alert">
+        {error}
+      </div>
+    ) : null
   const provider = (side: CompareSide) => providers.find(p => p.id === side.provider_id)?.name ?? 'A provider'
   const full = (side: CompareSide) => `${provider(side)}${side.model_id ? ` · ${modelName(side.model_id)}` : ''}`
   // What its buttons call it: the provider, unless both sides are of one.
@@ -102,16 +120,23 @@ export function CompareView({ compareId, state, providers, onLoad, onDecide, onD
 
   /** The pick taken: whose work, or answer, went on - the other's thrown away. */
   const takenNote = () =>
-    chosen && !left && (
+    chosen &&
+    !left && (
       <div role="status" className="muted cmd-approval-note">
-        {chosen.changed_files.length > 0 ? `${short(chosen)}’s work was taken` : `${short(chosen)}’s answer goes on; it changed no files`}; the other’s was thrown away.
+        {chosen.changed_files.length > 0
+          ? `${short(chosen)}’s work was taken`
+          : `${short(chosen)}’s answer goes on; it changed no files`}
+        ; the other’s was thrown away.
       </div>
     )
 
   // The pick undone: what the chosen side's work changed in the project is taken back, as a message's is.
   // shortcut: once undone and closed, the button comes back (its card then says "Nothing to take back"); hide it if that confuses.
   const undoButton = () =>
-    chosen && !left && chosen.changed_files.length > 0 && !undoing && (
+    chosen &&
+    !left &&
+    chosen.changed_files.length > 0 &&
+    !undoing && (
       <div className="change-actions">
         <button type="button" className="btn btn-small" onClick={() => setUndoing(true)}>
           Undo these changes
@@ -121,7 +146,8 @@ export function CompareView({ compareId, state, providers, onLoad, onDecide, onD
 
   /** Not all of the pick could be taken: its card, for the user to decide. */
   const leftCard = () =>
-    chosen && left && (
+    chosen &&
+    left && (
       <>
         <div role="status" className="muted cmd-approval-note">
           {left.files.some(f => f.state === 'conflict')
@@ -186,10 +212,19 @@ export function CompareView({ compareId, state, providers, onLoad, onDecide, onD
               {/* (Not a side that left nothing: choosing it would take nothing.) */}
               {compare.status === 'ready' && (side.answer || side.changed_files.length > 0) && (
                 <>
-                  <button type="button" className="btn btn-small btn-primary" disabled={busy} onClick={() => void decide(side.run_id)}>
+                  <button
+                    type="button"
+                    className="btn btn-small btn-primary"
+                    disabled={busy}
+                    onClick={() => void decide(side.run_id)}
+                  >
                     Use {short(side)}’s work
                   </button>
-                  {side.changed_files.length === 0 && <div className="muted cmd-approval-note">It changed no files: its answer goes on as the conversation’s.</div>}
+                  {side.changed_files.length === 0 && (
+                    <div className="muted cmd-approval-note">
+                      It changed no files: its answer goes on as the conversation’s.
+                    </div>
+                  )}
                 </>
               )}
             </section>
@@ -204,13 +239,24 @@ export function CompareView({ compareId, state, providers, onLoad, onDecide, onD
           </button>
         </div>
       )}
-      {compare.status === 'running' && <div className="muted cmd-approval-note">Files they write stay in their own copies until you pick one.</div>}
+      {compare.status === 'running' && (
+        <div className="muted cmd-approval-note">Files they write stay in their own copies until you pick one.</div>
+      )}
       {takenNote()}
       {undoButton()}
       {chosen && undoing && (
-        <UndoCard path={`/runs/${chosen.run_id}/undo`} title="Undo these changes" confirm="Undo" onClose={() => setUndoing(false)} />
+        <UndoCard
+          path={`/runs/${chosen.run_id}/undo`}
+          title="Undo these changes"
+          confirm="Undo"
+          onClose={() => setUndoing(false)}
+        />
       )}
-      {compare.status === 'discarded' && <div role="status" className="muted cmd-approval-note">Both were thrown away: nothing reached the project.</div>}
+      {compare.status === 'discarded' && (
+        <div role="status" className="muted cmd-approval-note">
+          Both were thrown away: nothing reached the project.
+        </div>
+      )}
       {leftCard()}
       {error && (
         <div role="alert" className="alert">

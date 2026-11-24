@@ -72,7 +72,8 @@ export function CardsSection({ projectId, period, onLoad, onAdd }: Props) {
         </p>
       ))}
       <p className="muted memory-hint">
-        Counted from 0.1.7, by the reason KOLONİ asked each card for. A line in the project’s rules spares a card only at Full auto with Check what I said first on (Settings › This project › Asking and away).
+        Counted from 0.1.7, by the reason KOLONİ asked each card for. A line in the project’s rules spares a card only
+        at Full auto with Check what I said first on (Settings › This project › Asking and away).
       </p>
     </section>
   )
@@ -100,26 +101,26 @@ function Numbers({ cards }: { cards: Cards }) {
         {cards.decide_seconds !== null && ` · ${waited(cards.decide_seconds)} to answer, on average`}
       </p>
       <div className="tools-table">
-      <table className="usage-table" aria-label="Cards by reason">
-        <thead>
-          <tr>
-            <th scope="col">Why it was asked</th>
-            <th scope="col">Asked</th>
-            <th scope="col">Approved</th>
-            <th scope="col">Rejected</th>
-          </tr>
-        </thead>
-        <tbody>
-          {cards.by_reason.map(one => (
-            <tr key={one.reason}>
-              <th scope="row">{one.said}</th>
-              <td>{one.asked}</td>
-              <td>{one.approved}</td>
-              <td>{one.rejected}</td>
+        <table className="usage-table" aria-label="Cards by reason">
+          <thead>
+            <tr>
+              <th scope="col">Why it was asked</th>
+              <th scope="col">Asked</th>
+              <th scope="col">Approved</th>
+              <th scope="col">Rejected</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {cards.by_reason.map(one => (
+              <tr key={one.reason}>
+                <th scope="row">{one.said}</th>
+                <td>{one.asked}</td>
+                <td>{one.approved}</td>
+                <td>{one.rejected}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
       {checked}
     </>

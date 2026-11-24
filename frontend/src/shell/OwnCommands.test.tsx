@@ -10,14 +10,25 @@ import { ProjectSettings } from './ProjectSettings'
 afterEach(() => resetStoreForTests())
 
 const command = (name: string, extra: Partial<OwnCommand> = {}) =>
-  ({ id: name, name, description: `${name}'s line`, template: 'Do {args}', role: null, project_id: 'p', ...extra }) as OwnCommand
+  ({
+    id: name,
+    name,
+    description: `${name}'s line`,
+    template: 'Do {args}',
+    role: null,
+    project_id: 'p',
+    ...extra,
+  }) as OwnCommand
 
 function setup(ownCommands: OwnCommand[] = []) {
   const saveOwnCommand = vi.fn().mockResolvedValue(undefined)
   const deleteOwnCommand = vi.fn().mockResolvedValue(undefined)
   useApp.setState({
     ownCommands,
-    roles: [{ id: 'l', name: 'Lead' }, { id: 't', name: 'Translator' }] as Role[],
+    roles: [
+      { id: 'l', name: 'Lead' },
+      { id: 't', name: 'Translator' },
+    ] as Role[],
     saveOwnCommand,
     deleteOwnCommand,
   })
@@ -32,11 +43,21 @@ test('a command is added for this project, or for every project, with a role if 
   await userEvent.type(screen.getByLabelText('What it does'), 'Write tests')
   await userEvent.type(screen.getByLabelText('Text it puts in the box'), 'Write tests for {{args}')
   // the Lead is not offered: the message goes to it anyway
-  expect(within(screen.getByLabelText('Hand it to a role')).getAllByRole('option').map(o => o.textContent)).toEqual(['No role', 'Translator'])
+  expect(
+    within(screen.getByLabelText('Hand it to a role'))
+      .getAllByRole('option')
+      .map(o => o.textContent),
+  ).toEqual(['No role', 'Translator'])
   await userEvent.selectOptions(screen.getByLabelText('Hand it to a role'), 'Translator')
   await userEvent.click(screen.getByLabelText('In every project'))
   await userEvent.click(screen.getByRole('button', { name: 'Add command' }))
-  expect(saveOwnCommand).toHaveBeenCalledWith(null, { name: 'test-yaz', description: 'Write tests', template: 'Write tests for {args}', role: 'Translator', project_id: null })
+  expect(saveOwnCommand).toHaveBeenCalledWith(null, {
+    name: 'test-yaz',
+    description: 'Write tests',
+    template: 'Write tests for {args}',
+    role: 'Translator',
+    project_id: null,
+  })
   // emptied for the next
   expect(screen.getByLabelText('Name')).toHaveValue('')
 })
@@ -63,10 +84,33 @@ test('one is changed in the same form, and deleted; what the server refuses is s
 
 test('the project settings list it as a section of its own, with no Save of the project’s', async () => {
   const project = {
-    id: 'p', name: 'demo', root_path: 'C:/demo', created_at: 't', exec_location: 'host', docker_image: null, docker_network: false,
-    search_url: null, search_order: 'builtin', search_agy: false, has_notify_url: false, notify_format: 'slack', notify_desktop: false,
-    turn_token_limit: null, max_agents: null, monthly_budget: null, git_commit: false, auto_notes: false, observe_reports: false, day_note_at: null, also_in: [], read_in: [],
-    hide_secrets: true, lead_work: 'delegates', pass_env: null, held_env: [], koloni: { settings_kept: false, rules_kept: false, rules: null, broken: [], asks: {} },
+    id: 'p',
+    name: 'demo',
+    root_path: 'C:/demo',
+    created_at: 't',
+    exec_location: 'host',
+    docker_image: null,
+    docker_network: false,
+    search_url: null,
+    search_order: 'builtin',
+    search_agy: false,
+    has_notify_url: false,
+    notify_format: 'slack',
+    notify_desktop: false,
+    turn_token_limit: null,
+    max_agents: null,
+    monthly_budget: null,
+    git_commit: false,
+    auto_notes: false,
+    observe_reports: false,
+    day_note_at: null,
+    also_in: [],
+    read_in: [],
+    hide_secrets: true,
+    lead_work: 'delegates',
+    pass_env: null,
+    held_env: [],
+    koloni: { settings_kept: false, rules_kept: false, rules: null, broken: [], asks: {} },
   } as Project
   useApp.setState({ ownCommands: [command('a'), command('b')] })
   render(<ProjectSettings project={project} dockerAvailable dockerError={null} desktopAvailable onSave={vi.fn()} />)
@@ -77,7 +121,9 @@ test('the project settings list it as a section of its own, with no Save of the 
 
 test('the focus follows: Edit to the name, Delete to the next row, and Add says it saved', async () => {
   const { saveOwnCommand, deleteOwnCommand } = setup([command('a'), command('b')])
-  deleteOwnCommand.mockImplementation(async (id: string) => useApp.setState({ ownCommands: useApp.getState().ownCommands.filter(c => c.id !== id) }))
+  deleteOwnCommand.mockImplementation(async (id: string) =>
+    useApp.setState({ ownCommands: useApp.getState().ownCommands.filter(c => c.id !== id) }),
+  )
   await userEvent.click(screen.getByRole('button', { name: 'Edit /a' }))
   expect(screen.getByLabelText('Name')).toHaveFocus()
   await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))

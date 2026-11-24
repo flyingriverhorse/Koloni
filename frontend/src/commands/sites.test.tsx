@@ -6,10 +6,21 @@ import type { AllowedWeb } from '../api/types'
 import { AllowList } from './AllowList'
 import { ProjectSites } from './Sites'
 
-const site = (id: string, host: string, ask_first = false): AllowedWeb => ({ id, conversation_id: null, project_id: 'p', kind: 'page', host, ask_first, created_at: 't' })
+const site = (id: string, host: string, ask_first = false): AllowedWeb => ({
+  id,
+  conversation_id: null,
+  project_id: 'p',
+  kind: 'page',
+  host,
+  ask_first,
+  created_at: 't',
+})
 
 test('K-tarayici-disari A3: a site is added by hand in the chat’s rules, marked Ask first or not; a refused one says why', async () => {
-  const onAllowSite = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce({ detail: 'https://printer: printer is on this machine or its network' })
+  const onAllowSite = vi
+    .fn()
+    .mockResolvedValueOnce(undefined)
+    .mockRejectedValueOnce({ detail: 'https://printer: printer is on this machine or its network' })
   render(<AllowList rules={[]} web={[]} onRemove={vi.fn()} onAllowHost={vi.fn()} onAllowSite={onAllowSite} />)
   await userEvent.click(screen.getByRole('button', { name: '0 rules' }))
   const host = screen.getByLabelText('Allow a site')

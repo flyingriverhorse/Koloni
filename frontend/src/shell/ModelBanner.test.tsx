@@ -21,8 +21,19 @@ const health = (over: Partial<Health>): Health => ({
   shell_note: null,
   ...over,
 })
-const down = health({ model_reachable: false, model_id: null, tools_supported: null, error: 'model server unreachable: refused' })
-const copilot = health({ model_reachable: false, provider_id: 'p-copilot', provider_name: 'Copilot', model_base_url: '', error: 'the copilot command was not found' })
+const down = health({
+  model_reachable: false,
+  model_id: null,
+  tools_supported: null,
+  error: 'model server unreachable: refused',
+})
+const copilot = health({
+  model_reachable: false,
+  provider_id: 'p-copilot',
+  provider_name: 'Copilot',
+  model_base_url: '',
+  error: 'the copilot command was not found',
+})
 const claude = health({ provider_id: 'p-claude', provider_name: 'Claude Code', model_base_url: '' })
 
 // (A dismissal is kept for the session: each test starts with none.)
@@ -40,7 +51,12 @@ test('nothing is shown before the first readings, nor while the open conversatio
 
 test('a provider not in use is not read: with only the ones in use answering, there is no bar (sample A, Local down and unused)', () => {
   // (The store reads only the providers the chat would run on - shell/inUse.ts: Local, down, is not among them.)
-  const { container } = render(<ModelBanner onModels={() => {}} readings={[claude, health({ provider_id: 'p-copilot', provider_name: 'Copilot' })]} />)
+  const { container } = render(
+    <ModelBanner
+      onModels={() => {}}
+      readings={[claude, health({ provider_id: 'p-copilot', provider_name: 'Copilot' })]}
+    />,
+  )
   expect(container).toBeEmptyDOMElement()
 })
 
@@ -73,7 +89,12 @@ test('several with different troubles are named all the same', () => {
 })
 
 test('two providers whose models take no tool calls: each named in the list, each its own item', async () => {
-  render(<ModelBanner onModels={() => {}} readings={[health({ tools_supported: false }), { ...claude, tools_supported: false }]} />)
+  render(
+    <ModelBanner
+      onModels={() => {}}
+      readings={[health({ tools_supported: false }), { ...claude, tools_supported: false }]}
+    />,
+  )
   await userEvent.click(screen.getByRole('button', { name: 'Details' }))
   expect(screen.getAllByRole('listitem').map(item => item.textContent)).toEqual([
     'Local: qwen does not support tool calls; chat works, file tools are off.',
@@ -84,7 +105,9 @@ test('two providers whose models take no tool calls: each named in the list, eac
 test("a role in use that cannot run where it would: '<Role> can't run: <why>', alone or beside a provider down", async () => {
   const cannot = [{ who: 'Orchestrator', why: 'Copilot runs only the models listed for it' }]
   const { rerender } = render(<ModelBanner onModels={() => {}} readings={[claude]} cannot={cannot} />)
-  expect(screen.getByRole('status')).toHaveTextContent(/^Orchestrator can't run: Copilot runs only the models listed for it$/)
+  expect(screen.getByRole('status')).toHaveTextContent(
+    /^Orchestrator can't run: Copilot runs only the models listed for it$/,
+  )
   expect(screen.queryByRole('button', { name: 'Details' })).not.toBeInTheDocument()
   rerender(<ModelBanner onModels={() => {}} readings={[down]} cannot={cannot} />)
   expect(screen.getByRole('status')).toHaveTextContent('2 need a look: Local, Orchestrator.')
@@ -92,7 +115,9 @@ test("a role in use that cannot run where it would: '<Role> can't run: <why>', a
 
 test('a model without tool support says file tools are off', () => {
   render(<ModelBanner onModels={() => {}} readings={[health({ tools_supported: false })]} />)
-  expect(screen.getByRole('status')).toHaveTextContent('qwen does not support tool calls; chat works, file tools are off.')
+  expect(screen.getByRole('status')).toHaveTextContent(
+    'qwen does not support tool calls; chat works, file tools are off.',
+  )
   // (nothing more to it)
   expect(screen.queryByRole('button', { name: 'Details' })).not.toBeInTheDocument()
 })
@@ -103,14 +128,27 @@ test('a provider with no address is named without one', () => {
 })
 
 test('a provider that may not run with its default model is not called out of reach', () => {
-  render(<ModelBanner onModels={() => {}} readings={[health({ model_reachable: false, not_listed: true, error: 'Local runs only with the models listed for it (a)' })]} />)
+  render(
+    <ModelBanner
+      onModels={() => {}}
+      readings={[
+        health({
+          model_reachable: false,
+          not_listed: true,
+          error: 'Local runs only with the models listed for it (a)',
+        }),
+      ]}
+    />,
+  )
   const banner = screen.getByRole('status')
   expect(banner).toHaveTextContent('Local has no model it may run with by default')
   expect(banner).not.toHaveTextContent("isn't answering")
 })
 
 test('while First steps say a provider is down, the bar does not say it - but another one in use down, it does', () => {
-  const { container, rerender } = render(<ModelBanner onModels={() => {}} readings={[down, claude]} quietFor="p-local" />)
+  const { container, rerender } = render(
+    <ModelBanner onModels={() => {}} readings={[down, claude]} quietFor="p-local" />,
+  )
   expect(container).toBeEmptyDOMElement()
   rerender(<ModelBanner onModels={() => {}} readings={[down, copilot]} quietFor="p-local" />)
   expect(screen.getByRole('status')).toHaveTextContent(/^Copilot isn't answering\.$/)
@@ -140,7 +178,12 @@ test('the address is said without its scheme or path - nor a password or key it 
   }
   // (and in the list of several)
   cleanup()
-  render(<ModelBanner onModels={() => {}} readings={[{ ...down, model_base_url: 'http://user:pass@127.0.0.1:8080/v1' }, copilot]} />)
+  render(
+    <ModelBanner
+      onModels={() => {}}
+      readings={[{ ...down, model_base_url: 'http://user:pass@127.0.0.1:8080/v1' }, copilot]}
+    />,
+  )
   expect(document.body).toHaveTextContent('at 127.0.0.1:8080.')
   expect(document.body).not.toHaveTextContent('user:pass')
 })

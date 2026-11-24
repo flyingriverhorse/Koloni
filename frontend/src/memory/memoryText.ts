@@ -25,12 +25,20 @@ export function whereOf(record: Pick<MemoryRecord, 'source'>): string | null {
 
 /** The place a block that moved was found at, as `file:start-end`; null when it has not moved. */
 export function foundAt(record: Pick<MemoryRecord, 'source' | 'found_at'>): string | null {
-  return record.source && record.found_at ? `${record.source.path}:${record.found_at.start}-${record.found_at.end}` : null
+  return record.source && record.found_at
+    ? `${record.source.path}:${record.found_at.start}-${record.found_at.end}`
+    : null
 }
 
 /** A moment as a date and a time of day. */
 export function moment(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 /**
@@ -116,7 +124,11 @@ export function matches(record: MemoryRecord, query: string): boolean {
 /** Whether a text has every word of what was typed. */
 export function hasWords(text: string, query: string): boolean {
   const hay = text.toLowerCase()
-  return query.toLowerCase().split(/\s+/).filter(Boolean).every(word => hay.includes(word))
+  return query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .every(word => hay.includes(word))
 }
 
 /** The page's tabs, by how a record reaches an agent. */
@@ -137,7 +149,8 @@ export const rowId = (id: string) => `mem-${id}`
 export const waitId = (id: string) => `wait-${id}`
 
 /** A decision's line in History, for a search hit to go to. */
-export const decisionId = (decision: ProjectMemory['decisions'][number]) => `decision-${decision.kind}-${decision.memory_id ?? ''}`
+export const decisionId = (decision: ProjectMemory['decisions'][number]) =>
+  `decision-${decision.kind}-${decision.memory_id ?? ''}`
 
 /** Who wrote a note, in a word: the Notes tab's filter. */
 export const writerOf = (record: MemoryRecord) =>
@@ -164,7 +177,9 @@ export function byTopic(records: MemoryRecord[]): Topic[] {
     if (record.observed_at > topic.last) topic.last = record.observed_at
     topics.set(key, topic)
   }
-  return [...topics.values()].sort((a, b) => (a.about === null ? 1 : b.about === null ? -1 : b.last.localeCompare(a.last)))
+  return [...topics.values()].sort((a, b) =>
+    a.about === null ? 1 : b.about === null ? -1 : b.last.localeCompare(a.last),
+  )
 }
 
 /** How a record that is no longer in effect left, as far as on record. */
@@ -203,7 +218,9 @@ export function restsOn(record: MemoryRecord): string {
   const where = whereOf(record)
   if (where) return where
   if (record.origin !== 'user') return 'no source'
-  return record.decided_how === 'feedback' ? 'said by you at a card, no file behind it' : 'written by you, no file behind it'
+  return record.decided_how === 'feedback'
+    ? 'said by you at a card, no file behind it'
+    : 'written by you, no file behind it'
 }
 
 /** What a `recall` call asked for. */
@@ -216,4 +233,3 @@ export function queryOf(call: ToolCall): string {
     return ''
   }
 }
-

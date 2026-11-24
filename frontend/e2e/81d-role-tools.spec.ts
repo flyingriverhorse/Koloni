@@ -15,22 +15,34 @@ test.beforeEach(async ({ request }) => {
 
 test.afterEach(async ({ request }) => {
   // Put back as they were: the Coder's tools, the Translator's kind of work.
-  for (const r of kept) expect((await request.patch(`/api/roles/${r.id}`, { headers: OWN, data: { tools: r.tools, kind: r.kind } })).ok()).toBe(true)
+  for (const r of kept)
+    expect(
+      (await request.patch(`/api/roles/${r.id}`, { headers: OWN, data: { tools: r.tools, kind: r.kind } })).ok(),
+    ).toBe(true)
 })
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`a role's tools as tiles, saved at once; a role dragged into a category (${theme})`, async ({ page, request }) => {
+  test(`a role's tools as tiles, saved at once; a role dragged into a category (${theme})`, async ({
+    page,
+    request,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await page.setViewportSize({ width: 1440, height: 900 })
     await openFreshConversation(page)
     await page.getByRole('button', { name: 'Agents', exact: true }).click()
 
     // The Coder's tiles: what it may use solid, what it may not dashed; the writes and commands ask you.
-    await page.getByRole('complementary', { name: 'Roles' }).getByRole('region', { name: 'Build' }).getByRole('button', { name: /^Coder/ }).click()
+    await page
+      .getByRole('complementary', { name: 'Roles' })
+      .getByRole('region', { name: 'Build' })
+      .getByRole('button', { name: /^Coder/ })
+      .click()
     const panel = page.getByRole('complementary', { name: 'Role Coder' })
     await panel.getByRole('tab', { name: 'Tools' }).click()
     const coder = await one(request, 'Coder')
-    await expect(panel.getByText(/^May use/)).toContainText(/^May use \d+ of 36 tools · \d+ MCP servers? · \d+ (of \d+ )?skills?$/)
+    await expect(panel.getByText(/^May use/)).toContainText(
+      /^May use \d+ of 36 tools · \d+ MCP servers? · \d+ (of \d+ )?skills?$/,
+    )
     await expect(panel.getByRole('button', { name: 'Write files' })).toHaveAttribute('aria-pressed', 'true')
     await expect(panel.getByRole('button', { name: 'Write files' })).toContainText('asks')
     await expect(panel.getByRole('button', { name: 'Run commands' })).toContainText('asks')

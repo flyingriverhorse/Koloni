@@ -19,7 +19,19 @@ export function Cannot({ said }: { said: string[] }) {
  * Enter picks, Esc closes; the focus goes back to the button. (The palette's way, Ctrl+K.) `title`: where it adds;
  * `kindOf`: a role's category, said beside its name.
  */
-export function AddRole({ title, label, others, kindOf, onPick }: { title: string; label: string; others: Role[]; kindOf: (role: Role) => string; onPick: (role: Role | null) => void }) {
+export function AddRole({
+  title,
+  label,
+  others,
+  kindOf,
+  onPick,
+}: {
+  title: string
+  label: string
+  others: Role[]
+  kindOf: (role: Role) => string
+  onPick: (role: Role | null) => void
+}) {
   const [open, setOpen] = useState(false)
   const [words, setWords] = useState('')
   const [at, setAt] = useState(0)
@@ -53,7 +65,14 @@ export function AddRole({ title, label, others, kindOf, onPick }: { title: strin
   }
   return (
     <div className="agents-add-wrap">
-      <button ref={button} type="button" className="agents-add" aria-expanded={open} aria-haspopup="listbox" onClick={() => (open ? close() : setOpen(true))}>
+      <button
+        ref={button}
+        type="button"
+        className="agents-add"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        onClick={() => (open ? close() : setOpen(true))}
+      >
         {label}
       </button>
       {open && (

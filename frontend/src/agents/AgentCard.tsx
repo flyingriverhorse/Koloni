@@ -1,7 +1,17 @@
 import { useState } from 'react'
 import type { Agent, Provider } from '../api/types'
 import type { ConvState } from '../state/applyEvent'
-import { type AgentAsks, AgentChanges, Asked, AsksNow, ErrorAlert, HowItRuns, KeyNumbers, QueueLine, Report } from './agentParts'
+import {
+  type AgentAsks,
+  AgentChanges,
+  Asked,
+  AsksNow,
+  ErrorAlert,
+  HowItRuns,
+  KeyNumbers,
+  QueueLine,
+  Report,
+} from './agentParts'
 import { Observation } from './Observation'
 
 interface Props extends AgentAsks {

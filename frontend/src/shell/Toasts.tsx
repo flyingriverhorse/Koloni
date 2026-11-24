@@ -56,7 +56,13 @@ function news(before: Board, after: Board, at: number): Note[] {
     const old = was.get(c.conversation_id)
     const notes: Note[] = []
     if (waitCount(c) > (old ? waitCount(old) : 0)) {
-      notes.push({ key: `waits ${c.conversation_id}`, source: c.conversation_id, conversationId: c.conversation_id, text: `${whatWaits(c, old)} · ${c.title}`, at })
+      notes.push({
+        key: `waits ${c.conversation_id}`,
+        source: c.conversation_id,
+        conversationId: c.conversation_id,
+        text: `${whatWaits(c, old)} · ${c.title}`,
+        at,
+      })
     }
     const turn = c.turn
     const ended = turn && TERMINAL.has(turn.status) && (old?.turn?.id !== turn.id || !TERMINAL.has(old.turn.status))
@@ -74,7 +80,13 @@ function news(before: Board, after: Board, at: number): Note[] {
     // (how is not read - that turn is no longer on the Board). One that also ended since it was read queued: its own
     // end, just told, says it all (B-200).
     if (!ended && turn?.started_at && old?.turn?.id === turn.id && old.turn.status === 'queued') {
-      notes.push({ key: `started ${turn.id}`, source: c.conversation_id, conversationId: c.conversation_id, text: `Your queued message started · ${c.title}`, at })
+      notes.push({
+        key: `started ${turn.id}`,
+        source: c.conversation_id,
+        conversationId: c.conversation_id,
+        text: `Your queued message started · ${c.title}`,
+        at,
+      })
     }
     return notes
   })
@@ -97,7 +109,13 @@ function Toast({ note, onOpen, onGone, onHeld }: ToastProps) {
     return () => clearTimeout(timer)
   }, [held, note.key, note.at, onGone, onHeld])
   return (
-    <div className="toast" onMouseEnter={() => setHeld(true)} onMouseLeave={() => setHeld(false)} onFocus={() => setHeld(true)} onBlur={() => setHeld(false)}>
+    <div
+      className="toast"
+      onMouseEnter={() => setHeld(true)}
+      onMouseLeave={() => setHeld(false)}
+      onFocus={() => setHeld(true)}
+      onBlur={() => setHeld(false)}
+    >
       <span>
         {note.text}
         {(note.count ?? 1) > 1 && ` ×${note.count}`}
@@ -148,7 +166,10 @@ export function Toasts({ board, budget = null, near = NONE, shownId, onOpen, onU
     held.current.delete(key)
     setNotes(shown => shown.filter(note => note.key !== key))
   }, [])
-  const hold = useCallback((key: string, on: boolean) => void (on ? held.current.add(key) : held.current.delete(key)), [])
+  const hold = useCallback(
+    (key: string, on: boolean) => void (on ? held.current.add(key) : held.current.delete(key)),
+    [],
+  )
   const put = useCallback((fresh: Note[]) => {
     setNotes(shown => {
       const next = [...shown.filter(note => !fresh.some(f => f.key === note.key)), ...fresh]
@@ -212,7 +233,8 @@ export function Toasts({ board, budget = null, near = NONE, shownId, onOpen, onU
   useEffect(() => {
     const was = budgetBefore.current
     budgetBefore.current = budget
-    if (was && budget && budget.warn && !was.warn) say([{ key: 'budget', source: 'budget', conversationId: null, text: budgetWarning(budget), at: Date.now() }])
+    if (was && budget && budget.warn && !was.warn)
+      say([{ key: 'budget', source: 'budget', conversationId: null, text: budgetWarning(budget), at: Date.now() }])
   }, [budget, say])
 
   // A plan's window near its limit is said once for each time it resets: when first seen there (no bar warns of it as
@@ -228,7 +250,16 @@ export function Toasts({ board, budget = null, near = NONE, shownId, onOpen, onU
       told.current.set(key, resets)
       return true
     })
-    if (fresh.length > 0) say(fresh.map(({ key, text }) => ({ key: `near ${key}`, source: 'near', conversationId: null, text, at: Date.now() })))
+    if (fresh.length > 0)
+      say(
+        fresh.map(({ key, text }) => ({
+          key: `near ${key}`,
+          source: 'near',
+          conversationId: null,
+          text,
+          at: Date.now(),
+        })),
+      )
   }, [near, say])
 
   const open = (id: string | null) => (id ? onOpen(id) : onUsage?.())
@@ -269,7 +300,15 @@ function Recent({ kept, onOpen }: { kept: Kept[]; onOpen: (conversationId: strin
   const label = `Notifications${hidden > 0 ? `, ${hidden} not shown` : ''}`
   return (
     <>
-      <button ref={button} type="button" className="btn btn-small" aria-label={label} title={`Recent notifications${hidden > 0 ? `: ${hidden} not shown` : ''}`} aria-expanded={open} onClick={() => (open ? close() : setOpen(true))}>
+      <button
+        ref={button}
+        type="button"
+        className="btn btn-small"
+        aria-label={label}
+        title={`Recent notifications${hidden > 0 ? `: ${hidden} not shown` : ''}`}
+        aria-expanded={open}
+        onClick={() => (open ? close() : setOpen(true))}
+      >
         <Bell size={13} />
         {hidden > 0 && hidden}
       </button>
@@ -279,7 +318,9 @@ function Recent({ kept, onOpen }: { kept: Kept[]; onOpen: (conversationId: strin
           <ul className="recent-list">
             {kept.map((note, n) => (
               <li key={n}>
-                <span className="mono muted">{new Date(note.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                <span className="mono muted">
+                  {new Date(note.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
                 <span className="recent-text">
                   {note.text}
                   {!note.shown && <span className="muted"> · not shown</span>}

@@ -35,7 +35,16 @@ const LEARNED: KnowledgeState = {
 const MLFLOW: KnowledgeItem = {
   id: 'k1',
   project_id: 'p1',
-  knowledge: { topic: 'MLflow', sources: ['https://mlflow.org/docs/latest/'], max_pages: 20, max_usd: 1, max_code_files: 100, learn_with: null, weekly: false, search_answering: false },
+  knowledge: {
+    topic: 'MLflow',
+    sources: ['https://mlflow.org/docs/latest/'],
+    max_pages: 20,
+    max_usd: 1,
+    max_code_files: 100,
+    learn_with: null,
+    weekly: false,
+    search_answering: false,
+  },
   used_by: [
     { role_id: 'r1', name: 'ML engineer', mode: 'full' },
     { role_id: 'r2', name: 'Coder', mode: 'map' },
@@ -61,7 +70,9 @@ const page = (over: object = {}) => {
     onAdd: vi.fn().mockResolvedValue({ id: 'k3' }),
     onSave: vi.fn().mockResolvedValue(undefined),
     onCopy: vi.fn().mockResolvedValue(undefined),
-    onReadFile: vi.fn().mockResolvedValue({ text: '## Tracking\n- mlflow.start_run()', size: 30, binary: false, too_large: false }),
+    onReadFile: vi
+      .fn()
+      .mockResolvedValue({ text: '## Tracking\n- mlflow.start_run()', size: 30, binary: false, too_large: false }),
     onDelete: vi.fn().mockResolvedValue(undefined),
     onLearn: vi.fn().mockResolvedValue(undefined),
     onTry: vi.fn().mockResolvedValue('Use set_registered_model_alias (guide/registry.md:41).'),
@@ -77,7 +88,6 @@ test('the rail has Knowledge between Memory and Triggers', () => {
   expect(names.slice(names.indexOf('Memory'), names.indexOf('Memory') + 3)).toEqual(['Memory', 'Knowledge', 'Triggers'])
   expect(screen.getByRole('button', { name: 'Knowledge' })).toHaveAttribute('aria-pressed', 'true')
 })
-
 
 const card = (topic: string) => screen.getByRole('article', { name: topic })
 const tab = (name: string | RegExp) => userEvent.click(screen.getByRole('tab', { name }))
@@ -109,7 +119,12 @@ test('a card says how much of what was read is in its guide, how fresh, what it 
 
 test('decision 4: the coverage sentence says only what the API says - the money limit, no known price, and Learn more with its requests', () => {
   const learned = learnedOf(LEARNED)
-  const item = (id: string, state: KnowledgeState): KnowledgeItem => ({ ...MLFLOW, id, knowledge: { ...MLFLOW.knowledge, topic: id }, state })
+  const item = (id: string, state: KnowledgeState): KnowledgeItem => ({
+    ...MLFLOW,
+    id,
+    knowledge: { ...MLFLOW.knowledge, topic: id },
+    state,
+  })
   const two = [learned.pages[0], learned.pages[1], { ...learned.pages[0], source: 'x' }]
   page({
     items: [
@@ -123,9 +138,13 @@ test('decision 4: the coverage sentence says only what the API says - the money 
   const why = (topic: string) => card(topic).querySelector('.knowledge-why')?.textContent ?? null
   expect(why('short')).toBe('The money limit stopped it: raise it to at least 1.25 USD to read further.')
   expect(within(card('short')).getByRole('button', { name: 'Learn again' })).toBeInTheDocument()
-  expect(why('unpriced')).toBe('On a model with no known price one Learn stops after a set number of requests. Learn more adds the rest (≈39 requests).')
+  expect(why('unpriced')).toBe(
+    'On a model with no known price one Learn stops after a set number of requests. Learn more adds the rest (≈39 requests).',
+  )
   expect(card('unpriced')).toHaveTextContent('2 of 3 pages in the guide')
-  expect(why('unpriced, no count')).toBe('On a model with no known price one Learn stops after a set number of requests. Learn more adds the rest.')
+  expect(why('unpriced, no count')).toBe(
+    'On a model with no known price one Learn stops after a set number of requests. Learn more adds the rest.',
+  )
   expect(why('priced')).toBe('Learn more adds the rest (≈3 requests).')
   expect(why('done')).toBeNull()
 })
@@ -133,13 +152,20 @@ test('decision 4: the coverage sentence says only what the API says - the money 
 test('a spend not counted in USD is "—", why behind ⓘ', () => {
   page({ items: [{ ...MLFLOW, state: { ...LEARNED, learned: { ...learnedOf(LEARNED), cost: null } } }] })
   expect(card('MLflow')).toHaveTextContent('Spent: —')
-  expect(within(card('MLflow')).getByRole('button', { name: 'About this' })).toHaveAccessibleDescription('A CLI’s or a plan’s use is not counted in USD.')
+  expect(within(card('MLflow')).getByRole('button', { name: 'About this' })).toHaveAccessibleDescription(
+    'A CLI’s or a plan’s use is not counted in USD.',
+  )
 })
 
 test('K-bilgi 5: a learning after the first says when it checked and how many pages changed, or up to date', () => {
   const learned = learnedOf(LEARNED)
   const at = new Date(Date.now() - 2 * 3600 * 1000).toISOString()
-  const item = (id: string, changed: number) => ({ ...MLFLOW, id, knowledge: { ...MLFLOW.knowledge, topic: id }, state: { ...LEARNED, learned: { ...learned, learned_at: at, changed } } })
+  const item = (id: string, changed: number) => ({
+    ...MLFLOW,
+    id,
+    knowledge: { ...MLFLOW.knowledge, topic: id },
+    state: { ...LEARNED, learned: { ...learned, learned_at: at, changed } },
+  })
   page({ items: [item('a', 3), item('b', 1), item('c', 0)] })
   expect(card('a')).toHaveTextContent('checked 2 h ago · 3 pages changed')
   expect(card('b')).toHaveTextContent('checked 2 h ago · 1 page changed')
@@ -154,13 +180,24 @@ test('a learning that stopped at its page cap with pages left says to raise the 
   expect(within(card('MLflow')).getByText('Cap reached: raise the page cap to read more')).toBeInTheDocument()
   cleanup()
   // At the cap with none left; under the cap with some left (its tries or time): nothing said.
-  page({ items: [{ ...capped, state: { ...LEARNED, learned: { ...learned, unread: 0 } } }, { ...MLFLOW, id: 'k9', knowledge: { ...MLFLOW.knowledge, topic: 'Other' } }] })
+  page({
+    items: [
+      { ...capped, state: { ...LEARNED, learned: { ...learned, unread: 0 } } },
+      { ...MLFLOW, id: 'k9', knowledge: { ...MLFLOW.knowledge, topic: 'Other' } },
+    ],
+  })
   expect(screen.queryByText(/Cap reached/)).not.toBeInTheDocument()
 })
 
 test('an opened card is a tablist - Guide, Pages, Not known yet, Settings - moved through with the arrows; Try it is on the card', async () => {
   // R168: its answer is markdown, rendered as a chat message's - never ``` and ** as they are.
-  const props = page({ onTry: vi.fn().mockResolvedValue('Call **set_registered_model_alias**:\n\n```python\nclient.set_registered_model_alias("m", "champion", 1)\n```\n\nSource: `guide/registry.md:41`') })
+  const props = page({
+    onTry: vi
+      .fn()
+      .mockResolvedValue(
+        'Call **set_registered_model_alias**:\n\n```python\nclient.set_registered_model_alias("m", "champion", 1)\n```\n\nSource: `guide/registry.md:41`',
+      ),
+  })
   expect(within(card('MLflow')).queryByRole('tablist')).not.toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: /MLflow/ }))
   expect(screen.getByRole('button', { name: /MLflow/ })).toHaveAttribute('aria-expanded', 'true')
@@ -178,7 +215,9 @@ test('an opened card is a tablist - Guide, Pages, Not known yet, Settings - move
   await userEvent.type(screen.getByLabelText(/Try it/), 'How do I give a model an alias?')
   await userEvent.click(screen.getByRole('button', { name: 'Ask' }))
   expect(props.onTry).toHaveBeenCalledWith('k1', 'How do I give a model an alias?')
-  const answer = (await screen.findByText('set_registered_model_alias', { selector: 'strong' })).closest('.knowledge-answer') as HTMLElement
+  const answer = (await screen.findByText('set_registered_model_alias', { selector: 'strong' })).closest(
+    '.knowledge-answer',
+  ) as HTMLElement
   expect(answer).toHaveAttribute('role', 'status')
   expect(within(answer).getByText('guide/registry.md:41', { selector: 'code' })).toBeInTheDocument()
   expect(answer.querySelector('pre')).toHaveTextContent('client.set_registered_model_alias("m", "champion", 1)')
@@ -198,7 +237,10 @@ test('an open card whose first learning ends turns to its Guide', async () => {
 
 test('Not known yet: not measured, every question answered, or what it found no page for', async () => {
   // K-bilgi 7: what a clicked learning's questions of its guide could not answer from its pages.
-  const asked = (unknown: string[] | null) => ({ ...MLFLOW, state: { ...LEARNED, learned: { ...learnedOf(LEARNED), unknown } } })
+  const asked = (unknown: string[] | null) => ({
+    ...MLFLOW,
+    state: { ...LEARNED, learned: { ...learnedOf(LEARNED), unknown } },
+  })
   await open({ items: [asked(null)] })
   await tab('Not known yet')
   expect(screen.getByText('Not measured yet.')).toBeInTheDocument()
@@ -217,7 +259,11 @@ test('Not known yet: not measured, every question answered, or what it found no 
 
 test('with no knowledge yet the page says what one is, and points at + Add knowledge', () => {
   page({ items: [] })
-  expect(screen.getByText('No knowledge yet. A knowledge is a docs site, files, a repository or a topic KOLONİ reads into a guide agents can look things up in: press + Add knowledge.')).toBeInTheDocument()
+  expect(
+    screen.getByText(
+      'No knowledge yet. A knowledge is a docs site, files, a repository or a topic KOLONİ reads into a guide agents can look things up in: press + Add knowledge.',
+    ),
+  ).toBeInTheDocument()
   expect(screen.getByRole('button', { name: '+ Add knowledge' })).toBeInTheDocument()
 })
 
@@ -227,7 +273,9 @@ test('Add knowledge is the Settings form in its new mode: the kind on top, the p
   const window = screen.getByRole('dialog', { name: 'Add knowledge' })
   expect(within(window).queryByText(/Used by/)).not.toBeInTheDocument()
   expect(within(window).getByRole('radio', { name: /A docs site/ })).toHaveFocus()
-  expect(within(window).getByLabelText('At most this many pages (a safety cap)').closest('details')).not.toHaveAttribute('open')
+  expect(
+    within(window).getByLabelText('At most this many pages (a safety cap)').closest('details'),
+  ).not.toHaveAttribute('open')
   const add = within(window).getByRole('button', { name: 'Add and learn' })
   expect(add).toBeDisabled()
   await userEvent.click(within(window).getByRole('radio', { name: /Research a topic/ }))
@@ -238,18 +286,32 @@ test('Add knowledge is the Settings form in its new mode: the kind on top, the p
   expect(search).toBeChecked()
   await userEvent.click(search)
   await userEvent.click(add)
-  expect(props.onAdd).toHaveBeenCalledWith({ topic: 'Stripe', sources: ['research: stripe webhooks'], max_pages: 500, max_usd: 0.5, max_code_files: 100, learn_with: null, removed: [], weekly: false, search_answering: false })
+  expect(props.onAdd).toHaveBeenCalledWith({
+    topic: 'Stripe',
+    sources: ['research: stripe webhooks'],
+    max_pages: 500,
+    max_usd: 0.5,
+    max_code_files: 100,
+    learn_with: null,
+    removed: [],
+    weekly: false,
+    search_answering: false,
+  })
   expect(props.onLearn).toHaveBeenCalledWith('k3')
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 })
 
 test('Add without learning only adds; a learning that cannot start is said in the window', async () => {
-  const props = page({ onLearn: vi.fn().mockRejectedValue(new Error('choose a model it learns with: no role uses it')) })
+  const props = page({
+    onLearn: vi.fn().mockRejectedValue(new Error('choose a model it learns with: no role uses it')),
+  })
   await userEvent.click(screen.getByRole('button', { name: '+ Add knowledge' }))
   await userEvent.type(screen.getByLabelText('Address'), 'https://docs.test/')
   await userEvent.type(screen.getByLabelText('Topic'), 'Docs')
   await userEvent.click(screen.getByRole('button', { name: 'Add and learn' }))
-  expect(await screen.findByText('Added, not learned: choose a model it learns with: no role uses it')).toBeInTheDocument()
+  expect(
+    await screen.findByText('Added, not learned: choose a model it learns with: no role uses it'),
+  ).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
   await userEvent.click(screen.getByRole('button', { name: '+ Add knowledge' }))
   await userEvent.type(screen.getByLabelText('Address'), 'https://docs.test/')
@@ -316,14 +378,20 @@ test('Settings starts from what is saved - its model, weekly, its limits and cod
 })
 
 test('no source, a limit out of its bounds or a code cap over 1000 holds Save back', async () => {
-  await open({ items: [{ ...MLFLOW, knowledge: { ...MLFLOW.knowledge, sources: ['repo: https://github.com/acme/pay'] } }] })
+  await open({
+    items: [{ ...MLFLOW, knowledge: { ...MLFLOW.knowledge, sources: ['repo: https://github.com/acme/pay'] } }],
+  })
   await tab('Settings')
   const save = screen.getByRole('button', { name: 'Save' })
   const set = async (label: string, value: string) => {
     await userEvent.clear(screen.getByLabelText(label))
     if (value) await userEvent.type(screen.getByLabelText(label), value)
   }
-  const [pages, usd, code] = ['At most this many pages (a safety cap)', 'At most this much a learning (USD)', 'At most this many code files a learning']
+  const [pages, usd, code] = [
+    'At most this many pages (a safety cap)',
+    'At most this much a learning (USD)',
+    'At most this many code files a learning',
+  ]
   expect(save).toBeEnabled()
   await set('Sources', '')
   expect(save).toBeDisabled()
@@ -362,7 +430,10 @@ test('B-365: a model chosen to learn with is saved, then learned with; another t
   // The card's own Learn would learn with what is saved: held until it is - on any tab.
   await tab('Guide')
   expect(screen.getByRole('button', { name: 'Learn more' })).toBeDisabled()
-  expect(screen.getByRole('button', { name: 'Learn more' })).toHaveAttribute('title', 'Save first: Save and learn uses what you changed')
+  expect(screen.getByRole('button', { name: 'Learn more' })).toHaveAttribute(
+    'title',
+    'Save first: Save and learn uses what you changed',
+  )
   await tab('Settings')
   await userEvent.click(screen.getByRole('button', { name: 'Save and learn' }))
   expect(props.onSave.mock.calls[0][1].learn_with).toEqual({ provider_id: 'cx', model_id: 'gpt-6-luna' })
@@ -394,7 +465,11 @@ const RESEARCHED: KnowledgeState = {
     ],
   },
 }
-const researching = { ...MLFLOW, knowledge: { ...MLFLOW.knowledge, sources: ['research: pay webhooks'] }, state: RESEARCHED }
+const researching = {
+  ...MLFLOW,
+  knowledge: { ...MLFLOW.knowledge, sources: ['research: pay webhooks'] },
+  state: RESEARCHED,
+}
 
 test('a researched knowledge says its labels and version, and a page it found is taken off its list', async () => {
   const props = await open({ items: [researching] })
@@ -426,9 +501,12 @@ test('a topic to research or a site can be learned again weekly; with only files
 })
 
 test('the guide reads as its map, and each of its sections opens on its own', async () => {
-  const guide = '## Registry\n- aliases\n\n## Sections\n- guide/0123456789ab.md: https://mlflow.org/docs/latest/a (pages/0001.md to 0002.md)'
+  const guide =
+    '## Registry\n- aliases\n\n## Sections\n- guide/0123456789ab.md: https://mlflow.org/docs/latest/a (pages/0001.md to 0002.md)'
   const props = await open({ items: [{ ...MLFLOW, state: { ...LEARNED, guide } }] })
-  expect(screen.getByText('Learning again with another model rewrites only the map: its sections are kept.')).toBeInTheDocument()
+  expect(
+    screen.getByText('Learning again with another model rewrites only the map: its sections are kept.'),
+  ).toBeInTheDocument()
   expect(screen.getByText(/- aliases/)).toBeVisible()
   await userEvent.click(screen.getByText('guide/0123456789ab.md'))
   expect(props.onReadFile).toHaveBeenCalledWith('.koloni/knowledge/mlflow/guide/0123456789ab.md')
@@ -449,7 +527,9 @@ test('the guide is copied into another project from its Copy tab; one there alre
   await userEvent.selectOptions(screen.getByLabelText('Copy the guide to'), 'p2')
   await userEvent.click(button)
   expect(onCopy).toHaveBeenCalledWith('k1', 'p2', undefined)
-  const asked = await screen.findByRole('alertdialog', { name: 'billing has a guide of MLflow already. Replace it? The pages read there are deleted.' })
+  const asked = await screen.findByRole('alertdialog', {
+    name: 'billing has a guide of MLflow already. Replace it? The pages read there are deleted.',
+  })
   await userEvent.click(within(asked).getByRole('button', { name: 'Replace it' }))
   expect(onCopy).toHaveBeenLastCalledWith('k1', 'p2', true)
   // B-131: said beside the button.
@@ -465,8 +545,22 @@ test('the code is offered for a scan, then its card says when, how many files an
   expect(props.onAdd).toHaveBeenCalledWith(expect.objectContaining({ sources: ['code:'] }))
   expect(props.onLearn).toHaveBeenCalledWith('k3')
   cleanup()
-  const scanned = { ...LEARNED.learned!, learned_at: new Date(Date.now() - 3 * 60_000).toISOString(), model: 'a scan of the code, no model', guide_from: 48, symbols: 312, cost: { amount: 0, currency: 'USD' }, left: 0 }
-  const code: KnowledgeItem = { ...NEW, id: 'kc', project_id: 'p1', knowledge: { ...NEW.knowledge, topic: 'This project’s code', sources: ['code:'] }, state: { ...LEARNED, learned: scanned, stale: null, estimate: null } }
+  const scanned = {
+    ...LEARNED.learned!,
+    learned_at: new Date(Date.now() - 3 * 60_000).toISOString(),
+    model: 'a scan of the code, no model',
+    guide_from: 48,
+    symbols: 312,
+    cost: { amount: 0, currency: 'USD' },
+    left: 0,
+  }
+  const code: KnowledgeItem = {
+    ...NEW,
+    id: 'kc',
+    project_id: 'p1',
+    knowledge: { ...NEW.knowledge, topic: 'This project’s code', sources: ['code:'] },
+    state: { ...LEARNED, learned: scanned, stale: null, estimate: null },
+  }
   const again = page({ items: [MLFLOW, code] })
   expect(screen.queryByRole('button', { name: 'Scan the code' })).not.toBeInTheDocument()
   const scannedCard = card('This project’s code')
@@ -485,7 +579,12 @@ test('Project notes: its notes counted, nothing to learn or to set, Try it as an
     ...MLFLOW,
     id: 'k7',
     knowledge: { ...MLFLOW.knowledge, topic: 'Project notes', sources: ['notes:'] },
-    state: { ...LEARNED, estimate: null, requests: null, learned: { ...LEARNED.learned!, guide_from: 2, cost: null, left: 0, pages: LEARNED.learned!.pages.slice(0, 2) } },
+    state: {
+      ...LEARNED,
+      estimate: null,
+      requests: null,
+      learned: { ...LEARNED.learned!, guide_from: 2, cost: null, left: 0, pages: LEARNED.learned!.pages.slice(0, 2) },
+    },
   }
   page({ items: [notes] })
   expect(card('Project notes')).toHaveTextContent('2 notes')
@@ -500,10 +599,17 @@ test('Project notes: its notes counted, nothing to learn or to set, Try it as an
 
 test('Try it says the model that will answer before you ask, and is off where none can', async () => {
   // B-372: a knowledge no role uses answers on a new chat's model - maybe a paid one, so it is said first.
-  const paid: KnowledgeItem = { ...NEW, id: 'k8', state: { ...NEW.state, answers_on: 'apikeysub · sonnet', per_token: true } }
+  const paid: KnowledgeItem = {
+    ...NEW,
+    id: 'k8',
+    state: { ...NEW.state, answers_on: 'apikeysub · sonnet', per_token: true },
+  }
   page({ items: [paid] })
   await userEvent.click(screen.getByRole('button', { name: 'Try it' }))
-  expect(screen.getByText('Answers on apikeysub · sonnet')).toHaveAttribute('title', 'apikeysub · sonnet (a pay-per-token provider)')
+  expect(screen.getByText('Answers on apikeysub · sonnet')).toHaveAttribute(
+    'title',
+    'apikeysub · sonnet (a pay-per-token provider)',
+  )
   expect(screen.getByLabelText(/Try it/)).toBeEnabled()
   cleanup()
   const none: KnowledgeItem = { ...paid, state: { ...NEW.state, answers_refused: 'no model provider is set up' } }
@@ -518,10 +624,20 @@ test('Try it says the model that will answer before you ask, and is off where no
 test('KOLONİ’s own guide is added in one click, not learned, and offered no more once added', async () => {
   const props = page({ items: [MLFLOW] })
   await userEvent.click(screen.getByRole('button', { name: 'Add KOLONİ’s own guide' }))
-  expect(props.onAdd).toHaveBeenCalledWith({ topic: 'KOLONİ guide', sources: ['koloni-guide:'], max_usd: 0.5, learn_with: null })
+  expect(props.onAdd).toHaveBeenCalledWith({
+    topic: 'KOLONİ guide',
+    sources: ['koloni-guide:'],
+    max_usd: 0.5,
+    learn_with: null,
+  })
   expect(props.onLearn).not.toHaveBeenCalled()
   cleanup()
-  const guide: KnowledgeItem = { ...NEW, id: 'kg', project_id: 'p1', knowledge: { ...NEW.knowledge, topic: 'KOLONİ guide', sources: ['koloni-guide:'] } }
+  const guide: KnowledgeItem = {
+    ...NEW,
+    id: 'kg',
+    project_id: 'p1',
+    knowledge: { ...NEW.knowledge, topic: 'KOLONİ guide', sources: ['koloni-guide:'] },
+  }
   page({ items: [MLFLOW, guide] })
   expect(screen.queryByRole('button', { name: 'Add KOLONİ’s own guide' })).not.toBeInTheDocument()
 })
@@ -543,7 +659,14 @@ test('a repository card adds its code files in the guide and its free code map; 
           { source: 'docs/a.md', read: true, why: null, found: false, code: false },
           { source: 'main.py', read: true, why: null, found: false, code: true },
         ],
-        code: { scanned: 340, symbols: 900, ranked: 3, in_guide: ['main.py'], left: [], stopped: 'the code-file cap (1)' },
+        code: {
+          scanned: 340,
+          symbols: 900,
+          ranked: 3,
+          in_guide: ['main.py'],
+          left: [],
+          stopped: 'the code-file cap (1)',
+        },
       },
     },
   }
@@ -576,7 +699,16 @@ test('a repository is added from its address, with its code-file cap under More'
   await userEvent.clear(cap)
   await userEvent.type(cap, '40')
   await userEvent.click(within(window).getByRole('button', { name: 'Add and learn' }))
-  expect(props.onAdd).toHaveBeenCalledWith({ topic: 'Pay', sources: ['repo: https://github.com/acme/pay'], max_pages: 500, max_usd: 0.5, max_code_files: 40, learn_with: null, removed: [], weekly: false })
+  expect(props.onAdd).toHaveBeenCalledWith({
+    topic: 'Pay',
+    sources: ['repo: https://github.com/acme/pay'],
+    max_pages: 500,
+    max_usd: 0.5,
+    max_code_files: 40,
+    learn_with: null,
+    removed: [],
+    weekly: false,
+  })
 })
 
 test('a folder on this machine is added by its full path, as a repository is, with its code-file cap', async () => {
@@ -590,7 +722,16 @@ test('a folder on this machine is added by its full path, as a repository is, wi
   await userEvent.type(within(window).getByLabelText('Topic'), 'Mylib')
   expect(within(window).getByLabelText('At most this many code files a learning')).toHaveValue('100')
   await userEvent.click(within(window).getByRole('button', { name: 'Add and learn' }))
-  expect(props.onAdd).toHaveBeenCalledWith({ topic: 'Mylib', sources: ['folder: C:\\work\\mylib'], max_pages: 500, max_usd: 0.5, max_code_files: 100, learn_with: null, removed: [], weekly: false })
+  expect(props.onAdd).toHaveBeenCalledWith({
+    topic: 'Mylib',
+    sources: ['folder: C:\\work\\mylib'],
+    max_pages: 500,
+    max_usd: 0.5,
+    max_code_files: 100,
+    learn_with: null,
+    removed: [],
+    weekly: false,
+  })
 })
 
 test('the guide tab’s first line: when it was learned and on what, and that it is old where it is', async () => {
@@ -599,7 +740,9 @@ test('the guide tab’s first line: when it was learned and on what, and that it
   expect(line).toHaveClass('muted')
   expect(line).toHaveTextContent(/^learned .* on Claude Code · haiku · old: its sources changed/)
   expect(line.closest('[role="tabpanel"]')).toHaveClass('knowledge-panel')
-  expect(screen.queryByText('Learning again with another model rewrites only the map: its sections are kept.')).toBeNull()
+  expect(
+    screen.queryByText('Learning again with another model rewrites only the map: its sections are kept.'),
+  ).toBeNull()
 })
 
 test('Remove asks first - one of every project is taken from all of them - and a refusal is said on its card', async () => {
@@ -607,7 +750,9 @@ test('Remove asks first - one of every project is taken from all of them - and a
   await userEvent.click(screen.getByRole('button', { name: /tomli/ }))
   await userEvent.click(within(card('tomli')).getByRole('button', { name: 'Remove' }))
   const asked = within(card('tomli')).getByRole('alertdialog')
-  expect(asked).toHaveTextContent('tomli is in every project: remove it from all of them? Its guide stays in the folder.')
+  expect(asked).toHaveTextContent(
+    'tomli is in every project: remove it from all of them? Its guide stays in the folder.',
+  )
   await userEvent.click(within(asked).getByRole('button', { name: 'Remove' }))
   expect(props.onDelete).toHaveBeenCalledWith('k2')
   expect(await within(card('tomli')).findByRole('alert')).toHaveTextContent(/^a role still uses it$/)

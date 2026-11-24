@@ -13,7 +13,8 @@ vi.mock('mermaid', () => ({ default: mermaid }))
 const FLOW = 'flowchart LR\n  A --> B\n'
 const block = (text: string) => `Here:\n\n\`\`\`mermaid\n${text}\`\`\`\n\nDone.`
 // (as mermaid draws it: its own role description, and a node's title deeper in - not the diagram's)
-const svg = (inside = '') => `<svg id="d" aria-roledescription="flowchart-v2">${inside}<g><title>A node</title><text>A</text></g></svg>`
+const svg = (inside = '') =>
+  `<svg id="d" aria-roledescription="flowchart-v2">${inside}<g><title>A node</title><text>A</text></g></svg>`
 
 beforeEach(() => {
   mermaid.render.mockResolvedValue({ svg: svg(), diagramType: 'flowchart-v2' })
@@ -36,9 +37,13 @@ test('a closed block is drawn strictly, as an image named for its kind, with its
   const drawing = await screen.findByRole('img', { name: 'Diagram: flowchart' })
   expect(drawing.tagName.toLowerCase()).toBe('svg')
   expect(drawing).not.toHaveAttribute('aria-roledescription')
-  expect(mermaid.initialize).toHaveBeenCalledWith(expect.objectContaining({ startOnLoad: false, securityLevel: 'strict', htmlLabels: false, theme: 'default' }))
+  expect(mermaid.initialize).toHaveBeenCalledWith(
+    expect.objectContaining({ startOnLoad: false, securityLevel: 'strict', htmlLabels: false, theme: 'default' }),
+  )
   // ...and none of that, nor CSS of its own, may a diagram's own %%{init}%% change
-  expect(mermaid.initialize.mock.calls[0][0].secure).toEqual(expect.arrayContaining(['secure', 'securityLevel', 'htmlLabels', 'theme', 'themeVariables', 'themeCSS']))
+  expect(mermaid.initialize.mock.calls[0][0].secure).toEqual(
+    expect.arrayContaining(['secure', 'securityLevel', 'htmlLabels', 'theme', 'themeVariables', 'themeCSS']),
+  )
   expect(mermaid.render).toHaveBeenCalledWith(expect.stringMatching(/^mermaid-[\w-]+$/), FLOW)
   expect(container.querySelector('pre')).toBeNull()
   await userEvent.click(screen.getByRole('button', { name: 'Show source' }))
@@ -54,7 +59,10 @@ test('a diagram given a title is named by it', async () => {
 })
 
 test('denetim-010 #20: a link in a diagram (`click A href`) opens in a tab of its own, never the app’s', async () => {
-  mermaid.render.mockResolvedValue({ svg: svg('<a xlink:href="#key=bad"><text>B</text></a>'), diagramType: 'flowchart-v2' })
+  mermaid.render.mockResolvedValue({
+    svg: svg('<a xlink:href="#key=bad"><text>B</text></a>'),
+    diagramType: 'flowchart-v2',
+  })
   const { container } = render(<Markdown>{block('flowchart LR\n  A --> B\n  click B href "#key=bad"\n')}</Markdown>)
   await screen.findByRole('img', { name: 'Diagram: flowchart' })
   const link = container.querySelector('svg a')!
@@ -91,7 +99,16 @@ test('in words written to their end - a file, a finished answer - a last block t
 test("an answer's last unclosed diagram is drawn once the answer is complete, not while it streams", async () => {
   const unclosed = 'Here:\n\n```mermaid\nflowchart LR\n  A --> B'
   const list = (status: 'streaming' | 'complete') => (
-    <MessageList state={convState({ runs: [run('r', 'running')], messages: [userMessage('r', 'go'), assistantMessage('a', 'r', unclosed, status)] })} onRemoveQueued={() => {}} onOpenChange={() => {}} onDecide={async () => {}} onDecideCommand={async () => {}} />
+    <MessageList
+      state={convState({
+        runs: [run('r', 'running')],
+        messages: [userMessage('r', 'go'), assistantMessage('a', 'r', unclosed, status)],
+      })}
+      onRemoveQueued={() => {}}
+      onOpenChange={() => {}}
+      onDecide={async () => {}}
+      onDecideCommand={async () => {}}
+    />
   )
   const { rerender } = render(list('streaming'))
   await act(() => new Promise(done => setTimeout(done, 50)))
@@ -144,7 +161,9 @@ test('a diagram that asks for the ELK layout is laid out with dagre: ELK is not 
   render(<Markdown>{block(ELK)}</Markdown>)
   await screen.findByRole('img')
   const config = mermaid.initialize.mock.calls[0][0]
-  expect(config).toEqual(expect.objectContaining({ layout: 'dagre', mindmap: { layout: 'cose-bilkent' }, swimlane: { layout: 'swimlane' } }))
+  expect(config).toEqual(
+    expect.objectContaining({ layout: 'dagre', mindmap: { layout: 'cose-bilkent' }, swimlane: { layout: 'swimlane' } }),
+  )
   expect(config.secure).toContain('layout')
   expect(JSON.stringify(config)).not.toMatch(/elk/i)
   expect(mermaid.render).toHaveBeenCalledWith(expect.any(String), ELK)

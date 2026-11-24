@@ -25,7 +25,11 @@ export const MCP_PLAN = path.join(E2E_ROOT, 'mcp-plan.json')
 export const MCP_RECORD = path.join(E2E_ROOT, 'mcp-record.jsonl')
 // The stand-in for llama-server (slice 64), in a folder of its own with a `models` folder; start-backend.mjs writes
 // it, and sets it to serve on a port of its own: never this machine's 8080, where the user's own may be.
-export const FAKE_LLAMA = path.join(E2E_ROOT, 'llama', process.platform === 'win32' ? 'llama-server.cmd' : 'llama-server')
+export const FAKE_LLAMA = path.join(
+  E2E_ROOT,
+  'llama',
+  process.platform === 'win32' ? 'llama-server.cmd' : 'llama-server',
+)
 export const LLAMA_PORT = MODEL_PORT + 1
 // Kept for looking at after a failed run; not in git (e2e/_*), and not under E2E_ROOT, which every run clears.
 export const LOG_DIR = path.join(REPO_ROOT, 'frontend', 'e2e', '_logs')

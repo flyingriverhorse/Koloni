@@ -15,9 +15,12 @@ function skillFolder(name: string, files: Record<string, string>) {
   return folder
 }
 
-test('a skill is added on the Tools page and given to a role on its row there, and the Lead proposes another on a card', async ({ page }) => {
+test('a skill is added on the Tools page and given to a role on its row there, and the Lead proposes another on a card', async ({
+  page,
+}) => {
   const tidy = skillFolder('tidy', {
-    'SKILL.md': '---\nname: tidy\ndescription: Keep changes small.\nallowed-tools: Read, Grep\n---\nWrite the least code that works.\n',
+    'SKILL.md':
+      '---\nname: tidy\ndescription: Keep changes small.\nallowed-tools: Read, Grep\n---\nWrite the least code that works.\n',
     'scripts/check.py': "print('ok')\n",
     LICENSE: 'MIT License\n\nCopyright (c) someone\n',
     '.env': 'TOKEN=abc\n',
@@ -40,7 +43,9 @@ test('a skill is added on the Tools page and given to a role on its row there, a
   await expect(skills.getByText('MIT License').first()).toBeVisible()
   await expect(skills.getByText('Its scripts:').first()).toContainText('scripts/check.py')
   // slice 92: what it declares it may use is said, and that KOLONİ gives it none of that
-  await expect(skills.getByText(/^It declares allowed-tools:/)).toContainText('Read, Grep. KOLONİ gives a skill none of them')
+  await expect(skills.getByText(/^It declares allowed-tools:/)).toContainText(
+    'Read, Grep. KOLONİ gives a skill none of them',
+  )
   await expect(skills.getByLabel('Run the scripts of tidy without asking')).toBeChecked()
   // what is not copied is said, and each script can be read before the yes
   await expect(skills.getByText('Not copied:')).toContainText('.env')
@@ -64,7 +69,9 @@ test('a skill is added on the Tools page and given to a role on its row there, a
   await expect(row).toContainText('Coder')
   await page.getByRole('button', { name: 'Agents', exact: true }).click()
   await editRole(page, 'Coder', 'Tools')
-  await expect(page.getByRole('complementary', { name: 'Role Coder' }).getByRole('button', { name: 'tidy, on the Tools page' })).toBeVisible()
+  await expect(
+    page.getByRole('complementary', { name: 'Role Coder' }).getByRole('button', { name: 'tidy, on the Tools page' }),
+  ).toBeVisible()
 
   // The Lead proposes one: a card with what it holds, and nothing is kept before the yes.
   await rail(page, 'Canvas').click()
@@ -79,5 +86,7 @@ test('a skill is added on the Tools page and given to a role on its row there, a
   await expect(chat.getByText('The skill is added.')).toBeVisible()
   await page.getByRole('button', { name: 'Agents', exact: true }).click()
   await editRole(page, 'Coder', 'Tools')
-  await expect(page.getByRole('complementary', { name: 'Role Coder' }).getByRole('button', { name: 'plain, on the Tools page' })).toBeVisible()
+  await expect(
+    page.getByRole('complementary', { name: 'Role Coder' }).getByRole('button', { name: 'plain, on the Tools page' }),
+  ).toBeVisible()
 })

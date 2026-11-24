@@ -19,7 +19,16 @@ const picked = convState({
   runs: [run('r', 'running')],
   agents: [
     agent('r', 'waiting', { id: 'lead' }),
-    agent('r', 'running', { id: 'kid', parent_agent_id: 'lead', role_name: 'Reviewer', depth: 1, provider_name: 'Fast', model_id: 'deep', chosen: true, chosen_why: WHY }),
+    agent('r', 'running', {
+      id: 'kid',
+      parent_agent_id: 'lead',
+      role_name: 'Reviewer',
+      depth: 1,
+      provider_name: 'Fast',
+      model_id: 'deep',
+      chosen: true,
+      chosen_why: WHY,
+    }),
     agent('r', 'running', { id: 'own', parent_agent_id: 'lead', role_name: 'Coder', depth: 1 }),
   ],
   messages: [userMessage('r', 'look hard')],
@@ -27,19 +36,25 @@ const picked = convState({
 
 test('the card says why the agent picked the model, as the agent’s own words', () => {
   const kid = picked.agents[1]
-  const { rerender } = render(<SpawnApproval agent={{ ...kid, status: 'proposed' }} openedBy="Lead" onDecide={async () => {}} />)
+  const { rerender } = render(
+    <SpawnApproval agent={{ ...kid, status: 'proposed' }} openedBy="Lead" onDecide={async () => {}} />,
+  )
   expect(screen.getByText('chosen by Orchestrator')).toBeInTheDocument()
   const reason = screen.getByText(WHY)
   expect(reason.tagName).toBe('Q') // in quotes: data, not KOLONİ's words
   expect(reason.parentElement).toHaveTextContent(`Its reason: ${WHY}`)
   // its role's own model: nobody chose it, and there is no reason to show
-  rerender(<SpawnApproval agent={{ ...picked.agents[2], status: 'proposed' }} openedBy="Lead" onDecide={async () => {}} />)
+  rerender(
+    <SpawnApproval agent={{ ...picked.agents[2], status: 'proposed' }} openedBy="Lead" onDecide={async () => {}} />,
+  )
   expect(screen.queryByText(/Its reason/)).not.toBeInTheDocument()
 })
 
 test('the agent’s window says who chose the model and why, under Details', async () => {
   // (the panel's card has none of it: its window has, under Details)
-  render(<AgentWindow state={picked} agentId="kid" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />)
+  render(
+    <AgentWindow state={picked} agentId="kid" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />,
+  )
   expect(await modelIn('Agent window')).toHaveTextContent(`deep · chosen by Orchestrator: “${WHY}”`)
 })
 
@@ -50,7 +65,9 @@ test('a lead whose model followed the message says so in its window - as a model
     agents: [agent('r', 'running', { id: 'lead', provider_name: 'Local', model_id: 'big-model', chosen_why: GUESS })],
     messages: [userMessage('r', 'find it')],
   })
-  render(<AgentWindow state={auto} agentId="lead" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />)
+  render(
+    <AgentWindow state={auto} agentId="lead" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />,
+  )
   expect(await modelIn('Agent window')).toHaveTextContent(`big-model · automatic, by a fast model’s guess: “${GUESS}”`)
   expect(screen.queryByText(/chosen by/)).not.toBeInTheDocument()
 })
@@ -61,11 +78,20 @@ test('a sub-agent the Lead gave a tier says why that tier, not a model’s guess
     runs: [run('r', 'running')],
     agents: [
       agent('r', 'waiting', { id: 'lead' }),
-      agent('r', 'running', { id: 'kid', parent_agent_id: 'lead', role_name: 'Reviewer', depth: 1, model_id: 'sonnet', chosen_why: TIER }),
+      agent('r', 'running', {
+        id: 'kid',
+        parent_agent_id: 'lead',
+        role_name: 'Reviewer',
+        depth: 1,
+        model_id: 'sonnet',
+        chosen_why: TIER,
+      }),
     ],
     messages: [userMessage('r', 'check it')],
   })
-  render(<AgentWindow state={tiered} agentId="kid" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />)
+  render(
+    <AgentWindow state={tiered} agentId="kid" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />,
+  )
   expect(await modelIn('Agent window')).toHaveTextContent(`sonnet · why this tier: “${TIER}”`)
   expect(screen.queryByText(/guess/)).not.toBeInTheDocument()
 })
@@ -78,17 +104,41 @@ test('who was asked how hard the message is is said with the guess - and, when n
   const state = (chosen_why: string | null) =>
     convState({
       runs: [run('r', 'running')],
-      agents: [agent('r', 'running', { id: 'lead', provider_name: 'Local', model_id: 'big-model', chosen_why, asked_how_hard: asked })],
+      agents: [
+        agent('r', 'running', {
+          id: 'lead',
+          provider_name: 'Local',
+          model_id: 'big-model',
+          chosen_why,
+          asked_how_hard: asked,
+        }),
+      ],
       messages: [userMessage('r', 'find it')],
     })
 
   // the answer was read: the guess, and whose it is
-  let view = render(<AgentWindow state={state(GUESS)} agentId="lead" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />)
+  let view = render(
+    <AgentWindow
+      state={state(GUESS)}
+      agentId="lead"
+      onClose={() => {}}
+      onOpenChange={() => {}}
+      onSelectAgent={() => {}}
+    />,
+  )
   expect(await modelIn('Agent window')).toHaveTextContent(`big-model · automatic, by Fast · quick’s guess: “${GUESS}”`)
   view.unmount()
 
   // somebody was asked and there is no guess to show: said, so that a question paid for every turn is not unseen
-  view = render(<AgentWindow state={state(null)} agentId="lead" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />)
+  view = render(
+    <AgentWindow
+      state={state(null)}
+      agentId="lead"
+      onClose={() => {}}
+      onOpenChange={() => {}}
+      onSelectAgent={() => {}}
+    />,
+  )
   expect(await modelIn('Agent window')).toHaveTextContent(`big-model · ${NOTHING}`)
   expect(screen.queryByText(/guess/)).not.toBeInTheDocument()
 })
@@ -99,8 +149,18 @@ const own = convState({
   agents: [agent('r', 'running', { provider_name: 'Claude Code' })],
   messages: [userMessage('r', 'fix it'), assistantMessage('m1', 'r', 'I will ask helpers.')],
   toolCalls: [
-    toolCall('2', 'r', 'claude__Agent', 'running', '{"description":"Look around","prompt":"Read hello.py","model":"haiku"}', { origin: 'cli', message_id: 'm1' }),
-    toolCall('3', 'r', 'claude__Agent', 'running', '{"description":"Dig deeper","prompt":"Read more"}', { origin: 'cli', message_id: 'm1' }),
+    toolCall(
+      '2',
+      'r',
+      'claude__Agent',
+      'running',
+      '{"description":"Look around","prompt":"Read hello.py","model":"haiku"}',
+      { origin: 'cli', message_id: 'm1' },
+    ),
+    toolCall('3', 'r', 'claude__Agent', 'running', '{"description":"Dig deeper","prompt":"Read more"}', {
+      origin: 'cli',
+      message_id: 'm1',
+    }),
   ],
 })
 
@@ -109,12 +169,16 @@ test('a CLI’s own sub-agent says whose models it uses, and the model only wher
   expect(ownSubAgentModel(named)).toBe('uses Claude Code’s own models, not KOLONİ’s team guide; model asked for: haiku')
   expect(ownSubAgentModel(unnamed)).toBe('uses Claude Code’s own models, not KOLONİ’s team guide; model not reported')
   // in the agent's window (a sub-agent at work is open)
-  const view = render(<AgentWindow state={own} agentId="r" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />)
+  const view = render(
+    <AgentWindow state={own} agentId="r" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />,
+  )
   const block = (task: string) => within(screen.getByRole('group', { name: `Own sub-agent: ${task}` }))
   expect(block('Look around').getByText(ownSubAgentModel(named))).toBeInTheDocument()
   expect(block('Dig deeper').getByText(ownSubAgentModel(unnamed))).toBeInTheDocument()
   view.unmount()
   // and in the inspector
   render(<Inspector state={own} selectedId="subagent:3" onClose={() => {}} />)
-  expect(within(screen.getByRole('complementary', { name: 'Inspector' })).getByText(ownSubAgentModel(unnamed))).toBeInTheDocument()
+  expect(
+    within(screen.getByRole('complementary', { name: 'Inspector' })).getByText(ownSubAgentModel(unnamed)),
+  ).toBeInTheDocument()
 })

@@ -8,27 +8,105 @@ import { Settings } from './Settings'
 afterEach(() => vi.restoreAllMocks())
 
 const project: Project = {
-  id: 'p', name: 'demo', root_path: 'C:/demo', created_at: 't', exec_location: 'host', docker_image: null, docker_network: false,
-  search_url: null, search_order: 'builtin', search_agy: false, has_notify_url: false, notify_format: 'slack', notify_desktop: false,
-  turn_token_limit: null, max_agents: null, continue_steps: 25, monthly_budget: null, measure_command: null, after_change: 'check', fix_rounds: 2, stronger_model: true, check_kinds: {}, review_lines: 80, review_files: 3, after_change_from_off: false, tests_found: {}, tests_look: null, test_commands: {}, full_auto_check: 'ask', disposable_deletes: false,
-  memory_links: [], embedding_provider_id: null, embedding_model: 'm',
-  git_commit: false, finish_way: null, auto_notes: false, observe_reports: false, suggest_tasks: true, suggest_tier: 'fast', day_note_at: null, also_in: [], read_in: [], teams_mode: 'none', teams: [],
-  hide_secrets: true, canary: true, lead_work: 'delegates', when_away: 'waits', away_minutes: 10, spawn_approval: 'auto', spawn_max_depth: 2, spawn_max_agents: 6,
-  spawn_max_parallel: 2, discussion_budget: null, room_posts: 40, room_tokens: null, room_minutes: 30, room_min_tokens: 60000, pass_env: null, held_env: [],
+  id: 'p',
+  name: 'demo',
+  root_path: 'C:/demo',
+  created_at: 't',
+  exec_location: 'host',
+  docker_image: null,
+  docker_network: false,
+  search_url: null,
+  search_order: 'builtin',
+  search_agy: false,
+  has_notify_url: false,
+  notify_format: 'slack',
+  notify_desktop: false,
+  turn_token_limit: null,
+  max_agents: null,
+  continue_steps: 25,
+  monthly_budget: null,
+  measure_command: null,
+  after_change: 'check',
+  fix_rounds: 2,
+  stronger_model: true,
+  check_kinds: {},
+  review_lines: 80,
+  review_files: 3,
+  after_change_from_off: false,
+  tests_found: {},
+  tests_look: null,
+  test_commands: {},
+  full_auto_check: 'ask',
+  disposable_deletes: false,
+  memory_links: [],
+  embedding_provider_id: null,
+  embedding_model: 'm',
+  git_commit: false,
+  finish_way: null,
+  auto_notes: false,
+  observe_reports: false,
+  suggest_tasks: true,
+  suggest_tier: 'fast',
+  day_note_at: null,
+  also_in: [],
+  read_in: [],
+  teams_mode: 'none',
+  teams: [],
+  hide_secrets: true,
+  canary: true,
+  lead_work: 'delegates',
+  when_away: 'waits',
+  away_minutes: 10,
+  spawn_approval: 'auto',
+  spawn_max_depth: 2,
+  spawn_max_agents: 6,
+  spawn_max_parallel: 2,
+  discussion_budget: null,
+  room_posts: 40,
+  room_tokens: null,
+  room_minutes: 30,
+  room_min_tokens: 60000,
+  pass_env: null,
+  held_env: [],
   koloni: { settings_kept: false, rules_kept: false, rules: null, broken: [], asks: {} },
 }
 const base = { dockerAvailable: true, dockerError: null, desktopAvailable: true, onClose: vi.fn() }
 
 /** The server, by what is asked. */
 function server(rules: ChatRules[] = []) {
-  vi.spyOn(api, 'get').mockImplementation(async (path: string) =>
-    (path === '/answer-in' ? { answer_in: null } : path === '/folders' ? { never: [] } : path === '/storage' ? { db_mb: null, backups_mb: null, copies_mb: null, logs_mb: null } : path === '/compaction' ? { compact_at: 75 } : path === '/steps' ? { max_steps: 25 } : path === '/unattended' ? { stuck_minutes: 30, turn_hours: 8 } : path === '/knowledge-limits' ? { max_files: 50000, max_mb: 300 } : path === '/test-load' ? { runs_at_once: 1, workers: 2 } : path.endsWith('/allowed') ? rules : path.endsWith('/sites') ? [] : { paths: [], more: 0, partial: false }) as never,
+  vi.spyOn(api, 'get').mockImplementation(
+    async (path: string) =>
+      (path === '/answer-in'
+        ? { answer_in: null }
+        : path === '/folders'
+          ? { never: [] }
+          : path === '/storage'
+            ? { db_mb: null, backups_mb: null, copies_mb: null, logs_mb: null }
+            : path === '/compaction'
+              ? { compact_at: 75 }
+              : path === '/steps'
+                ? { max_steps: 25 }
+                : path === '/unattended'
+                  ? { stuck_minutes: 30, turn_hours: 8 }
+                  : path === '/knowledge-limits'
+                    ? { max_files: 50000, max_mb: 300 }
+                    : path === '/test-load'
+                      ? { runs_at_once: 1, workers: 2 }
+                      : path.endsWith('/allowed')
+                        ? rules
+                        : path.endsWith('/sites')
+                          ? []
+                          : { paths: [], more: 0, partial: false }) as never,
   )
 }
 
 const levels = () => within(screen.getByRole('navigation', { name: 'Settings levels' }))
 const level = (name: string) => levels().getByRole('button', { name })
-const named = (kind: string) => levels().getAllByRole('button').filter(b => b.classList.contains(kind)).map(b => b.textContent)
+const named = (kind: string) =>
+  levels()
+    .getAllByRole('button')
+    .filter(b => b.classList.contains(kind))
+    .map(b => b.textContent)
 
 test('Settings lists its levels in their order, This project › The app, each with its sections under it; a chat with no folder has The app only', async () => {
   server()
@@ -53,7 +131,9 @@ test('Settings lists its levels in their order, This project › The app, each w
 
 test('a place asked for lands on its level and section, each time it is asked; the steps link goes between the two levels', async () => {
   server()
-  const { rerender } = render(<Settings {...base} project={project} picked={{ section: 'data', n: 1 }} onSave={vi.fn()} />)
+  const { rerender } = render(
+    <Settings {...base} project={project} picked={{ section: 'data', n: 1 }} onSave={vi.fn()} />,
+  )
   expect(level('The app')).toHaveAttribute('aria-current', 'true')
   expect(levels().getByRole('button', { name: 'Your data' })).toHaveAttribute('aria-current', 'true')
   rerender(<Settings {...base} project={project} picked={{ section: 'limits', n: 2 }} onSave={vi.fn()} />)
@@ -72,8 +152,21 @@ test('a place asked for lands on its level and section, each time it is asked; t
 })
 
 test('The app › Your data: a backup, what KOLONİ’s data takes on this machine (“–” for a size not counted in time), and the places no agent opens', async () => {
-  vi.spyOn(api, 'get').mockImplementation(async (path: string) =>
-    (path === '/storage' ? { db_mb: 12.3, backups_mb: 535, copies_mb: null, logs_mb: 0.1 } : path === '/folders' ? { never: [{ path: 'C:/Users/me/.ssh', why: 'secrets' }] } : path === '/compaction' ? { compact_at: 75 } : path === '/steps' ? { max_steps: 25 } : path === '/unattended' ? { stuck_minutes: 30, turn_hours: 8 } : path === '/knowledge-limits' ? { max_files: 50000, max_mb: 300 } : { answer_in: null }) as never,
+  vi.spyOn(api, 'get').mockImplementation(
+    async (path: string) =>
+      (path === '/storage'
+        ? { db_mb: 12.3, backups_mb: 535, copies_mb: null, logs_mb: 0.1 }
+        : path === '/folders'
+          ? { never: [{ path: 'C:/Users/me/.ssh', why: 'secrets' }] }
+          : path === '/compaction'
+            ? { compact_at: 75 }
+            : path === '/steps'
+              ? { max_steps: 25 }
+              : path === '/unattended'
+                ? { stuck_minutes: 30, turn_hours: 8 }
+                : path === '/knowledge-limits'
+                  ? { max_files: 50000, max_mb: 300 }
+                  : { answer_in: null }) as never,
   )
   render(<Settings {...base} project={null} picked={{ section: 'data', n: 1 }} onSave={vi.fn()} />)
   expect(await screen.findByText('KOLONİ’s data: db 12.3 MB · backups 535 MB · copies – · logs 0.1 MB')).toBeVisible()
@@ -233,7 +326,12 @@ test('This project › Asking and away, and Limits and money: every chat’s sub
   expect(save()).toBeDisabled()
   await userEvent.clear(talk)
   await userEvent.click(save())
-  expect(onSave).toHaveBeenLastCalledWith({ spawn_max_parallel: 9, spawn_max_depth: 1, spawn_max_agents: 4, discussion_budget: null })
+  expect(onSave).toHaveBeenLastCalledWith({
+    spawn_max_parallel: 9,
+    spawn_max_depth: 1,
+    spawn_max_agents: 4,
+    discussion_budget: null,
+  })
 })
 
 test('This project › New chats start with: the teams and other folders a new chat starts with, and what a room may spend (no token limit by default; emptied, no limit)', async () => {
@@ -242,7 +340,11 @@ test('This project › New chats start with: the teams and other folders a new c
   render(<Settings {...base} project={{ ...project, also_in: ['D:/lib'], read_in: ['D:/notes'] }} onSave={onSave} />)
   await userEvent.click(levels().getByRole('button', { name: /^New chats start with/ }))
   expect(screen.getByLabelText('New chats’ teams')).toHaveValue('none')
-  expect(within(screen.getByRole('list', { name: 'New chats’ other folders' })).getAllByRole('listitem').map(li => li.textContent)).toEqual(['D:/lib read and write', 'D:/notes read only'])
+  expect(
+    within(screen.getByRole('list', { name: 'New chats’ other folders' }))
+      .getAllByRole('listitem')
+      .map(li => li.textContent),
+  ).toEqual(['D:/lib read and write', 'D:/notes read only'])
   expect(screen.getByLabelText('Posts, at most')).toHaveValue('40')
   expect(screen.getByLabelText('Tokens, at most')).toHaveValue('')
   expect(screen.getByLabelText('Tokens, at most')).toHaveAttribute('placeholder', 'No limit')
@@ -253,7 +355,14 @@ test('This project › New chats start with: the teams and other folders a new c
   await userEvent.selectOptions(screen.getByLabelText('New chats’ teams'), 'Orchestrator decides')
   await userEvent.click(screen.getByRole('button', { name: 'Remove D:/notes from new chats' }))
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(onSave).toHaveBeenLastCalledWith({ teams_mode: 'lead', teams: [], also_in: ['D:/lib'], read_in: [], room_tokens: 400000, room_minutes: null })
+  expect(onSave).toHaveBeenLastCalledWith({
+    teams_mode: 'lead',
+    teams: [],
+    also_in: ['D:/lib'],
+    read_in: [],
+    room_tokens: 400000,
+    room_minutes: null,
+  })
 })
 
 test('B-414: a room’s least tokens is set beside its most; above the most it says the most wins, emptied it is none', async () => {
@@ -276,12 +385,35 @@ test('B-414: a room’s least tokens is set beside its most; above the most it s
 
 test('Project › Runs without asking: the project’s sites first, then each chat’s commands by its title, each removed here; the open chat is there even with none', async () => {
   const rules: ChatRules[] = [
-    { conversation_id: 'c1', title: 'Fix the login', commands: [{ id: 'r1', conversation_id: 'c1', prefix: 'npm test', danger: '', created_at: 't' }], web: [{ id: 'w1', conversation_id: 'c1', project_id: null, kind: 'host', host: 'example.com', ask_first: false, created_at: 't' }] },
+    {
+      conversation_id: 'c1',
+      title: 'Fix the login',
+      commands: [{ id: 'r1', conversation_id: 'c1', prefix: 'npm test', danger: '', created_at: 't' }],
+      web: [
+        {
+          id: 'w1',
+          conversation_id: 'c1',
+          project_id: null,
+          kind: 'host',
+          host: 'example.com',
+          ask_first: false,
+          created_at: 't',
+        },
+      ],
+    },
   ]
   server(rules)
   const remove = vi.spyOn(api, 'delete').mockResolvedValue(undefined as never)
   const post = vi.spyOn(api, 'post').mockResolvedValue(undefined as never)
-  render(<Settings {...base} project={project} picked={{ section: 'rules', n: 1 }} chat={{ id: 'c9', title: 'Open one' }} onSave={vi.fn()} />)
+  render(
+    <Settings
+      {...base}
+      project={project}
+      picked={{ section: 'rules', n: 1 }}
+      chat={{ id: 'c9', title: 'Open one' }}
+      onSave={vi.fn()}
+    />,
+  )
   const sites = screen.getByRole('region', { name: 'Sites agents open' })
   const chats = screen.getByRole('region', { name: 'Commands and requests by chat' })
   expect(sites.compareDocumentPosition(chats) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()

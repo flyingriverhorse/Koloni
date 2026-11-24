@@ -80,7 +80,11 @@ export function FillTiers({ providers, onFillAll, onSaveFillAll, button: asButto
         at !== index
           ? m
           : // A note the catalogue gave for the old tier becomes its note for the new one: never one that says otherwise.
-            { ...m, tier, note: m.note && Object.values(notes).includes(m.note) ? ((tier && notes[tier]) ?? null) : m.note },
+            {
+              ...m,
+              tier,
+              note: m.note && Object.values(notes).includes(m.note) ? ((tier && notes[tier]) ?? null) : m.note,
+            },
       ),
       // A provider the catalogue does not know is ticked once you give it a tier (design §3b).
       ...(tier && !p.catalogued ? { for_agents: true } : {}),
@@ -123,14 +127,19 @@ export function FillTiers({ providers, onFillAll, onSaveFillAll, button: asButto
     ) : (
       // One calm line (spec 81: no strip), as the Models page says its empty slots.
       <section className="muted provider-note fill-tiers" aria-label="No model has a tier">
-        <span>No model has a tier yet, so the Orchestrator cannot pick one: every role runs on the conversation’s model.</span>{' '}
+        <span>
+          No model has a tier yet, so the Orchestrator cannot pick one: every role runs on the conversation’s model.
+        </span>{' '}
         {opener()}
         {alert}
       </section>
     )
   if (!shown) return closed()
   const preview = (shown: FillAll) => (
-    <section className={`fill-tiers fill-tiers-open${asButton ? ' fill-tiers-window' : ''}`} aria-labelledby="fill-tiers-heading">
+    <section
+      className={`fill-tiers fill-tiers-open${asButton ? ' fill-tiers-window' : ''}`}
+      aria-labelledby="fill-tiers-heading"
+    >
       <h3 id="fill-tiers-heading" ref={heading} tabIndex={-1}>
         Tiers from the catalogue
       </h3>
@@ -205,7 +214,9 @@ export function FillTiers({ providers, onFillAll, onSaveFillAll, button: asButto
               await onSaveFillAll(shown.providers)
               focus.current = asButton ? 'box' : 'saved'
               setShown(null)
-              setSaved('The tiers are saved: each role now runs on the first model of its tier that may be picked for it.')
+              setSaved(
+                'The tiers are saved: each role now runs on the first model of its tier that may be picked for it.',
+              )
             })
           }
         >

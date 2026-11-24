@@ -46,31 +46,37 @@ function FileRow({ file }: { file: MergeFile }) {
           <span className="mono">{file.path}</span> — {file.note}
         </div>
       )}
-    <details className="merge-file">
-      <summary>
-        <span className="mono merge-file-path">{file.path}</span>
-        <span className="tag">{KIND[file.kind]}</span>
-        {file.additions != null && file.deletions != null && (
-          <span className="mono">
-            <span style={{ color: 'var(--ok)' }}>+{file.additions}</span>{' '}
-            <span style={{ color: 'var(--del)' }}>−{file.deletions}</span>
-          </span>
+      <details className="merge-file">
+        <summary>
+          <span className="mono merge-file-path">{file.path}</span>
+          <span className="tag">{KIND[file.kind]}</span>
+          {file.additions != null && file.deletions != null && (
+            <span className="mono">
+              <span style={{ color: 'var(--ok)' }}>+{file.additions}</span>{' '}
+              <span style={{ color: 'var(--del)' }}>−{file.deletions}</span>
+            </span>
+          )}
+        </summary>
+        {file.diff != null ? (
+          <div className="merge-file-diff">
+            <DiffView diff={file.diff} />
+          </div>
+        ) : (
+          <p className="muted cmd-approval-note">Not text, or too large to show: there is no diff.</p>
         )}
-      </summary>
-      {file.diff != null ? (
-        <div className="merge-file-diff">
-          <DiffView diff={file.diff} />
-        </div>
-      ) : (
-        <p className="muted cmd-approval-note">Not text, or too large to show: there is no diff.</p>
-      )}
-    </details>
+      </details>
     </>
   )
 }
 
 const at = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  new Date(iso).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
 
 /** When one side last changed a file, and whether that was the later of the two. Not known: said so. */
 function Side({ label, changedAt, newer }: { label: string; changedAt: string | null | undefined; newer: boolean }) {
@@ -92,7 +98,17 @@ function Side({ label, changedAt, newer }: { label: string; changedAt: string | 
  * side last changed it, and the choice - which is yours, file by file. Nothing is chosen for you:
  * "newer" is only said.
  */
-function Clash({ file, name, choice, onChoose }: { file: MergeFile; name: string; choice: Choices[string] | undefined; onChoose: (side: Choices[string]) => void }) {
+function Clash({
+  file,
+  name,
+  choice,
+  onChoose,
+}: {
+  file: MergeFile
+  name: string
+  choice: Choices[string] | undefined
+  onChoose: (side: Choices[string]) => void
+}) {
   const whole = file.whole !== false
   const what = whole ? 'file' : 'lines'
   const sides = file.sides
@@ -123,13 +139,23 @@ function Clash({ file, name, choice, onChoose }: { file: MergeFile; name: string
       )}
       <div className="merge-choice" role="radiogroup" aria-label={`Whose ${what} of ${file.path}`}>
         <label className="choice">
-          <input type="radio" name={`side:${file.path}`} checked={choice === 'agent'} onChange={() => onChoose('agent')} />
+          <input
+            type="radio"
+            name={`side:${file.path}`}
+            checked={choice === 'agent'}
+            onChange={() => onChoose('agent')}
+          />
           <span>
             Take {name}'s {what}
           </span>
         </label>
         <label className="choice">
-          <input type="radio" name={`side:${file.path}`} checked={choice === 'project'} onChange={() => onChoose('project')} />
+          <input
+            type="radio"
+            name={`side:${file.path}`}
+            checked={choice === 'project'}
+            onChange={() => onChoose('project')}
+          />
           <span>Keep the project's {what}</span>
         </label>
       </div>
@@ -138,7 +164,8 @@ function Clash({ file, name, choice, onChoose }: { file: MergeFile; name: string
           <summary>
             The rest of {name}'s changes to it is taken either way, and what else the project changed in it stays{' '}
             <span className="mono">
-              <span style={{ color: 'var(--ok)' }}>+{file.additions}</span> <span style={{ color: 'var(--del)' }}>−{file.deletions}</span>
+              <span style={{ color: 'var(--ok)' }}>+{file.additions}</span>{' '}
+              <span style={{ color: 'var(--del)' }}>−{file.deletions}</span>
             </span>
           </summary>
           <div className="merge-file-diff">
@@ -175,11 +202,24 @@ function howItWent(check: NonNullable<Merge['check']>, ran: boolean) {
  * The project's check command, run in the agent's copy on what the card would take: how it went,
  * as far as that is known - and where commands are asked about, the button that starts it.
  */
-function Check({ merge, onRun, onBranch = false }: { merge: Merge; onRun?: { off: boolean; run: () => Promise<void> }; onBranch?: boolean }) {
+function Check({
+  merge,
+  onRun,
+  onBranch = false,
+}: {
+  merge: Merge
+  onRun?: { off: boolean; run: () => Promise<void> }
+  onBranch?: boolean
+}) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const check = merge.check
-  if (!check) return <div className="muted cmd-approval-note">No tests of its own to run before it is added - KOLONİ’s check at the turn’s end runs every test.</div>
+  if (!check)
+    return (
+      <div className="muted cmd-approval-note">
+        No tests of its own to run before it is added - KOLONİ’s check at the turn’s end runs every test.
+      </div>
+    )
   // (0.1.7: tests it wrote that no part's command can run alone - why, and nothing to run)
   if (!check.command)
     return (
@@ -207,7 +247,12 @@ function Check({ merge, onRun, onBranch = false }: { merge: Merge; onRun?: { off
   const actions = () =>
     onRun ? (
       <div className="change-actions">
-        <button type="button" className="btn btn-small" disabled={busy || onRun.off || check.state === 'running'} onClick={run}>
+        <button
+          type="button"
+          className="btn btn-small"
+          disabled={busy || onRun.off || check.state === 'running'}
+          onClick={run}
+        >
           {ran ? 'Run the test again' : 'Run the test'}
         </button>
         <span className="muted cmd-approval-note">
@@ -262,7 +307,8 @@ function copyNote(merge: Merge, name: string, kept: boolean, branch: boolean) {
     <div className="muted cmd-approval-note">
       {kept ? (
         <>
-          Its working copy is kept in <span className="mono cmd-approval-path">{merge.kept_in}</span>. Discard deletes that folder.
+          Its working copy is kept in <span className="mono cmd-approval-path">{merge.kept_in}</span>. Discard deletes
+          that folder.
         </>
       ) : (
         `${name} made these in a working copy of its own. Until you decide it holds these files: another agent that wants one waits.`
@@ -309,7 +355,13 @@ function branchOf(merge: Merge, kept: boolean, way: 'merge' | 'pull_request') {
 }
 
 /** The card's heading: what Take in, Merge or Open pull request would do, and of how many files. */
-function kickerOf(name: string, kept: boolean, branch: Branch | null, pr: boolean, { open, differing, applied }: ReturnType<typeof filesOf>) {
+function kickerOf(
+  name: string,
+  kept: boolean,
+  branch: Branch | null,
+  pr: boolean,
+  { open, differing, applied }: ReturnType<typeof filesOf>,
+) {
   // The copy was kept on disk: no agent is at work and no file is held. Why it was kept is not
   // on record - its turn broke off, or it holds files that were not taken - so the heading says
   // only what the files say: whether some of it is in the project.
@@ -320,10 +372,10 @@ function kickerOf(name: string, kept: boolean, branch: Branch | null, pr: boolea
   return branch
     ? `${pr ? 'Open a pull request for' : 'Merge'} ${branch.name} into ${branch.into ?? "the project's branch"}? · ${files(open)}`
     : !kept
-    ? `Take in ${name}'s work? · ${files(open)}`
-    : open > 0
-      ? `${before} — take in what ${differing.length > 0 ? 'its copy holds' : 'it had changed'}? · ${files(open)}`
-      : `${before} — nothing ${applied.length > 0 ? 'more ' : ''}of it can be taken in from here`
+      ? `Take in ${name}'s work? · ${files(open)}`
+      : open > 0
+        ? `${before} — take in what ${differing.length > 0 ? 'its copy holds' : 'it had changed'}? · ${files(open)}`
+        : `${before} — nothing ${applied.length > 0 ? 'more ' : ''}of it can be taken in from here`
 }
 
 /** What a branch's merge waits for: conflicts, your changes in the way, git's note, and who may resolve them. */
@@ -349,8 +401,9 @@ function notMergedYet(branch: Branch, pr: boolean, name: string) {
       )}
       {branch.resolve && (
         <div>
-          Let an agent resolve the conflicts: KOLONİ merges {branch.into ?? 'your branch'} into {branch.name} in the branch's own folder -
-          your branch is not touched - and {name} puts the files together there; you see the result here first.
+          Let an agent resolve the conflicts: KOLONİ merges {branch.into ?? 'your branch'} into {branch.name} in the
+          branch's own folder - your branch is not touched - and {name} puts the files together there; you see the
+          result here first.
         </div>
       )}
     </div>
@@ -366,8 +419,8 @@ function mergedFiles(merged: MergeFile[], name: string) {
         <FileRow key={file.path} file={file} />
       ))}
       <div className="muted cmd-approval-note">
-        The project changed these too. {name}'s changes and the project's are put together line by line: each diff
-        shows what that does to the project's file as it is now.
+        The project changed these too. {name}'s changes and the project's are put together line by line: each diff shows
+        what that does to the project's file as it is now.
         {merged.some(f => f.chose) &&
           ` Where the same lines had changed on both sides, they are as you chose: ${merged
             .filter(f => f.chose)
@@ -387,9 +440,9 @@ function differingFiles(differing: MergeFile[], name: string) {
         <FileRow key={file.path} file={file} />
       ))}
       <div className="muted cmd-approval-note">
-        What {name}'s copy started from is not known, so these are shown against the project as it is now: each
-        differs, and whether the copy or the project changed it cannot be told. Take in puts the copy's file in the
-        project, over the project's where it has one; it deletes nothing. Discard keeps the project's.
+        What {name}'s copy started from is not known, so these are shown against the project as it is now: each differs,
+        and whether the copy or the project changed it cannot be told. Take in puts the copy's file in the project, over
+        the project's where it has one; it deletes nothing. Discard keeps the project's.
       </div>
     </div>
   )
@@ -428,21 +481,33 @@ function notOffered({ leftOut, ignored, applied, refused }: ReturnType<typeof fi
 }
 
 /** Where a branch's card asks: how finished work reaches your branch, merged here or as a pull request. */
-function wayField(branch: Branch, mergeId: string, way: 'merge' | 'pull_request', setWay: (way: 'merge' | 'pull_request') => void) {
+function wayField(
+  branch: Branch,
+  mergeId: string,
+  way: 'merge' | 'pull_request',
+  setWay: (way: 'merge' | 'pull_request') => void,
+) {
   return (
     <fieldset className="merge-way" aria-label="How finished work reaches your branch">
       <legend className="kicker">How finished work reaches {branch.into ?? 'your branch'}</legend>
       <label>
-        <input type="radio" name={`way-${mergeId}`} checked={way === 'merge'} onChange={() => setWay('merge')} /> Merge here
+        <input type="radio" name={`way-${mergeId}`} checked={way === 'merge'} onChange={() => setWay('merge')} /> Merge
+        here
       </label>{' '}
       <label title={branch.pr_off ?? undefined}>
-        <input type="radio" name={`way-${mergeId}`} checked={way === 'pull_request'} disabled={!!branch.pr_off} onChange={() => setWay('pull_request')} /> Open a
-        pull request on GitHub
+        <input
+          type="radio"
+          name={`way-${mergeId}`}
+          checked={way === 'pull_request'}
+          disabled={!!branch.pr_off}
+          onChange={() => setWay('pull_request')}
+        />{' '}
+        Open a pull request on GitHub
         {branch.pr_off && <span className="muted"> — not now: {branch.pr_off}</span>}
       </label>
       <div className="muted cmd-approval-note">
-        Kept for this project; Settings › This project › Checks and git can change it. A pull request lets KOLONİ push this project's finished
-        branches to GitHub - it never merges one.
+        Kept for this project; Settings › This project › Checks and git can change it. A pull request lets KOLONİ push
+        this project's finished branches to GitHub - it never merges one.
       </div>
     </fieldset>
   )
@@ -462,8 +527,9 @@ function branchNote(branch: Branch, pr: boolean, name: string) {
         </>
       ) : (
         <>
-          Merge brings what the branch holds now into <span className="mono">{branch.into ?? 'your branch'}</span> as one
-          commit by KOLONİ - not the agents' own steps - then deletes the branch, unless you keep it; Discard deletes it.
+          Merge brings what the branch holds now into <span className="mono">{branch.into ?? 'your branch'}</span> as
+          one commit by KOLONİ - not the agents' own steps - then deletes the branch, unless you keep it; Discard
+          deletes it.
         </>
       )}
     </div>
@@ -508,7 +574,16 @@ const alsoOf = (merge: Merge, kept: boolean, branch: Branch | null, onContinue: 
  * Take in takes what the card shows; Discard throws the copy away. Once it is in the project,
  * the card goes on with the commit of those files, where that is offered.
  */
-export function MergeCard({ merge, name, unfinished = false, also = '', onDecide, onCheck, onCommit, onContinue }: Props) {
+export function MergeCard({
+  merge,
+  name,
+  unfinished = false,
+  also = '',
+  onDecide,
+  onCheck,
+  onCommit,
+  onContinue,
+}: Props) {
   const [choices, setChoices] = useState<Picks>({})
   // K-dal-takim D2: "Keep this branch after merging", and - where the card asks - which way finished work goes.
   const [keep, setKeep] = useState(false)
@@ -524,7 +599,9 @@ export function MergeCard({ merge, name, unfinished = false, also = '', onDecide
   const got = filesOf(merge.files)
   const { ready, merged, clashes, differing, open } = got
   const said = saidOf(clashes, choices)
-  const shown = Object.fromEntries([...ready, ...merged, ...clashes, ...differing].flatMap(f => (f.shown ? [[f.path, f.shown]] : [])))
+  const shown = Object.fromEntries(
+    [...ready, ...merged, ...clashes, ...differing].flatMap(f => (f.shown ? [[f.path, f.shown]] : [])),
+  )
   const unsaid = clashes.length - Object.keys(said).length
   const look = worthALook(merge.files)
   const { branch, inTheWay, pr } = branchOf(merge, kept, way)
@@ -571,7 +648,13 @@ export function MergeCard({ merge, name, unfinished = false, also = '', onDecide
     <div className="merge-files" role="group" aria-label="Changed on both sides">
       <div className="kicker">Changed on both sides</div>
       {clashes.map(file => (
-        <Clash key={file.path} file={file} name={name} choice={pickOf(choices, file)} onChoose={side => setChoices(c => pick(c, file, side))} />
+        <Clash
+          key={file.path}
+          file={file}
+          name={name}
+          choice={pickOf(choices, file)}
+          onChoose={side => setChoices(c => pick(c, file, side))}
+        />
       ))}
       <div className="muted cmd-approval-note">
         {unsaid > 0
@@ -603,8 +686,8 @@ export function MergeCard({ merge, name, unfinished = false, also = '', onDecide
     <>
       {branch.ask_way && wayField(branch, merge.id, way, setWay)}
       <label className="muted cmd-approval-note">
-        <input type="checkbox" checked={keep} onChange={event => setKeep(event.target.checked)} /> Keep this branch after{' '}
-        {pr ? 'the pull request' : 'merging'}
+        <input type="checkbox" checked={keep} onChange={event => setKeep(event.target.checked)} /> Keep this branch
+        after {pr ? 'the pull request' : 'merging'}
       </label>
       {branchNote(branch, pr, name)}
     </>
@@ -631,7 +714,11 @@ export function MergeCard({ merge, name, unfinished = false, also = '', onDecide
       {groups()}
       {notOffered(got)}
       {open > 0 && (
-        <Check merge={merge} onBranch={!!branch} onRun={!kept && onCheck ? { off: unsaid > 0, run: () => onCheck(said) } : undefined} />
+        <Check
+          merge={merge}
+          onBranch={!!branch}
+          onRun={!kept && onCheck ? { off: unsaid > 0, run: () => onCheck(said) } : undefined}
+        />
       )}
       {branch && branchParts(branch)}
       {copyNote(merge, name, kept, !!branch)}

@@ -10,13 +10,28 @@ const tileOf = (name: string) => ROLE_TOOLS.find(tool => tool.name === name)?.la
 const BUILT_IN: Record<string, { label: string; line: string }> = {
   web_search: { label: tileOf('web_search'), line: 'Looks things up on the web: a few results with their addresses' },
   http_request: { label: tileOf('http_request'), line: 'Calls an address on the internet and reads its answer' },
-  read_attachment: { label: 'Read attached files', line: 'Reads the text of files you attach to a message: code, PDF, Word' },
-  recall_output: { label: 'Read earlier output again', line: 'Reads the whole output of an earlier command or tool in this chat that was cut short' },
-  diagram_image: { label: tileOf('diagram_image'), line: 'Draws a draw.io diagram of the project as a PNG or SVG picture beside it' },
+  read_attachment: {
+    label: 'Read attached files',
+    line: 'Reads the text of files you attach to a message: code, PDF, Word',
+  },
+  recall_output: {
+    label: 'Read earlier output again',
+    line: 'Reads the whole output of an earlier command or tool in this chat that was cut short',
+  },
+  diagram_image: {
+    label: tileOf('diagram_image'),
+    line: 'Draws a draw.io diagram of the project as a PNG or SVG picture beside it',
+  },
 }
 
 /** KOLONİ's own tools: one switched off is offered to no agent, whatever its role lists. */
-export function BuiltIn({ tools, onSwitch }: { tools: BuiltinTool[]; onSwitch: (name: string, on: boolean) => Promise<void> }) {
+export function BuiltIn({
+  tools,
+  onSwitch,
+}: {
+  tools: BuiltinTool[]
+  onSwitch: (name: string, on: boolean) => Promise<void>
+}) {
   const [error, setError] = useState<string | null>(null)
   return (
     <section className="tool-group tools-builtin" aria-label="Built-in tools">

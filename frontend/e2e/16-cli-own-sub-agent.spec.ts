@@ -20,7 +20,10 @@ test.describe('with Claude Code working natively as a provider', () => {
     // At Full auto: since slice 89b every tool of Claude Code's is asked of KOLONİ first, and
     // at the level a new conversation has, its Agent and Bash would each wait on a card.
     const id = await openFreshConversation(page)
-    const patched = await page.request.patch(`/api/conversations/${id}`, { data: { permission_mode: 'full_auto' }, headers: OWN })
+    const patched = await page.request.patch(`/api/conversations/${id}`, {
+      data: { permission_mode: 'full_auto' },
+      headers: OWN,
+    })
     expect(patched.ok()).toBe(true)
     await page.getByRole('button', { name: 'Models', exact: true }).click()
     await page.getByRole('button', { name: /Add a provider/ }).click()
@@ -36,7 +39,9 @@ test.describe('with Claude Code working natively as a provider', () => {
     await removeClaudeCode(request)
   })
 
-  test('a sub-agent of Claude Code’s own is a box inside its agent’s box, and a block in its window', async ({ page }) => {
+  test('a sub-agent of Claude Code’s own is a box inside its agent’s box, and a block in its window', async ({
+    page,
+  }) => {
     await page.getByRole('button', { name: 'Canvas', exact: true }).click()
     const chat = page.getByRole('region', { name: 'Chat' })
     await chat.getByRole('button', { name: /^Model: Local/ }).click()

@@ -24,7 +24,9 @@ test("a read of Codex's settings is asked for on its own card, in light and dark
   await page.getByRole('button', { name: 'Send' }).click()
   await expect(chat.getByText('Read this computer’s settings?')).toBeVisible()
   await expect(chat.getByText(`Orchestrator wants to read ${config}`)).toBeVisible()
-  await expect(chat.getByText(/This folder is Codex's settings for this whole computer: changing it affects every project/)).toBeVisible()
+  await expect(
+    chat.getByText(/This folder is Codex's settings for this whole computer: changing it affects every project/),
+  ).toBeVisible()
   await expect(chat.getByRole('button', { name: /this folder/ })).toHaveCount(0)
   mkdirSync(SHOTS, { recursive: true })
   await settled(page)

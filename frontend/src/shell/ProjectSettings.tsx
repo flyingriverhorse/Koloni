@@ -135,7 +135,9 @@ function commandsAsked(asks: Project['koloni']['asks'], project: Project) {
   const where = asks.exec_location ?? project.exec_location
   const image = 'docker_image' in asks ? asks.docker_image : project.docker_image
   return asks.exec_location || (where === 'docker' && 'docker_image' in asks)
-    ? where === 'docker' ? `run commands in Docker image ${image}` : 'run commands on this machine'
+    ? where === 'docker'
+      ? `run commands in Docker image ${image}`
+      : 'run commands on this machine'
     : 'docker_image' in asks && `use the Docker image ${image ?? 'none'}`
 }
 
@@ -144,12 +146,24 @@ function askedFor(asks: Project['koloni']['asks'], project: Project): string {
   const parts = [
     commandsAsked(asks, project),
     'docker_network' in asks && (asks.docker_network ? 'with network access' : 'without network access'),
-    asks.search_order && (asks.search_order === 'cli' ? 'search with a CLI first' : 'search with the built-in search first'),
+    asks.search_order &&
+      (asks.search_order === 'cli' ? 'search with a CLI first' : 'search with the built-in search first'),
   ]
   return parts.filter(Boolean).join(', ')
 }
 
-export type Section = 'agents' | 'asking' | 'new-chats' | 'limits' | 'commands' | 'rules' | 'checks' | 'memory' | 'notifications' | 'own-commands' | 'folder'
+export type Section =
+  | 'agents'
+  | 'asking'
+  | 'new-chats'
+  | 'limits'
+  | 'commands'
+  | 'rules'
+  | 'checks'
+  | 'memory'
+  | 'notifications'
+  | 'own-commands'
+  | 'folder'
 
 /** This project's sections (sample A), in order. */
 export const SECTIONS: [Section, string][] = [
@@ -178,7 +192,22 @@ const alone = (sections: ReactNode) => (
 )
 
 /** Settings › This project: the project's sections listed on the left, the chosen one on the right with a Save of its own. */
-export function ProjectSettings({ project, dockerAvailable, dockerError, desktopAvailable, shell, shellNote, onSave, onUseKoloni, picked, spend = null, chat, levels = alone, toApp, children }: Props) {
+export function ProjectSettings({
+  project,
+  dockerAvailable,
+  dockerError,
+  desktopAvailable,
+  shell,
+  shellNote,
+  onSave,
+  onUseKoloni,
+  picked,
+  spend = null,
+  chat,
+  levels = alone,
+  toApp,
+  children,
+}: Props) {
   const [section, setSection] = useState<Section>(picked?.section ?? 'agents')
   const [asked, setAsked] = useState(picked?.n)
   if (picked && picked.n !== asked) {
@@ -255,7 +284,12 @@ export function ProjectSettings({ project, dockerAvailable, dockerError, desktop
           )),
         )}
         <div className="role-editor">
-          <FolderNotes project={project} koloni={koloni} onUseKoloni={onUseKoloni} take={now => [parts.commands, parts.memory].forEach(one => one.take?.(now))} />
+          <FolderNotes
+            project={project}
+            koloni={koloni}
+            onUseKoloni={onUseKoloni}
+            take={now => [parts.commands, parts.memory].forEach(one => one.take?.(now))}
+          />
           {shown.view}
           {error?.section === section && (
             <div role="alert" className="alert">
@@ -301,7 +335,10 @@ function ThisFolder({ project }: { project: Project }) {
       {rules && (
         <section aria-label="This folder’s rules" className="field">
           <h2>This folder’s rules</h2>
-          <span className="choice-note">From .koloni/rules.md, kept in git: every agent working here is given them. You change them on the Memory page.</span>
+          <span className="choice-note">
+            From .koloni/rules.md, kept in git: every agent working here is given them. You change them on the Memory
+            page.
+          </span>
           <div className="memory-lines">
             <pre>{rules}</pre>
           </div>
@@ -312,7 +349,17 @@ function ThisFolder({ project }: { project: Project }) {
 }
 
 /** Over every section: another project's agent instructions found here, a .koloni/ file not read, and what .koloni/settings.json asks. */
-function FolderNotes({ project, koloni, onUseKoloni, take }: { project: Project; koloni: Project['koloni'] | undefined; onUseKoloni?: Props['onUseKoloni']; take: (now: Project) => void }) {
+function FolderNotes({
+  project,
+  koloni,
+  onUseKoloni,
+  take,
+}: {
+  project: Project
+  koloni: Project['koloni'] | undefined
+  onUseKoloni?: Props['onUseKoloni']
+  take: (now: Project) => void
+}) {
   // What the folder's settings ask for, until "Not now": asked again when the page is opened again.
   // shortcut: asked only here, not when the folder is opened; show it in the chat if users miss it.
   const [notNow, setNotNow] = useState(false)
@@ -342,7 +389,8 @@ function FolderNotes({ project, koloni, onUseKoloni, take }: { project: Project;
       {others && others.paths.length > 0 && (
         <p className="alert">
           Another project’s agent instructions are in this folder: {others.paths.join(', ')}
-          {others.more > 0 && ` +${others.more} more`} (CLI agents load them by themselves){others.partial && '. Not every folder was looked in'}
+          {others.more > 0 && ` +${others.more} more`} (CLI agents load them by themselves)
+          {others.partial && '. Not every folder was looked in'}
         </p>
       )}
       {koloni?.broken.map(line => (
@@ -355,7 +403,17 @@ function FolderNotes({ project, koloni, onUseKoloni, take }: { project: Project;
   )
 }
 
-function Asks({ asks, takeThem, setNotNow, useError }: { asks: string; takeThem: () => Promise<void>; setNotNow: Setter<boolean>; useError: string | null }) {
+function Asks({
+  asks,
+  takeThem,
+  setNotNow,
+  useError,
+}: {
+  asks: string
+  takeThem: () => Promise<void>
+  setNotNow: Setter<boolean>
+  useError: string | null
+}) {
   return (
     <div role="group" aria-label="This folder’s settings" className="alert">
       <span>This folder’s settings ask to {asks} — use them?</span>

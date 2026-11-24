@@ -15,7 +15,17 @@ const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
  * each said, the first blocking finding and who fixed it after - each agent's name opens its window -, and why the last round
  * was the last. Fix it as under the answer (on the chat's latest turn), and the way to that section.
  */
-export function ChecksPanel({ state, run, loop, openWindow }: { state: ConvState; run: Run; loop: Loop | null; openWindow: (agentId: string) => void }) {
+export function ChecksPanel({
+  state,
+  run,
+  loop,
+  openWindow,
+}: {
+  state: ConvState
+  run: Run
+  loop: Loop | null
+  openWindow: (agentId: string) => void
+}) {
   const section = state.messages.find(m => m.run_id === run.id && m.role === 'checked')
   const rows = section?.checked ?? []
   // (Work not taken in is answered in the Checked section itself: its Fix it asks the stronger model's question.)
@@ -33,13 +43,22 @@ export function ChecksPanel({ state, run, loop, openWindow }: { state: ConvState
         ))}
       </section>
       {loop?.rounds.map(round => (
-        <Round key={round.n} round={round} stop={round.n === loop.rounds.length ? loop.stop : null} openWindow={openWindow} />
+        <Round
+          key={round.n}
+          round={round}
+          stop={round.n === loop.rounds.length ? loop.stop : null}
+          openWindow={openWindow}
+        />
       ))}
       <div className="checks-panel-actions">
         {fix && <FixIt asked={fix} />}
         {/* (Only where it is written - not on a turn at work -: there the focus goes, `ChatPanel`.) */}
         {section && (
-          <button type="button" className="btn btn-small" onClick={() => useApp.getState().showChatTab('Chat', true, `checked-${run.id}`)}>
+          <button
+            type="button"
+            className="btn btn-small"
+            onClick={() => useApp.getState().showChatTab('Chat', true, `checked-${run.id}`)}
+          >
             Open the Checked section
           </button>
         )}
@@ -52,7 +71,15 @@ export function ChecksPanel({ state, run, loop, openWindow }: { state: ConvState
  * A round - a pass as KOLONİ wrote it: a stronger tier's diagnosis (its own kind), its looks with their verdicts, the first blocking
  * finding, then who fixed it - or what sent it back with no agent opened for it, the ask for a test (no round), why it stopped.
  */
-function Round({ round, stop, openWindow }: { round: LoopRound; stop: string | null; openWindow: (agentId: string) => void }) {
+function Round({
+  round,
+  stop,
+  openWindow,
+}: {
+  round: LoopRound
+  stop: string | null
+  openWindow: (agentId: string) => void
+}) {
   const files = round.fixed.reduce((all, one) => all + one.files, 0)
   return (
     <section aria-label={`Round ${round.n}`}>
@@ -69,7 +96,9 @@ function Round({ round, stop, openWindow }: { round: LoopRound; stop: string | n
       {round.looks.map(look => (
         <p key={look.agentId} className="checks-panel-li">
           <Who id={look.agentId} name={look.name} openWindow={openWindow} />
-          <span data-tone={look.verdict?.startsWith('HOLD') ? 'bad' : look.verdict === 'MERGE' ? 'ok' : undefined}>{look.verdict ?? 'no verdict read'}</span>
+          <span data-tone={look.verdict?.startsWith('HOLD') ? 'bad' : look.verdict === 'MERGE' ? 'ok' : undefined}>
+            {look.verdict ?? 'no verdict read'}
+          </span>
         </p>
       ))}
       {round.finding && <p className="checks-panel-find">• {round.finding}</p>}
@@ -87,7 +116,9 @@ function Round({ round, stop, openWindow }: { round: LoopRound; stop: string | n
           <span data-tone="note">{plural(files, 'file')}</span>
         </p>
       )}
-      {round.fixed.length === 0 && round.sent === 'fix' && <p className="muted">→ sent back: {round.why ?? 'to fix'} - no agent opened for it</p>}
+      {round.fixed.length === 0 && round.sent === 'fix' && (
+        <p className="muted">→ sent back: {round.why ?? 'to fix'} - no agent opened for it</p>
+      )}
       {round.sent === 'ask' && <p className="muted">→ asked for a test - no fix round</p>}
       {stop && <p className="muted">{stop}</p>}
     </section>

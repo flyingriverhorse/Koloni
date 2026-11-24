@@ -38,12 +38,17 @@ function CardNotes({ command, rememberable, offers }: { command: Command; rememb
   if (rememberable && !offers) return null
   return (
     <CardMore>
-      {!rememberable && <div>{command.web_off ? 'This command is asked every time while web is off.' : 'This command is asked every time.'}</div>}
+      {!rememberable && (
+        <div>
+          {command.web_off ? 'This command is asked every time while web is off.' : 'This command is asked every time.'}
+        </div>
+      )}
       {offers && (
         <div>
-          KOLONİ checked {command.disposable?.what}: disposable. Allow such deletes in this project runs this one, and from now on, at Auto-edit and
-          Full auto in a chat you watch, such deletes (clean worktrees and merged branches you no longer use, build and cache folders) go without a
-          card. Settings › This project › Asking and away turns it off.
+          KOLONİ checked {command.disposable?.what}: disposable. Allow such deletes in this project runs this one, and
+          from now on, at Auto-edit and Full auto in a chat you watch, such deletes (clean worktrees and merged branches
+          you no longer use, build and cache folders) go without a card. Settings › This project › Asking and away turns
+          it off.
         </div>
       )}
     </CardMore>

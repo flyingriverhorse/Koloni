@@ -38,7 +38,13 @@ export function ComposerStatus({ conv, compact, running, onStop, model }: Props)
       {/* (In every tone, in one place: a model's window open as a turn starts stays open, and /model always finds it.) */}
       {model}
       {running && (
-        <button type="button" className="icon-btn composer-stop" aria-label="Stop" title="Stop the work" onClick={onStop}>
+        <button
+          type="button"
+          className="icon-btn composer-stop"
+          aria-label="Stop"
+          title="Stop the work"
+          onClick={onStop}
+        >
           <Stop size={12} weight="fill" />
         </button>
       )}
@@ -57,7 +63,12 @@ function AwayChip({ conv }: { conv: ConvState | null }) {
   if (!conv?.conversation.project_id) return null
   if (away?.status === 'running' && away.project_id === conv.conversation.project_id)
     return (
-      <button type="button" className="away-chip on" disabled={busy} onClick={() => void ask(() => useApp.getState().comeBack(away.id))}>
+      <button
+        type="button"
+        className="away-chip on"
+        disabled={busy}
+        onClick={() => void ask(() => useApp.getState().comeBack(away.id))}
+      >
         <span aria-hidden>☾</span> I’m back
       </button>
     )
@@ -71,7 +82,11 @@ function AwayChip({ conv }: { conv: ConvState | null }) {
         aria-haspopup="dialog"
         aria-expanded={open}
         disabled={none}
-        title={none ? 'Write to the Orchestrator first: Away finishes this chat’s turn' : 'Go away: this chat’s turn finishes, then To-do is worked through'}
+        title={
+          none
+            ? 'Write to the Orchestrator first: Away finishes this chat’s turn'
+            : 'Go away: this chat’s turn finishes, then To-do is worked through'
+        }
         onClick={() => (open ? close() : setOpen(true))}
       >
         <span aria-hidden>☾</span> Away

@@ -36,7 +36,14 @@ export function useConfirm() {
   }
   const shown = (onYes?: () => void): ReactNode =>
     asked && (
-      <div ref={box} role="alertdialog" aria-modal="true" aria-labelledby={id} className="confirm-box" onKeyDown={onKeyDown}>
+      <div
+        ref={box}
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby={id}
+        className="confirm-box"
+        onKeyDown={onKeyDown}
+      >
         <p id={id}>{asked.text}</p>
         <div className="confirm-actions">
           <button

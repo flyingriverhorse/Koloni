@@ -26,7 +26,11 @@ const github = (over: Partial<Provider> = {}): Provider => ({
     { name: 'gpt-x', note: null, tier: 'strongest', agents: true },
   ],
   only_listed: false,
-  max_running: null, plan: false, step_down_at: null, day_limit: null, month_limit: null,
+  max_running: null,
+  plan: false,
+  step_down_at: null,
+  day_limit: null,
+  month_limit: null,
   has_key: false,
   position: 0,
   created_at: '2026-11-21T10:00:00Z',
@@ -40,7 +44,10 @@ const handlers = {
   onTest: vi.fn(async () => ({ ok: true, model_id: 'x', tools_supported: true, error: null, reply: null })),
 }
 
-const options = (select: HTMLElement) => within(select).getAllByRole('option').map(option => option.textContent)
+const options = (select: HTMLElement) =>
+  within(select)
+    .getAllByRole('option')
+    .map(option => option.textContent)
 
 test('Copilot’s auto and fusion on your GitHub account take a routing on their row, saved at once', async () => {
   const onSave = vi.fn(async () => {})
@@ -67,7 +74,13 @@ test('Copilot’s auto and fusion on your GitHub account take a routing on their
 })
 
 test('a Copilot on a model server of your own has no routing', async () => {
-  render(<ModelsPage providers={[github({ base_url: 'http://localhost:8080/v1' })]} {...handlers} onSave={vi.fn(async () => {})} />)
+  render(
+    <ModelsPage
+      providers={[github({ base_url: 'http://localhost:8080/v1' })]}
+      {...handlers}
+      onSave={vi.fn(async () => {})}
+    />,
+  )
   await userEvent.click(screen.getByRole('button', { name: /^Copilot/ }))
   expect(screen.getByText('auto')).toBeInTheDocument()
   expect(screen.queryByLabelText('Routing of auto')).not.toBeInTheDocument()
@@ -75,10 +88,14 @@ test('a Copilot on a model server of your own has no routing', async () => {
 
 test('the chat’s model panel shows Copilot’s routing and saves it on its Models row; none for another model', async () => {
   const onRouting = vi.fn(async () => {})
-  const { unmount } = render(<ModelPicker providers={[github()]} providerId="gh" modelId="auto" onSave={async () => {}} onRouting={onRouting} />)
+  const { unmount } = render(
+    <ModelPicker providers={[github()]} providerId="gh" modelId="auto" onSave={async () => {}} onRouting={onRouting} />,
+  )
   await userEvent.click(screen.getByRole('button', { name: /^Model:/ }))
   const routing = screen.getByLabelText('Routing')
-  expect(screen.getByText('Saved on its Models row: every chat and agent on Copilot · auto uses it.')).toBeInTheDocument()
+  expect(
+    screen.getByText('Saved on its Models row: every chat and agent on Copilot · auto uses it.'),
+  ).toBeInTheDocument()
   await userEvent.selectOptions(routing, 'balance')
   expect(onRouting).toHaveBeenLastCalledWith('gh', [
     { name: 'auto', note: null, tier: 'fast', agents: true, routing: 'balance' },
@@ -86,7 +103,15 @@ test('the chat’s model panel shows Copilot’s routing and saves it on its Mod
     { name: 'gpt-x', note: null, tier: 'strongest', agents: true },
   ])
   unmount()
-  render(<ModelPicker providers={[github()]} providerId="gh" modelId="gpt-x" onSave={async () => {}} onRouting={onRouting} />)
+  render(
+    <ModelPicker
+      providers={[github()]}
+      providerId="gh"
+      modelId="gpt-x"
+      onSave={async () => {}}
+      onRouting={onRouting}
+    />,
+  )
   await userEvent.click(screen.getByRole('button', { name: /^Model:/ }))
   expect(screen.queryByLabelText('Routing')).not.toBeInTheDocument()
 })
@@ -109,13 +134,20 @@ test('a routing saved from the chat sends each row’s agents as the Models tab 
 
 test('the chat’s model button says the model fusion picked for the chat’s latest turn, and Copilot’s reason in its tooltip', () => {
   const why = 'Copilot Fusion selected GPT-6 Luna since the task has low complexity.'
-  const picker = (modelId: string) => <ModelPicker providers={[github()]} providerId="gh" modelId={modelId} onSave={async () => {}} />
+  const picker = (modelId: string) => (
+    <ModelPicker providers={[github()]} providerId="gh" modelId={modelId} onSave={async () => {}} />
+  )
   const { rerender } = render(picker('fusion'))
   const button = screen.getByRole('button', { name: /^Model:/ })
   // Before a turn ran on it: what was chosen.
   expect(button).toHaveTextContent(/^fusion · Copilot$/)
   const lead = (id: string, model_id: string, model_from: string, note: string) =>
-    agent(id, 'completed', { provider_name: 'Copilot', model_id, model_from, effort_note: `Copilot's ${model_from} picked ${model_id}: “${note}”` })
+    agent(id, 'completed', {
+      provider_name: 'Copilot',
+      model_id,
+      model_from,
+      effort_note: `Copilot's ${model_from} picked ${model_id}: “${note}”`,
+    })
   const turns = (agents: ReturnType<typeof agent>[]) =>
     act(() => useApp.setState({ conv: convState({ runs: [run('r1', 'completed'), run('r2', 'completed')], agents }) }))
   // (The latest turn's Lead: of its run - a comparison's other side, whose Lead started after it, is not it.)
@@ -123,7 +155,10 @@ test('the chat’s model button says the model fusion picked for the chat’s la
   expect(button).toHaveTextContent(/^fusion → gpt-6-luna · Copilot$/)
   // Its name and tooltip say what the chat uses, and what its last turn ran on - not that agents use that.
   expect(button).toHaveAccessibleName('Model: Copilot · fusion, last picked gpt-6-luna')
-  expect(button).toHaveAttribute('title', `Copilot · fusion: the model this conversation's agents use. Its last turn ran on gpt-6-luna: ${why}`)
+  expect(button).toHaveAttribute(
+    'title',
+    `Copilot · fusion: the model this conversation's agents use. Its last turn ran on gpt-6-luna: ${why}`,
+  )
   // (The latest turn's Lead ran elsewhere - its role's own model, say: no pick of an older turn's is shown for it.)
   turns([lead('r1', 'gpt-6-luna', 'fusion', why), agent('r2', 'completed', { provider_name: 'Local' })])
   expect(button).toHaveTextContent(/^fusion · Copilot$/)
@@ -132,7 +167,10 @@ test('the chat’s model button says the model fusion picked for the chat’s la
   // (A later model said with no reason: no reason of the model before under it.)
   turns([{ ...lead('r2', 'gpt-6-luna', 'fusion', why), model_id: 'gpt-7' }])
   expect(button).toHaveTextContent(/^fusion → gpt-7 · Copilot$/)
-  expect(button).toHaveAttribute('title', "Copilot · fusion: the model this conversation's agents use. Its last turn ran on gpt-7.")
+  expect(button).toHaveAttribute(
+    'title',
+    "Copilot · fusion: the model this conversation's agents use. Its last turn ran on gpt-7.",
+  )
   // (A pick of auto's is not fusion's: the chat moved on from it.)
   turns([lead('r2', 'gpt-6-luna', 'fusion', why)])
   rerender(picker('auto'))

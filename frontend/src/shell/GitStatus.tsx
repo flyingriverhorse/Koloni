@@ -61,9 +61,14 @@ export function GitStatus({ projectId }: { projectId: string }) {
   // B-186: read again at a turn's end and as what reaches the project moves after it - a take in, an Undo, a commit.
   // shortcut: a change made outside KOLONİ shows once one of these happens or the map opens; read on focus if missed.
   // (Only what is in the project: a change proposed, or in a copy, has not reached it.)
-  const reached = conv?.fileChanges.filter(c => c.status === 'applied' || c.status === 'reverted').map(c => c.id + c.status) ?? []
+  const reached =
+    conv?.fileChanges.filter(c => c.status === 'applied' || c.status === 'reverted').map(c => c.id + c.status) ?? []
   const ended = conv
-    ? [...conv.runs.filter(r => r.ended_at).map(r => r.id), ...conv.merges.map(m => m.status + (m.commit?.state ?? '')), ...reached].join()
+    ? [
+        ...conv.runs.filter(r => r.ended_at).map(r => r.id),
+        ...conv.merges.map(m => m.status + (m.commit?.state ?? '')),
+        ...reached,
+      ].join()
     : ''
   useEffect(() => {
     let gone = false
@@ -142,15 +147,30 @@ export function GitStatus({ projectId }: { projectId: string }) {
         className="btn btn-small"
         aria-expanded={naming}
         disabled={!!git.switch_blocked}
-        title={git.switch_blocked ?? `a branch made where ${git.branch || 'the project'} stands, and the project onto it`}
+        title={
+          git.switch_blocked ?? `a branch made where ${git.branch || 'the project'} stands, and the project onto it`
+        }
         onClick={() => setNaming(on => !on)}
       >
         + New branch
       </button>
       {naming && (
         <>
-          <input className="mono" aria-label="New branch name" placeholder="new-branch-name" value={made} maxLength={200} autoFocus onChange={event => setMade(event.target.value)} />
-          <button type="submit" className="btn btn-small" disabled={switching || !!git.switch_blocked || !made.trim()} title={git.switch_blocked ?? undefined}>
+          <input
+            className="mono"
+            aria-label="New branch name"
+            placeholder="new-branch-name"
+            value={made}
+            maxLength={200}
+            autoFocus
+            onChange={event => setMade(event.target.value)}
+          />
+          <button
+            type="submit"
+            className="btn btn-small"
+            disabled={switching || !!git.switch_blocked || !made.trim()}
+            title={git.switch_blocked ?? undefined}
+          >
             Create
           </button>
         </>
@@ -171,17 +191,27 @@ export function GitStatus({ projectId }: { projectId: string }) {
         {label}
       </button>
       {open && (
-        <section ref={panel} id="git-map" tabIndex={-1} className="allow-list-panel git-map" aria-labelledby="git-map-title">
+        <section
+          ref={panel}
+          id="git-map"
+          tabIndex={-1}
+          className="allow-list-panel git-map"
+          aria-labelledby="git-map-title"
+        >
           <h3 id="git-map-title" className="git-title">
             Where the work is
           </h3>
-          <p className="muted git-note">From git, read only. KOLONİ changes nothing here but the branch you switch to.</p>
+          <p className="muted git-note">
+            From git, read only. KOLONİ changes nothing here but the branch you switch to.
+          </p>
           <h4 className="kicker">Your branch</h4>
           <div className="git-row">
             <span className="git-what">
               <b className="mono">{git.branch || 'no branch'}</b> · now
               <small>
-                {git.changed > 0 ? `${git.changed} ${git.changed === 1 ? 'file' : 'files'} not saved in git yet` : 'everything is saved in git'}
+                {git.changed > 0
+                  ? `${git.changed} ${git.changed === 1 ? 'file' : 'files'} not saved in git yet`
+                  : 'everything is saved in git'}
                 {git.current && <span className="mono"> · last commit {lastCommit(git.current)}</span>}
               </small>
             </span>
@@ -218,7 +248,11 @@ export function GitStatus({ projectId }: { projectId: string }) {
                         {row.small && <small>{row.small}</small>}
                       </span>
                       {row.act && (
-                        <button type="button" className={`btn btn-small${row.act.label === 'Take in…' ? ' btn-primary' : ''}`} onClick={() => see(row.act!.agentId, row.act!.copy)}>
+                        <button
+                          type="button"
+                          className={`btn btn-small${row.act.label === 'Take in…' ? ' btn-primary' : ''}`}
+                          onClick={() => see(row.act!.agentId, row.act!.copy)}
+                        >
                           {row.act.label}
                         </button>
                       )}
@@ -240,7 +274,11 @@ export function GitStatus({ projectId }: { projectId: string }) {
                           type="button"
                           className="btn btn-small"
                           disabled={switching || !!git.switch_blocked || !!row.branch.worktree}
-                          title={row.branch.worktree ? `open in its own folder ${row.branch.worktree}: git switches to it only there` : (git.switch_blocked ?? `the project goes onto ${row.branch.name}`)}
+                          title={
+                            row.branch.worktree
+                              ? `open in its own folder ${row.branch.worktree}: git switches to it only there`
+                              : (git.switch_blocked ?? `the project goes onto ${row.branch.name}`)
+                          }
                           onClick={() => switchTo(row.branch!.name)}
                         >
                           Switch to

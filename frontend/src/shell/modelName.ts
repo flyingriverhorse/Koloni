@@ -35,14 +35,19 @@ export const autoNothing = (asked: NonNullable<Asked>) =>
   `automatic: ${who(asked)} was asked, and nothing came of it (no answer to go by, or no model of the tier it said) - the Orchestrator’s model is what it would be without the question`
 
 /** Before a model Copilot's auto or fusion picked for an agent asked for it (`model_from` "auto", "fusion"); nothing before any other. */
-export const autoPicked = (modelFrom?: string | null) => (modelFrom === 'auto' || modelFrom === 'fusion' ? `${modelFrom} → ` : '')
+export const autoPicked = (modelFrom?: string | null) =>
+  modelFrom === 'auto' || modelFrom === 'fusion' ? `${modelFrom} → ` : ''
 
 /**
  * Why Copilot's auto or fusion (`from`) picked `modelId`, in Copilot's own words, as KOLONİ's own sentence on the agent's note
  * keeps it (app/agent/tiers_mixin.py `AUTO_PICKED`). Null where the note holds none for that model and routing: a reason is
  * never shown under a model it was not given for.
  */
-export function pickedWhy(note: string | null | undefined, from: string | null | undefined, modelId: string | null): string | null {
+export function pickedWhy(
+  note: string | null | undefined,
+  from: string | null | undefined,
+  modelId: string | null,
+): string | null {
   if (!note || !autoPicked(from)) return null
   // shortcut: matched by the id as given; one the server wrote cut or joined (over 200 characters, a newline) shows no reason.
   const head = `Copilot's ${from} picked ${modelId}: “`
@@ -57,8 +62,16 @@ export function pickedWhy(note: string | null | undefined, from: string | null |
  * not and a level none was sent; a name read from the CLI's own settings, rather than reported by it, says so, and
  * one Copilot's auto or fusion picked says that ("auto → gpt-6-luna").
  */
-export function ranOn(provider: string | null, modelId: string | null, modelFrom?: string | null, effort?: Effort | null, tier?: Tier | null): string {
-  const model = modelId ? autoPicked(modelFrom) + modelName(modelId) + (modelFrom === 'settings' ? " (from Codex's settings)" : '') : null
+export function ranOn(
+  provider: string | null,
+  modelId: string | null,
+  modelFrom?: string | null,
+  effort?: Effort | null,
+  tier?: Tier | null,
+): string {
+  const model = modelId
+    ? autoPicked(modelFrom) + modelName(modelId) + (modelFrom === 'settings' ? " (from Codex's settings)" : '')
+    : null
   return [provider, model, tier, effort && EFFORTS[effort]].filter(Boolean).join(' · ')
 }
 

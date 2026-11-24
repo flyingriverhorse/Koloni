@@ -10,7 +10,18 @@ export interface Look {
 const OPEN = new Set<MergeFile['state']>(['ready', 'merged', 'conflict'])
 const MIGRATION_DIRS = new Set(['migrations', 'alembic'])
 const CONFIG_NAMES = new Set(['settings.py', 'package.json', 'pyproject.toml'])
-const SECURITY_WORDS = new Set(['auth', 'oauth', 'security', 'permission', 'permissions', 'secret', 'secrets', 'crypto', 'token', 'tokens'])
+const SECURITY_WORDS = new Set([
+  'auth',
+  'oauth',
+  'security',
+  'permission',
+  'permissions',
+  'secret',
+  'secrets',
+  'crypto',
+  'token',
+  'tokens',
+])
 // A document about auth changes no code.
 const DOC = /\.(md|mdx|rst|txt)$/i
 const LARGE = 300
@@ -34,11 +45,16 @@ const REASONS: [string, Is][] = [
   [
     'config or env',
     (_, dirs, name) =>
-      name.startsWith('.env') || CONFIG_NAMES.has(name) || ((dirs.length === 0 || dirs[0] === 'config') && /\.(ini|toml|ya?ml)$/.test(name)),
+      name.startsWith('.env') ||
+      CONFIG_NAMES.has(name) ||
+      ((dirs.length === 0 || dirs[0] === 'config') && /\.(ini|toml|ya?ml)$/.test(name)),
   ],
   ['security path', file => security(file.path)],
   ['deleted', file => file.kind === 'deleted'],
-  [`over ${LARGE} lines`, file => file.additions != null && file.deletions != null && file.additions + file.deletions > LARGE],
+  [
+    `over ${LARGE} lines`,
+    file => file.additions != null && file.deletions != null && file.additions + file.deletions > LARGE,
+  ],
   // Of these states only a file with a side that is not text, or is over 1 MiB, has no diff.
   ['no diff (not text, or over 1 MiB)', file => file.diff == null],
 ]

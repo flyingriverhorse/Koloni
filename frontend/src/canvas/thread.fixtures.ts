@@ -15,7 +15,13 @@ export function topicOf(turns: number): ConvState {
   return convState({
     topics: [topic('ta', 'Fix the greeting'), topic('tb', 'Write the docs')],
     runs: [...ids.map(id => run(id, 'completed', { topic_id: 'ta' })), run('other', 'completed', { topic_id: 'tb' })],
-    messages: [...ids.map((id, n) => ({ ...userMessage(id, `message ${n + 1}\nmore of it`), created_at: `2026-10-05T10:0${n + 1}:00Z` })), userMessage('other', 'Write the docs')],
+    messages: [
+      ...ids.map((id, n) => ({
+        ...userMessage(id, `message ${n + 1}\nmore of it`),
+        created_at: `2026-10-05T10:0${n + 1}:00Z`,
+      })),
+      userMessage('other', 'Write the docs'),
+    ],
     agents: [
       ...ids.flatMap((id, n) => [
         agent(id, 'completed', { continues_id: n ? ids[n - 1] : null }),

@@ -23,7 +23,9 @@ test.beforeEach(() => {
 test.afterEach(() => writeFileSync(HELLO, was))
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`AC (${theme}): a room opens as a window, — makes it a tab that says it waits for you, and once over the same window says what came of it`, async ({ page }) => {
+  test(`AC (${theme}): a room opens as a window, — makes it a tab that says it waits for you, and once over the same window says what came of it`, async ({
+    page,
+  }) => {
     test.setTimeout(90_000)
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page)
@@ -42,7 +44,9 @@ for (const theme of ['light', 'dark'] as const) {
     const room = page.getByRole('dialog', { name: 'Room: Change the greeting together' })
     await expect(room).toBeVisible()
     await expect(room).toContainText('Room · Change the greeting together')
-    await expect(room.getByRole('region', { name: 'The room', exact: true })).toContainText('Coder · Reviewer · opened by you')
+    await expect(room.getByRole('region', { name: 'The room', exact: true })).toContainText(
+      'Coder · Reviewer · opened by you',
+    )
     const waiting = room.getByRole('region', { name: 'Waits for you' })
     await expect(waiting.getByText('Shall the greeting stay hi?')).toBeVisible({ timeout: 20_000 })
     await expect(room.getByRole('group', { name: 'Said in the room' })).toHaveAttribute('open')

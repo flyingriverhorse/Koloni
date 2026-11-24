@@ -22,13 +22,20 @@ export function webNote(call: Pick<ToolCall, 'name' | 'result' | 'status'>): str
  * (`_view_image`), read from the end of the result KOLONİ wrote and only in its call's own folder (B-346: by the
  * image's own name; `<name>.<type>` before it). Null for any other call.
  */
-export function shotOf(call: Pick<ToolCall, 'name' | 'status' | 'id' | 'agent_id' | 'result'> & { origin?: ToolCall['origin'] }): string | null {
+export function shotOf(
+  call: Pick<ToolCall, 'name' | 'status' | 'id' | 'agent_id' | 'result'> & { origin?: ToolCall['origin'] },
+): string | null {
   if (call.status !== 'succeeded') return null
   const name = `${call.agent_id.slice(0, 8)}-${call.id.slice(0, 8)}`
   if (call.name === 'browser_screenshot') return `.koloni/tmp/browser/shots/${name}.png`
-  if (call.name !== 'view_image' && call.origin !== 'cli') return null  // (B-347: or a CLI's own look at one)
-  const copy = /\(the user sees it under the step: (\.koloni\/tmp\/images\/[^/]+(?:\/[^/]+)?\.(?:png|jpg|gif|webp))\)$/.exec(call.result ?? '')?.[1]
-  return copy && [`.koloni/tmp/images/${name}/`, `.koloni/tmp/images/${name}.`].some(own => copy.startsWith(own)) ? copy : null
+  if (call.name !== 'view_image' && call.origin !== 'cli') return null // (B-347: or a CLI's own look at one)
+  const copy =
+    /\(the user sees it under the step: (\.koloni\/tmp\/images\/[^/]+(?:\/[^/]+)?\.(?:png|jpg|gif|webp))\)$/.exec(
+      call.result ?? '',
+    )?.[1]
+  return copy && [`.koloni/tmp/images/${name}/`, `.koloni/tmp/images/${name}.`].some(own => copy.startsWith(own))
+    ? copy
+    : null
 }
 
 type Named = Pick<ToolCall, 'name'> & { origin?: ToolCall['origin'] }
@@ -50,10 +57,15 @@ export function toolSummary(call: Summed): string {
   const name = toolName(call)
   const args = argsOf(call.arguments)
   if (!args) return name
-  const said = ownOrNotAsked(call, args) ?? agentCall(call.name, args) ?? lookupCall(call.name, args) ?? browserCall(call.name, args)
+  const said =
+    ownOrNotAsked(call, args) ??
+    agentCall(call.name, args) ??
+    lookupCall(call.name, args) ??
+    browserCall(call.name, args)
   if (said !== null) return said
   // A note is named by its subject; its words are in the call itself.
-  if (call.name === 'remember') return typeof args.about === 'string' && args.about ? 'remember ' + args.about : 'remember'
+  if (call.name === 'remember')
+    return typeof args.about === 'string' && args.about ? 'remember ' + args.about : 'remember'
   if (typeof args.path === 'string') return `${name} ${args.path}`
   if (call.name === 'list_dir' && args.path === undefined) return 'list_dir .'
   return name
@@ -63,7 +75,9 @@ type Args = Record<string, unknown>
 
 /** k-canli-016: a look KOLONİ opened at a turn's end (`PROOF_CALL`) - its, not the Orchestrator's spawn: "KOLONİ's look: Reviewer". */
 const kolonisLook = (call: Summed, args: Args): string | null =>
-  call.name === 'spawn_agent' && call.provider_call_id?.startsWith(PROOF_CALL) && typeof args.role === 'string' ? `KOLONİ’s look: ${args.role}` : null
+  call.name === 'spawn_agent' && call.provider_call_id?.startsWith(PROOF_CALL) && typeof args.role === 'string'
+    ? `KOLONİ’s look: ${args.role}`
+    : null
 
 /** KOLONİ's own look, else a question not asked. */
 const ownOrNotAsked = (call: Summed, args: Args): string | null => kolonisLook(call, args) ?? notAsked(call, args)
@@ -114,7 +128,10 @@ function lookupCall(tool: string, args: Args): string | null {
   if (tool === 'recall' && typeof args.query === 'string') return 'recall "' + args.query + '"'
   if (tool === 'web_search' && typeof args.query === 'string') return `web_search "${args.query}"`
   if (tool === 'http_request' && typeof args.url === 'string') {
-    return `http_request ${typeof args.method === 'string' ? args.method.toUpperCase() : ''} ${args.url}`.replace('  ', ' ')
+    return `http_request ${typeof args.method === 'string' ? args.method.toUpperCase() : ''} ${args.url}`.replace(
+      '  ',
+      ' ',
+    )
   }
   if (tool === 'notify' && typeof args.message === 'string') return `notify "${args.message}"`
   return null
@@ -139,7 +156,8 @@ function clicked(args: Args): string {
   return typeof args.x === 'number' && typeof args.y === 'number' ? `clicked at ${args.x}, ${args.y}` : 'clicked'
 }
 
-const scrolled = (args: Args) => (typeof args.dy === 'number' ? `scrolled ${args.dy > 0 ? 'down' : 'up'} ${Math.abs(args.dy)}` : 'scrolled')
+const scrolled = (args: Args) =>
+  typeof args.dy === 'number' ? `scrolled ${args.dy > 0 ? 'down' : 'up'} ${Math.abs(args.dy)}` : 'scrolled'
 
 /**
  * Whether a call waits for leave to go outside the project: started, then put back to

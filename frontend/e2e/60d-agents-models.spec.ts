@@ -25,25 +25,41 @@ test.beforeEach(async ({ request }) => {
       headers: OWN,
       data: { models: (p.models as { name: string }[]).map(m => ({ ...m, tier: null })) },
     })
-  const made = await request.post('/api/providers', { headers: OWN, data: { name: NAME, kind: 'claude_cli', executable: 'no-such-claude-for-60d' } })
+  const made = await request.post('/api/providers', {
+    headers: OWN,
+    data: { name: NAME, kind: 'claude_cli', executable: 'no-such-claude-for-60d' },
+  })
   expect(made.ok()).toBeTruthy()
 })
 
 test.afterEach(async ({ request }) => {
   await remove(request)
-  for (const p of kept) await request.patch(`/api/providers/${p.id}`, { headers: OWN, data: { models: p.models, for_agents: p.for_agents } })
+  for (const p of kept)
+    await request.patch(`/api/providers/${p.id}`, {
+      headers: OWN,
+      data: { models: p.models, for_agents: p.for_agents },
+    })
 })
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`no tier: one preview fills them, Save gives a fast model, and each role says what it runs on (${theme})`, async ({ page }) => {
+  test(`no tier: one preview fills them, Save gives a fast model, and each role says what it runs on (${theme})`, async ({
+    page,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page)
     await page.getByRole('button', { name: 'Agents', exact: true }).click()
     const box = page.getByRole('region', { name: 'No model has a tier' })
-    await expect(box).toHaveText('No model has a tier yet, so the Orchestrator cannot pick one: every role runs on the conversation’s model. Fill the tiers')
+    await expect(box).toHaveText(
+      'No model has a tier yet, so the Orchestrator cannot pick one: every role runs on the conversation’s model. Fill the tiers',
+    )
     // (Slice 81b, 63b: its panel says its tier rule; where it runs is said in its form.)
-    await page.getByRole('complementary', { name: 'Roles' }).getByRole('button', { name: /^Summarizer/ }).click()
-    await expect(page.getByRole('complementary', { name: 'Role Summarizer' })).toContainText('Which modelOrchestrator · fast–strongest')
+    await page
+      .getByRole('complementary', { name: 'Roles' })
+      .getByRole('button', { name: /^Summarizer/ })
+      .click()
+    await expect(page.getByRole('complementary', { name: 'Role Summarizer' })).toContainText(
+      'Which modelOrchestrator · fast–strongest',
+    )
 
     // The preview: every provider, its models and tiers, the tick; nothing changes before Save.
     await box.getByRole('button', { name: 'Fill the tiers' }).click()
@@ -71,14 +87,18 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(page.locator('.role-runs')).toContainText(`Runs on ${NAME} · `)
     await expect(page.locator('.role-runs')).toContainText('the first balanced model of your team guide')
     await editRole(page, 'Summarizer', 'Tools')
-    await expect(page.locator('.role-tab')).toContainText('“asks”: it waits for your yes first, as the conversation’s permission level says.')
+    await expect(page.locator('.role-tab')).toContainText(
+      '“asks”: it waits for your yes first, as the conversation’s permission level says.',
+    )
     const agents = page.locator('.paged')
     await shot(page, `60d-agents-${theme}`)
     expect((await agents.evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])
 
     // Models: the catalogue it reads, each provider's state, and the table of what is known of each model.
     await rail(page, 'Models').click()
-    await expect(page.getByRole('status').filter({ hasText: /^Catalogue: models\.dev, \d+ \w+ · \d+ services$/ })).toBeVisible()
+    await expect(
+      page.getByRole('status').filter({ hasText: /^Catalogue: models\.dev, \d+ \w+ · \d+ services$/ }),
+    ).toBeVisible()
     await expect(page.getByRole('button', { name: new RegExp(`^${NAME}`) })).toContainText('not installed')
     await page.getByRole('button', { name: new RegExp(`^${NAME}`) }).click()
     const table = page.getByRole('table', { name: 'Models agents and you can pick' })

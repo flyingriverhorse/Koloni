@@ -13,7 +13,9 @@ test.use({ viewport: { width: 1440, height: 900 } })
 test.afterEach(async ({ page }) => {
   const pid = await e2eProject(page)
   const left: { id: string; title: string }[] = await (await page.request.get(`/api/projects/${pid}/backlog`)).json()
-  for (const task of left.filter(one => one.title === 'Add a farewell' || /^Greet in (French|German) \(/.test(one.title)))
+  for (const task of left.filter(
+    one => one.title === 'Add a farewell' || /^Greet in (French|German) \(/.test(one.title),
+  ))
     expect((await page.request.delete(`/api/backlog/${task.id}`, { headers: OWN })).ok()).toBe(true)
 })
 
@@ -34,7 +36,9 @@ async function add(page: Page, title: string, priority: 'high' | 'normal' | 'low
 }
 
 for (const theme of ['light', 'dark'] as const)
-  test(`in the ${theme} theme: add and order tasks, approve a proposed one, run the backlog, one task waiting for another`, async ({ page }) => {
+  test(`in the ${theme} theme: add and order tasks, approve a proposed one, run the backlog, one task waiting for another`, async ({
+    page,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page)
     // The Lead proposes a task: it waits for the user, and the rail's badge counts it.
@@ -78,7 +82,10 @@ for (const theme of ['light', 'dark'] as const)
     // The second waits for the first, chosen from its ⋯.
     await dots(second).click()
     await page.getByRole('menuitem', { name: 'Edit' }).click()
-    await page.getByRole('form', { name: `Edit ${second}` }).getByLabel(/^Waits for/).selectOption({ label: first })
+    await page
+      .getByRole('form', { name: `Edit ${second}` })
+      .getByLabel(/^Waits for/)
+      .selectOption({ label: first })
     await page.getByRole('button', { name: 'Save' }).click()
     const row = (title: string) => tasks.getByRole('listitem', { name: title })
     await expect(row(second)).toContainText(`waits for: ${first}`)
@@ -94,7 +101,9 @@ for (const theme of ['light', 'dark'] as const)
     await expect(row(second)).toContainText(`waits for: ${first}`)
     await page.getByRole('button', { name: `Open chat · ${first}` }).click()
     const chat = page.getByRole('region', { name: 'Chat' })
-    const asked = chat.locator('.msg-bubble').filter({ hasText: "(A task of the project's To-do list to work on, written by you" })
+    const asked = chat
+      .locator('.msg-bubble')
+      .filter({ hasText: "(A task of the project's To-do list to work on, written by you" })
     await expect(asked.last()).toContainText(first)
     await expect(asked.last()).toContainText('prints bonjour')
     await expect(chat.getByText('Worked on the task.')).toBeVisible({ timeout: 20_000 })
@@ -103,7 +112,10 @@ for (const theme of ['light', 'dark'] as const)
     await rail(page, 'To-do').click()
     // It waits on a row too, as the badge counts it.
     await reads(page.getByRole('group', { name: `Done? ${first}` }), 3)
-    await page.getByRole('group', { name: `Done? ${first}` }).getByRole('button', { name: 'Done', exact: true }).click()
+    await page
+      .getByRole('group', { name: `Done? ${first}` })
+      .getByRole('button', { name: 'Done', exact: true })
+      .click()
     await unfold(first)
     await expect(status).toHaveValue('done')
     // Done: the second starts by itself, in the run Run the backlog began; a delete asks again before it deletes.

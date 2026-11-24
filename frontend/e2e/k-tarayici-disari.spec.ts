@@ -7,7 +7,8 @@ import { chatSheet, e2eProject, openFreshConversation, OWN, shot } from './helpe
 // for a server of this spec's on loopback: the stand-in browser (KOLONI_BROWSER_FAKE) takes it there, and the backend
 // asks no DNS of it (KOLONI_E2E_NAMES). Nothing leaves the machine.
 const DOCS = '<!doctype html><html><head><title>Docs page</title></head><body><h1>Docs</h1></body></html>'
-const ORDER = '<!doctype html><html><head><title>Order</title></head><body><form method="post" action="/order"><button>Send order</button></form></body></html>'
+const ORDER =
+  '<!doctype html><html><head><title>Order</title></head><body><form method="post" action="/order"><button>Send order</button></form></body></html>'
 
 let server: http.Server
 let port = 0
@@ -34,7 +35,9 @@ async function level(page: Page, id: string, mode: 'auto_edit' | 'full_auto') {
   expect((await set.json()).permission_mode).toBe(mode)
 }
 
-test('at Auto-edit an unlisted site is a card: This time keeps nothing, Allow this site lists it for the project', async ({ page }) => {
+test('at Auto-edit an unlisted site is a card: This time keeps nothing, Allow this site lists it for the project', async ({
+  page,
+}) => {
   const id = await openFreshConversation(page)
   await level(page, id, 'auto_edit')
   await page.getByLabel('Message').fill(`k-tarayici-disari open http://site.test:${port}/ http://other.test:${port}/`)

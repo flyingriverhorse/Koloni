@@ -11,7 +11,8 @@ const REACHES: [key: string, label: string][] = [
   ['system', 'The system'],
 ]
 
-const listed = (items: string[]) => (items.length > 0 ? <span className="mono">{items.join(', ')}</span> : <span className="muted">none seen</span>)
+const listed = (items: string[]) =>
+  items.length > 0 ? <span className="mono">{items.join(', ')}</span> : <span className="muted">none seen</span>
 
 /**
  * What code says outright, read as text and never run (slice 92, app/package_look.py scan): what it may
@@ -47,7 +48,9 @@ export function Seen({ seen, notSeen, children }: { seen: CodeSeen; notSeen: str
         <dt>Variables it reads</dt>
         <dd>
           {listed(seen.env)}
-          {seen.whole_env && <div className="seen-warn">It reads its whole environment: every variable, keys among them.</div>}
+          {seen.whole_env && (
+            <div className="seen-warn">It reads its whole environment: every variable, keys among them.</div>
+          )}
         </dd>
         {children}
         <dt>Not seen</dt>
@@ -60,8 +63,8 @@ export function Seen({ seen, notSeen, children }: { seen: CodeSeen; notSeen: str
         </dd>
       </dl>
       <p className="muted provider-note">
-        From {seen.read} {seen.read === 1 ? 'file' : 'files'} of code read as text, none of it run. This is where to look,
-        not a verdict: code can do what its text does not say outright.
+        From {seen.read} {seen.read === 1 ? 'file' : 'files'} of code read as text, none of it run. This is where to
+        look, not a verdict: code can do what its text does not say outright.
       </p>
     </div>
   )
@@ -90,7 +93,8 @@ export function PackageLook({ spec, command }: { spec: string; command: string[]
       setBusy(false)
     }
   }
-  const size = about && (about.size === null ? 'size not listed' : `~${sizeText(about.size)}${about.unpacked ? ' unpacked' : ''}`)
+  const size =
+    about && (about.size === null ? 'size not listed' : `~${sizeText(about.size)}${about.unpacked ? ' unpacked' : ''}`)
   return (
     <section className="cmd-approval package-look" aria-label="What does it do?">
       <div className="kicker cmd-approval-kicker">What does it do?</div>
@@ -130,7 +134,11 @@ export function PackageLook({ spec, command }: { spec: string; command: string[]
               disabled={busy}
               autoFocus
               onClick={() =>
-                void run(async () => setSeen(await api.post<PackageSeen>('/mcp-servers/package/look', { command, version: about.version })))
+                void run(async () =>
+                  setSeen(
+                    await api.post<PackageSeen>('/mcp-servers/package/look', { command, version: about.version }),
+                  ),
+                )
               }
             >
               Look inside (downloads {about.name}, {size})
@@ -143,15 +151,17 @@ export function PackageLook({ spec, command }: { spec: string; command: string[]
       ) : (
         <>
           <p className="cmd-approval-note">
-            KOLONİ can download <span className="mono">{spec}</span> and read it without running it: what it may reach, and
-            the programs, addresses and variables it names.
+            KOLONİ can download <span className="mono">{spec}</span> and read it without running it: what it may reach,
+            and the programs, addresses and variables it names.
           </p>
           <div className="change-actions">
             <button
               type="button"
               className="btn btn-small"
               disabled={busy}
-              onClick={() => void run(async () => setAbout(await api.post<PackageAbout>('/mcp-servers/package', { command })))}
+              onClick={() =>
+                void run(async () => setAbout(await api.post<PackageAbout>('/mcp-servers/package', { command })))
+              }
             >
               Look inside…
             </button>

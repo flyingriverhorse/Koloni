@@ -9,7 +9,8 @@ import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js'
 
 export const MAX_TRIANGLES = 2_000_000
 export const UNREADABLE = 'It could not be read as a 3D model.'
-export const tooMany = (count: number) => `Too many triangles to draw: ${count.toLocaleString()}, over ${MAX_TRIANGLES.toLocaleString()}.`
+export const tooMany = (count: number) =>
+  `Too many triangles to draw: ${count.toLocaleString()}, over ${MAX_TRIANGLES.toLocaleString()}.`
 
 type Numbers = Float32Array | Uint32Array | Uint16Array | Uint8Array
 
@@ -36,11 +37,23 @@ function part(kind: Part['kind'], name: string, geometry: any, materials: any[])
   return {
     kind,
     name,
-    attributes: Object.fromEntries(Object.entries(geometry.attributes).map(([key, value]: [string, any]) => [key, { array: value.array, itemSize: value.itemSize }])),
+    attributes: Object.fromEntries(
+      Object.entries(geometry.attributes).map(([key, value]: [string, any]) => [
+        key,
+        { array: value.array, itemSize: value.itemSize },
+      ]),
+    ),
     index: geometry.index?.array ?? null,
     groups: geometry.groups,
-    materials: materials.map(material => ({ name: material.name, flatShading: material.flatShading, vertexColors: material.vertexColors })),
-    bounds: box && sphere ? { min: box.min.toArray(), max: box.max.toArray(), center: sphere.center.toArray(), radius: sphere.radius } : null,
+    materials: materials.map(material => ({
+      name: material.name,
+      flatShading: material.flatShading,
+      vertexColors: material.vertexColors,
+    })),
+    bounds:
+      box && sphere
+        ? { min: box.min.toArray(), max: box.max.toArray(), center: sphere.center.toArray(), radius: sphere.radius }
+        : null,
   }
 }
 
@@ -60,7 +73,15 @@ export function parse(data: ArrayBuffer, ending: string): Parsed {
     if (faces > MAX_TRIANGLES) return tooMany(faces)
     const parts: Part[] = []
     new OBJLoader().parse(text).traverse((child: any) => {
-      if (child.geometry) parts.push(part(child.isLineSegments ? 'lines' : child.isPoints ? 'points' : 'mesh', child.name, child.geometry, [child.material].flat()))
+      if (child.geometry)
+        parts.push(
+          part(
+            child.isLineSegments ? 'lines' : child.isPoints ? 'points' : 'mesh',
+            child.name,
+            child.geometry,
+            [child.material].flat(),
+          ),
+        )
     })
     return { parts, mtl: /^mtllib\s+(.+?)\s*$/m.exec(text)?.[1] ?? null }
   } catch {
@@ -71,5 +92,11 @@ export function parse(data: ArrayBuffer, ending: string): Parsed {
 /** The arrays' buffers, each once (a buffer named twice cannot be moved): what goes back moved. */
 export function transferOf(parsed: Parsed): ArrayBuffer[] {
   if (typeof parsed === 'string') return []
-  return [...new Set(parsed.parts.flatMap(one => [...Object.values(one.attributes).map(value => value.array), ...(one.index ? [one.index] : [])]).map(array => array.buffer as ArrayBuffer))]
+  return [
+    ...new Set(
+      parsed.parts
+        .flatMap(one => [...Object.values(one.attributes).map(value => value.array), ...(one.index ? [one.index] : [])])
+        .map(array => array.buffer as ArrayBuffer),
+    ),
+  ]
 }

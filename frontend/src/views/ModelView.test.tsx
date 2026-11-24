@@ -16,7 +16,8 @@ import { FilesWindow } from './FilesWindow'
 import { MAX_TRIANGLES, gltfTooLarge, guard, load, step, triangles } from './model3d'
 import { kindOf } from './views'
 
-const STL = 'solid part\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 2 0 0\nvertex 0 3 0\nendloop\nendfacet\nendsolid part\n'
+const STL =
+  'solid part\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 2 0 0\nvertex 0 3 0\nendloop\nendfacet\nendsolid part\n'
 const realFetch = globalThis.fetch
 let answers: Record<string, () => Response> = {}
 let asked: string[] = []
@@ -73,7 +74,13 @@ const window_ = (views: View[], more: Partial<Parameters<typeof FilesWindow>[0]>
   )
 
 test('STL, OBJ, glTF, GLB and 3MF are models, by their name in any case; what a model names beside it is not', () => {
-  expect(['a.stl', 'b.OBJ', 'c.gltf', 'd.glb', 'e.3mf'].map(kindOf)).toEqual(['model', 'model', 'model', 'model', 'model'])
+  expect(['a.stl', 'b.OBJ', 'c.gltf', 'd.glb', 'e.3mf'].map(kindOf)).toEqual([
+    'model',
+    'model',
+    'model',
+    'model',
+    'model',
+  ])
   expect(['a.mtl', 'a.bin', 'a.step'].map(kindOf)).toEqual([null, null, null])
 })
 
@@ -88,7 +95,12 @@ test('a model opens the 3D view, loaded only then; without WebGL it says so plai
 })
 
 test('a model an agent changed opens on the model, its diff a click away; one too large is not loaded', async () => {
-  const change = fileChange('f1', 'r1', { path: 'parts/part.stl', kind: 'create', status: 'proposed', diff: '@@ -0,0 +1 @@\n+solid part\n' })
+  const change = fileChange('f1', 'r1', {
+    path: 'parts/part.stl',
+    kind: 'create',
+    status: 'proposed',
+    diff: '@@ -0,0 +1 @@\n+solid part\n',
+  })
   const { unmount } = window_([model({ status: 'proposed' })], { changes: [change] })
   expect(screen.getByRole('button', { name: 'Preview' })).toHaveAttribute('aria-pressed', 'true')
   expect(await screen.findByText('This browser cannot draw 3D here.')).toBeInTheDocument()
@@ -105,7 +117,18 @@ test('what a model names beside it comes from its own folder of this origin only
   expect(beside('http://app/api/projects/p/raw/parts/tex/a.png')).toBe('http://app/api/projects/p/raw/parts/tex/a.png')
   expect(beside('data:application/octet-stream;base64,AAAA')).toBe('data:application/octet-stream;base64,AAAA')
   expect(beside('blob:http://app/1234')).toBe('blob:http://app/1234')
-  for (const away of ['../secret.bin', '%2e%2e/secret.bin', '/api/conversations', 'http://elsewhere/a.png', '//elsewhere/a.png', 'file:///C:/a.png', 'part.bin?again=1', 'part.bin#again', 'sub%2f..%2f..%2fsecret.bin', 'sub%5Csecret.bin'])
+  for (const away of [
+    '../secret.bin',
+    '%2e%2e/secret.bin',
+    '/api/conversations',
+    'http://elsewhere/a.png',
+    '//elsewhere/a.png',
+    'file:///C:/a.png',
+    'part.bin?again=1',
+    'part.bin#again',
+    'sub%2f..%2f..%2fsecret.bin',
+    'sub%5Csecret.bin',
+  ])
     expect(beside(away), away).toBe('about:blank')
   // no more than 32 files beside it, each of which may be as large as itself; the same one again is not another
   const fresh = guard('http://app/m/')
@@ -143,8 +166,12 @@ test('a 3MF says its unit - millimetres where it says none, as the format has it
   const strToU8 = (text: string) => new Uint8Array(encode(text))
   const threeMF = (unit: string) =>
     zipSync({
-      '[Content_Types].xml': strToU8('<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/></Types>'),
-      '_rels/.rels': strToU8('<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="r0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>'),
+      '[Content_Types].xml': strToU8(
+        '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/></Types>',
+      ),
+      '_rels/.rels': strToU8(
+        '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="r0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>',
+      ),
       '3D/3dmodel.model': strToU8(
         `<?xml version="1.0"?><model ${unit} xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"><resources><object id="1" type="model"><mesh><vertices><vertex x="0" y="0" z="0"/><vertex x="1" y="0" z="0"/><vertex x="0" y="1" z="0"/></vertices><triangles><triangle v1="0" v2="1" v3="2"/></triangles></mesh></object></resources><build><item objectid="1"/></build></model>`,
       ),
@@ -167,10 +194,14 @@ test('over two million triangles, a model is not drawn: the note says how many',
 })
 
 test('a 3MF that would unpack to more than 200 MB - as its zip says - is refused before anything is unpacked', async () => {
-  const zip = zipSync({ '3D/3dmodel.model': new Uint8Array(encode('<model/>')), '_rels/.rels': new Uint8Array(encode('<r/>')) })
+  const zip = zipSync({
+    '3D/3dmodel.model': new Uint8Array(encode('<model/>')),
+    '_rels/.rels': new Uint8Array(encode('<r/>')),
+  })
   // (its central directory says each file is 2 GB)
   const view = new DataView(zip.buffer)
-  for (let at = 0; at < zip.length - 4; at++) if (view.getUint32(at, true) === 0x02014b50) view.setUint32(at + 24, 0x7fffffff, true)
+  for (let at = 0; at < zip.length - 4; at++)
+    if (view.getUint32(at, true) === 0x02014b50) view.setUint32(at + 24, 0x7fffffff, true)
   const parse = vi.spyOn(ThreeMFLoader.prototype, 'parse')
   answers['/m/bomb.3mf'] = () => new Response(zip)
   expect(await load('/m/bomb.3mf', 'bomb.3mf')).toBe('Too large to draw: it unpacks to over 200 MB.')
@@ -189,9 +220,14 @@ test('a glTF whose arrays its JSON alone makes - or that would be too large - is
   expect(gltfTooLarge({ accessors: [accessor] })).toBe(false)
   expect(gltfTooLarge({ accessors: [{ ...accessor, bufferView: undefined }] })).toBe(true)
   expect(gltfTooLarge({ accessors: [{ ...accessor, count: -1 }] })).toBe(true)
-  expect(gltfTooLarge({ accessors: [{ ...accessor, bufferView: undefined, sparse: {}, count: 20_000_000 }] })).toBe(true)
+  expect(gltfTooLarge({ accessors: [{ ...accessor, bufferView: undefined, sparse: {}, count: 20_000_000 }] })).toBe(
+    true,
+  )
   const parse = vi.spyOn(GLTFLoader.prototype, 'parseAsync')
-  answers['/m/empty.gltf'] = () => new Response(JSON.stringify({ asset: { version: '2.0' }, accessors: [{ count: 1e9, type: 'MAT4', componentType: 5126 }] }))
+  answers['/m/empty.gltf'] = () =>
+    new Response(
+      JSON.stringify({ asset: { version: '2.0' }, accessors: [{ count: 1e9, type: 'MAT4', componentType: 5126 }] }),
+    )
   expect(await load('/m/empty.gltf', 'empty.gltf')).toBe('Too large to draw: it unpacks to over 200 MB.')
   expect(parse).not.toHaveBeenCalled()
   const bytes = new Uint8Array(new Float32Array([0, 0, 0, 4, 0, 0, 0, 5, 0]).buffer)
@@ -216,7 +252,11 @@ test('instances count: a mesh drawn five times is five times its triangles', () 
 
 test('a texture that comes after the model is given back is drawn as it comes: onChange', async () => {
   const textures: string[] = []
-  vi.spyOn(THREE.ImageLoader.prototype, 'load').mockImplementation(function (this: { manager: THREE.LoadingManager }, url: string, onLoad: (image: unknown) => void) {
+  vi.spyOn(THREE.ImageLoader.prototype, 'load').mockImplementation(function (
+    this: { manager: THREE.LoadingManager },
+    url: string,
+    onLoad: (image: unknown) => void,
+  ) {
     const image = document.createElement('img')
     textures.push(url)
     this.manager.itemStart(url)

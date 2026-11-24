@@ -10,5 +10,8 @@ export function useReady() {
   const backlog = useApp(s => s.backlog)
   const memory = useApp(s => s.memory)
   const away = useApp(s => s.away)
-  return useMemo(() => readyItems({ conv, chats, projectId, backlog, memory, away }), [conv, chats, projectId, backlog, memory, away])
+  return useMemo(
+    () => readyItems({ conv, chats, projectId, backlog, memory, away }),
+    [conv, chats, projectId, backlog, memory, away],
+  )
 }

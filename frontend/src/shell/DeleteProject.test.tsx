@@ -23,11 +23,16 @@ async function opened() {
 test('Delete project… asks with what goes counted, says the folder stays and it cannot be undone, offers an export, and deletes only once the name is typed', async () => {
   const gone = vi.spyOn(useApp.getState(), 'deleteProject').mockResolvedValue()
   const dialog = await opened()
-  expect(dialog).toHaveTextContent('This deletes 12 chats, 34 memory records, 5 To-do tasks, 1 trigger, 0 knowledge topics')
+  expect(dialog).toHaveTextContent(
+    'This deletes 12 chats, 34 memory records, 5 To-do tasks, 1 trigger, 0 knowledge topics',
+  )
   expect(dialog).toHaveTextContent(KEPT_ON_DISK)
   expect(dialog).toHaveTextContent('It cannot be undone.')
   // the export: saved with no key in its address, its keys left out
-  const zip = vi.fn(async () => new Response('PK', { headers: { 'Content-Disposition': 'attachment; filename="koloni-2026-11-06.zip"' } }))
+  const zip = vi.fn(
+    async () =>
+      new Response('PK', { headers: { 'Content-Disposition': 'attachment; filename="koloni-2026-11-06.zip"' } }),
+  )
   vi.stubGlobal('fetch', zip)
   Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:zip'), revokeObjectURL: vi.fn() })
   const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
@@ -49,7 +54,9 @@ test('Delete project… asks with what goes counted, says the folder stays and i
 })
 
 test('a refusal is said in the dialog, and Keep it closes it with nothing deleted', async () => {
-  const gone = vi.spyOn(useApp.getState(), 'deleteProject').mockRejectedValue(new Error('a turn of the project is running — wait for it to end'))
+  const gone = vi
+    .spyOn(useApp.getState(), 'deleteProject')
+    .mockRejectedValue(new Error('a turn of the project is running — wait for it to end'))
   const dialog = await opened()
   await userEvent.type(within(dialog).getByRole('textbox'), 'demo')
   await userEvent.click(within(dialog).getByRole('button', { name: 'Delete project' }))

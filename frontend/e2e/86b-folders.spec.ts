@@ -10,7 +10,9 @@ import { OUTSIDE_DIR, PROJECT_DIR } from './paths.mjs'
 const SHELF = path.join(OUTSIDE_DIR, 'shelf86b')
 
 for (const theme of ['light', 'dark'] as const)
-  test(`“Add to this chat” puts the folder an agent asked for in the chat’s folders, where × takes it off (${theme})`, async ({ page }) => {
+  test(`“Add to this chat” puts the folder an agent asked for in the chat’s folders, where × takes it off (${theme})`, async ({
+    page,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     mkdirSync(SHELF, { recursive: true })
     const id = await openFreshConversation(page)
@@ -31,8 +33,12 @@ for (const theme of ['light', 'dark'] as const)
     await expect(folder).toContainText('+1')
     expect((await folder.evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])
     await folder.click()
-    const also = page.getByRole('dialog', { name: 'This chat’s folders' }).getByRole('region', { name: 'Also in this chat' })
-    await expect(also.getByRole('button', { name: `Access to ${SHELF}: read; click for read & write` })).toHaveText('read')
+    const also = page
+      .getByRole('dialog', { name: 'This chat’s folders' })
+      .getByRole('region', { name: 'Also in this chat' })
+    await expect(also.getByRole('button', { name: `Access to ${SHELF}: read; click for read & write` })).toHaveText(
+      'read',
+    )
     const pieces = await page.getByRole('dialog', { name: 'This chat’s folders' }).evaluate(contrasts)
     expect(pieces.filter(piece => piece.ratio < 4.5)).toEqual([])
     if (process.env.KOLONI_SHOTS) await shot(page, `86b-folders-${theme}`)
@@ -48,7 +54,9 @@ for (const theme of ['light', 'dark'] as const)
     expect((await (await page.request.get(`/api/conversations/${id}`)).json()).conversation.read_in).toEqual([])
   })
 
-test('in a chat with no folder a file the user names is read once on “Allow once”, and no folder is opened', async ({ page }) => {
+test('in a chat with no folder a file the user names is read once on “Allow once”, and no folder is opened', async ({
+  page,
+}) => {
   mkdirSync(OUTSIDE_DIR, { recursive: true })
   const report = path.join(OUTSIDE_DIR, 'rapor.txt')
   writeFileSync(report, 'The report: three parts.\n')
@@ -71,13 +79,16 @@ test('in a chat with no folder a file the user names is read once on “Allow on
 })
 
 for (const theme of ['light', 'dark'] as const)
-  test(`the folder button’s panel sets the chat to a part of its folder, by keyboard, and back to the whole project (${theme})`, async ({ page }) => {
+  test(`the folder button’s panel sets the chat to a part of its folder, by keyboard, and back to the whole project (${theme})`, async ({
+    page,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     // A part of the project for this test alone: a folder with a marker file.
     const part = path.join(PROJECT_DIR, 'part86b')
     mkdirSync(part, { recursive: true })
     writeFileSync(path.join(part, 'pyproject.toml'), '[project]\nname = "part86b"\n')
-    const partOf = async (id: string) => (await (await page.request.get(`/api/conversations/${id}`)).json()).conversation.part
+    const partOf = async (id: string) =>
+      (await (await page.request.get(`/api/conversations/${id}`)).json()).conversation.part
     try {
       const id = await openFreshConversation(page)
       await page.getByRole('button', { name: /^Folder: / }).click()

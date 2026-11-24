@@ -26,7 +26,11 @@ const proposal = (over: Partial<TriggerProposal> = {}): TriggerProposal => ({
 
 function page(over: object = {}) {
   const h = {
-    onCreate: vi.fn(async (values: object) => ({ ...trigger(values as Partial<Trigger>), id: 'new', key: null as string | null })),
+    onCreate: vi.fn(async (values: object) => ({
+      ...trigger(values as Partial<Trigger>),
+      id: 'new',
+      key: null as string | null,
+    })),
     onSave: vi.fn().mockResolvedValue(undefined),
     onDelete: vi.fn(),
     onRun: vi.fn(),
@@ -35,7 +39,16 @@ function page(over: object = {}) {
     onRules: vi.fn(async () => []),
     onAddRule: vi.fn(),
   }
-  render(<TriggersPage triggers={[]} conversations={[conversation]} draft={null} origin="http://127.0.0.1:8790" {...h} {...over} />)
+  render(
+    <TriggersPage
+      triggers={[]}
+      conversations={[conversation]}
+      draft={null}
+      origin="http://127.0.0.1:8790"
+      {...h}
+      {...over}
+    />,
+  )
   return h
 }
 const form = () => within(screen.getByRole('form', { name: /trigger/i }))
@@ -46,7 +59,9 @@ test('with no end the form warns, and says what it may cost from the budget as t
   const f = form()
   expect(f.getByRole('radio', { name: 'No end' })).toBeChecked()
   const warning = f.getByRole('note', { name: 'No end' })
-  expect(warning).toHaveTextContent('No end: it runs until you switch it off. Up to 24 runs a day, each up to 15 model steps and 10 minutes')
+  expect(warning).toHaveTextContent(
+    'No end: it runs until you switch it off. Up to 24 runs a day, each up to 15 model steps and 10 minutes',
+  )
   await userEvent.clear(f.getByLabelText('Runs a day'))
   await userEvent.type(f.getByLabelText('Runs a day'), '3')
   expect(warning).toHaveTextContent('Up to 3 runs a day')
@@ -74,7 +89,9 @@ test('an end after so many runs, or after a day, is sent as the server takes it;
   // A clock trigger may be told to run even when nothing changed.
   await userEvent.click(f.getByLabelText('Run even if nothing changed'))
   await userEvent.click(f.getByRole('button', { name: 'Add trigger' }))
-  expect(h.onCreate).toHaveBeenCalledWith(expect.objectContaining({ ends: { runs: 7 }, run_unchanged: true, proposal_id: null }))
+  expect(h.onCreate).toHaveBeenCalledWith(
+    expect.objectContaining({ ends: { runs: 7 }, run_unchanged: true, proposal_id: null }),
+  )
 })
 
 test('an end after a day starts at today and is sent as that day', async () => {
@@ -94,7 +111,9 @@ test('a card says its end and the runs done toward it; one that ended says why, 
   expect(endLine(trigger())).toBe('no end: it runs until you switch it off')
   expect(endLine(trigger({ ends: { runs: 10 }, ran: 3 }))).toBe('after 10 runs · 3 done')
   expect(endLine(trigger({ ends: { until: '2026-11-01' } }))).toBe('after 2026-11-01')
-  expect(offLine(trigger({ enabled: false, failures: 1, off_because: 'ended: 10 runs done' }))).toBe('ended: 10 runs done')
+  expect(offLine(trigger({ enabled: false, failures: 1, off_because: 'ended: 10 runs done' }))).toBe(
+    'ended: 10 runs done',
+  )
   expect(outcomeOf(triggerRun('1', 'skipped_same'))).toBe('skipped: nothing changed since the last run')
 })
 
@@ -120,7 +139,13 @@ test('a refused Approve is said on the card; a decided one is one line', async (
   const { rerender } = render(<TriggerProposalCard proposal={proposal()} onDecide={onDecide} onEdit={vi.fn()} />)
   await userEvent.click(screen.getByRole('button', { name: 'Approve' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('this proposal was rejected already')
-  rerender(<TriggerProposalCard proposal={proposal({ status: 'approved', trigger_id: 't9' })} onDecide={onDecide} onEdit={vi.fn()} />)
+  rerender(
+    <TriggerProposalCard
+      proposal={proposal({ status: 'approved', trigger_id: 't9' })}
+      onDecide={onDecide}
+      onEdit={vi.fn()}
+    />,
+  )
   expect(screen.getByRole('note')).toHaveTextContent('The trigger “Dependencies” was made: it is on the Triggers page.')
   expect(screen.queryByRole('button')).not.toBeInTheDocument()
 })
@@ -135,12 +160,28 @@ test('Edit on a proposal opens a new trigger’s form filled in, allowed nothing
   expect(h.onDraftTaken).toHaveBeenCalled()
   await userEvent.click(f.getByRole('button', { name: 'Add trigger' }))
   expect(h.onCreate).toHaveBeenCalledWith(
-    expect.objectContaining({ name: 'Dependencies', config: { at: '17:00', days: ['fri'] }, ends: { runs: 4 }, proposal_id: 'p1', permissions: { write: false, commands: [], agents: 0 } }),
+    expect.objectContaining({
+      name: 'Dependencies',
+      config: { at: '17:00', days: ['fri'] },
+      ends: { runs: 4 },
+      proposal_id: 'p1',
+      permissions: { write: false, commands: [], agents: 0 },
+    }),
   )
   await waitFor(() => expect(screen.queryByRole('form')).not.toBeInTheDocument())
 })
 
 test('a trigger past its last day says to change the day before it is switched on again', () => {
-  page({ triggers: [trigger({ enabled: false, ends: { until: '2026-10-01' }, off_because: 'ended: its last day, 2026-10-01, is over' })] })
-  expect(screen.getByRole('alert')).toHaveTextContent('ended: its last day, 2026-10-01, is over To run it more, change its last day (Edit), then switch it on again.')
+  page({
+    triggers: [
+      trigger({
+        enabled: false,
+        ends: { until: '2026-10-01' },
+        off_because: 'ended: its last day, 2026-10-01, is over',
+      }),
+    ],
+  })
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'ended: its last day, 2026-10-01, is over To run it more, change its last day (Edit), then switch it on again.',
+  )
 })

@@ -17,7 +17,12 @@ export function RoomRow({ state, room, onOpen }: { state: ConvState; room: Room;
         <span className="tool-row-status mono muted">
           {roomTag(state, room)} · <span className="link-btn">Open</span>
         </span>
-        {waitsForYou(state, room) && <>{' '}<span className="tag tag-warn">waits for you</span></>}
+        {waitsForYou(state, room) && (
+          <>
+            {' '}
+            <span className="tag tag-warn">waits for you</span>
+          </>
+        )}
       </button>
     </div>
   )

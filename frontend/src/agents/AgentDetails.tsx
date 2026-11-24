@@ -41,7 +41,13 @@ export function AgentDetails({ state, agent, memory, providers, open, onToggle, 
   const goesOn = state.agents.some(a => a.continues_id === agent.id)
   const stepped = stepsOf(state, agent.id, agent.report)
   return (
-    <Fold title="Details" count="model, usage, tools, raw steps" open={open} onToggle={onToggle} className="agent-details">
+    <Fold
+      title="Details"
+      count="model, usage, tools, raw steps"
+      open={open}
+      onToggle={onToggle}
+      className="agent-details"
+    >
       {/* The level its opener picked and why; or its service refused the level it was sent (the step went again without one);
           or why Copilot's auto picked its model. */}
       {agent.effort_note && <p className="muted provider-note">{agent.effort_note}</p>}
@@ -62,16 +68,29 @@ export function AgentDetails({ state, agent, memory, providers, open, onToggle, 
       )}
       {agent.provider_mode === 'reads' && (
         <p role="note" className="muted provider-note">
-          Reads only{letThrough(state, agent.id) && LET_THROUGH}: on this provider it works with the CLI’s own tools, and the CLI
-          was started without leave to write or run; your own agy settings can allow more. The tools of its role, listed above, do
-          not apply.
+          Reads only{letThrough(state, agent.id) && LET_THROUGH}: on this provider it works with the CLI’s own tools,
+          and the CLI was started without leave to write or run; your own agy settings can allow more. The tools of its
+          role, listed above, do not apply.
         </p>
       )}
       <div className="kicker">Raw stream</div>
       <CopyRaw agentId={agent.id} />
-      <Fold title="Every step as recorded" count={stepped.steps.length ? many(stepped.steps.length, 'step') : 'none'} open={steps} onToggle={setSteps} className="agent-steps">
+      <Fold
+        title="Every step as recorded"
+        count={stepped.steps.length ? many(stepped.steps.length, 'step') : 'none'}
+        open={steps}
+        onToggle={setSteps}
+        className="agent-steps"
+      >
         <AgentMemory state={state} agent={agent} memory={memory} />
-        <AgentSteps state={state} agent={agent} of={stepped} onOpenChange={onOpenChange} onSelectAgent={onSelectAgent} empty="Nothing yet." />
+        <AgentSteps
+          state={state}
+          agent={agent}
+          of={stepped}
+          onOpenChange={onOpenChange}
+          onSelectAgent={onSelectAgent}
+          empty="Nothing yet."
+        />
       </Fold>
     </Fold>
   )
@@ -167,7 +186,15 @@ function Usage({ state, agent }: { state: ConvState; agent: Agent }) {
 }
 
 /** How full its context is, its tokens in and out, and Copilot's own unit: AI credits or premium requests. */
-function ContextLine({ agent, said, tokensKnown }: { agent: Agent; said: AgentLive['context'] | null; tokensKnown: boolean }) {
+function ContextLine({
+  agent,
+  said,
+  tokensKnown,
+}: {
+  agent: Agent
+  said: AgentLive['context'] | null
+  tokensKnown: boolean
+}) {
   const [used, window] = said ? [said.used, said.window] : [agent.input_tokens, agent.context_window]
   const full = percentFull(used, window)
   const show = (n: number | null) => (n === null ? 'unknown' : n.toLocaleString('en-US'))
@@ -177,7 +204,15 @@ function ContextLine({ agent, said, tokensKnown }: { agent: Agent; said: AgentLi
       {full && (tokensKnown ? `${full} · ` : `${full} full`)}
       {tokensKnown && `${show(agent.input_tokens)} in / ${show(agent.output_tokens)} out`}
       {tokensKnown && units && ` · ${units}`}
-      {full && <meter className="agent-meter" aria-label="Context used" min={0} max={window!} value={Math.min(used!, window!)} />}
+      {full && (
+        <meter
+          className="agent-meter"
+          aria-label="Context used"
+          min={0}
+          max={window!}
+          value={Math.min(used!, window!)}
+        />
+      )}
     </dd>
   )
 }
@@ -189,7 +224,15 @@ function ContextLine({ agent, said, tokensKnown }: { agent: Agent; said: AgentLi
  * what came of it is said here. Not while it is at work (it is compacted at its steps then), nor where a later
  * agent goes on from it: the button says why. Also in the top bar's panel of each agent's context (`RunStatus`).
  */
-export function CompactNow({ agent, goesOn, onBusy }: { agent: Agent; goesOn: boolean; onBusy: (on: boolean) => void }) {
+export function CompactNow({
+  agent,
+  goesOn,
+  onBusy,
+}: {
+  agent: Agent
+  goesOn: boolean
+  onBusy: (on: boolean) => void
+}) {
   const { busy, error, ask } = useAsk()
   const [said, setSaid] = useState<string | null>(null)
   if (agent.compacts_itself || agent.depth > 0) return null
@@ -273,9 +316,7 @@ function Summarised({ agent, goesOn, compacting }: { agent: Agent; goesOn: boole
       {agent.summary_note && <p>{agent.summary_note}</p>}
       {agent.summarised > 0 && (
         <details className="more">
-          <summary>
-            {many(agent.summarised, 'message')} summarised for its model
-          </summary>
+          <summary>{many(agent.summarised, 'message')} summarised for its model</summary>
           {draft === null ? (
             <>
               <div className="summary-text" role="region" aria-label="Working state" tabIndex={0}>
@@ -320,7 +361,10 @@ function Summarised({ agent, goesOn, compacting }: { agent: Agent; goesOn: boole
                   disabled={busy || compacting || !draft.trim()}
                   onClick={() =>
                     void ask(async () => {
-                      await api.patch<Agent>(`/agents/${agent.id}/summary`, { summary: draft, summarised: began.current })
+                      await api.patch<Agent>(`/agents/${agent.id}/summary`, {
+                        summary: draft,
+                        summarised: began.current,
+                      })
                       close()
                     })
                   }

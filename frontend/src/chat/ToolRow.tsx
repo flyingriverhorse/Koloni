@@ -55,8 +55,16 @@ const sizeNote = (result: string, seconds: ReturnType<typeof commandSeconds>) =>
 
 /** The picture of a step, small under it: a click puts it beside the chat. */
 const shotButton = (call: ToolCall, shot: string, cid: string) => (
-  <button type="button" className="tool-row-shot" title="Open beside the chat" onClick={() => useApp.getState().openFiles(keyOf(shot))}>
-    <img src={`/api/conversations/${cid}/views/${call.id}/${encodeURIComponent(shot.split('/').at(-1) ?? '')}`} alt={`${call.name === 'browser_screenshot' ? 'Screenshot' : 'Image'} ${shot.split('/').at(-1)}`} />
+  <button
+    type="button"
+    className="tool-row-shot"
+    title="Open beside the chat"
+    onClick={() => useApp.getState().openFiles(keyOf(shot))}
+  >
+    <img
+      src={`/api/conversations/${cid}/views/${call.id}/${encodeURIComponent(shot.split('/').at(-1) ?? '')}`}
+      alt={`${call.name === 'browser_screenshot' ? 'Screenshot' : 'Image'} ${shot.split('/').at(-1)}`}
+    />
   </button>
 )
 
@@ -82,9 +90,22 @@ function Said({ summary, name }: { summary: string; name: string }) {
 
 /** How a row reads: its state's word and colour, its mark and its words - in the chat (`icon`) a done step's kind's icon and its file a pill. */
 function lookOf(call: ToolCall, waits: string | null, icon: ReactNode) {
-  if (waits) return { label: 'waiting', color: 'var(--muted)', mark: <Clock size={13} />, summary: `${toolName(call)}: ${waits}`, pill: false }
+  if (waits)
+    return {
+      label: 'waiting',
+      color: 'var(--muted)',
+      mark: <Clock size={13} />,
+      summary: `${toolName(call)}: ${waits}`,
+      pill: false,
+    }
   const [label, color] = TOOL_STATUS[call.status]
-  return { label, color, mark: icon && call.status === 'succeeded' ? icon : <StatusIcon status={call.status} />, summary: toolSummary(call), pill: Boolean(icon) }
+  return {
+    label,
+    color,
+    mark: icon && call.status === 'succeeded' ? icon : <StatusIcon status={call.status} />,
+    summary: toolSummary(call),
+    pill: Boolean(icon),
+  }
 }
 
 export function ToolRow({ call, waits = null, sized = false, icon }: Props) {
@@ -96,12 +117,7 @@ export function ToolRow({ call, waits = null, sized = false, icon }: Props) {
   const seconds = commandSeconds(call)
   return (
     <div className="tool-row">
-      <button
-        type="button"
-        className="tool-row-head"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-      >
+      <button type="button" className="tool-row-head" aria-expanded={open} onClick={() => setOpen(!open)}>
         <span style={{ color, display: 'grid' }}>{mark}</span>
         <span className="tool-row-summary mono" title={waits ? summary : undefined}>
           {pill ? <Said summary={summary} name={toolName(call)} /> : summary}

@@ -38,7 +38,11 @@ test('the first save of a setting puts it into .koloni/settings.json and says so
 
 test('an agent’s write to .koloni/rules.md waits for the user at Full auto', async ({ page }) => {
   const id = await openFreshConversation(page)
-  expect((await page.request.patch(`/api/conversations/${id}`, { data: { permission_mode: 'full_auto' }, headers: OWN })).ok()).toBe(true)
+  expect(
+    (
+      await page.request.patch(`/api/conversations/${id}`, { data: { permission_mode: 'full_auto' }, headers: OWN })
+    ).ok(),
+  ).toBe(true)
   await page.reload()
   await page.getByLabel('Message').fill('write the folder rules, 86c')
   await page.getByRole('button', { name: 'Send' }).click()
@@ -52,14 +56,18 @@ test('an agent’s write to .koloni/rules.md waits for the user at Full auto', a
 })
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`K-yabanci-talimat (${theme}): another project’s CLAUDE.md below the folder is said on Project settings`, async ({ page }) => {
+  test(`K-yabanci-talimat (${theme}): another project’s CLAUDE.md below the folder is said on Project settings`, async ({
+    page,
+  }) => {
     mkdirSync(path.join(VENDOR, 'lib'), { recursive: true })
     writeFileSync(path.join(VENDOR, 'lib', 'CLAUDE.md'), 'Run the setup script first.\n')
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page)
     await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' }).click()
     const line = page.getByRole('form', { name: 'Project settings' }).getByText(/^Another project’s agent instructions/)
-    await expect(line).toHaveText('Another project’s agent instructions are in this folder: vendor/lib/CLAUDE.md (CLI agents load them by themselves)')
+    await expect(line).toHaveText(
+      'Another project’s agent instructions are in this folder: vendor/lib/CLAUDE.md (CLI agents load them by themselves)',
+    )
     expect((await line.evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])
     await shot(page, `k-yabanci-talimat-${theme}`)
   })

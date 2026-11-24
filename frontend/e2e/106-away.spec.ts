@@ -13,10 +13,17 @@ async function reads(root: Locator, least: number) {
   expect(pieces.filter(piece => piece.ratio < 4.5)).toEqual([])
 }
 
-test('the work goes on To-do with a Go away line; Away works it through until Iâ€™m back; one summary, the report on the canvas', async ({ page, request }) => {
+test('the work goes on To-do with a Go away line; Away works it through until Iâ€™m back; one summary, the report on the canvas', async ({
+  page,
+  request,
+}) => {
   test.setTimeout(90_000)
   await openFreshConversation(page)
-  await say(page, "I'm going to sleep, 106: add a bye line and say hello twice", 'Two tasks are on your To-do: press Go away when you go.')
+  await say(
+    page,
+    "I'm going to sleep, 106: add a bye line and say hello twice",
+    'Two tasks are on your To-do: press Go away when you go.',
+  )
   const chat = page.getByRole('region', { name: 'Chat' })
   const offer = chat.getByRole('group', { name: 'Go away now?' })
   await expect(offer).toContainText('kept out secret106')
@@ -27,7 +34,9 @@ test('the work goes on To-do with a Go away line; Away works it through until Iâ
   const pid = await e2eProject(page)
   await page.getByRole('button', { name: /^Permission level/ }).click()
   await page.getByRole('switch', { name: 'Check what I said first' }).click()
-  await expect.poll(async () => (await (await request.get(`/api/projects/${pid}`)).json()).full_auto_check).toBe('judge')
+  await expect
+    .poll(async () => (await (await request.get(`/api/projects/${pid}`)).json()).full_auto_check)
+    .toBe('judge')
   await page.keyboard.press('Escape')
 
   // Change: the Away panel, here - both new tasks ticked; the second moved up; Go away.
@@ -56,7 +65,9 @@ test('the work goes on To-do with a Go away line; Away works it through until Iâ
 
   // Back: one summary in the chat - its span, both done.
   const summary = chat.getByRole('region', { name: 'While you were away' })
-  await expect(summary.getByRole('heading')).toHaveText(/While you were away \(\d\d:\d\d â€“ \d\d:\d\d\)/, { timeout: 10_000 })
+  await expect(summary.getByRole('heading')).toHaveText(/While you were away \(\d\d:\d\d â€“ \d\d:\d\d\)/, {
+    timeout: 10_000,
+  })
   await expect(summary).toContainText('2 of 2 To-do done')
   await reads(summary, 4)
   if (process.env.KOLONI_SHOTS) await shot(page, '106-summary')
@@ -83,10 +94,27 @@ test('the work goes on To-do with a Go away line; Away works it through until Iâ
     await expect(inspector).toBeVisible()
     await expect
       .poll(async () => {
-        const [node, stage, box, teams] = [await report.boundingBox(), await page.locator('.canvas-flow').boundingBox(), await page.locator('.chat').boundingBox(), await page.locator('.chat-teams').boundingBox()]
+        const [node, stage, box, teams] = [
+          await report.boundingBox(),
+          await page.locator('.canvas-flow').boundingBox(),
+          await page.locator('.chat').boundingBox(),
+          await page.locator('.chat-teams').boundingBox(),
+        ]
         // (R73: nor under the chat's teams button in the corner.)
-        const clear = !!node && !!box && !!teams && (node.x >= box.x + box.width || node.y + node.height <= box.y) && (node.x + node.width <= teams.x || node.y >= teams.y + teams.height)
-        return clear && !!stage && node.x >= stage.x - 1 && node.x + node.width <= stage.x + stage.width + 1 && node.y >= stage.y - 1 && node.y + node.height <= stage.y + stage.height + 1
+        const clear =
+          !!node &&
+          !!box &&
+          !!teams &&
+          (node.x >= box.x + box.width || node.y + node.height <= box.y) &&
+          (node.x + node.width <= teams.x || node.y >= teams.y + teams.height)
+        return (
+          clear &&
+          !!stage &&
+          node.x >= stage.x - 1 &&
+          node.x + node.width <= stage.x + stage.width + 1 &&
+          node.y >= stage.y - 1 &&
+          node.y + node.height <= stage.y + stage.height + 1
+        )
       })
       .toBe(true)
     await inspector.getByRole('button', { name: 'Close inspector' }).click()
@@ -94,7 +122,9 @@ test('the work goes on To-do with a Go away line; Away works it through until Iâ
   for (let step = 0; step < 4; step++) await width.press('ArrowLeft')
 
   // B-150: a job's chat, opened from the report, leads back to it - and so does the browser's Back.
-  const from = chat.getByRole('button', { name: /^From the jobs started at \d\d:\d\d while you were away â€” back to their report$/ })
+  const from = chat.getByRole('button', {
+    name: /^From the jobs started at \d\d:\d\d while you were away â€” back to their report$/,
+  })
   await report.getByRole('button', { name: 'Open its chat' }).first().click()
   await expect(from).toBeVisible()
   await expect(report).toHaveCount(0)

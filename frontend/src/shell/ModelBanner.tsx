@@ -36,7 +36,10 @@ const nameOf = (health: Health) => health.provider_name ?? 'The model provider'
 function said(health: Health): [string, string | null] {
   // The address without its scheme, path, query, fragment and user name or password - any of which can hold a
   // secret: "127.0.0.1:8080". (Not new URL(): a base URL typed wrong would throw.)
-  const host = health.model_base_url.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').split(/[/?#]/)[0].replace(/^.*@/, '')
+  const host = health.model_base_url
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
+    .split(/[/?#]/)[0]
+    .replace(/^.*@/, '')
   return health.not_listed
     ? // It was not asked anything: it may well be there, it just may not run as it is set.
       [`${nameOf(health)} has no model it may run with by default.`, health.error]
@@ -46,19 +49,30 @@ function said(health: Health): [string, string | null] {
 }
 
 function wrongs(readings: Health[], cannot: Cannot[], quietFor: string | null): Wrong[] {
-  const bad = readings.filter(h => (quietFor === null || h.provider_id !== quietFor) && (h.not_listed || !h.model_reachable || h.tools_supported === false))
+  const bad = readings.filter(
+    h =>
+      (quietFor === null || h.provider_id !== quietFor) &&
+      (h.not_listed || !h.model_reachable || h.tools_supported === false),
+  )
   return [
     ...bad.map(h => {
       const [line, reason] = said(h)
       const key = [h.provider_name, h.model_base_url, h.not_listed, h.model_reachable, h.tools_supported].join(' ')
       return { key, name: nameOf(h), line, reason, down: !h.model_reachable && !h.not_listed }
     }),
-    ...cannot.map(({ who, why }) => ({ key: `${who} can't run: ${why}`, name: who, line: `${who} can't run: ${why}`, reason: null, down: false })),
+    ...cannot.map(({ who, why }) => ({
+      key: `${who} can't run: ${why}`,
+      name: who,
+      line: `${who} can't run: ${why}`,
+      reason: null,
+      down: false,
+    })),
   ]
 }
 
 /** Each one's line in the list of several, named where its line does not name it, with its reason. */
-const listed = ({ name, line, reason }: Wrong) => `${line.startsWith(name) ? '' : `${name}: `}${line}${reason ? ` ${reason}` : ''}`
+const listed = ({ name, line, reason }: Wrong) =>
+  `${line.startsWith(name) ? '' : `${name}: `}${line}${reason ? ` ${reason}` : ''}`
 
 /** The bar's line: the one thing wrong as it says itself, or how many and which. */
 const lineOf = (wrong: Wrong[], several: boolean) =>
@@ -67,8 +81,12 @@ const lineOf = (wrong: Wrong[], several: boolean) =>
     : wrong[0].line
 
 /** Nothing is wrong any more, and a dismissal is still kept: known only once the chat is read, and not while First steps say it. */
-const wellAgain = (readings: Health[] | null, quietFor: string | null, state: string | null, dismissed: string | null) =>
-  readings && !quietFor && !state && dismissed !== null
+const wellAgain = (
+  readings: Health[] | null,
+  quietFor: string | null,
+  state: string | null,
+  dismissed: string | null,
+) => readings && !quietFor && !state && dismissed !== null
 
 const stored = () => {
   try {
@@ -96,7 +114,13 @@ export function ModelBanner({ readings, cannot = [], quietFor = null, onModels }
     setDismissed(state)
   }
   const wrong = readings ? wrongs(readings, cannot, quietFor) : []
-  const state = wrong.length > 0 ? wrong.map(one => one.key).sort().join('\n') : null
+  const state =
+    wrong.length > 0
+      ? wrong
+          .map(one => one.key)
+          .sort()
+          .join('\n')
+      : null
   // Well again, it is shown again the next time it is not. (Not while the chat is read, nor while First steps say it.)
   if (wellAgain(readings, quietFor, state, dismissed)) remember(null)
   if (!state || state === dismissed) return null
@@ -111,7 +135,13 @@ export function ModelBanner({ readings, cannot = [], quietFor = null, onModels }
         {line}
       </span>
       {(several || reason) && (
-        <button type="button" className="link-btn" aria-expanded={why} aria-controls="banner-why" onClick={() => setWhy(open => !open)}>
+        <button
+          type="button"
+          className="link-btn"
+          aria-expanded={why}
+          aria-controls="banner-why"
+          onClick={() => setWhy(open => !open)}
+        >
           Details
         </button>
       )}

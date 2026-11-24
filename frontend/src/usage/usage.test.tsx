@@ -10,27 +10,111 @@ const other = { id: 'q', name: 'elsewhere' } as Project
 
 const usage: Usage = {
   by_model: [
-    { provider_name: 'Paid', model_id: 'claude-haiku-5-5', runs: 2, agents: 3, input_tokens: 1200000, output_tokens: 4500, cache_read_tokens: null, cache_write_tokens: null, unknown_agents: 0, cost: { amount: 1.2345678, currency: 'USD' } },
-    { provider_name: 'Local', model_id: 'C:/models/qwen.gguf', runs: 1, agents: 2, input_tokens: 800, output_tokens: null, cache_read_tokens: null, cache_write_tokens: null, unknown_agents: 1, cost: null },
-    { provider_name: 'Copilot', model_id: null, runs: 1, agents: 2, input_tokens: null, output_tokens: null, cache_read_tokens: null, cache_write_tokens: null, unknown_agents: 2, cost: null },
+    {
+      provider_name: 'Paid',
+      model_id: 'claude-haiku-5-5',
+      runs: 2,
+      agents: 3,
+      input_tokens: 1200000,
+      output_tokens: 4500,
+      cache_read_tokens: null,
+      cache_write_tokens: null,
+      unknown_agents: 0,
+      cost: { amount: 1.2345678, currency: 'USD' },
+    },
+    {
+      provider_name: 'Local',
+      model_id: 'C:/models/qwen.gguf',
+      runs: 1,
+      agents: 2,
+      input_tokens: 800,
+      output_tokens: null,
+      cache_read_tokens: null,
+      cache_write_tokens: null,
+      unknown_agents: 1,
+      cost: null,
+    },
+    {
+      provider_name: 'Copilot',
+      model_id: null,
+      runs: 1,
+      agents: 2,
+      input_tokens: null,
+      output_tokens: null,
+      cache_read_tokens: null,
+      cache_write_tokens: null,
+      unknown_agents: 2,
+      cost: null,
+    },
   ],
   by_conversation: [
-    { conversation_id: 'c1', project_id: 'p', title: 'Fix greeting', runs: 3, agents: 5, input_tokens: 1200800, output_tokens: 4500, cache_read_tokens: null, cache_write_tokens: null, unknown_agents: 3 },
-    { conversation_id: 'c2', project_id: 'q', title: 'Another', runs: 1, agents: 1, input_tokens: null, output_tokens: null, cache_read_tokens: null, cache_write_tokens: null, unknown_agents: 1 },
+    {
+      conversation_id: 'c1',
+      project_id: 'p',
+      title: 'Fix greeting',
+      runs: 3,
+      agents: 5,
+      input_tokens: 1200800,
+      output_tokens: 4500,
+      cache_read_tokens: null,
+      cache_write_tokens: null,
+      unknown_agents: 3,
+    },
+    {
+      conversation_id: 'c2',
+      project_id: 'q',
+      title: 'Another',
+      runs: 1,
+      agents: 1,
+      input_tokens: null,
+      output_tokens: null,
+      cache_read_tokens: null,
+      cache_write_tokens: null,
+      unknown_agents: 1,
+    },
   ],
   by_start: [
-    { started_by: 'user', runs: 3, agents: 5, input_tokens: 1200800, output_tokens: 4500, cache_read_tokens: null, cache_write_tokens: null, unknown_agents: 3, cost: { amount: 1.2345678, currency: 'USD', at_least: true } },
-    { started_by: 'trigger', runs: 1, agents: 1, input_tokens: null, output_tokens: null, cache_read_tokens: null, cache_write_tokens: null, unknown_agents: 1, cost: null },
+    {
+      started_by: 'user',
+      runs: 3,
+      agents: 5,
+      input_tokens: 1200800,
+      output_tokens: 4500,
+      cache_read_tokens: null,
+      cache_write_tokens: null,
+      unknown_agents: 3,
+      cost: { amount: 1.2345678, currency: 'USD', at_least: true },
+    },
+    {
+      started_by: 'trigger',
+      runs: 1,
+      agents: 1,
+      input_tokens: null,
+      output_tokens: null,
+      cache_read_tokens: null,
+      cache_write_tokens: null,
+      unknown_agents: 1,
+      cost: null,
+    },
   ],
 }
-const cells = (row: HTMLElement) => within(row).getAllByRole('cell').map(cell => cell.textContent)
+const cells = (row: HTMLElement) =>
+  within(row)
+    .getAllByRole('cell')
+    .map(cell => cell.textContent)
 
 test('three tables say what was reported: what is not known is "–", never a zero, and money only where there is a price', async () => {
   const onLoad = vi.fn().mockResolvedValue(usage)
   const onOpen = vi.fn()
   render(<UsagePage project={project} projects={[project, other]} onLoad={onLoad} onOpen={onOpen} />)
   const models = within(await screen.findByRole('table', { name: 'Usage by provider and model' }))
-  expect(cells(models.getByRole('row', { name: /Paid · claude-haiku-5-5/ }))).toEqual(['2', '3', '1,200,000', '4,500', '≈ 1.2346 USD'])
+  expect(cells(models.getByRole('row', { name: /Paid · claude-haiku-5-5/ }))).toEqual([
+    '2',
+    '3',
+    '1,200,000',
+    '4,500',
+    '≈ 1.2346 USD',
+  ])
   // A model server's id is shown by its file's name; a part that is not known says so.
   const local = models.getByRole('row', { name: /Local · qwen/ })
   expect(cells(local)).toEqual(['1', '2', '800', '–', '–'])
@@ -38,11 +122,21 @@ test('three tables say what was reported: what is not known is "–", never a ze
   const silent = models.getByRole('row', { name: /Copilot · model unknown/ })
   expect(cells(silent)).toEqual(['1', '2', '–', '–', '–'])
   expect(within(silent).getByText('2 agents reported nothing or only part')).toBeInTheDocument()
-  expect(screen.getByText(/from the prices you entered\. Cache reads and writes are counted at the cache prices you gave, and not at all without them/)).toBeInTheDocument()
+  expect(
+    screen.getByText(
+      /from the prices you entered\. Cache reads and writes are counted at the cache prices you gave, and not at all without them/,
+    ),
+  ).toBeInTheDocument()
 
   // Every conversation is opened from its row (slice 86a: opened, its folder is the one open); one of another project is named.
   const talks = within(screen.getByRole('table', { name: 'Usage by conversation' }))
-  expect(talks.getAllByRole('columnheader').map(h => h.textContent)).toEqual(['Conversation', 'Messages', 'Agents', 'Tokens sent', 'Tokens written'])
+  expect(talks.getAllByRole('columnheader').map(h => h.textContent)).toEqual([
+    'Conversation',
+    'Messages',
+    'Agents',
+    'Tokens sent',
+    'Tokens written',
+  ])
   await userEvent.click(talks.getByRole('button', { name: 'Fix greeting' }))
   expect(onOpen).toHaveBeenCalledWith('c1')
   expect(talks.getByRole('row', { name: /Another · elsewhere/ })).toBeInTheDocument()
@@ -51,12 +145,35 @@ test('three tables say what was reported: what is not known is "–", never a ze
 
   const starts = within(screen.getByRole('table', { name: 'Usage by who sent the message' }))
   expect(cells(starts.getByRole('row', { name: /^You/ }))).toEqual(['3', '5', '1,200,800', '4,500', '≥ 1.2346 USD'])
-  expect(cells(starts.getByRole('row', { name: /^A trigger, with nobody watching/ }))).toEqual(['1', '1', '–', '–', '–'])
+  expect(cells(starts.getByRole('row', { name: /^A trigger, with nobody watching/ }))).toEqual([
+    '1',
+    '1',
+    '–',
+    '–',
+    '–',
+  ])
 })
 
 test('what KOLONİ asked a model with no message is a row of its own, KOLONİ itself, with its tokens and cost (K-56)', async () => {
-  const itself = { started_by: 'koloni' as const, runs: 0, agents: 2, input_tokens: 900, output_tokens: 40, cache_read_tokens: null, cache_write_tokens: null, unknown_agents: 0, cost: { amount: 0.01, currency: 'USD' } }
-  render(<UsagePage project={project} projects={[project]} onLoad={vi.fn().mockResolvedValue({ ...usage, by_start: [...usage.by_start, itself] })} onOpen={vi.fn()} />)
+  const itself = {
+    started_by: 'koloni' as const,
+    runs: 0,
+    agents: 2,
+    input_tokens: 900,
+    output_tokens: 40,
+    cache_read_tokens: null,
+    cache_write_tokens: null,
+    unknown_agents: 0,
+    cost: { amount: 0.01, currency: 'USD' },
+  }
+  render(
+    <UsagePage
+      project={project}
+      projects={[project]}
+      onLoad={vi.fn().mockResolvedValue({ ...usage, by_start: [...usage.by_start, itself] })}
+      onOpen={vi.fn()}
+    />,
+  )
   const starts = within(await screen.findByRole('table', { name: 'Usage by who sent the message' }))
   // Its requests are no agents: said under its name, not in the Agents column, nor in the box on top.
   const row = starts.getByRole('row', { name: /^KOLONİ itself/ })
@@ -64,7 +181,9 @@ test('what KOLONİ asked a model with no message is a row of its own, KOLONİ it
   expect(within(row).getByText('2 requests of its own, in no message')).toBeInTheDocument()
   expect(screen.getByText('6 agents')).toBeInTheDocument()
   // In no message: counted by its requests where the others are by their messages.
-  expect(screen.getByText('3 messages by you · 1 message by a trigger · 2 requests by KOLONİ itself')).toBeInTheDocument()
+  expect(
+    screen.getByText('3 messages by you · 1 message by a trigger · 2 requests by KOLONİ itself'),
+  ).toBeInTheDocument()
 })
 
 test('it starts on this project and Today, and reads again when either is changed', async () => {
@@ -72,7 +191,11 @@ test('it starts on this project and Today, and reads again when either is change
   render(<UsagePage project={project} projects={[project]} onLoad={onLoad} onOpen={vi.fn()} />)
   expect(await screen.findByText('No agent reported usage today.')).toBeInTheDocument()
   expect(screen.getByLabelText('Projects')).toHaveValue('this')
-  expect(within(screen.getByLabelText('Period')).getAllByRole('option').map(o => o.textContent)).toEqual(['Today', '7 days', '30 days', 'All'])
+  expect(
+    within(screen.getByLabelText('Period'))
+      .getAllByRole('option')
+      .map(o => o.textContent),
+  ).toEqual(['Today', '7 days', '30 days', 'All'])
   expect(screen.getByLabelText('Period')).toHaveValue('today')
   expect(onLoad).toHaveBeenLastCalledWith('p', since('today'))
   await userEvent.selectOptions(screen.getByLabelText('Projects'), 'All projects')
@@ -94,20 +217,65 @@ test('while it is read it says so; with nothing costed it says where a cost woul
   expect(screen.getByText('Reading the usage…')).toBeInTheDocument()
   answer({ ...usage, by_model: [usage.by_model[2]], by_conversation: [usage.by_conversation[0]] })
   await screen.findByRole('table', { name: 'Usage by provider and model' })
-  expect(screen.getByText(/^Cost shows for a model with a price: yours, or else models.dev’s, where it has one\./)).toBeInTheDocument()
-  expect(screen.getByText(/^Prices come from what you write under Prices, or else from models.dev, in USD\./)).toBeInTheDocument()
-  expect(screen.getByRole('region', { name: 'By conversation' }).querySelector('summary')).toHaveTextContent('By conversation1 conversation')
+  expect(
+    screen.getByText(/^Cost shows for a model with a price: yours, or else models.dev’s, where it has one\./),
+  ).toBeInTheDocument()
+  expect(
+    screen.getByText(/^Prices come from what you write under Prices, or else from models.dev, in USD\./),
+  ).toBeInTheDocument()
+  expect(screen.getByRole('region', { name: 'By conversation' }).querySelector('summary')).toHaveTextContent(
+    'By conversation1 conversation',
+  )
 })
 
 test('Plan limits are beside the boxes where a plan can be read, and the budget only for this project', async () => {
   const cli: Provider = {
-    id: 'cc', name: 'Claude Code', kind: 'claude_cli', base_url: null, default_model: null, executable: null, mode: null, options: null, for_agents: false,
-    note: null, models: [], only_listed: false, max_running: null, plan: false, step_down_at: null, day_limit: null, month_limit: null, has_key: false,
-    position: 0, created_at: 't', updated_at: 't',
+    id: 'cc',
+    name: 'Claude Code',
+    kind: 'claude_cli',
+    base_url: null,
+    default_model: null,
+    executable: null,
+    mode: null,
+    options: null,
+    for_agents: false,
+    note: null,
+    models: [],
+    only_listed: false,
+    max_running: null,
+    plan: false,
+    step_down_at: null,
+    day_limit: null,
+    month_limit: null,
+    has_key: false,
+    position: 0,
+    created_at: 't',
+    updated_at: 't',
   }
-  const onLimits = vi.fn().mockResolvedValue({ unknown: 'not run yet', read_at: null, source: null, plan: null, windows: [], credits: null })
-  const budget = { budget: 12, currency: 'USD', spent: 2, share: 0.17, warn: false, over: false, at_least: false, unpriced_runs: 0 }
-  render(<UsagePage project={project} projects={[project]} onLoad={vi.fn().mockResolvedValue(usage)} onOpen={vi.fn()} providers={[cli]} onLimits={onLimits} budget={budget} />)
+  const onLimits = vi
+    .fn()
+    .mockResolvedValue({ unknown: 'not run yet', read_at: null, source: null, plan: null, windows: [], credits: null })
+  const budget = {
+    budget: 12,
+    currency: 'USD',
+    spent: 2,
+    share: 0.17,
+    warn: false,
+    over: false,
+    at_least: false,
+    unpriced_runs: 0,
+  }
+  render(
+    <UsagePage
+      project={project}
+      projects={[project]}
+      onLoad={vi.fn().mockResolvedValue(usage)}
+      onOpen={vi.fn()}
+      providers={[cli]}
+      onLimits={onLimits}
+      budget={budget}
+    />,
+  )
   expect(await screen.findByRole('region', { name: 'Plan limits' })).toBeInTheDocument()
   expect(screen.getByRole('region', { name: 'This month’s budget' })).toBeInTheDocument()
   await userEvent.selectOptions(screen.getByLabelText('Projects'), 'All projects')
@@ -124,7 +292,14 @@ test('a period starts at a moment: today at this day’s midnight here, the othe
 })
 
 test('a reading that fails says why', async () => {
-  render(<UsagePage project={project} projects={[project]} onLoad={vi.fn().mockRejectedValue({ detail: 'the server is away' })} onOpen={vi.fn()} />)
+  render(
+    <UsagePage
+      project={project}
+      projects={[project]}
+      onLoad={vi.fn().mockRejectedValue({ detail: 'the server is away' })}
+      onOpen={vi.fn()}
+    />,
+  )
   expect(await screen.findByRole('alert')).toHaveTextContent('the server is away')
 })
 
@@ -135,7 +310,14 @@ test('a cost over agents that are unknown is "at least", and an amount that is n
     // What a price too big to add up with was answered as, before prices had a bound.
     { ...local, cost: { amount: null as unknown as number, currency: 'USD' } },
   ]
-  render(<UsagePage project={project} projects={[project]} onLoad={vi.fn().mockResolvedValue({ ...usage, by_model })} onOpen={vi.fn()} />)
+  render(
+    <UsagePage
+      project={project}
+      projects={[project]}
+      onLoad={vi.fn().mockResolvedValue({ ...usage, by_model })}
+      onOpen={vi.fn()}
+    />,
+  )
   const models = within(await screen.findByRole('table', { name: 'Usage by provider and model' }))
   expect(cells(models.getByRole('row', { name: /Paid/ })).at(-1)).toBe('≥ 0.42 USD')
   expect(cells(models.getByRole('row', { name: /Local/ })).at(-1)).toBe('–')
@@ -160,32 +342,66 @@ test('what was read again from a cache and written to it is told on a row where 
     { ...local, cache_read_tokens: 64 },
     silent,
   ]
-  const by_conversation = [{ ...usage.by_conversation[0], cache_read_tokens: 400064, cache_write_tokens: 500000 }, usage.by_conversation[1]]
+  const by_conversation = [
+    { ...usage.by_conversation[0], cache_read_tokens: 400064, cache_write_tokens: 500000 },
+    usage.by_conversation[1],
+  ]
   const by_start = [{ ...usage.by_start[0], cache_read_tokens: 0, cache_write_tokens: 0 }, usage.by_start[1]]
-  render(<UsagePage project={project} projects={[project]} onLoad={vi.fn().mockResolvedValue({ by_model, by_conversation, by_start })} onOpen={vi.fn()} />)
+  render(
+    <UsagePage
+      project={project}
+      projects={[project]}
+      onLoad={vi.fn().mockResolvedValue({ by_model, by_conversation, by_start })}
+      onOpen={vi.fn()}
+    />,
+  )
   const models = within(await screen.findByRole('table', { name: 'Usage by provider and model' }))
-  expect(within(models.getByRole('row', { name: /Paid/ })).getByText('400,000 read again from the cache · 500,000 written to it')).toBeInTheDocument()
-  expect(within(models.getByRole('row', { name: /Local/ })).getByText('64 read again from the cache')).toBeInTheDocument()
+  expect(
+    within(models.getByRole('row', { name: /Paid/ })).getByText(
+      '400,000 read again from the cache · 500,000 written to it',
+    ),
+  ).toBeInTheDocument()
+  expect(
+    within(models.getByRole('row', { name: /Local/ })).getByText('64 read again from the cache'),
+  ).toBeInTheDocument()
   // nobody said: no line at all, and never a zero
   expect(models.getByRole('row', { name: /Copilot/ })).not.toHaveTextContent(/cache/)
   // the numbers sent are as they were: the cache is told beside them, not as a column
   expect(cells(models.getByRole('row', { name: /Paid/ }))).toEqual(['2', '3', '1,200,000', '4,500', '≈ 1.2346 USD'])
   const talks = within(screen.getByRole('table', { name: 'Usage by conversation' }))
-  expect(within(talks.getByRole('row', { name: /Fix greeting/ })).getByText('400,064 read again from the cache · 500,000 written to it')).toBeInTheDocument()
+  expect(
+    within(talks.getByRole('row', { name: /Fix greeting/ })).getByText(
+      '400,064 read again from the cache · 500,000 written to it',
+    ),
+  ).toBeInTheDocument()
   expect(talks.getByRole('row', { name: /Another/ })).not.toHaveTextContent(/cache/)
   const starts = within(screen.getByRole('table', { name: 'Usage by who sent the message' }))
   // a zero the provider said is a zero
-  expect(within(starts.getByRole('row', { name: /^You/ })).getByText('0 read again from the cache · 0 written to it')).toBeInTheDocument()
+  expect(
+    within(starts.getByRole('row', { name: /^You/ })).getByText('0 read again from the cache · 0 written to it'),
+  ).toBeInTheDocument()
   expect(starts.getByRole('row', { name: /^A trigger/ })).not.toHaveTextContent(/cache/)
 })
 
 test('a cost that leaves out cache tokens without a price says so and points at Prices', async () => {
   const [paid, local] = usage.by_model
   const by_model = [
-    { ...paid, cache_read_tokens: 400000, cache_write_tokens: 500000, cost: { amount: 1.88, currency: 'USD', at_least: true, cache_unpriced: true } },
+    {
+      ...paid,
+      cache_read_tokens: 400000,
+      cache_write_tokens: 500000,
+      cost: { amount: 1.88, currency: 'USD', at_least: true, cache_unpriced: true },
+    },
     { ...local, cost: { amount: 0.5, currency: 'USD' } },
   ]
-  render(<UsagePage project={project} projects={[project]} onLoad={vi.fn().mockResolvedValue({ ...usage, by_model })} onOpen={vi.fn()} />)
+  render(
+    <UsagePage
+      project={project}
+      projects={[project]}
+      onLoad={vi.fn().mockResolvedValue({ ...usage, by_model })}
+      onOpen={vi.fn()}
+    />,
+  )
   const models = within(await screen.findByRole('table', { name: 'Usage by provider and model' }))
   const row = models.getByRole('row', { name: /Paid/ })
   expect(cells(row).at(-1)).toBe('≥ 1.88 USD')
@@ -195,9 +411,34 @@ test('a cost that leaves out cache tokens without a price says so and points at 
 
 test('the advice to give a price is said once on the page: beside the Cost box', async () => {
   const [paid] = usage.by_model
-  const by_model = [{ ...paid, cache_read_tokens: 400000, cost: { amount: 1.88, currency: 'USD', at_least: true, cache_unpriced: true } }]
-  const budget = { budget: 12, currency: 'USD', spent: 2, share: 0.17, warn: false, over: false, at_least: false, unpriced_runs: 2 }
-  render(<UsagePage project={project} projects={[project]} onLoad={vi.fn().mockResolvedValue({ ...usage, by_model })} onOpen={vi.fn()} budget={budget} onPrice={vi.fn()} onRemovePrice={vi.fn()} />)
+  const by_model = [
+    {
+      ...paid,
+      cache_read_tokens: 400000,
+      cost: { amount: 1.88, currency: 'USD', at_least: true, cache_unpriced: true },
+    },
+  ]
+  const budget = {
+    budget: 12,
+    currency: 'USD',
+    spent: 2,
+    share: 0.17,
+    warn: false,
+    over: false,
+    at_least: false,
+    unpriced_runs: 2,
+  }
+  render(
+    <UsagePage
+      project={project}
+      projects={[project]}
+      onLoad={vi.fn().mockResolvedValue({ ...usage, by_model })}
+      onOpen={vi.fn()}
+      budget={budget}
+      onPrice={vi.fn()}
+      onRemovePrice={vi.fn()}
+    />,
+  )
   await screen.findByRole('table', { name: 'Usage by provider and model' })
   expect(box('Cost')).toEqual(['≥ 1.88 USD', 'of what is priced · set prices'])
   expect(screen.getAllByRole('button', { name: 'set prices' })).toHaveLength(1)
@@ -205,7 +446,15 @@ test('the advice to give a price is said once on the page: beside the Cost box',
 })
 
 test('Today, of this project, has the day beside the boxes; another period or every project has not', async () => {
-  render(<UsagePage project={project} projects={[project]} onLoad={vi.fn().mockResolvedValue(usage)} onOpen={vi.fn()} today={<p>the day</p>} />)
+  render(
+    <UsagePage
+      project={project}
+      projects={[project]}
+      onLoad={vi.fn().mockResolvedValue(usage)}
+      onOpen={vi.fn()}
+      today={<p>the day</p>}
+    />,
+  )
   await screen.findByRole('table', { name: 'Usage by provider and model' })
   expect(screen.getByText('the day')).toBeInTheDocument()
   // The boxes the usage adds up stay: the day adds only what it alone knows.
@@ -222,10 +471,17 @@ test('Today, of this project, has the day beside the boxes; another period or ev
 
 /** The box on top called so: its number, then the lines under it. */
 const box = (label: string) =>
-  Array.from(within(document.querySelector<HTMLElement>('.usage-stats')!).getByText(label, { selector: 'dt' }).parentElement!.querySelectorAll('dd'), dd => dd.textContent)
+  Array.from(
+    within(document.querySelector<HTMLElement>('.usage-stats')!)
+      .getByText(label, { selector: 'dt' })
+      .parentElement!.querySelectorAll('dd'),
+    dd => dd.textContent,
+  )
 
 test('the boxes on top add up the rows by model: "≥" with how many rows are not fully known said under it, "–" where none is', async () => {
-  render(<UsagePage project={project} projects={[project]} onLoad={vi.fn().mockResolvedValue(usage)} onOpen={vi.fn()} />)
+  render(
+    <UsagePage project={project} projects={[project]} onLoad={vi.fn().mockResolvedValue(usage)} onOpen={vi.fn()} />,
+  )
   await screen.findByRole('table', { name: 'Usage by provider and model' })
   // Turns and agents of the rows by who started them: each turn once.
   expect(box('Messages')).toEqual(['4', '6 agents'])
@@ -241,10 +497,33 @@ test('rows all reported add up to a plain total, a zero a provider said is 0, an
   const [paid] = usage.by_model
   const by_model = [
     { ...paid, cache_read_tokens: 0, cache_write_tokens: 10, cost: { amount: 1, currency: 'USD' } },
-    { ...paid, model_id: 'other', input_tokens: 800, output_tokens: 500, cache_read_tokens: 0, cache_write_tokens: 5, cost: { amount: 0.5, currency: 'USD', at_least: true } },
-    { ...paid, model_id: 'euro', input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_write_tokens: 0, cost: { amount: 2, currency: 'EUR' } },
+    {
+      ...paid,
+      model_id: 'other',
+      input_tokens: 800,
+      output_tokens: 500,
+      cache_read_tokens: 0,
+      cache_write_tokens: 5,
+      cost: { amount: 0.5, currency: 'USD', at_least: true },
+    },
+    {
+      ...paid,
+      model_id: 'euro',
+      input_tokens: 0,
+      output_tokens: 0,
+      cache_read_tokens: 0,
+      cache_write_tokens: 0,
+      cost: { amount: 2, currency: 'EUR' },
+    },
   ]
-  render(<UsagePage project={project} projects={[project]} onLoad={vi.fn().mockResolvedValue({ ...usage, by_model })} onOpen={vi.fn()} />)
+  render(
+    <UsagePage
+      project={project}
+      projects={[project]}
+      onLoad={vi.fn().mockResolvedValue({ ...usage, by_model })}
+      onOpen={vi.fn()}
+    />,
+  )
   await screen.findByRole('table', { name: 'Usage by provider and model' })
   expect(box('Tokens sent')).toEqual(['1,200,800', '0 read from the cache · 15 written to the cache'])
   expect(box('Tokens written')).toEqual(['5,000'])
@@ -254,7 +533,14 @@ test('rows all reported add up to a plain total, a zero a provider said is 0, an
 
 test('with nothing reported and nothing priced each box says "–", never a zero, and where a price is written', async () => {
   const silent = usage.by_model[2]
-  render(<UsagePage project={project} projects={[project]} onLoad={vi.fn().mockResolvedValue({ ...usage, by_model: [silent] })} onOpen={vi.fn()} />)
+  render(
+    <UsagePage
+      project={project}
+      projects={[project]}
+      onLoad={vi.fn().mockResolvedValue({ ...usage, by_model: [silent] })}
+      onOpen={vi.fn()}
+    />,
+  )
   await screen.findByRole('table', { name: 'Usage by provider and model' })
   expect(box('Tokens sent')).toEqual(['–'])
   expect(box('Tokens written')).toEqual(['–'])
@@ -265,14 +551,24 @@ test('"set prices" opens the folded Prices and moves there; the folded sections 
   const prices = [{ model_id: 'claude-haiku-5-5', currency: 'USD', input: 1, output: 2 }]
   const silent = usage.by_model[2]
   render(
-    <UsagePage project={project} projects={[project, other]} onLoad={vi.fn().mockResolvedValue({ ...usage, by_model: [silent] })} onOpen={vi.fn()} prices={prices} onPrice={vi.fn()} onRemovePrice={vi.fn()} />,
+    <UsagePage
+      project={project}
+      projects={[project, other]}
+      onLoad={vi.fn().mockResolvedValue({ ...usage, by_model: [silent] })}
+      onOpen={vi.fn()}
+      prices={prices}
+      onPrice={vi.fn()}
+      onRemovePrice={vi.fn()}
+    />,
   )
   await screen.findByRole('table', { name: 'Usage by provider and model' })
   const fold = (name: string) => screen.getByRole('region', { name }).querySelector('details')!
   // Open: the table by model. Folded: the others, each with its count.
   expect(fold('By conversation')).not.toHaveAttribute('open')
   expect(fold('By conversation').querySelector('summary')).toHaveTextContent('By conversation2 conversations')
-  expect(fold('Who started it').querySelector('summary')).toHaveTextContent('Who started it3 messages by you · 1 message by a trigger')
+  expect(fold('Who started it').querySelector('summary')).toHaveTextContent(
+    'Who started it3 messages by you · 1 message by a trigger',
+  )
   expect(fold('Prices').querySelector('summary')).toHaveTextContent('Prices1 model · 1 priced')
   expect(fold('Prices')).not.toHaveAttribute('open')
   // A price is set, for a model that did not run here: nothing is priced yet, not "no price".
@@ -283,22 +579,40 @@ test('"set prices" opens the folded Prices and moves there; the folded sections 
 })
 
 test('a period with nothing in it has no boxes on top; how the page counts is folded, closed, all of it there', async () => {
-  render(<UsagePage project={project} projects={[project]} onLoad={vi.fn().mockResolvedValue({ by_model: [], by_conversation: [], by_start: [] })} onOpen={vi.fn()} />)
+  render(
+    <UsagePage
+      project={project}
+      projects={[project]}
+      onLoad={vi.fn().mockResolvedValue({ by_model: [], by_conversation: [], by_start: [] })}
+      onOpen={vi.fn()}
+    />,
+  )
   expect(await screen.findByText('No agent reported usage today.')).toBeInTheDocument()
   expect(document.querySelector('.usage-stats')).toBeNull()
   const how = screen.getByText('How this works').closest('details')!
   expect(how).not.toHaveAttribute('open')
-  expect(how).toHaveTextContent('Nothing is estimated: what was not reported shows as “–”, and an agent from before totals were kept has no total of what it sent.')
+  expect(how).toHaveTextContent(
+    'Nothing is estimated: what was not reported shows as “–”, and an agent from before totals were kept has no total of what it sent.',
+  )
 })
 
 test('a column is sorted by its heading: the bigger first, a second click the other way, and what is unknown last both ways', async () => {
-  render(<UsagePage project={project} projects={[project]} onLoad={vi.fn().mockResolvedValue(usage)} onOpen={vi.fn()} />)
+  render(
+    <UsagePage project={project} projects={[project]} onLoad={vi.fn().mockResolvedValue(usage)} onOpen={vi.fn()} />,
+  )
   const table = await screen.findByRole('table', { name: 'Usage by provider and model' })
-  const order = () => within(table).getAllByRole('rowheader').map(h => h.textContent!.split(' · ')[0])
+  const order = () =>
+    within(table)
+      .getAllByRole('rowheader')
+      .map(h => h.textContent!.split(' · ')[0])
   const heading = (name: string) => within(table).getByRole('columnheader', { name })
   // As read, until a heading is clicked.
   expect(order()).toEqual(['Paid', 'Local', 'Copilot'])
-  expect(within(table).getAllByRole('columnheader').filter(h => h.hasAttribute('aria-sort'))).toEqual([])
+  expect(
+    within(table)
+      .getAllByRole('columnheader')
+      .filter(h => h.hasAttribute('aria-sort')),
+  ).toEqual([])
   await userEvent.click(within(table).getByRole('button', { name: 'Tokens sent' }))
   expect(order()).toEqual(['Paid', 'Local', 'Copilot'])
   expect(heading('Tokens sent')).toHaveAttribute('aria-sort', 'descending')
@@ -317,7 +631,14 @@ test('a column is sorted by its heading: the bigger first, a second click the ot
   // The other tables sort the same way, each by itself.
   const talks = screen.getByRole('table', { name: 'Usage by conversation' })
   await userEvent.click(within(talks).getByRole('button', { name: 'Tokens written' }))
-  expect(within(talks).getAllByRole('rowheader').map(h => h.textContent)).toEqual(['Fix greeting3 agents reported nothing or only part', 'Another · another project1 agent reported nothing or only part'])
+  expect(
+    within(talks)
+      .getAllByRole('rowheader')
+      .map(h => h.textContent),
+  ).toEqual([
+    'Fix greeting3 agents reported nothing or only part',
+    'Another · another project1 agent reported nothing or only part',
+  ])
   expect(order()[0]).toBe('Paid')
 })
 
@@ -330,7 +651,15 @@ test('a model with a price whose cost is not known makes the cost "at least", in
     { ...silent, model_id: 'priced-silent' },
   ]
   const prices = [{ model_id: 'priced-silent', currency: 'EUR', input: 1, output: 2 }]
-  render(<UsagePage project={project} projects={[project]} onLoad={vi.fn().mockResolvedValue({ ...usage, by_model })} onOpen={vi.fn()} prices={prices} />)
+  render(
+    <UsagePage
+      project={project}
+      projects={[project]}
+      onLoad={vi.fn().mockResolvedValue({ ...usage, by_model })}
+      onOpen={vi.fn()}
+      prices={prices}
+    />,
+  )
   await screen.findByRole('table', { name: 'Usage by provider and model' })
   expect(box('Cost')).toEqual(['≈ 1.00 USD + ≥ 2.00 EUR', 'of what is priced'])
 })
@@ -342,9 +671,19 @@ test('a cost is sorted by its currency, then its amount', async () => {
     { ...paid, provider_name: 'B', cost: { amount: 9, currency: 'EUR' } },
     { ...paid, provider_name: 'C', cost: { amount: 2, currency: 'USD' } },
   ]
-  render(<UsagePage project={project} projects={[project]} onLoad={vi.fn().mockResolvedValue({ ...usage, by_model })} onOpen={vi.fn()} />)
+  render(
+    <UsagePage
+      project={project}
+      projects={[project]}
+      onLoad={vi.fn().mockResolvedValue({ ...usage, by_model })}
+      onOpen={vi.fn()}
+    />,
+  )
   const table = await screen.findByRole('table', { name: 'Usage by provider and model' })
-  const order = () => within(table).getAllByRole('rowheader').map(h => h.textContent!.split(' · ')[0])
+  const order = () =>
+    within(table)
+      .getAllByRole('rowheader')
+      .map(h => h.textContent!.split(' · ')[0])
   await userEvent.click(within(table).getByRole('button', { name: 'Cost' }))
   expect(order()).toEqual(['A', 'C', 'B'])
   await userEvent.click(within(table).getByRole('button', { name: 'Cost' }))
@@ -358,7 +697,11 @@ test('in a plain chat every folder’s usage is shown, and a plain chat’s row 
   const talks = within(await screen.findByRole('table', { name: 'Usage by conversation' }))
   expect(onLoad.mock.calls[0][0]).toBeNull()
   expect(screen.getByLabelText('Projects')).toHaveValue('all')
-  expect(within(screen.getByLabelText('Projects')).getAllByRole('option').map(o => o.textContent)).toEqual(['All projects'])
+  expect(
+    within(screen.getByLabelText('Projects'))
+      .getAllByRole('option')
+      .map(o => o.textContent),
+  ).toEqual(['All projects'])
   expect(talks.getByRole('row', { name: /What is a CRDT\? · No folder/ })).toBeInTheDocument()
   expect(talks.getByRole('row', { name: /Fix greeting · demo/ })).toBeInTheDocument()
 })

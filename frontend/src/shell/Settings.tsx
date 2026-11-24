@@ -79,7 +79,9 @@ export function Settings({ project, onClose, picked, ...rest }: Props) {
     <section className="settings-page" aria-label="Settings">
       <div className="settings-head">
         <h2>Settings</h2>
-        <span className="muted settings-order">A chat takes what it does not set from its project, and the project from the app.</span>
+        <span className="muted settings-order">
+          A chat takes what it does not set from its project, and the project from the app.
+        </span>
         <button type="button" className="icon-btn" aria-label="Close settings" onClick={onClose}>
           <X size={14} />
         </button>
@@ -97,7 +99,14 @@ export function Settings({ project, onClose, picked, ...rest }: Props) {
       )}
       {project && (
         <div className="settings-panel settings-project" hidden={shown !== 'project'}>
-          <ProjectSettings key={project.id} project={project} picked={projectAsk} levels={sections => list('project', sections)} toApp={() => go('app-agents')} {...rest}>
+          <ProjectSettings
+            key={project.id}
+            project={project}
+            picked={projectAsk}
+            levels={sections => list('project', sections)}
+            toApp={() => go('app-agents')}
+            {...rest}
+          >
             <DeleteProject key={`delete-${project.id}`} project={project} />
           </ProjectSettings>
         </div>
@@ -107,7 +116,13 @@ export function Settings({ project, onClose, picked, ...rest }: Props) {
           {list(
             'app',
             APP_SECTIONS.map(([key, name]) => (
-              <button key={key} type="button" className="conv-row agents-row" aria-current={appSection === key ? 'true' : undefined} onClick={() => setAppSection(key)}>
+              <button
+                key={key}
+                type="button"
+                className="conv-row agents-row"
+                aria-current={appSection === key ? 'true' : undefined}
+                onClick={() => setAppSection(key)}
+              >
                 <span className="conv-row-title">{name}</span>
               </button>
             )),
@@ -139,12 +154,29 @@ function useLevels(project: Project | null): [Level, string, string][] {
 }
 
 /** The levels, in their order, with the sections of the one shown under it. */
-function Levels({ at, levels, onLevel, children }: { at: Level; levels: [Level, string, string][]; onLevel: (level: Level) => void; children: ReactNode }) {
+function Levels({
+  at,
+  levels,
+  onLevel,
+  children,
+}: {
+  at: Level
+  levels: [Level, string, string][]
+  onLevel: (level: Level) => void
+  children: ReactNode
+}) {
   return (
     <nav className="agents-list settings-levels" aria-label="Settings levels">
       {levels.map(([level, name, note]) => (
         <Fragment key={level}>
-          <button type="button" id={`${at}-level-button-${level}`} className="settings-level" aria-current={level === at ? 'true' : undefined} aria-describedby={`${at}-level-${level}`} onClick={() => onLevel(level)}>
+          <button
+            type="button"
+            id={`${at}-level-button-${level}`}
+            className="settings-level"
+            aria-current={level === at ? 'true' : undefined}
+            aria-describedby={`${at}-level-${level}`}
+            onClick={() => onLevel(level)}
+          >
             {name}
           </button>
           <span id={`${at}-level-${level}`} className="muted settings-level-note">
@@ -157,13 +189,21 @@ function Levels({ at, levels, onLevel, children }: { at: Level; levels: [Level, 
   )
 }
 
-type WholeKey = 'compact_at' | 'max_steps' | 'max_files' | 'max_mb' | 'stuck_minutes' | 'turn_hours' | 'runs_at_once' | 'workers'
+type WholeKey =
+  'compact_at' | 'max_steps' | 'max_files' | 'max_mb' | 'stuck_minutes' | 'turn_hours' | 'runs_at_once' | 'workers'
 
 /**
  * One whole-number setting of the app - `key` at `path`, from `low` to `high` - as the server keeps it (undefined
  * until read) and as typed: `at` is what is sent, undefined for anything else. `empty`: left empty it is null (none).
  */
-function useWhole(path: string, key: WholeKey, low: number, high: number, failed: (why: string) => void, empty = false) {
+function useWhole(
+  path: string,
+  key: WholeKey,
+  low: number,
+  high: number,
+  failed: (why: string) => void,
+  empty = false,
+) {
   const [kept, setKept] = useState<number | null | undefined>(undefined)
   const [text, setText] = useState('')
   useEffect(() => {
@@ -179,7 +219,10 @@ function useWhole(path: string, key: WholeKey, low: number, high: number, failed
   const value = Number(typed)
   const at = empty && typed === '' ? null : /^\d+$/.test(typed) && value >= low && value <= high ? value : undefined
   return {
-    kept, text, setText, at,
+    kept,
+    text,
+    setText,
+    at,
     bad: kept !== undefined && at === undefined,
     changed: kept !== undefined && at !== kept,
     save: async () => setKept((await api.put<Record<string, number | null>>(path, { [key]: at }))[key]),
@@ -187,15 +230,61 @@ function useWhole(path: string, key: WholeKey, low: number, high: number, failed
 }
 
 /** A `useWhole` setting's line: its input, its why behind ⓘ, and what it takes where what is typed is not that. */
-function WholeRow({ id, label, why, setting, low, high, also, placeholder }: { id: string; label: string; why: string; setting: ReturnType<typeof useWhole>; low: number; high: number; also?: ReactNode; placeholder?: string }) {
+function WholeRow({
+  id,
+  label,
+  why,
+  setting,
+  low,
+  high,
+  also,
+  placeholder,
+}: {
+  id: string
+  label: string
+  why: string
+  setting: ReturnType<typeof useWhole>
+  low: number
+  high: number
+  also?: ReactNode
+  placeholder?: string
+}) {
   return (
-    <Row label={label} htmlFor={id} whyId={`${id}-more`} doc={GUIDE.settingsApp} why={why} warn={<>{setting.bad && <span className="choice-note">A whole number from {low} to {high}{placeholder && ', or empty'}.</span>}{also}</>}>
-      <input id={id} className="input mono set-short" inputMode="numeric" value={setting.text} placeholder={placeholder} disabled={setting.kept === undefined} aria-invalid={setting.bad || undefined} aria-describedby={`${id}-more`} onChange={e => setting.setText(e.target.value)} />
+    <Row
+      label={label}
+      htmlFor={id}
+      whyId={`${id}-more`}
+      doc={GUIDE.settingsApp}
+      why={why}
+      warn={
+        <>
+          {setting.bad && (
+            <span className="choice-note">
+              A whole number from {low} to {high}
+              {placeholder && ', or empty'}.
+            </span>
+          )}
+          {also}
+        </>
+      }
+    >
+      <input
+        id={id}
+        className="input mono set-short"
+        inputMode="numeric"
+        value={setting.text}
+        placeholder={placeholder}
+        disabled={setting.kept === undefined}
+        aria-invalid={setting.bad || undefined}
+        aria-describedby={`${id}-more`}
+        onChange={e => setting.setText(e.target.value)}
+      />
     </Row>
   )
 }
 
-const TREE_HINT = 'For every project: knowledge from a repository or a folder stops before it reads more than this. A learning at work keeps what it started with.'
+const TREE_HINT =
+  'For every project: knowledge from a repository or a folder stops before it reads more than this. A learning at work keeps what it started with.'
 
 /** Where Continue's extra steps are set: each project's. */
 function ContinueNote({ toLimits }: { toLimits?: () => void }) {
@@ -263,7 +352,8 @@ function AppSettings({ toLimits }: { toLimits?: () => void }) {
     setSaved(false)
     try {
       for (const one of wholes) if (one.changed) await one.save()
-      if (languageChanged) setLanguage((await api.put<AnswerLanguage>('/answer-in', { answer_in: languageSent || null })).answer_in ?? '')
+      if (languageChanged)
+        setLanguage((await api.put<AnswerLanguage>('/answer-in', { answer_in: languageSent || null })).answer_in ?? '')
       setSaved(true)
     } catch (err) {
       setError(errorText(err))
@@ -284,10 +374,25 @@ function AppSettings({ toLimits }: { toLimits?: () => void }) {
         label="Answer in"
         htmlFor="answer-in"
         whyId="answer-in-more"
-        doc={GUIDE.settingsApp} why="The language the agents write in, in every project. Auto: the language you write in. KOLONİ’s own screens stay in English."
-        warn={!languageValid && <span className="choice-note">A language’s name: at most 40 letters, spaces and hyphens.</span>}
+        doc={GUIDE.settingsApp}
+        why="The language the agents write in, in every project. Auto: the language you write in. KOLONİ’s own screens stay in English."
+        warn={
+          !languageValid && (
+            <span className="choice-note">A language’s name: at most 40 letters, spaces and hyphens.</span>
+          )
+        }
       >
-        <input id="answer-in" className="input" list="answer-in-languages" value={languageText} placeholder="Auto" disabled={language === undefined} aria-invalid={!languageValid || undefined} aria-describedby="answer-in-more" onChange={e => setLanguageText(e.target.value)} />
+        <input
+          id="answer-in"
+          className="input"
+          list="answer-in-languages"
+          value={languageText}
+          placeholder="Auto"
+          disabled={language === undefined}
+          aria-invalid={!languageValid || undefined}
+          aria-describedby="answer-in-more"
+          onChange={e => setLanguageText(e.target.value)}
+        />
         <datalist id="answer-in-languages">
           {LANGUAGES.map(name => (
             <option key={name} value={name} />
@@ -303,13 +408,63 @@ function AppSettings({ toLimits }: { toLimits?: () => void }) {
         why="For every project: the most model steps one sub-agent takes on a job before it stops. A team’s coordinator gets more for its recipe’s steps; a role’s own limit, where lower, still holds. The Orchestrator counts no steps: it stops when it goes round in circles, or at the Lead role’s own limit if you set one."
         also={<ContinueNote toLimits={toLimits} />}
       />
-      <WholeRow id="stuck-minutes" label="Stuck after this many minutes with no progress" setting={stuck} low={5} high={1440} why="For every project, in work nobody watches - a To-do task, a job while you’re away, a trigger’s run (only where its Minutes a run are longer): the Orchestrator’s turn ends, its work kept, once nothing has moved for this long - no file of the turn changed, no agent finished its work, no failing command passed. A card waiting for you, a command or a model step under way, or an agent below it at work is not nothing." />
-      <WholeRow id="turn-hours" label="An unattended turn runs at most (hours)" setting={ceiling} low={1} high={72} placeholder="No limit" why="For every project: a To-do task’s turn or a job while you’re away ends after this many hours however it goes, its work kept - a last resort. Empty: no limit - a turn that keeps working (changes, agents at work, messages between agents) can then run without end. A trigger’s own minutes hold its runs." />
-      <WholeRow id="compact-at" label="Summarise a long context at (%)" setting={compaction} low={50} high={95} why="For every project: once an agent’s context passes this much of its model’s window, the older part is summarised before its next step." />
-      <WholeRow id="tree-files" label="Knowledge reads at most (files)" setting={treeFiles} low={100} high={1_000_000} why={TREE_HINT} />
-      <WholeRow id="tree-mb" label="Knowledge reads at most (MB)" setting={treeMb} low={1} high={10_240} why={TREE_HINT} />
-      <WholeRow id="test-runs" label="KOLONİ’s test runs at once" setting={testRuns} low={1} high={4} why="For every project: how many of the test runs KOLONİ makes at a turn’s end go at the same time; the rest wait their turn. More finishes sooner and loads the machine more. Agents’ own commands are not counted." />
-      <WholeRow id="test-workers" label="Test processes per run" setting={testWorkers} low={1} high={16} why="For every project: how many processes one of KOLONİ’s test runs may start, where its runner reads it (pytest-xdist’s -n auto). Agents’ own commands are not limited." />
+      <WholeRow
+        id="stuck-minutes"
+        label="Stuck after this many minutes with no progress"
+        setting={stuck}
+        low={5}
+        high={1440}
+        why="For every project, in work nobody watches - a To-do task, a job while you’re away, a trigger’s run (only where its Minutes a run are longer): the Orchestrator’s turn ends, its work kept, once nothing has moved for this long - no file of the turn changed, no agent finished its work, no failing command passed. A card waiting for you, a command or a model step under way, or an agent below it at work is not nothing."
+      />
+      <WholeRow
+        id="turn-hours"
+        label="An unattended turn runs at most (hours)"
+        setting={ceiling}
+        low={1}
+        high={72}
+        placeholder="No limit"
+        why="For every project: a To-do task’s turn or a job while you’re away ends after this many hours however it goes, its work kept - a last resort. Empty: no limit - a turn that keeps working (changes, agents at work, messages between agents) can then run without end. A trigger’s own minutes hold its runs."
+      />
+      <WholeRow
+        id="compact-at"
+        label="Summarise a long context at (%)"
+        setting={compaction}
+        low={50}
+        high={95}
+        why="For every project: once an agent’s context passes this much of its model’s window, the older part is summarised before its next step."
+      />
+      <WholeRow
+        id="tree-files"
+        label="Knowledge reads at most (files)"
+        setting={treeFiles}
+        low={100}
+        high={1_000_000}
+        why={TREE_HINT}
+      />
+      <WholeRow
+        id="tree-mb"
+        label="Knowledge reads at most (MB)"
+        setting={treeMb}
+        low={1}
+        high={10_240}
+        why={TREE_HINT}
+      />
+      <WholeRow
+        id="test-runs"
+        label="KOLONİ’s test runs at once"
+        setting={testRuns}
+        low={1}
+        high={4}
+        why="For every project: how many of the test runs KOLONİ makes at a turn’s end go at the same time; the rest wait their turn. More finishes sooner and loads the machine more. Agents’ own commands are not counted."
+      />
+      <WholeRow
+        id="test-workers"
+        label="Test processes per run"
+        setting={testWorkers}
+        low={1}
+        high={16}
+        why="For every project: how many processes one of KOLONİ’s test runs may start, where its runner reads it (pytest-xdist’s -n auto). Agents’ own commands are not limited."
+      />
       {error && (
         <div role="alert" className="alert">
           {error}
@@ -344,7 +499,8 @@ function YourData({ shown }: { shown: boolean }) {
       <Backup />
       {storage && (
         <p className="choice-note">
-          KOLONİ’s data: db {mb(storage.db_mb)} · backups {mb(storage.backups_mb)} · copies {mb(storage.copies_mb)} · logs {mb(storage.logs_mb)}
+          KOLONİ’s data: db {mb(storage.db_mb)} · backups {mb(storage.backups_mb)} · copies {mb(storage.copies_mb)} ·
+          logs {mb(storage.logs_mb)}
         </p>
       )}
       <FoldersSection shared={shared} sharedError={sharedError} />

@@ -6,11 +6,16 @@ import { OWN, contrasts, openFreshConversation, rail, shot } from './helpers'
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
-test('the day of the project on Usage › Today: the files changed and what failed, and words the model says', async ({ page }) => {
+test('the day of the project on Usage › Today: the files changed and what failed, and words the model says', async ({
+  page,
+}) => {
   const TITLE = 'make the day page of slice 56'
   const id = await openFreshConversation(page)
   // (Its change is taken without asking: what reached the project is what Today counts.)
-  const patched = await page.request.patch(`/api/conversations/${id}`, { data: { permission_mode: 'full_auto' }, headers: OWN })
+  const patched = await page.request.patch(`/api/conversations/${id}`, {
+    data: { permission_mode: 'full_auto' },
+    headers: OWN,
+  })
   expect(patched.ok()).toBe(true)
   await page.getByLabel('Message').fill(TITLE)
   await page.getByRole('button', { name: 'Send' }).click()

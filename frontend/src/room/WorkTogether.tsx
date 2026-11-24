@@ -62,13 +62,18 @@ export function WorkTogether({ roles: all, providers, limits, busy, onOpen, onMo
     // Opening starts from two members the roles have, and from the conversation's own limits.
     const first = ['Coder', 'Reviewer'].map(name => roles.find(r => r.name === name)?.name ?? roles[0]?.name ?? '')
     setMembers(first.map(role => ({ role, provider: '', model: '' })))
-    setBudget({ posts: String(limits.posts ?? ''), tokens: String(limits.tokens ?? ''), minutes: String(limits.minutes ?? '') })
+    setBudget({
+      posts: String(limits.posts ?? ''),
+      tokens: String(limits.tokens ?? ''),
+      minutes: String(limits.minutes ?? ''),
+    })
     setError(null)
     setOver(null)
     setOpen(true)
   }
 
-  const change = (at: number, over: Partial<Member>) => setMembers(members.map((m, index) => (index === at ? { ...m, ...over } : m)))
+  const change = (at: number, over: Partial<Member>) =>
+    setMembers(members.map((m, index) => (index === at ? { ...m, ...over } : m)))
 
   async function submit(event?: FormEvent, overBudget = false) {
     event?.preventDefault()
@@ -84,7 +89,10 @@ export function WorkTogether({ roles: all, providers, limits, busy, onOpen, onMo
         goal: goal.trim(),
         with: members.map(m => {
           const provider = providers.find(p => p.id === m.provider)
-          return { role: m.role, ...(provider && { provider: provider.name, ...(m.model.trim() && { model: m.model.trim() }) }) }
+          return {
+            role: m.role,
+            ...(provider && { provider: provider.name, ...(m.model.trim() && { model: m.model.trim() }) }),
+          }
         }),
         budget: spend,
         over_budget: overBudget,
@@ -115,7 +123,13 @@ export function WorkTogether({ roles: all, providers, limits, busy, onOpen, onMo
         Work together…
       </button>
       {open && (
-        <form ref={panel} tabIndex={-1} className="allow-list-panel room-open" aria-label="Work together" onSubmit={submit}>
+        <form
+          ref={panel}
+          tabIndex={-1}
+          className="allow-list-panel room-open"
+          aria-label="Work together"
+          onSubmit={submit}
+        >
           <div className="kicker">Work together in a room</div>
           <div className="field">
             <label htmlFor="room-goal">Goal</label>
@@ -132,7 +146,12 @@ export function WorkTogether({ roles: all, providers, limits, busy, onOpen, onMo
           <div className="kicker">Members</div>
           {members.map((member, at) => (
             <div key={at} className="room-member" role="group" aria-label={`Member ${at + 1}`}>
-              <select className="input" aria-label={`Role of member ${at + 1}`} value={member.role} onChange={e => change(at, { role: e.target.value })}>
+              <select
+                className="input"
+                aria-label={`Role of member ${at + 1}`}
+                value={member.role}
+                onChange={e => change(at, { role: e.target.value })}
+              >
                 {roles.map(role => (
                   <option key={role.id} value={role.name}>
                     {role.name}
@@ -147,7 +166,11 @@ export function WorkTogether({ roles: all, providers, limits, busy, onOpen, onMo
               >
                 <option value="">Its role’s own model</option>
                 {providers.map(provider => (
-                  <option key={provider.id} value={provider.id} disabled={ownTools(provider) || provider.enabled === false}>
+                  <option
+                    key={provider.id}
+                    value={provider.id}
+                    disabled={ownTools(provider) || provider.enabled === false}
+                  >
                     {provider.name}
                     {provider.enabled === false ? ' — off' : ownTools(provider) ? ' — works with its own tools' : ''}
                   </option>
@@ -164,7 +187,11 @@ export function WorkTogether({ roles: all, providers, limits, busy, onOpen, onMo
                 />
               )}
               {members.length > FEWEST && (
-                <button type="button" className="btn btn-small" onClick={() => setMembers(members.filter((_m, index) => index !== at))}>
+                <button
+                  type="button"
+                  className="btn btn-small"
+                  onClick={() => setMembers(members.filter((_m, index) => index !== at))}
+                >
                   Remove
                 </button>
               )}
@@ -198,17 +225,19 @@ export function WorkTogether({ roles: all, providers, limits, busy, onOpen, onMo
             ))}
           </div>
           {/* (One place for the project's: not kept from here too.) */}
-          <div className="muted cmd-approval-note">This room’s own. A room starts from the project’s limits: Settings › This project › New chats start with.</div>
+          <div className="muted cmd-approval-note">
+            This room’s own. A room starts from the project’s limits: Settings › This project › New chats start with.
+          </div>
           {!LIMITS.every(key => isLimit(budget[key])) && (
             <div className="muted cmd-approval-note">A limit is a whole number from 1; left empty, there is none.</div>
           )}
           <div className="muted cmd-approval-note">
-            The room is a piece of work of its own, and ends at the first limit it reaches. Its members are opened without a card:
-            you name them here. A CLI that works with its own tools cannot be a member. What they change is in one copy of
-            the project, taken in when the room is over - you are asked first, unless everybody’s work was over and this
-            conversation takes changes without asking. It has no token limit unless you set one: its tokens are all its
-            members’ steps sent and wrote (each step resends its context), and the turn’s and the project’s own limits hold
-            it. A model that reports no tokens is not held to that limit.
+            The room is a piece of work of its own, and ends at the first limit it reaches. Its members are opened
+            without a card: you name them here. A CLI that works with its own tools cannot be a member. What they change
+            is in one copy of the project, taken in when the room is over - you are asked first, unless everybody’s work
+            was over and this conversation takes changes without asking. It has no token limit unless you set one: its
+            tokens are all its members’ steps sent and wrote (each step resends its context), and the turn’s and the
+            project’s own limits hold it. A model that reports no tokens is not held to that limit.
           </div>
           {busy && <div className="muted cmd-approval-note">Something is at work: open the room when it is over.</div>}
           {error && (
@@ -234,7 +263,12 @@ export function WorkTogether({ roles: all, providers, limits, busy, onOpen, onMo
               </button>
             </div>
           )}
-          <button ref={openButton} type="submit" className="btn btn-small btn-primary" disabled={!valid || busy || sending}>
+          <button
+            ref={openButton}
+            type="submit"
+            className="btn btn-small btn-primary"
+            disabled={!valid || busy || sending}
+          >
             Open the room
           </button>
         </form>

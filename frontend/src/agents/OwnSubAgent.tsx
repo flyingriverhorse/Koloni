@@ -6,7 +6,14 @@ import { TOOL_STATUS, ToolRow } from '../chat/ToolRow'
 import { CommandRow } from '../commands/CommandRow'
 import { StatusLabel } from '../shell/StatusLabel'
 import type { ConvState } from '../state/applyEvent'
-import { innerCalls, isOwnSubAgent, ownSubAgentBrief, ownSubAgentEnding, ownSubAgentModel, ownSubAgentTask } from './ownWork'
+import {
+  innerCalls,
+  isOwnSubAgent,
+  ownSubAgentBrief,
+  ownSubAgentEnding,
+  ownSubAgentModel,
+  ownSubAgentTask,
+} from './ownWork'
 
 interface Props {
   state: ConvState
@@ -41,8 +48,12 @@ export function OwnSubAgentWork({ state, call, onOpenChange }: Props) {
           return (
             <div key={inner.id} className="chat-change">
               <span className="mono chat-change-path">{change.path}</span>
-              <span className="mono" style={{ color: 'var(--ok)' }}>+{change.additions}</span>
-              <span className="mono" style={{ color: 'var(--del)' }}>−{change.deletions}</span>
+              <span className="mono" style={{ color: 'var(--ok)' }}>
+                +{change.additions}
+              </span>
+              <span className="mono" style={{ color: 'var(--del)' }}>
+                −{change.deletions}
+              </span>
               {onOpenChange && (
                 <button type="button" className="btn btn-small" onClick={() => onOpenChange(change.id)}>
                   View diff

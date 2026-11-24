@@ -70,7 +70,10 @@ const KIND_ROWS = new Set(['docs', 'slides', 'diagram', 'data'])
 
 /** The foot's test runs, short (the sketch's "✓ related 19 · ✓ pytest 36"): a runner by its tool and count; a kind of work as the plain node says it. */
 function footOf(rows: Row[]): Line[] {
-  return [...rows.filter(row => !KIND_ROWS.has(row.kind)).map(footLine), ...linesOf(rows.filter(row => KIND_ROWS.has(row.kind)))]
+  return [
+    ...rows.filter(row => !KIND_ROWS.has(row.kind)).map(footLine),
+    ...linesOf(rows.filter(row => KIND_ROWS.has(row.kind))),
+  ]
 }
 
 function footLine(row: Row): Line {
@@ -124,10 +127,17 @@ interface Box {
 function boxOf(state: ConvState, run: Run, passes: Pass[] | null): Box {
   const mine = state.agents.filter(a => a.run_id === run.id)
   const byId = new Map(mine.map(a => [a.id, a]))
-  const named = (ids: (string | null | undefined)[]) => [...new Set(ids)].flatMap(id => (id && byId.get(id) ? [byId.get(id)!] : []))
+  const named = (ids: (string | null | undefined)[]) =>
+    [...new Set(ids)].flatMap(id => (id && byId.get(id) ? [byId.get(id)!] : []))
   if (passes) {
     const fixes = named(passes.flatMap(pass => pass.fixers))
-    return { looks: named(passes.flatMap(pass => pass.looks.map(look => look.agent_id))), diagnoses: named(passes.map(pass => pass.diagnosis)), fixes, under: underOf(mine, fixes), passes }
+    return {
+      looks: named(passes.flatMap(pass => pass.looks.map(look => look.agent_id))),
+      diagnoses: named(passes.map(pass => pass.diagnosis)),
+      fixes,
+      under: underOf(mine, fixes),
+      passes,
+    }
   }
   const calls = new Map(state.toolCalls.filter(c => c.run_id === run.id).map(c => [c.id, c.provider_call_id]))
   const kind = (agent: Agent) => /^koloni_proof_([a-z]+)_/.exec(calls.get(agent.tool_call_id ?? '') ?? '')?.[1] ?? null
@@ -145,7 +155,7 @@ function boxOf(state: ConvState, run: Run, passes: Pass[] | null): Box {
 /** Every agent opened under a fixer, however deep (a Coder's own sub-agent). */
 function underOf(agents: Agent[], fixes: Agent[]): string[] {
   const inside = new Set(fixes.map(a => a.id))
-  for (let size = -1; size !== inside.size; ) {
+  for (let size = -1; size !== inside.size;) {
     size = inside.size
     for (const agent of agents) if (agent.parent_agent_id && inside.has(agent.parent_agent_id)) inside.add(agent.id)
   }
@@ -167,9 +177,16 @@ function roundsOf(box: Box, state: ConvState): LoopRound[] {
     kind: pass.kind,
     tier: pass.tier ?? null,
     tests: pass.tests,
-    looks: pass.looks.map(look => ({ agentId: look.agent_id, name: name(look.agent_id, look.role), verdict: saidVerdict(look.verdict, byId.get(look.agent_id)) })),
+    looks: pass.looks.map(look => ({
+      agentId: look.agent_id,
+      name: name(look.agent_id, look.role),
+      verdict: saidVerdict(look.verdict, byId.get(look.agent_id)),
+    })),
     diagnosis: pass.diagnosis ? { agentId: pass.diagnosis, name: name(pass.diagnosis, 'Diagnosis') } : null,
-    finding: pass.looks.map(look => byId.get(look.agent_id)?.findings?.find(one => one.blocking !== false)?.what).find(Boolean) ?? null,
+    finding:
+      pass.looks
+        .map(look => byId.get(look.agent_id)?.findings?.find(one => one.blocking !== false)?.what)
+        .find(Boolean) ?? null,
     fixed: pass.fixers.map(id => ({ agentId: id, name: name(id, 'Agent'), files: filesOf(state, id) })),
     why: pass.why,
     sent: pass.sent,
@@ -177,22 +194,41 @@ function roundsOf(box: Box, state: ConvState): LoopRound[] {
 }
 
 /** How many files an agent changed. */
-const filesOf = (state: ConvState, agentId: string) => new Set(state.fileChanges.filter(f => f.agent_id === agentId).map(f => f.path)).size
+const filesOf = (state: ConvState, agentId: string) =>
+  new Set(state.fileChanges.filter(f => f.agent_id === agentId).map(f => f.path)).size
 
 /** A role's card: its latest agent, with how many there were - "Reviewer ×3, last: HOLD · 1 blocking", "Coder · fix ×2, last: 4 files". */
-function cardsOf(agents: Agent[], as: As, state: ConvState, asking: ReadonlySet<string>, verdicts: ReadonlyMap<string, string | null>): LoopCard[] {
+function cardsOf(
+  agents: Agent[],
+  as: As,
+  state: ConvState,
+  asking: ReadonlySet<string>,
+  verdicts: ReadonlyMap<string, string | null>,
+): LoopCard[] {
   const byRole = new Map<string, Agent[]>()
   for (const agent of agents) byRole.set(agent.role_name, [...(byRole.get(agent.role_name) ?? []), agent])
   return [...byRole.values()].map(all => {
     const latest = all.at(-1)!
     const name = `${all.length > 1 ? latest.role_name : latest.name}${AS_NAME[as]}`
     const [said, tone] = cardSaid(latest, as, state, asking, verdicts)
-    return { agentId: latest.id, name, count: all.length, said: all.length > 1 && tone !== 'run' ? `last: ${said}` : said, tone }
+    return {
+      agentId: latest.id,
+      name,
+      count: all.length,
+      said: all.length > 1 && tone !== 'run' ? `last: ${said}` : said,
+      tone,
+    }
   })
 }
 
 /** A card's line: what waits for you as its node said it, a wait in the agent's own words, at work, how it ended. */
-function cardSaid(agent: Agent, as: As, state: ConvState, asking: ReadonlySet<string>, verdicts: ReadonlyMap<string, string | null>): [string, Tone] {
+function cardSaid(
+  agent: Agent,
+  as: As,
+  state: ConvState,
+  asking: ReadonlySet<string>,
+  verdicts: ReadonlyMap<string, string | null>,
+): [string, Tone] {
   if (asking.has(agent.id) || agent.status === 'proposed') return [WAITS, 'note']
   if (agent.status === 'running') return [as === 'fix' ? '● at work' : '● reading', 'run']
   if (atWork(agent)) return [AGENT_STATUS[agent.status][0], 'note']
@@ -200,7 +236,12 @@ function cardSaid(agent: Agent, as: As, state: ConvState, asking: ReadonlySet<st
 }
 
 /** How an agent of the box ended: a fix by its files, a diagnosis by its verdict word, a look by its pass's verdict; else as its state reads. */
-function endedSaid(agent: Agent, as: As, state: ConvState, verdicts: ReadonlyMap<string, string | null>): [string, Tone] {
+function endedSaid(
+  agent: Agent,
+  as: As,
+  state: ConvState,
+  verdicts: ReadonlyMap<string, string | null>,
+): [string, Tone] {
   if (agent.status !== 'completed') return [AGENT_STATUS[agent.status][0], 'bad']
   if (as === 'fix') return [plural(filesOf(state, agent.id), 'file'), 'note']
   if (as === 'diagnosis') return [/Diagnosis:\s*([\w-]+)/i.exec(agent.report ?? '')?.[1] ?? 'done', 'note']
@@ -213,18 +254,31 @@ function endedSaid(agent: Agent, as: As, state: ConvState, verdicts: ReadonlyMap
  * were, from the passes) - "not taken in" where the work stays in its copy for it; "not checked" where no test line passed (a
  * turn stopped mid-round is never "✓ checked": as the Orchestrator's strip says, `stripOf`).
  */
-function statusOf(box: Box, data: ChecksData, rows: Row[], running: boolean, asking: ReadonlySet<string>): [string, Tone] {
+function statusOf(
+  box: Box,
+  data: ChecksData,
+  rows: Row[],
+  running: boolean,
+  asking: ReadonlySet<string>,
+): [string, Tone] {
   const passes = box.passes ?? []
   if (running) return [`● ${passes.length ? `round ${passes.length} · ` : ''}${doing(box, asking)}`, 'run']
   const failed = data.lines.some(line => line.state === 'failed')
   const checked = Boolean(stripOf(data)?.startsWith('✓'))
-  return [`${failed ? '⟲ ' : ''}${[...countsOf(passes), endOf(data, rows, failed, checked)].join(' · ')}`, failed ? 'bad' : checked ? 'ok' : 'note']
+  return [
+    `${failed ? '⟲ ' : ''}${[...countsOf(passes), endOf(data, rows, failed, checked)].join(' · ')}`,
+    failed ? 'bad' : checked ? 'ok' : 'note',
+  ]
 }
 
 /** How it ended: "not taken in" where the work stays in its copy for it, "on hold", "still failing" - else checked or not. */
 function endOf(data: ChecksData, rows: Row[], failed: boolean, checked: boolean): string {
   if (!failed) return checked ? '✓ checked' : 'not checked'
-  return rows.some(row => row.kind === 'not_taken' && row.state === 'failed') ? 'not taken in' : data.held ? 'on hold' : 'still failing'
+  return rows.some(row => row.kind === 'not_taken' && row.state === 'failed')
+    ? 'not taken in'
+    : data.held
+      ? 'on hold'
+      : 'still failing'
 }
 
 /** The passes, counted where there were: "3 looks", "2 fix rounds", "1 stronger round". */
@@ -232,7 +286,11 @@ function countsOf(passes: Pass[]): string[] {
   const looked = passes.filter(pass => pass.looks.length).length
   const fixed = passes.filter(pass => pass.kind === 'check' && pass.sent === 'fix').length
   const stronger = passes.filter(pass => pass.kind === 'stronger').length
-  return [looked && plural(looked, 'look'), fixed && plural(fixed, 'fix round'), stronger && plural(stronger, 'stronger round')].filter((one): one is string => Boolean(one))
+  return [
+    looked && plural(looked, 'look'),
+    fixed && plural(fixed, 'fix round'),
+    stronger && plural(stronger, 'stronger round'),
+  ].filter((one): one is string => Boolean(one))
 }
 
 /** What the round at work does now: waits for you (an agent of it asks), looks, fixes - else KOLONİ's test run. */
@@ -240,7 +298,13 @@ function doing(box: Box, asking: ReadonlySet<string>): string {
   const now = [...box.looks, ...box.diagnoses, ...box.fixes].filter(atWork)
   if (now.some(a => asking.has(a.id) || a.status === 'proposed')) return WAITS
   const running = now.filter(a => a.status === 'running')
-  return running.some(a => !box.fixes.includes(a)) ? 'looking…' : running.length ? 'fixing…' : now.length ? 'waiting…' : 'checking…'
+  return running.some(a => !box.fixes.includes(a))
+    ? 'looking…'
+    : running.length
+      ? 'fixing…'
+      : now.length
+        ? 'waiting…'
+        : 'checking…'
 }
 
 /** A drop against the last green run, short: "Tests went from 48 to 45 (3 removed)" is "48 → 45 (3 removed)". */
@@ -256,11 +320,23 @@ function testsCard(rows: Row[], data: ChecksData): LoopCard {
   const tests = linesOf(rows.filter(row => row.kind === 'tests')).filter(line => line.state !== 'note')
   const failing = tests.find(line => line.state === 'failed')
   const said = drop ? `${drop[1]} → ${drop[2]} ${drop[3]}` : ((failing ?? tests[0])?.text ?? 'tests')
-  return { agentId: `tests:${data.runId}`, name: 'Tests', count: 1, said, tone: drop || failing ? 'bad' : tests.length ? 'ok' : 'note' }
+  return {
+    agentId: `tests:${data.runId}`,
+    name: 'Tests',
+    count: 1,
+    said,
+    tone: drop || failing ? 'bad' : tests.length ? 'ok' : 'note',
+  }
 }
 
 /** Why the checks stopped where a round held: the Checked section's own line ("Still on hold after 2 fix rounds: …", "Stopped after round 3: …"). */
-const stopOf = (rows: Row[]) => rows.find(row => row.state === 'failed' && /^(Still|Stopped)/.test(row.text) && ['review', 'rounds', 'stronger'].includes(row.kind))?.text ?? null
+const stopOf = (rows: Row[]) =>
+  rows.find(
+    row =>
+      row.state === 'failed' &&
+      /^(Still|Stopped)/.test(row.text) &&
+      ['review', 'rounds', 'stronger'].includes(row.kind),
+  )?.text ?? null
 
 /** A dot a pass: each but the last went back (or was handed up) - a neutral one where it only asked for a test -; the last as the box ends, or at work. */
 function dotsOf(box: Box, running: boolean, tone: Tone): Loop['dots'] {
@@ -273,14 +349,24 @@ function dotsOf(box: Box, running: boolean, tone: Tone): Loop['dots'] {
 export const saysRounds = (loop: Loop) => loop.loop || loop.tone === 'run'
 
 /** Each dot in words, for its title and the dots' label. */
-export const DOT_WORDS: Record<Loop['dots'][number], string> = { held: 'held', passed: 'passed', running: 'at work', asked: 'asked for a test' }
+export const DOT_WORDS: Record<Loop['dots'][number], string> = {
+  held: 'held',
+  passed: 'passed',
+  running: 'at work',
+  asked: 'asked for a test',
+}
 
 /**
  * KOLONİ's checks of a turn as one box (tuval-kontrol-dongusu, D + F): the agents its passes name (`boxOf`), each role drawn
  * once with how many there were, a pass a round for the panel. Null where none was opened, and for a turn checked before the
  * passes were written: the plain Checks node of its lines.
  */
-export function loopOf(state: ConvState, run: Run, data: ChecksData, asking: ReadonlySet<string> = new Set()): Loop | null {
+export function loopOf(
+  state: ConvState,
+  run: Run,
+  data: ChecksData,
+  asking: ReadonlySet<string> = new Set(),
+): Loop | null {
   const checked = state.messages.find(m => m.run_id === run.id && m.role === 'checked')
   if (checked && !checked.passes) return null
   const box = boxOf(state, run, checked?.passes ?? null)
@@ -308,33 +394,65 @@ export function loopOf(state: ConvState, run: Run, data: ChecksData, asking: Rea
  * The box's two columns: its looks (or, sent back for the tests alone, the Tests) and a stronger tier's diagnoses ⇄ its fixes -
  * each look's card by the verdict its pass recorded.
  */
-function columnsOf(box: Box, state: ConvState, asking: ReadonlySet<string>, rows: Row[], data: ChecksData): Pick<Loop, 'looks' | 'fixes'> {
-  const verdicts = new Map((box.passes ?? []).flatMap(pass => pass.looks.map(look => [look.agent_id, look.verdict] as const)))
-  const left = box.looks.length || !box.fixes.length ? cardsOf(box.looks, 'look', state, asking, verdicts) : [testsCard(rows, data)]
-  return { looks: [...left, ...cardsOf(box.diagnoses, 'diagnosis', state, asking, verdicts)], fixes: cardsOf(box.fixes, 'fix', state, asking, verdicts) }
+function columnsOf(
+  box: Box,
+  state: ConvState,
+  asking: ReadonlySet<string>,
+  rows: Row[],
+  data: ChecksData,
+): Pick<Loop, 'looks' | 'fixes'> {
+  const verdicts = new Map(
+    (box.passes ?? []).flatMap(pass => pass.looks.map(look => [look.agent_id, look.verdict] as const)),
+  )
+  const left =
+    box.looks.length || !box.fixes.length
+      ? cardsOf(box.looks, 'look', state, asking, verdicts)
+      : [testsCard(rows, data)]
+  return {
+    looks: [...left, ...cardsOf(box.diagnoses, 'diagnosis', state, asking, verdicts)],
+    fixes: cardsOf(box.fixes, 'fix', state, asking, verdicts),
+  }
 }
 
 /** KOLONİ's checks at work now: a test run, a suite gone on after the answer, an agent of the box. */
-const atWorkNow = (state: ConvState, run: Run, data: ChecksData, all: Agent[]) => Boolean(data.running) || data.lines.some(line => line.state === 'running') || all.some(atWork) || ownRunning(state, run)
+const atWorkNow = (state: ConvState, run: Run, data: ChecksData, all: Agent[]) =>
+  Boolean(data.running) ||
+  data.lines.some(line => line.state === 'running') ||
+  all.some(atWork) ||
+  ownRunning(state, run)
 
 /** A call of KOLONİ's at work: a test run, a look being opened. */
-const ownRunning = (state: ConvState, run: Run) => state.toolCalls.some((c: ToolCall) => c.run_id === run.id && c.provider_call_id.startsWith(PROOF_CALL) && c.status === 'running')
+const ownRunning = (state: ConvState, run: Run) =>
+  state.toolCalls.some(
+    (c: ToolCall) => c.run_id === run.id && c.provider_call_id.startsWith(PROOF_CALL) && c.status === 'running',
+  )
 
 /**
  * The Checks node's box, once its turn's agents are drawn: its loop (`loopOf`), whose agents are no nodes of their own - nor
  * what hangs in them, nor their lines; and where the Orchestrator's own agents stand right of it, no long line down to the box
  * under them (in a recipe's turn the box joins its frame's last pass). Returns the ids of the nodes taken out.
  */
-export function settleChecks(state: ConvState, run: Run, checks: GraphNode, nodes: GraphNode[], edges: GraphEdge[]): Set<string> {
+export function settleChecks(
+  state: ConvState,
+  run: Run,
+  checks: GraphNode,
+  nodes: GraphNode[],
+  edges: GraphEdge[],
+): Set<string> {
   const data = checks.data as ChecksData
   // (What waits for you as each agent's node had it, before the box takes their place: `asks`.)
-  const asking = new Set(nodes.filter(n => n.runId === run.id && n.kind === 'agent' && (n.data as AgentData).attention).map(n => n.agentId ?? ''))
+  const asking = new Set(
+    nodes
+      .filter(n => n.runId === run.id && n.kind === 'agent' && (n.data as AgentData).attention)
+      .map(n => n.agentId ?? ''),
+  )
   data.loop = loopOf(state, run, data, asking)
   const gone = takeOut(nodes, new Set((data.loop?.agents ?? []).map(id => `agent:${id}`)))
   const own = nodes.filter(n => n.kind === 'agent' && (n.data as AgentData).parentId === data.leadId)
   // (The plain node of lines with the Orchestrator's agents beside it: no long line down past them; the box: its arrow.)
   const drop = !checks.team && (data.loop || own.length) ? `agent:${data.leadId}>${checks.id}` : null
-  for (let at = edges.length - 1; at >= 0; at--) if (gone.has(edges[at].source) || gone.has(edges[at].target) || edges[at].id === drop) edges.splice(at, 1)
+  for (let at = edges.length - 1; at >= 0; at--)
+    if (gone.has(edges[at].source) || gone.has(edges[at].target) || edges[at].id === drop) edges.splice(at, 1)
   if (data.loop && !checks.team) edges.push(arrowInto(checks, own, data.loop))
   if (checks.team) intoFrameBox(state, run, checks, nodes, edges)
   return gone
@@ -361,12 +479,17 @@ function intoFrameBox(state: ConvState, run: Run, checks: GraphNode, nodes: Grap
 function arrowInto(checks: GraphNode, own: GraphNode[], loop: Loop): GraphEdge {
   const data = checks.data as ChecksData
   const from = own.length ? own[Math.floor((own.length - 1) / 2)].id : `agent:${data.leadId}`
-  return { id: `${from}>${checks.id}`, source: from, target: checks.id, active: Boolean(data.running) || loop.tone === 'run' }
+  return {
+    id: `${from}>${checks.id}`,
+    source: from,
+    target: checks.id,
+    active: Boolean(data.running) || loop.tone === 'run',
+  }
 }
 
 /** The nodes `gone` names, and what sits in them, taken out of `nodes`; returns all their ids. */
 function takeOut(nodes: GraphNode[], gone: Set<string>): Set<string> {
-  for (let size = -1; size !== gone.size; ) {
+  for (let size = -1; size !== gone.size;) {
     size = gone.size
     for (const node of nodes) if (node.parent && gone.has(node.parent)) gone.add(node.id)
   }
@@ -388,7 +511,16 @@ export function checksSize(data: ChecksData): { width: number; height: number } 
   const rows = Math.max(loop.looks.length, loop.fixes.length, 1)
   const column = LOOP.card + LOOP.shadow
   const width = 2 * LOOP.pad + (loop.fixes.length ? 2 * column + 2 * LOOP.gap + LOOP.way : column)
-  return { width, height: LOOP.top + rows * (LOOP.cardH + LOOP.shadow) + (rows - 1) * LOOP.gap + LOOP.foot + LOOP.pad + wrapped(loop, width) }
+  return {
+    width,
+    height:
+      LOOP.top +
+      rows * (LOOP.cardH + LOOP.shadow) +
+      (rows - 1) * LOOP.gap +
+      LOOP.foot +
+      LOOP.pad +
+      wrapped(loop, width),
+  }
 }
 
 /**

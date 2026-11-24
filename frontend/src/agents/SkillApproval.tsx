@@ -5,11 +5,19 @@ import { DecisionCard, type SpawnDecision } from './SpawnApproval'
 
 /** A size in bytes the way a person reads it. */
 const sizeText = (bytes: number) =>
-  bytes < 1024 ? `${bytes} bytes` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KiB` : `${(bytes / 1024 / 1024).toFixed(1)} MiB`
+  bytes < 1024
+    ? `${bytes} bytes`
+    : bytes < 1024 * 1024
+      ? `${(bytes / 1024).toFixed(1)} KiB`
+      : `${(bytes / 1024 / 1024).toFixed(1)} MiB`
 
 /** Its licence's first line - or, without one, that nobody knows on what terms it may be used. */
 export function Licence({ skill }: { skill: Pick<SkillFound, 'license'> }) {
-  return skill.license ? <span className="tag mono">{skill.license}</span> : <span className="tag tag-warn">licence unknown</span>
+  return skill.license ? (
+    <span className="tag mono">{skill.license}</span>
+  ) : (
+    <span className="tag tag-warn">licence unknown</span>
+  )
 }
 
 /** Its SKILL.md, folded, with the files beside it. */
@@ -64,8 +72,8 @@ export function ScriptsLeave({
         <span>
           Run the scripts of {skill.name} without asking
           <span id={`${id}-note`} className="choice-note">
-            Saying yes to this is agreeing to run them. Any other command is asked about as before, and once a file of the
-            skill has changed since it was added its scripts are asked about too.
+            Saying yes to this is agreeing to run them. Any other command is asked about as before, and once a file of
+            the skill has changed since it was added its scripts are asked about too.
           </span>
         </span>
       </label>
@@ -80,8 +88,8 @@ function SkillRuns({ skill }: { skill: SkillPreview }) {
       <div className="muted cmd-approval-note">
         {skill.allowed_tools.length > 0 ? (
           <>
-            It declares allowed-tools: <span className="mono">{skill.allowed_tools.join(', ')}</span>. KOLONİ gives a skill
-            none of them: its agents keep their role’s tools, and Claude Code is given it without that line.
+            It declares allowed-tools: <span className="mono">{skill.allowed_tools.join(', ')}</span>. KOLONİ gives a
+            skill none of them: its agents keep their role’s tools, and Claude Code is given it without that line.
           </>
         ) : (
           'It declares no allowed-tools.'
@@ -96,8 +104,8 @@ function SkillRuns({ skill }: { skill: SkillPreview }) {
       )}
       {skill.shell_blocks > 0 && (
         <div className="cmd-approval-note">
-          Its SKILL.md has {skill.shell_blocks === 1 ? 'a shell block' : `${skill.shell_blocks} shell blocks`}: commands it
-          tells an agent to run, each held to the rules of any command.
+          Its SKILL.md has {skill.shell_blocks === 1 ? 'a shell block' : `${skill.shell_blocks} shell blocks`}: commands
+          it tells an agent to run, each held to the rules of any command.
         </div>
       )}
     </>
@@ -118,8 +126,8 @@ export function SkillShown({ skill }: { skill: SkillPreview }) {
       </div>
       {skill.injection_rules && skill.injection_rules.length > 0 && (
         <div role="note" className="cmd-approval-note">
-          Its SKILL.md has phrases that try to steer an agent past you (rules: {skill.injection_rules.map(rule => rule.replaceAll('_', ' ')).join(', ')}). Read it
-          before you add it.
+          Its SKILL.md has phrases that try to steer an agent past you (rules:{' '}
+          {skill.injection_rules.map(rule => rule.replaceAll('_', ' ')).join(', ')}). Read it before you add it.
         </div>
       )}
       {!skill.license && (
@@ -136,21 +144,24 @@ export function SkillShown({ skill }: { skill: SkillPreview }) {
       </div>
       {skill.programs.length > 0 && (
         <div className="cmd-approval-note">
-          Files that run as programs: <span className="mono">{skill.programs.join(', ')}</span>. KOLONİ does not run them as
-          its scripts; an agent’s command that runs one is held to the rules of any command.
+          Files that run as programs: <span className="mono">{skill.programs.join(', ')}</span>. KOLONİ does not run
+          them as its scripts; an agent’s command that runs one is held to the rules of any command.
         </div>
       )}
       {!skill.read_whole && (
         <div className="muted cmd-approval-note">
-          From GitHub only its SKILL.md, licence and scripts are read before you say yes: a #! line in another file is not
-          seen here.
+          From GitHub only its SKILL.md, licence and scripts are read before you say yes: a #! line in another file is
+          not seen here.
         </div>
       )}
       <SkillRuns skill={skill} />
       {skill.scripts.length > 0 && (
         <Seen
           seen={skill.seen}
-          notSeen={['What its SKILL.md tells an agent to do: read it below.', 'Paths, addresses and programs put together while its scripts run.']}
+          notSeen={[
+            'What its SKILL.md tells an agent to do: read it below.',
+            'Paths, addresses and programs put together while its scripts run.',
+          ]}
         />
       )}
       <SkillText skill={skill} />
@@ -174,11 +185,17 @@ export function SkillApproval({ skill, onDecide }: Props) {
       onDecide={decision => onDecide(decision, decision === 'approve' && !unasked ? 'ask_scripts' : undefined)}
     >
       <SkillShown skill={skill} />
-      <ScriptsLeave id={`skill-leave-${skill.tool_call_id}`} skill={skill} texts={skill.script_texts} checked={unasked} onChange={setUnasked} />
+      <ScriptsLeave
+        id={`skill-leave-${skill.tool_call_id}`}
+        skill={skill}
+        texts={skill.script_texts}
+        checked={unasked}
+        onChange={setUnasked}
+      />
       <div className="muted cmd-approval-note">
-        {skill.roles.length > 0 ? `Given to: ${skill.roles.join(', ')}.` : 'Given to no role yet.'} Its text is what their
-        agents are told: a skill from elsewhere can steer them. A copy is kept; nothing is copied, nor downloaded beyond
-        what is shown here, before you say yes.
+        {skill.roles.length > 0 ? `Given to: ${skill.roles.join(', ')}.` : 'Given to no role yet.'} Its text is what
+        their agents are told: a skill from elsewhere can steer them. A copy is kept; nothing is copied, nor downloaded
+        beyond what is shown here, before you say yes.
       </div>
     </DecisionCard>
   )

@@ -11,12 +11,14 @@ import type { ConvState } from '../state/applyEvent'
 
 const nameOf = (agent: Agent) => agent.name || agent.role_name
 /** A lead's copy is its turn's room's - or, in a side of a comparison (slice 54), the side's own. */
-const roomsCopy = (state: Pick<ConvState, 'runs'>, lead: Agent) => !state.runs.some(r => r.id === lead.run_id && r.compare_id)
+const roomsCopy = (state: Pick<ConvState, 'runs'>, lead: Agent) =>
+  !state.runs.some(r => r.id === lead.run_id && r.compare_id)
 type Seen = Pick<ConvState, 'agents' | 'runs'> & Partial<Pick<ConvState, 'conversation'>>
 /** Whose a lead's copy is said to be: its turn's recipe's (slice 84b-2: a chat team's agents work in one), its room's; null: a side's own. */
 const leadsCopy = (state: Seen, lead: Agent) =>
   // (B-107: also once the chat's teams changed after its turn.)
-  state.conversation?.teams.some(row => row.state?.run_id === lead.run_id) || state.runs.some(run => run.id === lead.run_id && run.teams?.length)
+  state.conversation?.teams.some(row => row.state?.run_id === lead.run_id) ||
+  state.runs.some(run => run.id === lead.run_id && run.teams?.length)
     ? 'the recipe’s'
     : roomsCopy(state, lead)
       ? 'the room’s'
@@ -68,7 +70,8 @@ export function pendingMerge(state: Pick<ConvState, 'merges'>, agentId: string):
  * take what it holds into the project, or delete the folder. Not a turn that waits for you.
  * ("kept" since B-359; "interrupted" with a folder from a server older than the page.)
  */
-export const isKept = (merge: Merge) => (merge.status === 'kept' || merge.status === 'interrupted') && merge.kept_in != null
+export const isKept = (merge: Merge) =>
+  (merge.status === 'kept' || merge.status === 'interrupted') && merge.kept_in != null
 
 /**
  * How an agent's own working copy stands, by what you have to do about it: its work is finished and waits for your Take
@@ -93,7 +96,10 @@ export const keptToTake = (merge: Merge) => isKept(merge) && merge.files.length 
 export const atGivenSteps = (error: string | null) => error?.startsWith('stopped after the ') ?? false
 
 /** An agent's error is a step limit's: the app's, its role's ("stopped at its role's limit of N steps"), or its budget's. */
-export const atAStepLimit = (error: string | null) => error === 'step_limit' || (error?.startsWith("stopped at its role's limit of") && error.includes('step')) || atGivenSteps(error)
+export const atAStepLimit = (error: string | null) =>
+  error === 'step_limit' ||
+  (error?.startsWith("stopped at its role's limit of") && error.includes('step')) ||
+  atGivenSteps(error)
 
 /**
  * K-devam-butce: a kept card whose agent stopped at a step limit while its turn still runs: Continue gives it more
@@ -101,7 +107,12 @@ export const atAStepLimit = (error: string | null) => error === 'step_limit' || 
  */
 export const canContinue = (state: Pick<ConvState, 'agents' | 'runs'>, merge: Merge) => {
   const agent = state.agents.find(a => a.id === merge.agent_id)
-  return isKept(merge) && agent?.status === 'failed' && atAStepLimit(agent.error) && state.runs.some(r => r.id === merge.run_id && (r.status === 'running' || r.status === 'waiting_approval'))
+  return (
+    isKept(merge) &&
+    agent?.status === 'failed' &&
+    atAStepLimit(agent.error) &&
+    state.runs.some(r => r.id === merge.run_id && (r.status === 'running' || r.status === 'waiting_approval'))
+  )
 }
 
 /** A merge that has a card to show: its changes wait for you, its copy was kept, or what was taken of it has a commit on record - offered or made. */
@@ -113,7 +124,8 @@ export function cardMerges(state: Pick<ConvState, 'merges'>, agentId: string): M
 }
 
 /** The agents' scratch, `.koloni/tmp/` (K-koloni-klasor): its changes stay on record for their card and undo, but no list of what changed shows them. */
-export const inScratch = (path: string) => path.replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase().startsWith('.koloni/tmp/')
+export const inScratch = (path: string) =>
+  path.replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase().startsWith('.koloni/tmp/')
 
 /** The changes that are in the project, or were: what "Changes" counts. One still in a copy is not. */
 export function inProject(changes: FileChange[]): FileChange[] {
@@ -127,5 +139,9 @@ export function copyFiles(state: Pick<ConvState, 'agents' | 'fileChanges'>, agen
     const by = state.agents.find(a => a.id === id)
     return !!by && copyOwner(state, by)?.id === agent.id
   }
-  return new Set(state.fileChanges.filter(f => f.status === 'in_copy' && mine(f.agent_id) && !inScratch(f.path)).map(f => f.path)).size || null
+  return (
+    new Set(
+      state.fileChanges.filter(f => f.status === 'in_copy' && mine(f.agent_id) && !inScratch(f.path)).map(f => f.path),
+    ).size || null
+  )
 }

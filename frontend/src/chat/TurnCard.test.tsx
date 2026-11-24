@@ -15,7 +15,13 @@ const answer = assistantMessage('m', 'r', 'It is **done**: see `a.py`.')
 beforeEach(() => {
   useVoice.setState({ ...DEFAULTS, speaking: null, stops: 0, fromStart: {} })
   const voices = [{ voiceURI: 'ava', name: 'Ava', lang: 'en-US', localService: true }]
-  vi.stubGlobal('speechSynthesis', { getVoices: () => voices, speak() {}, cancel() {}, addEventListener() {}, removeEventListener() {} })
+  vi.stubGlobal('speechSynthesis', {
+    getVoices: () => voices,
+    speak() {},
+    cancel() {},
+    addEventListener() {},
+    removeEventListener() {},
+  })
   vi.stubGlobal('SpeechSynthesisUtterance', class {})
 })
 afterEach(() => {
@@ -26,17 +32,25 @@ afterEach(() => {
 const handlers = { onRemoveQueued: vi.fn(), onOpenChange: vi.fn(), onDecide: vi.fn(), onDecideCommand: vi.fn() }
 
 test('the card names who answered, its model and the time of its last message; a card that waits says so in the time’s place', () => {
-  const state = convState({ runs: [run('r')], agents: [agent('r')], messages: [userMessage('r', 'go'), { ...answer, created_at: AT }] })
+  const state = convState({
+    runs: [run('r')],
+    agents: [agent('r')],
+    messages: [userMessage('r', 'go'), { ...answer, created_at: AT }],
+  })
   const card = (waits: boolean) => (
     <TurnCard state={state} run={run('r')} lead={agent('r')} answer={answer} summary={null} waits={waits}>
       the work
     </TurnCard>
   )
   const { container, rerender } = render(card(false))
-  expect(screen.getByRole('article', { name: `Orchestrator, ${when(AT)}` })).toHaveTextContent(`OOrchestratorqwen${when(AT)}the work`)
+  expect(screen.getByRole('article', { name: `Orchestrator, ${when(AT)}` })).toHaveTextContent(
+    `OOrchestratorqwen${when(AT)}the work`,
+  )
   expect(container.querySelector('.turn-avatar')).toHaveAttribute('aria-hidden', 'true')
   rerender(card(true))
-  expect(screen.getByRole('article', { name: 'Orchestrator, waits for you' })).toHaveTextContent('Orchestratorqwenwaits for youthe work')
+  expect(screen.getByRole('article', { name: 'Orchestrator, waits for you' })).toHaveTextContent(
+    'Orchestratorqwenwaits for youthe work',
+  )
   expect(container.querySelector('time')).toBeNull()
 })
 
@@ -49,7 +63,14 @@ test('a Lead whose model Copilot’s fusion picked says so in its head, with Cop
     effort_note: `high → none: fusion takes no level. Copilot's fusion picked gpt-6-luna: “${why}”`,
   })
   const card = (lead: typeof picked) => (
-    <TurnCard state={convState({ runs: [run('r')], agents: [lead] })} run={run('r')} lead={lead} answer={undefined} summary={null} waits={false}>
+    <TurnCard
+      state={convState({ runs: [run('r')], agents: [lead] })}
+      run={run('r')}
+      lead={lead}
+      answer={undefined}
+      summary={null}
+      waits={false}
+    >
       the work
     </TurnCard>
   )
@@ -72,7 +93,14 @@ test('the turn’s name opens its Lead’s window, by pointer or keyboard: where
   useApp.setState({ agentWindowId: null })
   const lead = agent('lead-1', 'running', { run_id: 'r' })
   render(
-    <TurnCard state={convState({ runs: [run('r')], agents: [lead] })} run={run('r')} lead={lead} answer={undefined} summary={null} waits={false}>
+    <TurnCard
+      state={convState({ runs: [run('r')], agents: [lead] })}
+      run={run('r')}
+      lead={lead}
+      answer={undefined}
+      summary={null}
+      waits={false}
+    >
       the work
     </TurnCard>,
   )
@@ -89,9 +117,20 @@ test('the turn’s name opens its Lead’s window, by pointer or keyboard: where
 })
 
 test('the foot holds Copy and Read aloud first, what it did at its right', () => {
-  const state = convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [userMessage('r', 'go'), answer] })
+  const state = convState({
+    runs: [run('r', 'completed')],
+    agents: [agent('r', 'completed')],
+    messages: [userMessage('r', 'go'), answer],
+  })
   const { container } = render(
-    <TurnCard state={state} run={run('r', 'completed')} lead={agent('r', 'completed')} answer={answer} summary={<button type="button">What it did</button>} waits={false}>
+    <TurnCard
+      state={state}
+      run={run('r', 'completed')}
+      lead={agent('r', 'completed')}
+      answer={answer}
+      summary={<button type="button">What it did</button>}
+      waits={false}
+    >
       the work
     </TurnCard>,
   )
@@ -101,11 +140,39 @@ test('the foot holds Copy and Read aloud first, what it did at its right', () =>
 })
 
 test('the Checked section stands in the foot under the answer once the turn is over', () => {
-  const rows = [{ kind: 'tests', state: 'passed' as const, text: 'Tests passed: pytest -q - 4 passed', command: 'pytest -q', guessed: false, started_at: null }]
-  const checked = { ...assistantMessage('k', 'r', '✓ Tests passed: pytest -q - 4 passed'), role: 'checked' as const, agent_id: null, checked: rows, created_at: '2026-10-26T11:00:00' }
-  const state = convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [userMessage('r', 'go'), { ...answer, created_at: AT }, checked] })
+  const rows = [
+    {
+      kind: 'tests',
+      state: 'passed' as const,
+      text: 'Tests passed: pytest -q - 4 passed',
+      command: 'pytest -q',
+      guessed: false,
+      started_at: null,
+    },
+  ]
+  const checked = {
+    ...assistantMessage('k', 'r', '✓ Tests passed: pytest -q - 4 passed'),
+    role: 'checked' as const,
+    agent_id: null,
+    checked: rows,
+    created_at: '2026-10-26T11:00:00',
+  }
+  const state = convState({
+    runs: [run('r', 'completed')],
+    agents: [agent('r', 'completed')],
+    messages: [userMessage('r', 'go'), { ...answer, created_at: AT }, checked],
+  })
   const card = (over: boolean) => (
-    <TurnCard state={state} run={run('r', over ? 'completed' : 'running')} lead={agent('r')} answer={answer} summary={over ? <span>did</span> : null} waits={false} checked={checked} wordsEnd>
+    <TurnCard
+      state={state}
+      run={run('r', over ? 'completed' : 'running')}
+      lead={agent('r')}
+      answer={answer}
+      summary={over ? <span>did</span> : null}
+      waits={false}
+      checked={checked}
+      wordsEnd
+    >
       the answer
     </TurnCard>
   )
@@ -122,8 +189,17 @@ test('the Checked section stands in the foot under the answer once the turn is o
 
 test('a night’s closing line, put on the turn before it, leaves that turn’s time as it was', () => {
   // (KOLONİ puts "While you were away: …" on the conversation's last turn, hours after its answer.)
-  const night = { ...assistantMessage('w', 'r', 'While you were away: 2 done - on the canvas'), role: 'away' as const, agent_id: null, created_at: '2026-10-27T07:10:00' }
-  const state = convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [userMessage('r', 'go'), { ...answer, created_at: AT }, night] })
+  const night = {
+    ...assistantMessage('w', 'r', 'While you were away: 2 done - on the canvas'),
+    role: 'away' as const,
+    agent_id: null,
+    created_at: '2026-10-27T07:10:00',
+  }
+  const state = convState({
+    runs: [run('r', 'completed')],
+    agents: [agent('r', 'completed')],
+    messages: [userMessage('r', 'go'), { ...answer, created_at: AT }, night],
+  })
   render(<MessageList {...handlers} state={state} />)
   expect(screen.getByRole('article', { name: `Orchestrator, ${when(AT)}` })).toBeInTheDocument()
 })
@@ -166,7 +242,11 @@ test('while a step’s words are read and the next step is written, the ■ stay
   const state = convState({
     runs: [run('r')],
     agents: [agent('r')],
-    messages: [userMessage('r', 'go'), assistantMessage('x', 'r', 'I’ll read a.py first.'), assistantMessage('y', 'r', 'It greets', 'streaming')],
+    messages: [
+      userMessage('r', 'go'),
+      assistantMessage('x', 'r', 'I’ll read a.py first.'),
+      assistantMessage('y', 'r', 'It greets', 'streaming'),
+    ],
   })
   render(<MessageList {...handlers} state={state} />)
   const card = screen.getByRole('article', { name: /^Orchestrator, / })
@@ -177,7 +257,11 @@ test('while a step’s words are read and the next step is written, the ■ stay
 test('the ■ the keyboard is on stays the same button, focused, when the turn ends', () => {
   useVoice.setState({ speaking: 'm' })
   const state = (status: 'running' | 'completed') =>
-    convState({ runs: [run('r', status)], agents: [agent('r', status)], messages: [userMessage('r', 'go'), assistantMessage('m', 'r', 'Done.')] })
+    convState({
+      runs: [run('r', status)],
+      agents: [agent('r', status)],
+      messages: [userMessage('r', 'go'), assistantMessage('m', 'r', 'Done.')],
+    })
   const { rerender } = render(<MessageList {...handlers} state={state('running')} />)
   const stop = screen.getByRole('button', { name: 'Stop reading' })
   stop.focus()

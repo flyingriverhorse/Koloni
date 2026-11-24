@@ -35,7 +35,16 @@ export function CopyCounts({ agentId, counts, onSee }: { agentId: string; counts
       <button type="button" className="btn btn-small" onClick={onSee}>
         See changes
       </button>
-      <button type="button" className="btn btn-small" onClick={() => api.post(`/agents/${agentId}/copy/open`).then(() => setRefused(null), err => setRefused(errorText(err)))}>
+      <button
+        type="button"
+        className="btn btn-small"
+        onClick={() =>
+          api.post(`/agents/${agentId}/copy/open`).then(
+            () => setRefused(null),
+            err => setRefused(errorText(err)),
+          )
+        }
+      >
         Open folder
       </button>
       {refused && (

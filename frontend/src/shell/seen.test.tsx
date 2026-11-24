@@ -32,7 +32,7 @@ const worker = (over: Partial<BoardAgent> = {}): BoardAgent => ({
   own_questions: 0,
   ...over,
 })
-const talk =(id: string, title: string, over: Partial<BoardConversation> = {}): BoardConversation => ({
+const talk = (id: string, title: string, over: Partial<BoardConversation> = {}): BoardConversation => ({
   conversation_id: id,
   title,
   agents: [],
@@ -40,7 +40,13 @@ const talk =(id: string, title: string, over: Partial<BoardConversation> = {}): 
   turn: null,
   ...over,
 })
-const boardOf = (...conversations: BoardConversation[]): Board => ({ backlog_waiting: 0, limit: null, running: 0, conversations, conflicts: [] })
+const boardOf = (...conversations: BoardConversation[]): Board => ({
+  backlog_waiting: 0,
+  limit: null,
+  running: 0,
+  conversations,
+  conflicts: [],
+})
 
 afterEach(() => vi.useRealTimers())
 
@@ -49,7 +55,9 @@ afterEach(() => vi.useRealTimers())
 test('an approval, a question or a sub-agent asked for is one thing; each set of changes to apply is one more', () => {
   const asks = talk('a', 'Docs', { agents: [worker({ status: 'waiting_approval' })] })
   // a sub-agent waits to be let start: its opener is the one asking, it is not counted twice
-  const spawn = talk('b', 'Plans', { agents: [worker({ status: 'waiting_approval' }), worker({ name: 'Coder', status: 'proposed' })] })
+  const spawn = talk('b', 'Plans', {
+    agents: [worker({ status: 'waiting_approval' }), worker({ name: 'Coder', status: 'proposed' })],
+  })
   const merges = talk('c', 'Merging', { merges_pending: 2 })
   const busy = talk('d', 'Busy', { agents: [worker(), worker({ name: 'Coder 2', status: 'blocked' })] })
   expect([asks, spawn, merges, busy].map(waitCount)).toEqual([1, 1, 2, 0])
@@ -58,27 +66,55 @@ test('an approval, a question or a sub-agent asked for is one thing; each set of
 })
 
 test('the evening note counts what waits the same way: the cases of `waiting_in` in tests/test_day_note.py', () => {
-  const mixed = talk('a', 'Docs', { merges_pending: 2, agents: [worker({ status: 'proposed' }), worker({ name: 'Coder', status: 'waiting_approval' }), worker({ name: 'Coder 2' })] })
+  const mixed = talk('a', 'Docs', {
+    merges_pending: 2,
+    agents: [
+      worker({ status: 'proposed' }),
+      worker({ name: 'Coder', status: 'waiting_approval' }),
+      worker({ name: 'Coder 2' }),
+    ],
+  })
   const proposed = talk('b', 'Plans', { agents: [worker({ status: 'proposed' })] })
-  const two = talk('c', 'Two', { agents: [worker({ status: 'waiting_approval' }), worker({ name: 'Coder', status: 'waiting_approval' }), worker({ name: 'Coder 2', status: 'proposed' })] })
+  const two = talk('c', 'Two', {
+    agents: [
+      worker({ status: 'waiting_approval' }),
+      worker({ name: 'Coder', status: 'waiting_approval' }),
+      worker({ name: 'Coder 2', status: 'proposed' }),
+    ],
+  })
   expect([mixed, proposed, two].map(waitCount)).toEqual([3, 1, 2])
   // a plan that waits for a yes is one thing more (K-60b-kalan)
-  expect(waitCount(talk('d', 'Plan', { merges_pending: 1, turn: boardTurn('r', 'completed', 't', { plan_waits: true }) }))).toBe(2)
+  expect(
+    waitCount(talk('d', 'Plan', { merges_pending: 1, turn: boardTurn('r', 'completed', 't', { plan_waits: true }) })),
+  ).toBe(2)
   // an agent that asks two questions at once, and a change, is three things (K-38f2)
-  expect(waitCount(talk('e', 'Asks', { agents: [worker({ status: 'waiting_approval', questions: 2, changes_to_approve: 1 })] }))).toBe(3)
+  expect(
+    waitCount(
+      talk('e', 'Asks', { agents: [worker({ status: 'waiting_approval', questions: 2, changes_to_approve: 1 })] }),
+    ),
+  ).toBe(3)
 })
 
 test('a plan that begins to wait is told as a plan, not as changes', () => {
   const ran = boardOf(talk('a', 'Docs', { turn: boardTurn('r1', 'running', null) }))
   const { rerender, container } = render(<Toasts board={ran} shownId={null} onOpen={() => {}} />)
-  rerender(<Toasts board={boardOf(talk('a', 'Docs', { turn: boardTurn('r1', 'completed', 't', { plan_waits: true }) }))} shownId={null} onOpen={() => {}} />)
+  rerender(
+    <Toasts
+      board={boardOf(talk('a', 'Docs', { turn: boardTurn('r1', 'completed', 't', { plan_waits: true }) }))}
+      shownId={null}
+      onOpen={() => {}}
+    />,
+  )
   expect(container.querySelector('[aria-live="polite"]')).toHaveTextContent('A plan waits for you · Docs')
 })
 
 test('the badge on the Ready button (tek-ev §1) counts what waits, goes with a decision, and opens Ready for you', async () => {
   const onView = vi.fn()
   const props = { view: 'canvas' as const, onView, theme: 'dark' as const, onToggleTheme: () => {} }
-  const asking = boardOf(talk('a', 'Docs', { agents: [worker({ status: 'waiting_approval' })] }), talk('c', 'Merging', { merges_pending: 1 }))
+  const asking = boardOf(
+    talk('a', 'Docs', { agents: [worker({ status: 'waiting_approval' })] }),
+    talk('c', 'Merging', { merges_pending: 1 }),
+  )
   const { rerender } = render(<Rail {...props} waiting={waitingTotal(asking)} />)
   // its name stays the page's; the count is its description
   const button = screen.getByRole('button', { name: 'Ready' })
@@ -86,7 +122,14 @@ test('the badge on the Ready button (tek-ev §1) counts what waits, goes with a 
   expect(button).toHaveAccessibleDescription('2 waiting')
   expect(within(button).getByText('2')).toHaveClass('tag-warn')
   // a fake approval more, then the decisions
-  rerender(<Rail {...props} waiting={waitingTotal(boardOf(...asking.conversations, talk('e', 'More', { agents: [worker({ status: 'waiting_approval' })] })))} />)
+  rerender(
+    <Rail
+      {...props}
+      waiting={waitingTotal(
+        boardOf(...asking.conversations, talk('e', 'More', { agents: [worker({ status: 'waiting_approval' })] })),
+      )}
+    />,
+  )
   expect(button).toHaveAccessibleDescription('3 waiting')
   rerender(<Rail {...props} waiting={waitingTotal(boardOf(talk('a', 'Docs', { agents: [worker()] })))} />)
   expect(button).not.toHaveAttribute('aria-describedby')
@@ -116,7 +159,10 @@ test('a toast comes once for what starts waiting elsewhere, says who and where, 
 })
 
 test('a turn that ends elsewhere says so; nothing is said of the conversation on screen', () => {
-  const going = boardOf(talk('a', 'Docs', { turn: boardTurn('r1', 'running', null) }), talk('b', 'Open one', { turn: boardTurn('r2', 'running', null) }))
+  const going = boardOf(
+    talk('a', 'Docs', { turn: boardTurn('r1', 'running', null) }),
+    talk('b', 'Open one', { turn: boardTurn('r2', 'running', null) }),
+  )
   const { rerender, container } = render(<Toasts board={going} shownId="b" onOpen={() => {}} />)
   const done = boardOf(
     talk('a', 'Docs', { turn: boardTurn('r1', 'completed', 't') }),
@@ -144,7 +190,13 @@ test('a turn that ends as the one queued after it starts is told too (K-38f2)', 
 test('a queued turn that started and ended between two readings is told once, by its end (B-200)', () => {
   const queued = boardOf(talk('a', 'Docs', { turn: boardTurn('r2', 'queued', null) }))
   const { rerender, container } = render(<Toasts board={queued} shownId={null} onOpen={() => {}} />)
-  rerender(<Toasts board={boardOf(talk('a', 'Docs', { turn: boardTurn('r2', 'completed', 't', { started_at: 't' }) }))} shownId={null} onOpen={() => {}} />)
+  rerender(
+    <Toasts
+      board={boardOf(talk('a', 'Docs', { turn: boardTurn('r2', 'completed', 't', { started_at: 't' }) }))}
+      shownId={null}
+      onOpen={() => {}}
+    />,
+  )
   const live = container.querySelector('[aria-live="polite"]') as HTMLElement
   expect(live).toHaveTextContent('Done · Docs')
   expect(live).not.toHaveTextContent('started')
@@ -156,7 +208,9 @@ test('at most three toasts stand at once, and each goes after six seconds', () =
   const names = ['A', 'B', 'C', 'D']
   const quiet = boardOf(...names.map(n => talk(n, n)))
   const { rerender, container } = render(<Toasts board={quiet} shownId={null} onOpen={() => {}} />)
-  rerender(<Toasts board={boardOf(...names.map(n => talk(n, n, { merges_pending: 1 })))} shownId={null} onOpen={() => {}} />)
+  rerender(
+    <Toasts board={boardOf(...names.map(n => talk(n, n, { merges_pending: 1 })))} shownId={null} onOpen={() => {}} />,
+  )
   const live = container.querySelector('[aria-live="polite"]') as HTMLElement
   expect(within(live).getAllByRole('button', { name: 'Open' })).toHaveLength(3)
   // the newest stay
@@ -182,7 +236,13 @@ test('a second thing waiting in the same conversation updates its toast, names w
   expect(within(live).getAllByRole('button', { name: 'Open' })).toHaveLength(1)
   expect(live).toHaveTextContent('Changes wait for you · Docs')
   act(() => void vi.advanceTimersByTime(5000))
-  rerender(<Toasts board={at([lead, worker({ name: 'Coder', status: 'waiting_approval' })], 1)} shownId={null} onOpen={() => {}} />)
+  rerender(
+    <Toasts
+      board={at([lead, worker({ name: 'Coder', status: 'waiting_approval' })], 1)}
+      shownId={null}
+      onOpen={() => {}}
+    />,
+  )
   expect(live).toHaveTextContent('Coder waits for you · Docs')
   act(() => void vi.advanceTimersByTime(5900))
   expect(live).not.toBeEmptyDOMElement()
@@ -194,14 +254,21 @@ test('a question is told as one, by who asks; what else waits keeps its words', 
   const at = (agents: BoardAgent[]) => boardOf(talk('a', 'Docs', { agents }))
   const { rerender, container } = render(<Toasts board={at([worker()])} shownId={null} onOpen={() => {}} />)
   const live = container.querySelector('[aria-live="polite"]') as HTMLElement
-  const asking = (over: Partial<BoardAgent> = {}) => worker({ status: 'waiting_approval', questions: 1, own_questions: 1, ...over })
+  const asking = (over: Partial<BoardAgent> = {}) =>
+    worker({ status: 'waiting_approval', questions: 1, own_questions: 1, ...over })
   rerender(<Toasts board={at([asking()])} shownId={null} onOpen={() => {}} />)
   expect(live).toHaveTextContent('Orchestrator asks you · Docs')
   // a sub-agent that begins to ask, while the Orchestrator still does
   rerender(<Toasts board={at([asking(), asking({ name: 'Coder' })])} shownId={null} onOpen={() => {}} />)
   expect(live).toHaveTextContent('Coder asks you · Docs')
   // KOLONİ's own card about an agent (its step limit, leave for a tool): the agent asks nothing
-  rerender(<Toasts board={at([asking(), asking({ name: 'Coder' }), asking({ name: 'Researcher', own_questions: 0 })])} shownId={null} onOpen={() => {}} />)
+  rerender(
+    <Toasts
+      board={at([asking(), asking({ name: 'Coder' }), asking({ name: 'Researcher', own_questions: 0 })])}
+      shownId={null}
+      onOpen={() => {}}
+    />,
+  )
   expect(live).toHaveTextContent('Researcher waits for you · Docs')
 })
 
@@ -209,7 +276,8 @@ test('a toast pointed at or focused stays; a fourth one does not push out the on
   vi.useFakeTimers()
   const names = ['A', 'B', 'C', 'D']
   const quiet = boardOf(...names.map(n => talk(n, n)))
-  const waits = (...which: string[]) => boardOf(...names.map(n => talk(n, n, { merges_pending: which.includes(n) ? 1 : 0 })))
+  const waits = (...which: string[]) =>
+    boardOf(...names.map(n => talk(n, n, { merges_pending: which.includes(n) ? 1 : 0 })))
   const { rerender, container } = render(<Toasts board={quiet} shownId={null} onOpen={() => {}} />)
   const live = container.querySelector('[aria-live="polite"]') as HTMLElement
   rerender(<Toasts board={waits('A', 'B', 'C')} shownId={null} onOpen={() => {}} />)
@@ -245,8 +313,19 @@ test('over the canvas the toasts stand at the foot beside its buttons; above the
   const controls = document.body.appendChild(document.createElement('div'))
   controls.className = 'react-flow__controls'
   const box = (left: number, top: number, width: number, height: number) =>
-    ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect
-  const at = (left: number, width = 26) => vi.spyOn(controls, 'getBoundingClientRect').mockReturnValue(box(left, window.innerHeight - 250, width, 235))
+    ({
+      left,
+      top,
+      width,
+      height,
+      right: left + width,
+      bottom: top + height,
+      x: left,
+      y: top,
+      toJSON: () => ({}),
+    }) as DOMRect
+  const at = (left: number, width = 26) =>
+    vi.spyOn(controls, 'getBoundingClientRect').mockReturnValue(box(left, window.innerHeight - 250, width, 235))
   const quiet = boardOf(talk('a', 'Docs'))
   const waits = boardOf(talk('a', 'Docs', { merges_pending: 1 }))
   const shown = () => {
@@ -294,31 +373,46 @@ test('the same note within a minute is not shown again but stays on the bell’s
   const bellIn = document.body.appendChild(document.createElement('span'))
   const at = (id: string, status: 'running' | 'failed' | 'completed') =>
     boardOf(talk('a', 'Docs', { turn: boardTurn(id, status, status === 'running' ? null : 't') }))
-  const { rerender, container } = render(<Toasts board={at('r1', 'running')} shownId={null} onOpen={() => {}} bellIn={bellIn} />)
+  const { rerender, container } = render(
+    <Toasts board={at('r1', 'running')} shownId={null} onOpen={() => {}} bellIn={bellIn} />,
+  )
   const live = container.querySelector('[aria-live="polite"]') as HTMLElement
-  for (const [id, status] of [['r1', 'failed'], ['r2', 'running'], ['r2', 'failed'], ['r3', 'running'], ['r3', 'completed'], ['r4', 'running'], ['r4', 'completed']] as const)
+  for (const [id, status] of [
+    ['r1', 'failed'],
+    ['r2', 'running'],
+    ['r2', 'failed'],
+    ['r3', 'running'],
+    ['r3', 'completed'],
+    ['r4', 'running'],
+    ['r4', 'completed'],
+  ] as const)
     rerender(<Toasts board={at(id, status)} shownId={null} onOpen={() => {}} bellIn={bellIn} />)
-  expect(Array.from(live.querySelectorAll('.toast > span'), span => span.textContent)).toEqual(['Failed · Docs ×2', 'Done · Docs'])
+  expect(Array.from(live.querySelectorAll('.toast > span'), span => span.textContent)).toEqual([
+    'Failed · Docs ×2',
+    'Done · Docs',
+  ])
   // the bell stands where it is given (the top bar), not in the live region; its list has every note, newest first
   const bell = screen.getByRole('button', { name: 'Notifications, 1 not shown' })
   expect(bellIn).toContainElement(bell)
   expect(live).not.toContainElement(bell)
   act(() => bell.click())
   const list = screen.getByRole('dialog', { name: 'Recent notifications' })
-  expect(within(list).getAllByRole('listitem').map(li => li.querySelector('.recent-text')?.textContent)).toEqual([
-    'Done · Docs · not shown',
-    'Done · Docs',
-    'Failed · Docs',
-    'Failed · Docs',
-  ])
+  expect(
+    within(list)
+      .getAllByRole('listitem')
+      .map(li => li.querySelector('.recent-text')?.textContent),
+  ).toEqual(['Done · Docs · not shown', 'Done · Docs', 'Failed · Docs', 'Failed · Docs'])
 })
 
 test('a source shows at most four a minute; an error over that is said once there is room again', () => {
   vi.useFakeTimers()
   const bellIn = document.body.appendChild(document.createElement('span'))
   const titles = ['one', 'two', 'three', 'four', 'five']
-  const at = (n: number, status: 'running' | 'failed' | 'completed') => boardOf(talk('a', titles[n], { turn: boardTurn(`r${n}`, status, status === 'running' ? null : 't') }))
-  const { rerender, container } = render(<Toasts board={at(0, 'running')} shownId={null} onOpen={() => {}} bellIn={bellIn} />)
+  const at = (n: number, status: 'running' | 'failed' | 'completed') =>
+    boardOf(talk('a', titles[n], { turn: boardTurn(`r${n}`, status, status === 'running' ? null : 't') }))
+  const { rerender, container } = render(
+    <Toasts board={at(0, 'running')} shownId={null} onOpen={() => {}} bellIn={bellIn} />,
+  )
   const live = container.querySelector('[aria-live="polite"]') as HTMLElement
   for (const n of [0, 1, 2, 3]) {
     rerender(<Toasts board={at(n, 'running')} shownId={null} onOpen={() => {}} bellIn={bellIn} />)
@@ -338,7 +432,10 @@ test('what waits for you has one name and one colour: an agent, a sub-agent aske
   expect(WAITS).toBe('waits for you')
   expect(AGENT_STATUS.waiting_approval).toEqual([WAITS, 'var(--warn)'])
   expect(AGENT_STATUS.proposed).toEqual(AGENT_STATUS.waiting_approval)
-  expect(commandStatus({ status: 'proposed', exit_code: null, started_at: null })).toEqual({ label: WAITS, tone: 'warn' })
+  expect(commandStatus({ status: 'proposed', exit_code: null, started_at: null })).toEqual({
+    label: WAITS,
+    tone: 'warn',
+  })
   const asking = convState({ runs: [run('r', 'waiting_approval')], agents: [agent('r')] })
   // (The run status: its warning colour and dot; the words are the Ready pill’s, tek-ev §1.)
   const { container } = render(<RunStatus conv={asking} connection="open" />)
@@ -350,12 +447,21 @@ test('what waits for you has one name and one colour: an agent, a sub-agent aske
 })
 
 test('a turn that ended well says "done" in the top bar, as its agents, its row in the turn list and the Conversations list do', () => {
-  render(<RunStatus conv={convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')] })} connection="open" />)
+  render(
+    <RunStatus
+      conv={convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed')] })}
+      connection="open"
+    />,
+  )
   expect(screen.getByText(AGENT_STATUS.completed[0].toUpperCase())).toHaveClass('tag-ok')
 })
 
 test('a turn that waits for an answer is the warning colour, its words left to the Ready pill (tek-ev §1)', () => {
-  const conv = convState({ runs: [run('r', 'waiting_approval')], agents: [agent('r')], questions: [question('q', 'r')] })
+  const conv = convState({
+    runs: [run('r', 'waiting_approval')],
+    agents: [agent('r')],
+    questions: [question('q', 'r')],
+  })
   const { container } = render(<RunStatus conv={conv} connection="open" />)
   expect(container.querySelector('.tag-warn')).toHaveTextContent(/^$/)
   expect(screen.queryByText(/WAITS FOR YOU/)).toBeNull()

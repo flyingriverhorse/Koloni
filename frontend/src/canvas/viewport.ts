@@ -58,7 +58,8 @@ export function centredOn(bounds: Rect, stage: Size | Rect, zoom: number): View 
   return middleIn(bounds, { x: 0, y: 0, ...stage }, zoom)
 }
 
-const overlap = (a: Rect, b: Rect) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
+const overlap = (a: Rect, b: Rect) =>
+  a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
 
 /**
  * The largest part of the stage nothing lies over: the stage, cut beside, above or below
@@ -96,15 +97,30 @@ function freeParts(stage: Size, covers: Rect[]): Rect[] {
  * that is still wholly to be seen leaves the view where it is; one the stage no longer
  * shows, or that something lies over, is brought to the middle of what is free.
  */
-export function keepInView(view: View, stage: Size, node: Rect, covers: Rect[] = [], free = freePart(stage, covers)): View {
+export function keepInView(
+  view: View,
+  stage: Size,
+  node: Rect,
+  covers: Rect[] = [],
+  free = freePart(stage, covers),
+): View {
   const drawn = drawnAt(view, node)
-  const inside = drawn.x >= EDGE && drawn.y >= EDGE && drawn.x + drawn.width <= stage.width - EDGE && drawn.y + drawn.height <= stage.height - EDGE
+  const inside =
+    drawn.x >= EDGE &&
+    drawn.y >= EDGE &&
+    drawn.x + drawn.width <= stage.width - EDGE &&
+    drawn.y + drawn.height <= stage.height - EDGE
   if (inside && !covers.some(cover => overlap(drawn, cover))) return view
   return middleIn(node, free, view.zoom)
 }
 
 /** Where a rectangle of the turn is drawn on the stage. */
-const drawnAt = (view: View, rect: Rect): Rect => ({ x: rect.x * view.zoom + view.x, y: rect.y * view.zoom + view.y, width: rect.width * view.zoom, height: rect.height * view.zoom })
+const drawnAt = (view: View, rect: Rect): Rect => ({
+  x: rect.x * view.zoom + view.x,
+  y: rect.y * view.zoom + view.y,
+  width: rect.width * view.zoom,
+  height: rect.height * view.zoom,
+})
 
 /**
  * A fit on a stage - or a part of it - that a panel has made narrower than it was
@@ -113,7 +129,13 @@ const drawnAt = (view: View, rect: Rect): Rect => ({ x: rect.x * view.zoom + vie
  * is kept in view - but never so that Ready for you (`ready`), where the teams meet, is out of it: then the whole turn is
  * fitted in the part (84b2: a turn of small nodes, wide and short, left it off the right edge).
  */
-export function fitNarrowed(bounds: Rect, part: Size | Rect, fullWidth: number, selected: Rect | null, ready: Rect | null = null): View {
+export function fitNarrowed(
+  bounds: Rect,
+  part: Size | Rect,
+  fullWidth: number,
+  selected: Rect | null,
+  ready: Rect | null = null,
+): View {
   // Worked out on the part alone; its corner on the stage (beside the chat) is added once, at the end.
   const stage = { width: part.width, height: part.height }
   const [dx, dy] = 'x' in part ? [part.x, part.y] : [0, 0]
@@ -124,7 +146,9 @@ export function fitNarrowed(bounds: Rect, part: Size | Rect, fullWidth: number, 
   const view = centredOn(bounds, stage, least)
   const kept = selected ? keepInView(view, stage, selected) : view
   const shown = ready && drawnAt(kept, ready)
-  const cut = shown && (shown.x < 0 || shown.y < 0 || shown.x + shown.width > stage.width || shown.y + shown.height > stage.height)
+  const cut =
+    shown &&
+    (shown.x < 0 || shown.y < 0 || shown.x + shown.width > stage.width || shown.y + shown.height > stage.height)
   return at(cut ? here : kept)
 }
 
@@ -141,7 +165,8 @@ export function fitNarrowed(bounds: Rect, part: Size | Rect, fullWidth: number, 
 export function keepWork(view: View, stage: Size, selected: Rect | null, work: Rect | null, covers: Rect[] = []): View {
   if (!work) return selected ? keepInView(view, stage, selected, covers) : view
   const both = selected ? around(selected, work) : work
-  const zoomIn = (part: Rect) => Math.min(view.zoom, (part.width - 2 * EDGE) / both.width, (part.height - 2 * EDGE) / both.height)
+  const zoomIn = (part: Rect) =>
+    Math.min(view.zoom, (part.width - 2 * EDGE) / both.width, (part.height - 2 * EDGE) / both.height)
   // (Of parts that hold them as close, the largest.)
   const free = freeParts(stage, covers).reduce((best, part) => (zoomIn(part) > zoomIn(best) ? part : best))
   const zoom = zoomIn(free)
@@ -154,12 +179,22 @@ export function keepWork(view: View, stage: Size, selected: Rect | null, work: R
 /** The view moved as little as puts a rectangle of the turn wholly in a part of the stage (its top left, where it is larger). */
 function into(view: View, rect: Rect, part: Rect): View {
   const drawn = drawnAt(view, rect)
-  const along = (at: number, size: number, from: number, span: number) => Math.max(from + EDGE, Math.min(at, from + span - EDGE - size)) - at
-  return { ...view, x: view.x + along(drawn.x, drawn.width, part.x, part.width), y: view.y + along(drawn.y, drawn.height, part.y, part.height) }
+  const along = (at: number, size: number, from: number, span: number) =>
+    Math.max(from + EDGE, Math.min(at, from + span - EDGE - size)) - at
+  return {
+    ...view,
+    x: view.x + along(drawn.x, drawn.width, part.x, part.width),
+    y: view.y + along(drawn.y, drawn.height, part.y, part.height),
+  }
 }
 
 /** The rectangle that holds both. */
 function around(a: Rect, b: Rect): Rect {
   const [x, y] = [Math.min(a.x, b.x), Math.min(a.y, b.y)]
-  return { x, y, width: Math.max(a.x + a.width, b.x + b.width) - x, height: Math.max(a.y + a.height, b.y + b.height) - y }
+  return {
+    x,
+    y,
+    width: Math.max(a.x + a.width, b.x + b.width) - x,
+    height: Math.max(a.y + a.height, b.y + b.height) - y,
+  }
 }

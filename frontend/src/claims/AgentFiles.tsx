@@ -25,8 +25,8 @@ export function AgentFiles({ state, agent }: { state: Pick<ConvState, 'claims' |
     <div className="agent-files">
       {wait && (
         <p role="note" className="agent-files-wait">
-          Waits for {who || 'an agent of another conversation'} to finish with{' '}
-          <span className="mono">{wait.path}</span>.{' '}
+          Waits for {who || 'an agent of another conversation'} to finish with <span className="mono">{wait.path}</span>
+          .{' '}
           {asked
             ? `${who}'s changes wait for you: it goes on when you have decided.`
             : `It goes on when ${who || 'that agent'} is done with the file.`}

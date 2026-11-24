@@ -10,7 +10,8 @@ import { PROJECT_DIR } from './paths.mjs'
 // (Auto-edit: at Full auto a recipe's Ask me is the Lead's and its work is taken in by itself, K-fullauto-sorma 2;
 // these specs are about the cards, which stay below Full auto.)
 const RECIPE = 'Build only 84b2'
-const lowContrast = async (page: Page, selector: string) => (await page.locator(selector).evaluate(contrasts)).filter(piece => piece.ratio < 4.5)
+const lowContrast = async (page: Page, selector: string) =>
+  (await page.locator(selector).evaluate(contrasts)).filter(piece => piece.ratio < 4.5)
 
 for (const theme of ['light', 'dark'] as const) {
   test(`a small recipe runs to Ready for you, and Take in takes it in (${theme})`, async ({ page, request }) => {
@@ -26,15 +27,26 @@ for (const theme of ['light', 'dark'] as const) {
       version: 1,
       steps: [{ id: 'build', name: 'Build it', who: { role: 'Coder' } }],
       ends: [{ id: 'end', then: 'in' }],
-      arrows: [{ from: 'start', to: 'build' }, { from: 'build', to: 'end' }],
+      arrows: [
+        { from: 'start', to: 'build' },
+        { from: 'build', to: 'end' },
+      ],
     }
     await request.post('/api/recipes', { headers: OWN, data: { name: RECIPE, graph } })
-    const recipe = ((await (await request.get('/api/recipes')).json()).recipes as { id: string; name: string }[]).find(r => r.name === RECIPE)
-    const web = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(t => t.name === 'Web app')
+    const recipe = ((await (await request.get('/api/recipes')).json()).recipes as { id: string; name: string }[]).find(
+      r => r.name === RECIPE,
+    )
+    const web = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(
+      t => t.name === 'Web app',
+    )
     await setProject(page, { spawn_approval: 'never' })
     const set = await request.patch(`/api/conversations/${id}`, {
       headers: OWN,
-      data: { permission_mode: 'auto_edit', teams_mode: 'manual', teams: [{ team_id: web!.id, recipe_id: recipe!.id }] },
+      data: {
+        permission_mode: 'auto_edit',
+        teams_mode: 'manual',
+        teams: [{ team_id: web!.id, recipe_id: recipe!.id }],
+      },
     })
     expect(set.ok()).toBe(true)
 
@@ -63,14 +75,19 @@ for (const theme of ['light', 'dark'] as const) {
     await ready.getByRole('button', { name: 'Open the list →' }).click()
     await page.getByRole('region', { name: 'Ready to take in' }).getByRole('button', { name: 'Take in' }).click()
     await page.getByRole('tab', { name: 'Chat' }).click()
-    await expect(page.getByRole('region', { name: 'Chat' }).getByText('The recipe is done and in the project.').last()).toBeVisible({ timeout: 20_000 })
+    await expect(
+      page.getByRole('region', { name: 'Chat' }).getByText('The recipe is done and in the project.').last(),
+    ).toBeVisible({ timeout: 20_000 })
     await expect(ready).toContainText('In the project ✓')
     expect(existsSync(file)).toBe(true)
     await shot(page, `84b2-in-the-project-${theme}`)
     rmSync(file, { force: true })
 
     // B-107: the chat's teams changed after the turn do not redraw it - here, and loaded afresh.
-    const none = await request.patch(`/api/conversations/${id}`, { headers: OWN, data: { teams_mode: 'none', teams: [] } })
+    const none = await request.patch(`/api/conversations/${id}`, {
+      headers: OWN,
+      data: { teams_mode: 'none', teams: [] },
+    })
     expect(none.ok()).toBe(true)
     for (const afresh of [false, true]) {
       if (afresh) await page.reload()
@@ -94,11 +111,18 @@ test('a Room step meets in the team frame, and its work comes in only with Take 
     version: 1,
     steps: [{ id: 'meet', name: 'Design meeting', who: { room: ['Coder', 'Reviewer'] } }],
     ends: [{ id: 'end', then: 'in' }],
-    arrows: [{ from: 'start', to: 'meet' }, { from: 'meet', to: 'end' }],
+    arrows: [
+      { from: 'start', to: 'meet' },
+      { from: 'meet', to: 'end' },
+    ],
   }
   await request.post('/api/recipes', { headers: OWN, data: { name, graph } })
-  const recipe = ((await (await request.get('/api/recipes')).json()).recipes as { id: string; name: string }[]).find(r => r.name === name)
-  const web = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(t => t.name === 'Web app')
+  const recipe = ((await (await request.get('/api/recipes')).json()).recipes as { id: string; name: string }[]).find(
+    r => r.name === name,
+  )
+  const web = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(
+    t => t.name === 'Web app',
+  )
   await setProject(page, { spawn_approval: 'never' })
   const set = await request.patch(`/api/conversations/${id}`, {
     headers: OWN,
@@ -143,11 +167,18 @@ test('a recipe’s Ask me and its Take in are answered in the chat', async ({ pa
     version: 1,
     steps: [{ id: 'build', name: 'Build it', who: { role: 'Coder' }, ask_me: true }],
     ends: [{ id: 'end', then: 'in' }],
-    arrows: [{ from: 'start', to: 'build' }, { from: 'build', to: 'end' }],
+    arrows: [
+      { from: 'start', to: 'build' },
+      { from: 'build', to: 'end' },
+    ],
   }
   await request.post('/api/recipes', { headers: OWN, data: { name, graph } })
-  const recipe = ((await (await request.get('/api/recipes')).json()).recipes as { id: string; name: string }[]).find(r => r.name === name)
-  const web = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(t => t.name === 'Web app')
+  const recipe = ((await (await request.get('/api/recipes')).json()).recipes as { id: string; name: string }[]).find(
+    r => r.name === name,
+  )
+  const web = ((await (await request.get('/api/teams')).json()) as { id: string; name: string }[]).find(
+    t => t.name === 'Web app',
+  )
   await setProject(page, { spawn_approval: 'never' })
   const set = await request.patch(`/api/conversations/${id}`, {
     headers: OWN,
@@ -159,7 +190,9 @@ test('a recipe’s Ask me and its Take in are answered in the chat', async ({ pa
   await page.getByRole('button', { name: 'Send' }).click()
   const chat = page.getByRole('region', { name: 'Chat' })
   // (A title of KOLONİ's own, its words whole under it: sample A.)
-  await expect(chat.getByText(`Web app: Build it is done. Go on with the ${name} recipe?`)).toBeVisible({ timeout: 20_000 })
+  await expect(chat.getByText(`Web app: Build it is done. Go on with the ${name} recipe?`)).toBeVisible({
+    timeout: 20_000,
+  })
   await expect(chat.getByText('Go on with the recipe?', { exact: true })).toBeVisible()
   await chat.getByRole('button', { name: 'Go on' }).click()
   // (KOLONİ's Ready for you card, one line in the chat: K-hazir-satir.)

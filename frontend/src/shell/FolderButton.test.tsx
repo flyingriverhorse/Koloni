@@ -10,8 +10,18 @@ import { HOLDS, WIDE } from './Folders'
 
 afterEach(() => vi.restoreAllMocks())
 
-const folder = (id: string, name: string, created_at = '2026-10-01T00:00:00Z') => ({ id, name, root_path: `C:\\work\\${name}`, created_at }) as Project
-const chat = (id: string, project_id: string | null, updated_at: string): ListedConversation => ({ ...conversation, id, project_id, updated_at, kept: false, backlog_task: null, wrote: false, archived_at: null })
+const folder = (id: string, name: string, created_at = '2026-10-01T00:00:00Z') =>
+  ({ id, name, root_path: `C:\\work\\${name}`, created_at }) as Project
+const chat = (id: string, project_id: string | null, updated_at: string): ListedConversation => ({
+  ...conversation,
+  id,
+  project_id,
+  updated_at,
+  kept: false,
+  backlog_task: null,
+  wrote: false,
+  archived_at: null,
+})
 const [agent, game, notes] = [folder('a', 'Skyulf-Agent'), folder('g', 'oyun-projesi'), folder('n', 'notes')]
 
 const listing = (path: string, entries: Partial<FolderBrowse['entries'][number]>[] = []): FolderBrowse => {
@@ -20,7 +30,15 @@ const listing = (path: string, entries: Partial<FolderBrowse['entries'][number]>
     path,
     parts: names.map((name, at) => ({ name: at === 0 ? `${name}\\` : name, path: names.slice(0, at + 1).join('\\') })),
     shortcuts: [{ name: 'Home', path: 'C:\\Users\\me' }],
-    entries: entries.map(entry => ({ name: 'x', path: `${path}\\${entry.name}`, koloni: false, git: false, hidden: false, blocked: false, ...entry })),
+    entries: entries.map(entry => ({
+      name: 'x',
+      path: `${path}\\${entry.name}`,
+      koloni: false,
+      git: false,
+      hidden: false,
+      blocked: false,
+      ...entry,
+    })),
     more: false,
   }
 }
@@ -30,7 +48,11 @@ function button(over: Partial<Parameters<typeof FolderButton>[0]> = {}) {
     project: agent,
     projects: [agent, game, notes],
     // (the latest first, as the server lists them)
-    conversations: [chat('c1', 'n', '2026-10-24T09:00:00Z'), chat('c2', 'a', '2026-10-24T08:00:00Z'), chat('c3', 'g', '2026-10-20T08:00:00Z')],
+    conversations: [
+      chat('c1', 'n', '2026-10-24T09:00:00Z'),
+      chat('c2', 'a', '2026-10-24T08:00:00Z'),
+      chat('c3', 'g', '2026-10-20T08:00:00Z'),
+    ],
     conversation: null,
     onFolders: vi.fn(async () => {}),
     onDefault: vi.fn(async () => {}),
@@ -60,8 +82,15 @@ test('the button says the main folder or "No folder"; its panel has the main fol
   // The folders to switch to are behind "Change".
   expect(within(panel()).queryByRole('region', { name: 'Switch the main folder' })).toBeNull()
   await userEvent.click(within(panel()).getByRole('button', { name: /^Change/ }))
-  const choices = within(within(panel()).getByRole('region', { name: 'Switch the main folder' })).getAllByRole('button').map(b => b.textContent)
-  expect(choices).toEqual([expect.stringMatching(/^notesC:\\work\\notes · /), expect.stringMatching(/^oyun-projesiC:\\work\\oyun-projesi · /), 'Open a folder…', 'No folder · a plain chat'])
+  const choices = within(within(panel()).getByRole('region', { name: 'Switch the main folder' }))
+    .getAllByRole('button')
+    .map(b => b.textContent)
+  expect(choices).toEqual([
+    expect.stringMatching(/^notesC:\\work\\notes · /),
+    expect.stringMatching(/^oyun-projesiC:\\work\\oyun-projesi · /),
+    'Open a folder…',
+    'No folder · a plain chat',
+  ])
   await userEvent.click(within(panel()).getByRole('button', { name: /^oyun-projesi/ }))
   expect(onMove).toHaveBeenCalledWith('g')
   expect(screen.queryByRole('dialog')).toBeNull()
@@ -70,7 +99,9 @@ test('the button says the main folder or "No folder"; its panel has the main fol
 test('a plain chat says "No folder", shows the folders to switch to at once, and offers no "No folder"', async () => {
   button({ project: null })
   await userEvent.click(screen.getByRole('button', { name: 'Folder: No folder' }))
-  const choices = within(within(panel()).getByRole('region', { name: 'Switch the main folder' })).getAllByRole('button').map(b => b.textContent)
+  const choices = within(within(panel()).getByRole('region', { name: 'Switch the main folder' }))
+    .getAllByRole('button')
+    .map(b => b.textContent)
   expect(choices).toHaveLength(4)
   expect(choices.at(-1)).toBe('Open a folder…')
 })
@@ -79,9 +110,14 @@ test('a plain chat says "No folder", shows the folders to switch to at once, and
 const mapOf = (...paths: string[]) => ({ parts: paths.map(path => ({ path })) })
 
 // The places never opened, as GET /folders says them: here KOLONİ's own, on the Desktop.
-const never: Folders = { never: [{ path: 'C:\\Users\\me\\Desktop\\koloni', why: 'it is KOLONİ’s own code and settings' }] }
+const never: Folders = {
+  never: [{ path: 'C:\\Users\\me\\Desktop\\koloni', why: 'it is KOLONİ’s own code and settings' }],
+}
 const withDocs = { ...agent, also_in: [], read_in: ['D:\\docs'] } as unknown as Project
-function inChat(lists: { also_in: string[]; read_in: string[] }, over: Partial<Parameters<typeof FolderButton>[0]> = {}) {
+function inChat(
+  lists: { also_in: string[]; read_in: string[] },
+  over: Partial<Parameters<typeof FolderButton>[0]> = {},
+) {
   vi.spyOn(api, 'get').mockImplementation(async (url: string) => (url === '/folders' ? never : mapOf('./')))
   return button({ project: withDocs, conversation: { ...conversation, ...lists }, ...over })
 }
@@ -91,10 +127,16 @@ test('the chat’s other folders change, and another main folder is picked, at a
   const { onFolders, onMove } = inChat({ also_in: ['C:\\api'], read_in: [] })
   await userEvent.click(screen.getByRole('button', { name: /^Folder: Skyulf-Agent/ }))
   // (Write access is taken back mid-turn too.)
-  await userEvent.click(within(alsoIn()).getByRole('button', { name: 'Access to C:\\api: read & write; click for read' }))
+  await userEvent.click(
+    within(alsoIn()).getByRole('button', { name: 'Access to C:\\api: read & write; click for read' }),
+  )
   expect(onFolders).toHaveBeenLastCalledWith({ also_in: [], read_in: ['C:\\api'] })
   await userEvent.click(within(panel()).getByRole('button', { name: /^Change/ }))
-  await userEvent.click(within(within(panel()).getByRole('region', { name: 'Switch the main folder' })).getByRole('button', { name: /^notes/ }))
+  await userEvent.click(
+    within(within(panel()).getByRole('region', { name: 'Switch the main folder' })).getByRole('button', {
+      name: /^notes/,
+    }),
+  )
   expect(onMove).toHaveBeenCalledWith('n')
 })
 
@@ -113,9 +155,13 @@ test('its panel lists each other folder, shortened, with its access, which a cli
   const { onFolders } = inChat({ also_in: ['C:\\api'], read_in: ['C:\\Users\\me\\Desktop\\Skyulf'] })
   await userEvent.click(screen.getByRole('button', { name: /^Folder: Skyulf-Agent, and 2 more folders/ }))
   expect(within(alsoIn()).getByText('Desktop\\Skyulf')).toHaveAttribute('title', 'C:\\Users\\me\\Desktop\\Skyulf')
-  const read = within(alsoIn()).getByRole('button', { name: 'Access to C:\\Users\\me\\Desktop\\Skyulf: read; click for read & write' })
+  const read = within(alsoIn()).getByRole('button', {
+    name: 'Access to C:\\Users\\me\\Desktop\\Skyulf: read; click for read & write',
+  })
   expect(read).toHaveTextContent(/^read$/)
-  expect(within(alsoIn()).getByRole('button', { name: 'Access to C:\\api: read & write; click for read' })).toHaveTextContent('read & write')
+  expect(
+    within(alsoIn()).getByRole('button', { name: 'Access to C:\\api: read & write; click for read' }),
+  ).toHaveTextContent('read & write')
   await userEvent.click(read)
   expect(onFolders).toHaveBeenLastCalledWith({ also_in: ['C:\\api', 'C:\\Users\\me\\Desktop\\Skyulf'], read_in: [] })
   await userEvent.click(within(alsoIn()).getByRole('button', { name: 'Remove C:\\api from this chat' }))
@@ -132,7 +178,10 @@ test('a chat not in this folder, or a plain chat, has no other folders in the pa
 })
 
 test('a plain chat’s panel says so, with no Change and no word of a chat keeping its folder; a refusal that is no 409 offers no new chat', async () => {
-  const { onMove } = button({ project: null, onMove: vi.fn(async () => Promise.reject(new ApiError(422, 'not a folder'))) })
+  const { onMove } = button({
+    project: null,
+    onMove: vi.fn(async () => Promise.reject(new ApiError(422, 'not a folder'))),
+  })
   await userEvent.click(screen.getByRole('button', { name: 'Folder: No folder' }))
   expect(within(panel()).getByText('A plain chat: no files and no commands')).toBeInTheDocument()
   expect(within(panel()).queryByRole('button', { name: /^Change/ })).toBeNull()
@@ -147,15 +196,26 @@ test('a chat that may not leave its folder for none is offered a new chat with n
   button({ onMove: vi.fn(async () => Promise.reject(new ApiError(409, 'this chat changed files'))) })
   await userEvent.click(screen.getByRole('button', { name: 'Folder: Skyulf-Agent' }))
   await userEvent.click(within(panel()).getByRole('button', { name: /^Change/ }))
-  expect(within(panel()).getByText('A chat with messages keeps its folder: a new chat opens in the one you pick.')).toBeInTheDocument()
+  expect(
+    within(panel()).getByText('A chat with messages keeps its folder: a new chat opens in the one you pick.'),
+  ).toBeInTheDocument()
   await userEvent.click(within(panel()).getByRole('button', { name: /^No folder/ }))
   expect(within(panel()).getByRole('alert')).toHaveTextContent('this chat changed files')
   expect(within(panel()).getByRole('button', { name: 'Open a new chat with no folder' })).toBeInTheDocument()
 })
 
 test('a folder is added from KOLONİ’s folder browser, to read at first; one refused says why in the browser', async () => {
-  const onFolders = vi.fn().mockRejectedValueOnce(new ApiError(422, "'C:\\work\\Skyulf' is never opened")).mockResolvedValue(undefined)
-  const { onBrowse } = inChat({ also_in: [], read_in: [] }, { onFolders, onBrowse: vi.fn(async (path: string | null) => listing(path ?? 'C:\\Users\\me', [{ name: 'Skyulf', git: true }])) })
+  const onFolders = vi
+    .fn()
+    .mockRejectedValueOnce(new ApiError(422, "'C:\\work\\Skyulf' is never opened"))
+    .mockResolvedValue(undefined)
+  const { onBrowse } = inChat(
+    { also_in: [], read_in: [] },
+    {
+      onFolders,
+      onBrowse: vi.fn(async (path: string | null) => listing(path ?? 'C:\\Users\\me', [{ name: 'Skyulf', git: true }])),
+    },
+  )
   await userEvent.click(screen.getByRole('button', { name: 'Folder: Skyulf-Agent' }))
   await userEvent.click(within(alsoIn()).getByRole('button', { name: '+ Add a folder' }))
   // (beside the main folder)
@@ -188,18 +248,26 @@ test('one folder of the chat is kept for the project: added to its default at th
 })
 
 test('a folder the project keeps already, at that access or to write in, or inside one, is not offered again', async () => {
-  inChat({ also_in: ['D:\\docs\\api'], read_in: ['D:\\docs', 'E:\\notes'] }, { project: { ...withDocs, also_in: ['D:\\docs'], read_in: [] } })
+  inChat(
+    { also_in: ['D:\\docs\\api'], read_in: ['D:\\docs', 'E:\\notes'] },
+    { project: { ...withDocs, also_in: ['D:\\docs'], read_in: [] } },
+  )
   await userEvent.click(screen.getByRole('button', { name: /^Folder: / }))
-  expect(within(alsoIn()).getAllByRole('button', { name: /^Keep / }).map(b => b.getAttribute('aria-label'))).toEqual([
-    'Keep E:\\notes for this project',
-  ])
+  expect(
+    within(alsoIn())
+      .getAllByRole('button', { name: /^Keep / })
+      .map(b => b.getAttribute('aria-label')),
+  ).toEqual(['Keep E:\\notes for this project'])
 })
 
 test.each([
   ['the folder’s own defaults', ['D:\\docs']],
   ['the same folders in another order', ['D:\\b', 'D:\\a']],
 ])('with %s there is nothing to save', async (_, read_in) => {
-  inChat({ also_in: [], read_in }, { project: { ...withDocs, read_in: ['D:\\docs', 'D:\\a', 'D:\\b'].filter(f => read_in.includes(f)) } })
+  inChat(
+    { also_in: [], read_in },
+    { project: { ...withDocs, read_in: ['D:\\docs', 'D:\\a', 'D:\\b'].filter(f => read_in.includes(f)) } },
+  )
   await userEvent.click(screen.getByRole('button', { name: /^Folder: / }))
   expect(within(alsoIn()).queryByRole('button', { name: 'Save as this folder’s default' })).toBeNull()
 })
@@ -248,7 +316,14 @@ test('"Open a folder…" opens the browser beside the folder used last; the fold
 test('the browser lists folders with their marks; a blocked one is faded and never chosen, though one goes inside it; double-click, Enter and the path move about', async () => {
   const onBrowse = vi.fn(async (path: string | null) =>
     path === 'C:\\Users\\me'
-      ? { ...listing(path, [{ name: 'Skyulf-Agent', koloni: true, git: true }, { name: 'Skyulf', git: true }, { name: '.ssh', hidden: true, blocked: true }]), more: true }
+      ? {
+          ...listing(path, [
+            { name: 'Skyulf-Agent', koloni: true, git: true },
+            { name: 'Skyulf', git: true },
+            { name: '.ssh', hidden: true, blocked: true },
+          ]),
+          more: true,
+        }
       : listing(path ?? '?', path?.endsWith('Skyulf') ? [{ name: 'src' }] : []),
   )
   const onOpen = vi.fn(async () => {})
@@ -307,7 +382,11 @@ test('the chat is set to one of its folder’s parts or to the whole project (a 
   const picker = await within(panel()).findByRole('combobox', { name: 'Agents work in' })
   expect(api.get).toHaveBeenCalledWith('/projects/a/map')
   expect(picker).toHaveValue('core/')
-  expect(within(picker).getAllByRole('option').map(o => o.textContent)).toEqual(['Whole project', 'core/', 'web/'])
+  expect(
+    within(picker)
+      .getAllByRole('option')
+      .map(o => o.textContent),
+  ).toEqual(['Whole project', 'core/', 'web/'])
   await userEvent.selectOptions(picker, 'Whole project')
   expect(onPart).toHaveBeenLastCalledWith(null)
   await userEvent.selectOptions(picker, 'web/')

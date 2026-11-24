@@ -33,7 +33,11 @@ export const waitingCards = (conv: ConvState): number => waitingOf(conv).filter(
 export const unreadOf = (inChat: Message[], seen: ReadonlySet<string>): number =>
   inChat.filter(m => (m.role === 'assistant' || m.role === 'agent') && !seen.has(m.id)).length
 
-export const firstLine = (text: string) => text.split('\n').map(part => part.trim()).find(Boolean) ?? ''
+export const firstLine = (text: string) =>
+  text
+    .split('\n')
+    .map(part => part.trim())
+    .find(Boolean) ?? ''
 
 /** The card over the message box that holds the Orchestrator's question (AskCard): its line in the turn takes the focus there. */
 export const ASK_CARD_ID = 'ask-card'
@@ -43,7 +47,8 @@ export const isLeadAsk = (conv: ConvState, q: Question): boolean =>
   !q.leave && !isReadyCard(q) && conv.agents.some(a => a.id === q.agent_id && a.depth === 0)
 
 /** The Orchestrator's questions that wait for your answer, in the order asked (0.1.5: on the card over the message box). */
-export const leadQuestions = (conv: ConvState): Question[] => conv.questions.filter(q => q.status === 'pending' && isLeadAsk(conv, q))
+export const leadQuestions = (conv: ConvState): Question[] =>
+  conv.questions.filter(q => q.status === 'pending' && isLeadAsk(conv, q))
 
 /** The Orchestrator's question that waits for your answer: the first. */
 export const leadQuestion = (conv: ConvState): Question | undefined => leadQuestions(conv)[0]

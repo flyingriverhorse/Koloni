@@ -56,7 +56,12 @@ export function SharedNode({ id, data }: NodeProps<Node<SharedData & Record<stri
     <div key={at} className="shared-row">
       {kind}
       {/* Read before it is taken in: in the Workspace window. */}
-      <button type="button" className="link-btn nodrag shared-name" title={`Read .koloni/shared/${path} in the Workspace`} onClick={() => useApp.getState().openFiles(keyOf(`.koloni/shared/${path}`))}>
+      <button
+        type="button"
+        className="link-btn nodrag shared-name"
+        title={`Read .koloni/shared/${path} in the Workspace`}
+        onClick={() => useApp.getState().openFiles(keyOf(`.koloni/shared/${path}`))}
+      >
         {path}
       </button>
       {taken[path] ? (
@@ -65,7 +70,13 @@ export function SharedNode({ id, data }: NodeProps<Node<SharedData & Record<stri
         </span>
       ) : (
         data.projectId && (
-          <button type="button" className="link-btn nodrag shared-take" aria-label={`Take ${path} into the project`} title={`Take into the project as ${path}`} onClick={() => void take(path)}>
+          <button
+            type="button"
+            className="link-btn nodrag shared-take"
+            aria-label={`Take ${path} into the project`}
+            title={`Take into the project as ${path}`}
+            onClick={() => void take(path)}
+          >
             Take in
           </button>
         )
@@ -78,7 +89,14 @@ export function SharedNode({ id, data }: NodeProps<Node<SharedData & Record<stri
     if (one.kind === 'notebook' && one.note) {
       const note = one.note
       return (
-        <button key={at} type="button" className="shared-row nodrag" title={one.title} aria-label={`${one.text} - open it on the Notes tab`} onClick={() => useApp.getState().showChatTab('Notes', true, noteId(note))}>
+        <button
+          key={at}
+          type="button"
+          className="shared-row nodrag"
+          title={one.title}
+          aria-label={`${one.text} - open it on the Notes tab`}
+          onClick={() => useApp.getState().showChatTab('Notes', true, noteId(note))}
+        >
           {kind}
           <span className="shared-said">{one.text}</span>
         </button>
@@ -86,7 +104,12 @@ export function SharedNode({ id, data }: NodeProps<Node<SharedData & Record<stri
     }
     if (one.kind === 'folder')
       return (
-        <button key={at} type="button" className="shared-row nodrag shared-all" onClick={() => useApp.getState().openFiles(`${FOLDER}${keyOf('.koloni/shared')}`)}>
+        <button
+          key={at}
+          type="button"
+          className="shared-row nodrag shared-all"
+          onClick={() => useApp.getState().openFiles(`${FOLDER}${keyOf('.koloni/shared')}`)}
+        >
           {one.text}
         </button>
       )
@@ -94,7 +117,14 @@ export function SharedNode({ id, data }: NodeProps<Node<SharedData & Record<stri
     if (one.kind === 'output' && one.path) {
       const path = one.path
       return (
-        <button key={at} type="button" className="shared-row nodrag" title={one.title} aria-label={`Preview ${path} in the Workspace`} onClick={() => useApp.getState().openFiles(`${PREVIEW_OF}${path}`)}>
+        <button
+          key={at}
+          type="button"
+          className="shared-row nodrag"
+          title={one.title}
+          aria-label={`Preview ${path} in the Workspace`}
+          onClick={() => useApp.getState().openFiles(`${PREVIEW_OF}${path}`)}
+        >
           <span className="shared-kind shared-kind-output">{one.what}</span>
           <span className="shared-name">{one.text}</span>
         </button>
@@ -108,7 +138,14 @@ export function SharedNode({ id, data }: NodeProps<Node<SharedData & Record<stri
       )
     if (one.kind === 'memory')
       return (
-        <button key={at} type="button" className="shared-row nodrag" title={one.title} aria-label={`Memory: ${one.text} - open the Memory page`} onClick={() => openMemory?.()}>
+        <button
+          key={at}
+          type="button"
+          className="shared-row nodrag"
+          title={one.title}
+          aria-label={`Memory: ${one.text} - open the Memory page`}
+          onClick={() => openMemory?.()}
+        >
           {kind}
           <span className="shared-said">{one.text}</span>
         </button>
@@ -123,10 +160,23 @@ export function SharedNode({ id, data }: NodeProps<Node<SharedData & Record<stri
     <section
       className="shared-block"
       style={{ '--k': data.colour } as CSSProperties}
-      aria-label={data.rows[0]?.kind === 'output' ? `${data.who}: what it made` : data.who ? `${data.who}: shared, noted, remembered` : data.rows[0]?.kind === 'folder' ? 'All shared files' : 'A request’s contract'}
+      aria-label={
+        data.rows[0]?.kind === 'output'
+          ? `${data.who}: what it made`
+          : data.who
+            ? `${data.who}: shared, noted, remembered`
+            : data.rows[0]?.kind === 'folder'
+              ? 'All shared files'
+              : 'A request’s contract'
+      }
     >
       {data.who && (
-        <button type="button" className="shared-who nodrag" aria-label={`Show ${data.who}’s line`} onClick={() => light?.(id)}>
+        <button
+          type="button"
+          className="shared-who nodrag"
+          aria-label={`Show ${data.who}’s line`}
+          onClick={() => light?.(id)}
+        >
           {data.who}
         </button>
       )}

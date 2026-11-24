@@ -18,7 +18,8 @@ const CLI_HOME = 'settings for this whole computer'
 /** The calls that only look: their card opens a folder to read in, never to change files. */
 const READS = new Set(['read_file', 'list_dir', 'search'])
 /** A card's title's verb (sample A: each title a question): what the call does there. */
-const ask = (call: ToolCall) => (READS.has(call.name) ? 'Read' : call.name === 'run_command' ? 'Run a command' : 'Change')
+const ask = (call: ToolCall) =>
+  READS.has(call.name) ? 'Read' : call.name === 'run_command' ? 'Run a command' : 'Change'
 
 function argsOf(call: ToolCall): { path?: unknown; cwd?: unknown; access?: unknown; why?: unknown; name?: unknown } {
   try {
@@ -81,7 +82,8 @@ function SecretAsked({ call, who, onDecide, plain }: Props) {
   return (
     <div className="cmd-approval">
       <div className="kicker cmd-approval-kicker">
-        {READS.has(call.name) ? 'Read' : 'Open'} {home ? 'this computer’s settings' : plain ? 'a file' : 'a secret file'}?
+        {READS.has(call.name) ? 'Read' : 'Open'}{' '}
+        {home ? 'this computer’s settings' : plain ? 'a file' : 'a secret file'}?
       </div>
       <div className="cmd-approval-where">
         {/* (In a plain chat: where the path really leads, a short name or `..` written out.) */}
@@ -100,16 +102,16 @@ function SecretAsked({ call, who, onDecide, plain }: Props) {
       </div>
       {home && (
         <div className="muted cmd-approval-note">
-          Asked every time, at every permission level, and refused when nobody is watching. A key in it is a secret. One KOLONİ
-          knows by its shape is hidden from the model. This CLI’s logins and past conversations are never opened.
+          Asked every time, at every permission level, and refused when nobody is watching. A key in it is a secret. One
+          KOLONİ knows by its shape is hidden from the model. This CLI’s logins and past conversations are never opened.
         </div>
       )}
       {!plain && !home && (
         <div className="muted cmd-approval-note">
-          A secret file is asked about every time, at every permission level: by KOLONİ’s file tools, by a command that names it
-          and by a CLI’s own tools that ask KOLONİ first. agy started to only read does not ask. A script that does not name the
-          file can still read it, unless the project’s commands keep secret files hidden (Settings › This project › Commands and secrets: in Docker
-          or Copilot’s sandbox).
+          A secret file is asked about every time, at every permission level: by KOLONİ’s file tools, by a command that
+          names it and by a CLI’s own tools that ask KOLONİ first. agy started to only read does not ask. A script that
+          does not name the file can still read it, unless the project’s commands keep secret files hidden (Settings ›
+          This project › Commands and secrets: in Docker or Copilot’s sandbox).
         </div>
       )}
       {error && (
@@ -140,7 +142,8 @@ function PathAsked({ call, who, onDecide }: Props) {
         {call.outside_folder && (
           <button type="button" className="btn btn-small" disabled={busy} onClick={() => decide('folder')}>
             <Checks size={13} />
-            {reads ? 'Allow reading this folder' : 'Allow changes in this folder'}: <span className="mono">{call.outside_folder}</span>
+            {reads ? 'Allow reading this folder' : 'Allow changes in this folder'}:{' '}
+            <span className="mono">{call.outside_folder}</span>
           </button>
         )}
         <button type="button" className="btn btn-small" disabled={busy} onClick={() => decide('reject')}>
@@ -175,7 +178,8 @@ function FolderAsked({ call, who, onDecide }: Props) {
     <div className="cmd-approval">
       <div className="kicker cmd-approval-kicker">Add a folder to this chat?</div>
       <div className="cmd-approval-where">
-        {who} asks to {access === 'write' ? 'read and write in' : 'read in'} <span className="mono">{call.outside_folder ?? pathOf(call)}</span>
+        {who} asks to {access === 'write' ? 'read and write in' : 'read in'}{' '}
+        <span className="mono">{call.outside_folder ?? pathOf(call)}</span>
       </div>
       {typeof why === 'string' && <div className="cmd-approval-where">“{why}”</div>}
       <div className="change-actions">
@@ -261,9 +265,9 @@ function SecretWanted({ call, who }: Props) {
         </button>
       </div>
       <div className="muted cmd-approval-note">
-        Only the commands KOLONİ runs for this message get it, in their environment. If a command prints it as it is, it is
-        hidden; a command you approve can still print it encoded, send it, or write it to a file. KOLONİ does not tell it to the
-        model or keep it, and it is gone when the work on this message ends.
+        Only the commands KOLONİ runs for this message get it, in their environment. If a command prints it as it is, it
+        is hidden; a command you approve can still print it encoded, send it, or write it to a file. KOLONİ does not
+        tell it to the model or keep it, and it is gone when the work on this message ends.
       </div>
       {error && (
         <div role="alert" className="alert">

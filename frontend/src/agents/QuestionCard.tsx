@@ -37,7 +37,9 @@ const TITLES: [(option: string) => boolean, string][] = [
  */
 function useAsker(agentId: string): string | null {
   return useApp(s => {
-    const agent = [s.conv, ...Object.values(s.readyChats)].flatMap(chat => chat?.agents ?? []).find(a => a.id === agentId)
+    const agent = [s.conv, ...Object.values(s.readyChats)]
+      .flatMap(chat => chat?.agents ?? [])
+      .find(a => a.id === agentId)
     const name = agent && titleOf(agent.name || agent.role_name, s.teams)
     return name && !/^\s*kolon[iİı]\s*$/i.test(name) ? name : null
   })
@@ -48,11 +50,15 @@ function useAsker(agentId: string): string | null {
  * asks. KOLONİ's own (`leave`) has a fixed title, its text whole under it; its Ready for you card is "Teams' work is
  * ready", its fixed "Ready for you: " prefix left out.
  */
-function questionTitle(question: Pick<Question, 'question' | 'leave' | 'options'>, asker: string | null): { who: string; title: string; said: string | null } {
+function questionTitle(
+  question: Pick<Question, 'question' | 'leave' | 'options'>,
+  asker: string | null,
+): { who: string; title: string; said: string | null } {
   const text = question.question
   if (!question.leave) return { who: `${asker ?? 'The agent'} asks`, title: text, said: null }
   const who = 'KOLONİ asks'
-  if (text.startsWith(READY_FOR_YOU)) return { who, title: TEAMS_READY, said: text.slice(READY_FOR_YOU.length).replace(/^:\s*/, '') }
+  if (text.startsWith(READY_FOR_YOU))
+    return { who, title: TEAMS_READY, said: text.slice(READY_FOR_YOU.length).replace(/^:\s*/, '') }
   const first = question.options[0] ?? ''
   return { who, title: TITLES.find(([is]) => is(first))?.[1] ?? 'KOLONİ needs your word', said: text }
 }
@@ -108,7 +114,13 @@ export function QuestionCard({ question, onAnswer, line }: Props) {
       {question.options.length > 0 && (
         <div className="question-options">
           {question.options.map(option => (
-            <button key={option} type="button" className="btn btn-small" disabled={busy} onClick={() => (option === CHANGES ? setAsking(true) : answer(option))}>
+            <button
+              key={option}
+              type="button"
+              className="btn btn-small"
+              disabled={busy}
+              onClick={() => (option === CHANGES ? setAsking(true) : answer(option))}
+            >
               {shownOption(option, question.leave)}
             </button>
           ))}
@@ -186,8 +198,12 @@ export function QuestionRow({ question, ended, text }: { question: Question; end
       </span>
       <div className="question-body">
         <div className="question-text">{text ?? shownQuestion(question)}</div>
-        {question.answer !== null && question.status !== 'pending' && <div className="question-answer">{shownOption(question.answer, question.leave)}</div>}
-        {question.status !== 'pending' && question.status !== 'answered' && <div className="mono muted question-ended">{ended ?? ENDED[question.status]}</div>}
+        {question.answer !== null && question.status !== 'pending' && (
+          <div className="question-answer">{shownOption(question.answer, question.leave)}</div>
+        )}
+        {question.status !== 'pending' && question.status !== 'answered' && (
+          <div className="mono muted question-ended">{ended ?? ENDED[question.status]}</div>
+        )}
       </div>
     </div>
   )

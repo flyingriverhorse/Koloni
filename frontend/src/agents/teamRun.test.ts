@@ -9,7 +9,18 @@ const row = (team_id: string, state: Partial<ChatTeamState>): ChatTeam => ({
   no_recipe: false,
   picked_by: 'user',
   why: null,
-  state: { run_id: 'r', team: team_id, recipe: 'Feature', status: 'ready', why: null, steps: [], agents: [], ended_ready: null, passes: [], ...state },
+  state: {
+    run_id: 'r',
+    team: team_id,
+    recipe: 'Feature',
+    status: 'ready',
+    why: null,
+    steps: [],
+    agents: [],
+    ended_ready: null,
+    passes: [],
+    ...state,
+  },
 })
 const LONG = 'waits for the review of the first of its three steps, which is not over yet'
 

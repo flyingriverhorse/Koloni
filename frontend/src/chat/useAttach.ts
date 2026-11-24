@@ -11,9 +11,21 @@ import { takeFrames } from './frames'
  * each going up at once; a video's frames taken here; files dragged over the box. `scope`, `key`, `draft`: the
  * conversation the files go to - before there is one, a new one, the words written so far taken along.
  */
-export function useAttach({ conv, scope, draftKey, draft }: { conv: ConvState | null; scope: string; draftKey: string; draft: string }) {
+export function useAttach({
+  conv,
+  scope,
+  draftKey,
+  draft,
+}: {
+  conv: ConvState | null
+  scope: string
+  draftKey: string
+  draft: string
+}) {
   const files = conv?.attachments.filter(one => !one.message_id && !one.frame_of) ?? []
-  const frames = Object.fromEntries(files.map(one => [one.id, conv!.attachments.filter(f => f.frame_of === one.id).length]))
+  const frames = Object.fromEntries(
+    files.map(one => [one.id, conv!.attachments.filter(f => f.frame_of === one.id).length]),
+  )
   const [pending, setPending] = useState<Pending[]>([])
   // What was not added says so till the files it was refused beside change: one is taken off, or the message goes (B-106).
   const dropRefused = () => setPending(was => was.filter(one => !one.error))
@@ -41,7 +53,8 @@ export function useAttach({ conv, scope, draftKey, draft }: { conv: ConvState | 
     if (!chosen.length) return
     let room = MAX_FILES - files.length - pending.filter(one => !one.error).length
     const keyed = chosen.map(file => ({ file, key: `${file.name}\n${Math.random()}` }))
-    const said = (key: string, error: string | null) => setPending(was => was.map(one => (one.key === key ? { ...one, error } : one)))
+    const said = (key: string, error: string | null) =>
+      setPending(was => was.map(one => (one.key === key ? { ...one, error } : one)))
     setPending(was => [...was, ...keyed.map(({ file, key }) => ({ key, name: file.name, error: null }))])
     let cid: string | null = null
     try {
@@ -57,7 +70,9 @@ export function useAttach({ conv, scope, draftKey, draft }: { conv: ConvState | 
       else if (cid) {
         // One after another: the chips stand in the order the files were chosen.
         try {
-          const added = framesOnly ? await upload(cid, file.slice(0, VIDEO_HEAD), file.name, undefined, file.size) : await upload(cid, file, file.name)
+          const added = framesOnly
+            ? await upload(cid, file.slice(0, VIDEO_HEAD), file.name, undefined, file.size)
+            : await upload(cid, file, file.name)
           setPending(was => was.filter(one => one.key !== key))
           useApp.getState().attached(added)
           // (Its frames held before its chip is done: Send never opens in between.)
@@ -74,13 +89,24 @@ export function useAttach({ conv, scope, draftKey, draft }: { conv: ConvState | 
     setFraming(n => n + 1)
     try {
       const shots = await takeFrames(file)
-      for (const [at, shot] of shots.entries()) useApp.getState().attached(await upload(cid, shot, `${file.name} frame ${at + 1}.jpg`, videoId))
+      for (const [at, shot] of shots.entries())
+        useApp.getState().attached(await upload(cid, shot, `${file.name} frame ${at + 1}.jpg`, videoId))
     } catch (err) {
       const why = err instanceof Error ? err.message : errorText(err)
       if (file.size > MAX_BYTES) {
         // Not kept and no frames: nothing of it would reach a model, so it is taken off again.
-        await useApp.getState().detach(videoId).catch(() => {})
-        setPending(was => [...was, { key: `${file.name}\n${Math.random()}`, name: file.name, error: `not added: its frames could not be taken (${why})` }])
+        await useApp
+          .getState()
+          .detach(videoId)
+          .catch(() => {})
+        setPending(was => [
+          ...was,
+          {
+            key: `${file.name}\n${Math.random()}`,
+            name: file.name,
+            error: `not added: its frames could not be taken (${why})`,
+          },
+        ])
       } else setNoFrames(was => ({ ...was, [videoId]: `kept as a file; no frames: ${why}` }))
     } finally {
       setFraming(n => n - 1)
@@ -100,7 +126,8 @@ export function useAttach({ conv, scope, draftKey, draft }: { conv: ConvState | 
   }
 
   // Files dragged over the box: where they are dropped is shown (slice 85b).
-  const carriesFiles = (event: { dataTransfer: DataTransfer | null }) => Array.from(event.dataTransfer?.types ?? []).includes('Files')
+  const carriesFiles = (event: { dataTransfer: DataTransfer | null }) =>
+    Array.from(event.dataTransfer?.types ?? []).includes('Files')
   const drop = {
     onDragOver: (event: DragEvent<HTMLDivElement>) => {
       if (!carriesFiles(event)) return

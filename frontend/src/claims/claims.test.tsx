@@ -26,7 +26,15 @@ const state = convState({
   agents: [
     agent('r', 'waiting', { id: 'lead' }),
     agent('r', 'running', { id: 'coder', parent_agent_id: 'lead', role_name: 'Coder', depth: 1, task: 'A' }),
-    agent('r', 'blocked', { id: 'coder2', parent_agent_id: 'lead', role_name: 'Coder', name: 'Coder 2', depth: 1, task: 'B', waiting_for: waitingFor }),
+    agent('r', 'blocked', {
+      id: 'coder2',
+      parent_agent_id: 'lead',
+      role_name: 'Coder',
+      name: 'Coder 2',
+      depth: 1,
+      task: 'B',
+      waiting_for: waitingFor,
+    }),
   ],
   messages: [
     userMessage('r', 'go'),
@@ -34,8 +42,14 @@ const state = convState({
     { ...assistantMessage('m2', 'r', ''), agent_id: 'coder2' },
   ],
   toolCalls: [
-    toolCall('1', 'r', 'write_file', 'succeeded', '{"path":"cart.py","content":"one"}', { agent_id: 'coder', message_id: 'm1' }),
-    toolCall('2', 'r', 'write_file', 'running', '{"path":"./cart.py","content":"two"}', { agent_id: 'coder2', message_id: 'm2' }),
+    toolCall('1', 'r', 'write_file', 'succeeded', '{"path":"cart.py","content":"one"}', {
+      agent_id: 'coder',
+      message_id: 'm1',
+    }),
+    toolCall('2', 'r', 'write_file', 'running', '{"path":"./cart.py","content":"two"}', {
+      agent_id: 'coder2',
+      message_id: 'm2',
+    }),
   ],
   fileChanges: [fileChange('f1', 'r', { agent_id: 'coder', tool_call_id: '1', path: 'cart.py' })],
   claims: [{ path: 'cart.py', agent_id: 'coder' }],
@@ -58,33 +72,57 @@ test('the files an agent holds, and who holds a file - in any case, and also an 
   expect(holderOf(state, 'cart.py')).toBe('Coder')
   expect(holderOf(state, 'CART.PY')).toBe('Coder')
   expect(holderOf(state, 'other.py')).toBeNull()
-  expect(holderOf({ ...state, claims: [{ path: 'cart.py', agent_id: 'not-here' }] }, 'cart.py')).toBe('an agent of another conversation')
+  expect(holderOf({ ...state, claims: [{ path: 'cart.py', agent_id: 'not-here' }] }, 'cart.py')).toBe(
+    'an agent of another conversation',
+  )
 })
 
 test('only the write call of the agent that waits reads as waiting', () => {
   expect(callWaits(state, state.toolCalls[1])).toBe('waiting for Coder to finish with cart.py')
   expect(callWaits(state, state.toolCalls[0])).toBeNull() // returned
   // a running call of an agent that does not wait, and a call of the waiting agent that is no write
-  expect(callWaits(state, toolCall('3', 'r', 'write_file', 'running', '{"path":"a.py"}', { agent_id: 'coder' }))).toBeNull()
-  expect(callWaits(state, toolCall('4', 'r', 'read_file', 'running', '{"path":"cart.py"}', { agent_id: 'coder2' }))).toBeNull()
+  expect(
+    callWaits(state, toolCall('3', 'r', 'write_file', 'running', '{"path":"a.py"}', { agent_id: 'coder' })),
+  ).toBeNull()
+  expect(
+    callWaits(state, toolCall('4', 'r', 'read_file', 'running', '{"path":"cart.py"}', { agent_id: 'coder2' })),
+  ).toBeNull()
 })
 
 test('B-140: a file another chat holds names that chat, and says when your answer there frees it', () => {
-  const elsewhere = { ...waitingFor, agent_name: 'Lead', path: 'calc.py', conversation_id: 'other', conversation_title: 'median', asks_you: true }
+  const elsewhere = {
+    ...waitingFor,
+    agent_name: 'Lead',
+    path: 'calc.py',
+    conversation_id: 'other',
+    conversation_title: 'median',
+    asks_you: true,
+  }
   const there = { ...state, agents: state.agents.map(a => (a.id === 'coder2' ? { ...a, waiting_for: elsewhere } : a)) }
-  expect(callWaits(there, there.toolCalls[1])).toBe('waiting for Orchestrator in «median» to finish with calc.py: that chat waits for your answer there')
+  expect(callWaits(there, there.toolCalls[1])).toBe(
+    'waiting for Orchestrator in «median» to finish with calc.py: that chat waits for your answer there',
+  )
   expect(waitLine(there.agents[2], there.conversation.id)).toBe('waits for Orchestrator in «median» · calc.py')
 })
 
 test('a wait for the Lead names the Orchestrator - and one for a team’s lead its coordinator - on the box and in the side panel', () => {
   const forLead = { agent_id: 'lead', agent_name: 'Lead', path: 'a.py' }
-  const s = { ...state, agents: state.agents.map(a => (a.id === 'coder2' ? { ...a, waiting_for: forLead } : a)), claims: [{ path: 'a.py', agent_id: 'lead' }] }
+  const s = {
+    ...state,
+    agents: state.agents.map(a => (a.id === 'coder2' ? { ...a, waiting_for: forLead } : a)),
+    claims: [{ path: 'a.py', agent_id: 'lead' }],
+  }
   expect(agentData(deriveGraph(s), 'agent:coder2').activity).toBe('waits for Orchestrator · a.py')
   const { rerender } = render(<Inspector state={s} selectedId="agent:coder2" onClose={() => {}} />)
-  expect(screen.getByRole('note')).toHaveTextContent('Waits for Orchestrator to finish with a.py. It goes on when Orchestrator is done with the file.')
+  expect(screen.getByRole('note')).toHaveTextContent(
+    'Waits for Orchestrator to finish with a.py. It goes on when Orchestrator is done with the file.',
+  )
   // (As its timeline lane and its own card say.)
   const docs = { id: 'docs', name: 'Docs', roles: [], lead: { name: 'Docs lead' }, lead_on: true } as unknown as Team
-  const forDocs = { ...s, agents: s.agents.map(a => (a.id === 'coder2' ? { ...a, waiting_for: { ...forLead, agent_name: 'Docs lead' } } : a)) }
+  const forDocs = {
+    ...s,
+    agents: s.agents.map(a => (a.id === 'coder2' ? { ...a, waiting_for: { ...forLead, agent_name: 'Docs lead' } } : a)),
+  }
   expect(agentData(deriveGraph(forDocs, [docs]), 'agent:coder2').activity).toBe('waits for Docs coordinator · a.py')
   // (The store is reset for each file, not each test: its teams put back.)
   const before = useApp.getState().teams
@@ -113,38 +151,52 @@ test('who holds what comes with the snapshot, and again whenever it changes - wi
 
 test('the waiting agent’s box says what it waits for, and a line joins it to the agent that holds the file', () => {
   const g = deriveGraph(state)
-  expect(agentData(g, 'agent:coder2')).toMatchObject({ status: 'blocked', activity: 'waits for Coder · cart.py', attention: false, finished: false })
-  expect(g.edges.find(e => e.waits)).toMatchObject({ source: 'agent:coder2', target: 'agent:coder', waits: true, active: false })
+  expect(agentData(g, 'agent:coder2')).toMatchObject({
+    status: 'blocked',
+    activity: 'waits for Coder · cart.py',
+    attention: false,
+    finished: false,
+  })
+  expect(g.edges.find(e => e.waits)).toMatchObject({
+    source: 'agent:coder2',
+    target: 'agent:coder',
+    waits: true,
+    active: false,
+  })
   // its own line from the agent that opened it is still that of an agent at work
   expect(g.edges.find(e => e.id === 'agent:lead>agent:coder2')).toMatchObject({ spawn: true, active: true })
   // when it has the file there is no such line any more
-  const after = deriveGraph({ ...state, agents: state.agents.map(a => (a.id === 'coder2' ? { ...a, status: 'running' as const, waiting_for: null } : a)) })
+  const after = deriveGraph({
+    ...state,
+    agents: state.agents.map(a => (a.id === 'coder2' ? { ...a, status: 'running' as const, waiting_for: null } : a)),
+  })
   expect(after.edges.some(e => e.waits)).toBe(false)
   expect(agentData(after, 'agent:coder2').activity).not.toMatch(/waits for/)
 })
 
 test('a holder that is not on this canvas gets no line; the box still names it', () => {
   const elsewhere = { agent_id: 'far', agent_name: 'Tester', path: 'cart.py' }
-  const g = deriveGraph({ ...state, agents: state.agents.map(a => (a.id === 'coder2' ? { ...a, waiting_for: elsewhere } : a)) })
+  const g = deriveGraph({
+    ...state,
+    agents: state.agents.map(a => (a.id === 'coder2' ? { ...a, waiting_for: elsewhere } : a)),
+  })
   expect(g.edges.some(e => e.waits)).toBe(false)
   expect(agentData(g, 'agent:coder2').activity).toBe('waits for Tester · cart.py')
 })
 
 test('a lead that waits for a file says so too, and is not shown as at work', () => {
-  const g = deriveGraph(convState({
-    runs: [run('r', 'running')],
-    messages: [userMessage('r', 'go')],
-    agents: [agent('r', 'blocked', { waiting_for: { agent_id: 'far', agent_name: 'Coder', path: 'cart.py' } })],
-  }))
+  const g = deriveGraph(
+    convState({
+      runs: [run('r', 'running')],
+      messages: [userMessage('r', 'go')],
+      agents: [agent('r', 'blocked', { waiting_for: { agent_id: 'far', agent_name: 'Coder', path: 'cart.py' } })],
+    }),
+  )
   expect(agentData(g, 'agent:r')).toMatchObject({ status: 'blocked', activity: 'waits for Coder · cart.py' })
 })
 
 function draw(node: ReactNode) {
-  return render(
-    <ReactFlowProvider>
-      {node}
-    </ReactFlowProvider>,
-  )
+  return render(<ReactFlowProvider>{node}</ReactFlowProvider>)
 }
 const props = <T,>(id: string, data: T) =>
   ({ id, data, selected: false }) as unknown as NodeProps<Node<T & Record<string, unknown>>>
@@ -171,7 +223,9 @@ test('the inspector lists what an agent holds, and for the one that waits what i
   expect(screen.getByRole('note')).not.toHaveTextContent(/asked of you|by itself/)
   expect(screen.queryByRole('list', { name: 'Files it holds' })).not.toBeInTheDocument()
   // its state is in its header, as in its window
-  expect(within(screen.getByRole('complementary', { name: 'Inspector' })).getByText('waiting for a file')).toHaveClass('status')
+  expect(within(screen.getByRole('complementary', { name: 'Inspector' })).getByText('waiting for a file')).toHaveClass(
+    'status',
+  )
   // an agent that holds nothing and waits for nothing has no such part
   rerender(<Inspector state={state} selectedId="agent:lead" onClose={() => {}} />)
   expect(screen.queryByText('Holds')).not.toBeInTheDocument()
@@ -183,7 +237,9 @@ test('the agent’s window says the same, and its write call reads as waiting', 
   const { rerender } = render(<AgentWindow state={state} agentId="coder2" {...handlers} />)
   expect(screen.getByRole('note')).toHaveTextContent('Waits for Coder to finish with cart.py')
   expect(screen.getByText('waiting for a file')).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: /write_file: waiting for Coder to finish with cart\.py/ })).toBeInTheDocument()
+  expect(
+    screen.getByRole('button', { name: /write_file: waiting for Coder to finish with cart\.py/ }),
+  ).toBeInTheDocument()
   rerender(<AgentWindow state={state} agentId="coder" {...handlers} />)
   expect(within(screen.getByRole('list', { name: 'Files it holds' })).getByText('cart.py')).toBeInTheDocument()
 })
@@ -214,5 +270,9 @@ test('a turn in which an agent waits for a file is not marked as waiting for the
   expect(screen.getByText(/WORKING/)).toBeInTheDocument()
   expect(screen.queryByText(/WAITS FOR YOU/)).not.toBeInTheDocument()
   // and the group of the agent that waits does not ask for attention
-  expect(deriveGraph(state).nodes.filter(n => n.kind === 'agent').every(n => !(n.data as AgentData).attention)).toBe(true)
+  expect(
+    deriveGraph(state)
+      .nodes.filter(n => n.kind === 'agent')
+      .every(n => !(n.data as AgentData).attention),
+  ).toBe(true)
 })

@@ -67,12 +67,12 @@ export function TierSlots({ tiers, down, onSave, onRefused }: Props) {
             {NAMES[tier]}
             {tier === 'strongest' && (
               <Hint doc={GUIDE.tiers}>
-                Each tier is tried in this order: a role that asks for a tier runs on the first of its models that may be
-                picked; a model agents may not use is passed over. A sub-agent runs on the first provider that offers its
-                role’s tier, in this order - the chat’s own provider is not preferred, and is used only where no model
-                has the tier; one whose provider fails before its first word (queued too long, down) is moved once to the
-                tier’s next - a card you approve unless the chat’s spawn approval is “never”, and only while you watch
-                the turn.
+                Each tier is tried in this order: a role that asks for a tier runs on the first of its models that may
+                be picked; a model agents may not use is passed over. A sub-agent runs on the first provider that offers
+                its role’s tier, in this order - the chat’s own provider is not preferred, and is used only where no
+                model has the tier; one whose provider fails before its first word (queued too long, down) is moved once
+                to the tier’s next - a card you approve unless the chat’s spawn approval is “never”, and only while you
+                watch the turn.
               </Hint>
             )}
           </h3>

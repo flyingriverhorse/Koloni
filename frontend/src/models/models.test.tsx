@@ -19,15 +19,34 @@ const provider = (over: Partial<Provider>): Provider => ({
   note: null,
   models: [],
   only_listed: false,
-  max_running: null, plan: false, step_down_at: null, day_limit: null, month_limit: null,
+  max_running: null,
+  plan: false,
+  step_down_at: null,
+  day_limit: null,
+  month_limit: null,
   has_key: false,
   position: 0,
   created_at: 't',
   updated_at: 't',
   ...over,
 })
-const claude = provider({ id: 'p2', name: 'Claude Code', kind: 'claude_cli', base_url: null, default_model: 'sonnet', position: 1 })
-const api = provider({ id: 'p3', name: 'Claude API', kind: 'anthropic', base_url: 'https://api.anthropic.com', options: null, has_key: true, position: 2 })
+const claude = provider({
+  id: 'p2',
+  name: 'Claude Code',
+  kind: 'claude_cli',
+  base_url: null,
+  default_model: 'sonnet',
+  position: 1,
+})
+const api = provider({
+  id: 'p3',
+  name: 'Claude API',
+  kind: 'anthropic',
+  base_url: 'https://api.anthropic.com',
+  options: null,
+  has_key: true,
+  position: 2,
+})
 
 /** What the facts endpoint says of a model that takes `efforts` and nothing more. */
 const facts = (efforts: Effort[] | null, more: Partial<ModelFacts> = {}): ModelFacts => ({
@@ -123,7 +142,12 @@ test('Test says what the provider answered, or why it could not be reached', asy
   await open('Local', 'Connection')
   await userEvent.click(screen.getByRole('button', { name: 'Test' }))
   expect(await screen.findByText(/Reachable/)).toHaveTextContent('qwen')
-  h.onTest.mockResolvedValue({ ok: false, model_id: null, tools_supported: null, error: 'model server unreachable: refused' })
+  h.onTest.mockResolvedValue({
+    ok: false,
+    model_id: null,
+    tools_supported: null,
+    error: 'model server unreachable: refused',
+  })
   await userEvent.click(screen.getByRole('button', { name: 'Test' }))
   expect(await screen.findByRole('alert')).toHaveTextContent('refused')
 })
@@ -200,7 +224,17 @@ test('with no provider the picker says so; its title says when the Orchestrator�
   expect(await screen.findByRole('alert')).toHaveTextContent('no such model')
   // The Lead role's own model, named: its levels are of that model.
   const onFacts = vi.fn().mockResolvedValue(facts(['low']))
-  rerender(<ModelPicker providers={[provider({}), claude]} providerId={null} modelId={null} leadAuto onSave={onSave} onFacts={onFacts} lead={{ provider_id: 'p2', model_id: 'opus' }} />)
+  rerender(
+    <ModelPicker
+      providers={[provider({}), claude]}
+      providerId={null}
+      modelId={null}
+      leadAuto
+      onSave={onSave}
+      onFacts={onFacts}
+      lead={{ provider_id: 'p2', model_id: 'opus' }}
+    />,
+  )
   expect(screen.getByRole('button', { name: 'Model: Orchestrator: automatic · Local' })).toHaveAttribute(
     'title',
     "Orchestrator: automatic · Local: the model this conversation's agents use; the Orchestrator’s is chosen for each message by how hard it is",
@@ -219,7 +253,14 @@ test('B-193: a CLI given no model shows the one KOLONİ names for it, else that 
   const cli = provider({ id: 'p2', name: 'Claude Code', kind: 'claude_cli', base_url: null, models: listed })
   const { rerender } = render(<ModelPicker providers={[cli]} providerId={null} modelId={null} onSave={vi.fn()} />)
   expect(screen.getByRole('button', { name: 'Model: Claude Code · claude-sonnet' })).toBeInTheDocument()
-  rerender(<ModelPicker providers={[{ ...cli, models: [listed[0], listed[2]] }]} providerId={null} modelId={null} onSave={vi.fn()} />)
+  rerender(
+    <ModelPicker
+      providers={[{ ...cli, models: [listed[0], listed[2]] }]}
+      providerId={null}
+      modelId={null}
+      onSave={vi.fn()}
+    />,
+  )
   expect(screen.getByRole('button', { name: 'Model: Claude Code · claude-haiku' })).toBeInTheDocument()
   rerender(<ModelPicker providers={[{ ...cli, models: [] }]} providerId={null} modelId={null} onSave={vi.fn()} />)
   expect(screen.getByRole('button', { name: 'Model: Claude Code’s own default (unknown model)' })).toBeInTheDocument()
@@ -231,11 +272,23 @@ test('B-193: a CLI given no model shows the one KOLONİ names for it, else that 
 test('the Lead’s reasoning level is chosen with the model, of the levels its model takes, and sent only when it changed', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
   const onFacts = vi.fn().mockResolvedValue(facts(['medium', 'high']))
-  render(<ModelPicker providers={[provider({ default_model: 'qwen' })]} providerId={null} modelId={null} leadEffort="high" onSave={onSave} onFacts={onFacts} />)
+  render(
+    <ModelPicker
+      providers={[provider({ default_model: 'qwen' })]}
+      providerId={null}
+      modelId={null}
+      leadEffort="high"
+      onSave={onSave}
+      onFacts={onFacts}
+    />,
+  )
   await userEvent.click(screen.getByRole('button', { name: /Model: Local/ }))
   expect(await screen.findByText(/Its model takes: Medium, High\./)).toBeInTheDocument()
   expect(onFacts).toHaveBeenLastCalledWith('p1', 'qwen') // the default provider's default model
-  expect(screen.getAllByRole('option', { name: /Medium|High|Low|Max/ }).map(o => o.textContent)).toEqual(['Medium', 'High'])
+  expect(screen.getAllByRole('option', { name: /Medium|High|Low|Max/ }).map(o => o.textContent)).toEqual([
+    'Medium',
+    'High',
+  ])
   expect(screen.getByLabelText('Thinking')).toHaveValue('high')
   await userEvent.click(screen.getByRole('button', { name: 'Use this model' }))
   expect(onSave).toHaveBeenLastCalledWith({ provider_id: null, model_id: null })
@@ -247,7 +300,9 @@ test('the Lead’s reasoning level is chosen with the model, of the levels its m
 
 test('the lead’s model can follow the message: the choice says what it costs, and only a change of it is sent', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
-  const { rerender } = render(<ModelPicker providers={[provider({}), claude]} providerId={null} modelId={null} onSave={onSave} />)
+  const { rerender } = render(
+    <ModelPicker providers={[provider({}), claude]} providerId={null} modelId={null} onSave={onSave} />,
+  )
   await userEvent.click(screen.getByRole('button', { name: /Model: Local/ }))
   const auto = screen.getByLabelText(/Orchestrator model: automatic/)
   expect(auto).not.toBeChecked()
@@ -265,21 +320,30 @@ test('the lead’s model can follow the message: the choice says what it costs, 
   expect(auto).not.toBeChecked()
   // The box is named as it was - by all of its note, word for word what the page shows - and not by the
   // button that opens it. It says so in its own label: a browser leaves a closed hint out of a name.
-  expect(auto).toHaveAccessibleName(/^Orchestrator model: automatic One more request .* asked how hard it is\. It overrides .* does not use it\. The Orchestrator then runs .* else the model above\.$/)
+  expect(auto).toHaveAccessibleName(
+    /^Orchestrator model: automatic One more request .* asked how hard it is\. It overrides .* does not use it\. The Orchestrator then runs .* else the model above\.$/,
+  )
   // (less the hint's "Learn more →": a link to the guide, no part of the note)
   const shown = note.closest('label')!.textContent!.replace('Learn more →', '')
   expect(auto.getAttribute('aria-label')!.replace(/\s+/g, '')).toBe(shown.replace(/\s+/g, ''))
   expect(rest).toHaveTextContent(/shows the answer as that model’s guess\./)
   expect(rest).not.toHaveTextContent(/overrides|trigger/)
   // with nothing to go by the Lead is not put on "the model above": it runs where it otherwise would
-  expect(rest).toHaveTextContent(/the Orchestrator runs where it otherwise would: its role’s model, else its tier, else the model above\.$/)
+  expect(rest).toHaveTextContent(
+    /the Orchestrator runs where it otherwise would: its role’s model, else its tier, else the model above\.$/,
+  )
   await userEvent.click(auto)
   // who is asked - or that nobody can be - is the server's to say: nothing is guessed here
   expect(screen.queryByText(/nobody is asked/)).not.toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Use this model' }))
   expect(onSave).toHaveBeenLastCalledWith({ provider_id: null, model_id: null, lead_auto: true })
 
-  const fast = provider({ id: 'p3', name: 'Fast', for_agents: true, models: [{ name: 'quick', tier: 'fast', agents: true }] })
+  const fast = provider({
+    id: 'p3',
+    name: 'Fast',
+    for_agents: true,
+    models: [{ name: 'quick', tier: 'fast', agents: true }],
+  })
   rerender(<ModelPicker providers={[provider({}), fast]} providerId={null} modelId={null} leadAuto onSave={onSave} />)
   // the button says it, so it is seen without opening anything
   await userEvent.click(screen.getByRole('button', { name: 'Model: Orchestrator: automatic · Local' }))
@@ -330,7 +394,14 @@ test('Claude Code can run as a session or step by step, and says what each means
 
 test('each way of running says what it does: Copilot in a home of its own, a sign-in of its own, Claude Code and Codex natively', async () => {
   const copilot = provider({ id: 'p6', name: 'Copilot', kind: 'copilot_cli', base_url: null, mode: 'session' })
-  const codex = provider({ id: 'p5', name: 'Codex', kind: 'codex_cli', base_url: null, mode: 'native', options: { sign_in: 'koloni' } })
+  const codex = provider({
+    id: 'p5',
+    name: 'Codex',
+    kind: 'codex_cli',
+    base_url: null,
+    mode: 'native',
+    options: { sign_in: 'koloni' },
+  })
   render(<ModelsPage providers={[{ ...claude, mode: 'native' }, copilot, codex]} {...handlers()} />)
   await open('Claude Code', 'Connection')
   expect(screen.getByRole('note')).toHaveTextContent(/^Native: Claude Code works with its own file and shell tools/)
@@ -339,7 +410,9 @@ test('each way of running says what it does: Copilot in a home of its own, a sig
   expect(screen.getByText(/^Runs the copilot command on this machine, with a home of its own/)).toBeInTheDocument()
   await close()
   await open('Codex', 'Connection')
-  expect(screen.getByText(/^Runs the codex command on this machine with this provider's own sign-in/)).toBeInTheDocument()
+  expect(
+    screen.getByText(/^Runs the codex command on this machine with this provider's own sign-in/),
+  ).toBeInTheDocument()
   expect(screen.getByRole('note')).toHaveTextContent(/^Native: Codex works with its own shell and patch tool/)
 })
 
@@ -349,7 +422,7 @@ test('Qoder and Codex each run the ways they safely can', async () => {
   const codex = provider({ id: 'p5', name: 'Codex', kind: 'codex_cli', base_url: null, mode: null })
   render(<ModelsPage providers={[qoder, codex]} {...h} />)
   await open('Qoder', 'Connection')
-  expect(screen.getByLabelText('How it runs')).toHaveValue('session')  // natively too since B-306, not by default
+  expect(screen.getByLabelText('How it runs')).toHaveValue('session') // natively too since B-306, not by default
   expect(screen.getByText(/keeps its own loop/)).toBeInTheDocument()
   expect(screen.getByText(/a model name has to be set/i)).toBeInTheDocument()
   await close()

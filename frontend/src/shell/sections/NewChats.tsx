@@ -12,7 +12,8 @@ const MODES: [mode: TeamsMode, label: string][] = [
   ['none', 'No teams'],
 ]
 
-const same = (a: FolderRow[], b: FolderRow[]) => a.length === b.length && a.every((row, at) => row.path === b[at].path && row.access === b[at].access)
+const same = (a: FolderRow[], b: FolderRow[]) =>
+  a.length === b.length && a.every((row, at) => row.path === b[at].path && row.access === b[at].access)
 
 /**
  * This project › New chats start with: the teams and the other folders a new chat of it starts with, and what a room
@@ -42,14 +43,22 @@ export function useNewChats(project: Project) {
         <ul className="folder-rows" aria-label="New chats’ other folders">
           {folders.map(row => (
             <li key={row.path}>
-              <span className="mono">{row.path}</span> <span className="muted">{row.access === 'read' ? 'read only' : 'read and write'}</span>
-              <button type="button" className="icon-btn" aria-label={`Remove ${row.path} from new chats`} onClick={() => setFolders(folders.filter(one => one !== row))}>
+              <span className="mono">{row.path}</span>{' '}
+              <span className="muted">{row.access === 'read' ? 'read only' : 'read and write'}</span>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label={`Remove ${row.path} from new chats`}
+                onClick={() => setFolders(folders.filter(one => one !== row))}
+              >
                 <X size={12} />
               </button>
             </li>
           ))}
         </ul>
-        <span className="choice-note">A folder is added from a chat’s folder button: “Keep for this project”. {GIVEN}</span>
+        <span className="choice-note">
+          A folder is added from a chat’s folder button: “Keep for this project”. {GIVEN}
+        </span>
       </Row>
       {rooms.view}
     </>,
@@ -77,12 +86,39 @@ function useRoomLimits(project: Project) {
     view: (
       <>
         <h3 className="kicker">A room’s limits</h3>
-        <p className="choice-note">What a room opened in any chat of this project may spend, unless you say otherwise as you open it. Empty: no limit.</p>
-        <Row label="Posts, at most" htmlFor="room-posts" warn={posts === undefined && <span className="choice-note">1 to 1000, or empty.</span>}>
-          <input id="room-posts" className="input mono set-short" inputMode="numeric" placeholder="No limit" value={postsText} aria-invalid={posts === undefined || undefined} onChange={e => setPostsText(e.target.value)} />
+        <p className="choice-note">
+          What a room opened in any chat of this project may spend, unless you say otherwise as you open it. Empty: no
+          limit.
+        </p>
+        <Row
+          label="Posts, at most"
+          htmlFor="room-posts"
+          warn={posts === undefined && <span className="choice-note">1 to 1000, or empty.</span>}
+        >
+          <input
+            id="room-posts"
+            className="input mono set-short"
+            inputMode="numeric"
+            placeholder="No limit"
+            value={postsText}
+            aria-invalid={posts === undefined || undefined}
+            onChange={e => setPostsText(e.target.value)}
+          />
         </Row>
-        <Row label="Minutes, at most" htmlFor="room-minutes" warn={minutes === undefined && <span className="choice-note">1 to 1440, or empty.</span>}>
-          <input id="room-minutes" className="input mono set-short" inputMode="numeric" placeholder="No limit" value={minutesText} aria-invalid={minutes === undefined || undefined} onChange={e => setMinutesText(e.target.value)} />
+        <Row
+          label="Minutes, at most"
+          htmlFor="room-minutes"
+          warn={minutes === undefined && <span className="choice-note">1 to 1440, or empty.</span>}
+        >
+          <input
+            id="room-minutes"
+            className="input mono set-short"
+            inputMode="numeric"
+            placeholder="No limit"
+            value={minutesText}
+            aria-invalid={minutes === undefined || undefined}
+            onChange={e => setMinutesText(e.target.value)}
+          />
         </Row>
         <RoomTokens text={tokensText} setText={setTokensText} tokens={tokens} />
         <RoomLeastTokens text={leastText} setText={setLeastText} least={least} tokens={tokens} />
@@ -92,7 +128,17 @@ function useRoomLimits(project: Project) {
 }
 
 /** B-414: the least tokens a room an agent opens is given; above the most, the most wins. */
-function RoomLeastTokens({ text, setText, least, tokens }: { text: string; setText: (text: string) => void; least: number | null | undefined; tokens: number | null | undefined }) {
+function RoomLeastTokens({
+  text,
+  setText,
+  least,
+  tokens,
+}: {
+  text: string
+  setText: (text: string) => void
+  least: number | null | undefined
+  tokens: number | null | undefined
+}) {
   const above = least != null && tokens != null && least > tokens
   return (
     <Row
@@ -107,17 +153,34 @@ function RoomLeastTokens({ text, setText, least, tokens }: { text: string; setTe
         </span>
       }
     >
-      <input id="room-min-tokens" className="input mono" inputMode="numeric" placeholder="None" value={text} aria-invalid={least === undefined || undefined} onChange={e => setText(e.target.value)} />
+      <input
+        id="room-min-tokens"
+        className="input mono"
+        inputMode="numeric"
+        placeholder="None"
+        value={text}
+        aria-invalid={least === undefined || undefined}
+        onChange={e => setText(e.target.value)}
+      />
     </Row>
   )
 }
 
-function RoomTokens({ text, setText, tokens }: { text: string; setText: (text: string) => void; tokens: number | null | undefined }) {
+function RoomTokens({
+  text,
+  setText,
+  tokens,
+}: {
+  text: string
+  setText: (text: string) => void
+  tokens: number | null | undefined
+}) {
   return (
     <Row
       label="Tokens, at most"
       htmlFor="room-tokens"
-      doc={GUIDE.settingsNewChats} why="By default none: a room ends on its posts or minutes, or on the message’s and the project’s own limits."
+      doc={GUIDE.settingsNewChats}
+      why="By default none: a room ends on its posts or minutes, or on the message’s and the project’s own limits."
       warn={
         <span className="choice-note">
           {tokens === undefined ? 'A whole number from 1 to 100,000,000, or empty. ' : ''}
@@ -125,13 +188,29 @@ function RoomTokens({ text, setText, tokens }: { text: string; setText: (text: s
         </span>
       }
     >
-      <input id="room-tokens" className="input mono" inputMode="numeric" placeholder="No limit" value={text} aria-invalid={tokens === undefined || undefined} onChange={e => setText(e.target.value)} />
+      <input
+        id="room-tokens"
+        className="input mono"
+        inputMode="numeric"
+        placeholder="No limit"
+        value={text}
+        aria-invalid={tokens === undefined || undefined}
+        onChange={e => setText(e.target.value)}
+      />
     </Row>
   )
 }
 
 /** Who picks a new chat's teams; with Manual, the teams a chat kept for it. */
-function NewTeams({ mode, setMode, project }: { mode: TeamsMode; setMode: (mode: TeamsMode) => void; project: Project }) {
+function NewTeams({
+  mode,
+  setMode,
+  project,
+}: {
+  mode: TeamsMode
+  setMode: (mode: TeamsMode) => void
+  project: Project
+}) {
   const teams = useApp(s => s.teams)
   const names = project.teams.map(row => teams.find(team => team.id === row.team_id)?.name ?? 'a team deleted since')
   return (
@@ -141,7 +220,9 @@ function NewTeams({ mode, setMode, project }: { mode: TeamsMode; setMode: (mode:
       warn={
         mode === 'manual' && (
           <span className="choice-note">
-            {names.length > 0 ? `${names.join(', ')}: ` : 'No team yet: the Orchestrator calls any role, as with No teams. '}
+            {names.length > 0
+              ? `${names.join(', ')}: `
+              : 'No team yet: the Orchestrator calls any role, as with No teams. '}
             the teams a chat keeps with “Use for new chats in this project”.
           </span>
         )

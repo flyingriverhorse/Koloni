@@ -45,7 +45,10 @@ export function Palette({ places, onOpen, onSearch }: Props) {
   }, [open, onOpen])
 
   /** Back to what opened it; what is gone since leaves it to the page. */
-  const back = useCallback(() => (opener.current?.isConnected ? opener.current : document.querySelector<HTMLElement>('.main'))?.focus(), [])
+  const back = useCallback(
+    () => (opener.current?.isConnected ? opener.current : document.querySelector<HTMLElement>('.main'))?.focus(),
+    [],
+  )
   useEffect(() => {
     if (!open) return
     // While it is open Esc is its own, wherever the focus is: taken before the panels under it hear it (they listen on the document).
@@ -63,7 +66,11 @@ export function Palette({ places, onOpen, onSearch }: Props) {
   const wanted = fold(words.trim())
   const shown: Place[] = [
     ...places.filter(place => fold(place.name).includes(wanted)),
-    { kind: 'Search', name: wanted ? `Search in messages: “${words.trim()}”` : 'Search in messages', go: () => onSearch(words.trim()) },
+    {
+      kind: 'Search',
+      name: wanted ? `Search in messages: “${words.trim()}”` : 'Search in messages',
+      go: () => onSearch(words.trim()),
+    },
   ]
   const active = Math.min(at, shown.length - 1)
   const close = () => {

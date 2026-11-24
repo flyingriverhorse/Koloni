@@ -19,7 +19,13 @@ export function CheckedSection({ message, over, latest }: { message?: Message; o
   const rows = message?.checked
   if (!message || !over || !rows?.length) return null
   return (
-    <section className="checked" id={message.run_id ? `checked-${message.run_id}` : undefined} tabIndex={-1} aria-label="Checked" title="From KOLONİ’s records, not the model’s words">
+    <section
+      className="checked"
+      id={message.run_id ? `checked-${message.run_id}` : undefined}
+      tabIndex={-1}
+      aria-label="Checked"
+      title="From KOLONİ’s records, not the model’s words"
+    >
       <span className="checked-head">Checked</span>
       <ul className="checked-rows">
         {rows.map((row, index) => (
@@ -61,13 +67,22 @@ function CheckedRow({ row, runId }: { row: Row; runId: string | null }) {
 }
 
 /** CL-329: files that changed while KOLONİ's own run went on - Put back is the user's click (never KOLONİ's by itself): each as it was before the run, where it is still as the run left it. Each turn's button is its own run's (CL-340: an older turn's too - a file changed since is refused, said). */
-const PUT_BACK_TITLE = 'Puts back the files this line names, as they were before this turn’s run - not one changed since'
+const PUT_BACK_TITLE =
+  'Puts back the files this line names, as they were before this turn’s run - not one changed since'
 
 function PutBack({ runId }: { runId: string }) {
   const [said, setSaid] = useState<string | null>(null)
   const put = () =>
     api.post<{ put_back: string[]; refused: { path: string; why: string }[] }>(`/runs/${runId}/check/put-back`).then(
-      done => setSaid([done.put_back.length ? `Put back: ${done.put_back.join(', ')}.` : '', ...done.refused.map(one => `Not put back: ${one.why}.`)].filter(Boolean).join(' ')),
+      done =>
+        setSaid(
+          [
+            done.put_back.length ? `Put back: ${done.put_back.join(', ')}.` : '',
+            ...done.refused.map(one => `Not put back: ${one.why}.`),
+          ]
+            .filter(Boolean)
+            .join(' '),
+        ),
       err => setSaid(errorText(err)),
     )
   return (
@@ -89,7 +104,19 @@ export function FixIt({ asked }: { asked: string }) {
   const [error, setError] = useState<string | null>(null)
   return (
     <span className="checked-fix">
-      <button type="button" className="btn btn-small" onClick={() => useApp.getState().send(asked).then(() => setError(null), err => setError(errorText(err)))}>
+      <button
+        type="button"
+        className="btn btn-small"
+        onClick={() =>
+          useApp
+            .getState()
+            .send(asked)
+            .then(
+              () => setError(null),
+              err => setError(errorText(err)),
+            )
+        }
+      >
         Fix it
       </button>
       {error && <span role="alert">{error}</span>}
@@ -109,7 +136,12 @@ function NotTaken({ row, runId }: { row: Row; runId: string | null }) {
           type="button"
           className="btn btn-small"
           title="Takes the kept work in as it is, at your word - no Reviewer looks at it first"
-          onClick={() => api.post(`/merges/${row.merge_id}/approve`).then(() => setSaid('Taken in.'), err => setSaid(errorText(err)))}
+          onClick={() =>
+            api.post(`/merges/${row.merge_id}/approve`).then(
+              () => setSaid('Taken in.'),
+              err => setSaid(errorText(err)),
+            )
+          }
         >
           Take in anyway
         </button>
@@ -117,16 +149,36 @@ function NotTaken({ row, runId }: { row: Row; runId: string | null }) {
       <button type="button" className="btn btn-small" onClick={() => setAnswering(true)}>
         Fix it
       </button>
-      {answering && <Answer question={question} reason={row.reason} onError={setSaid} held={runId && row.merge_id ? { runId, mergeId: row.merge_id } : null} />}
+      {answering && (
+        <Answer
+          question={question}
+          reason={row.reason}
+          onError={setSaid}
+          held={runId && row.merge_id ? { runId, mergeId: row.merge_id } : null}
+        />
+      )}
       {said && <span role="status">{said}</span>}
     </span>
   )
 }
 
 /** Fix it's answer to the question: a turn that goes on in the kept work's copy where there is one (else a new message of the user's). */
-function Answer({ question, reason, onError, held }: { question: string; reason?: Row['reason']; onError: (said: string) => void; held: { runId: string; mergeId: string } | null }) {
+function Answer({
+  question,
+  reason,
+  onError,
+  held,
+}: {
+  question: string
+  reason?: Row['reason']
+  onError: (said: string) => void
+  held: { runId: string; mergeId: string } | null
+}) {
   const [reply, setReply] = useState('')
-  const sent = () => (held ? api.post(`/runs/${held.runId}/held/fix`, { merge_id: held.mergeId, reply }) : useApp.getState().send(FIX_HELD(question, reply, reason)))
+  const sent = () =>
+    held
+      ? api.post(`/runs/${held.runId}/held/fix`, { merge_id: held.mergeId, reply })
+      : useApp.getState().send(FIX_HELD(question, reply, reason))
   return (
     <form
       className="checked-answer"
@@ -151,7 +203,16 @@ function RunThese({ runId, offer }: { runId: string; offer: string }) {
   const [said, setSaid] = useState<string | null>(null)
   return (
     <span className="checked-fix">
-      <button type="button" className="btn btn-small" onClick={() => api.post(`/runs/${runId}/ci/approve`, { offer }).then(() => setSaid('Approved: they run after the next change.'), err => setSaid(errorText(err)))}>
+      <button
+        type="button"
+        className="btn btn-small"
+        onClick={() =>
+          api.post(`/runs/${runId}/ci/approve`, { offer }).then(
+            () => setSaid('Approved: they run after the next change.'),
+            err => setSaid(errorText(err)),
+          )
+        }
+      >
         Run these
       </button>
       {said && <span role="status">{said}</span>}
@@ -164,7 +225,16 @@ function StopCheck({ runId }: { runId: string }) {
   const [error, setError] = useState<string | null>(null)
   return (
     <span className="checked-fix">
-      <button type="button" className="btn btn-small" onClick={() => api.post(`/runs/${runId}/check/stop`).then(() => setError(null), err => setError(errorText(err)))}>
+      <button
+        type="button"
+        className="btn btn-small"
+        onClick={() =>
+          api.post(`/runs/${runId}/check/stop`).then(
+            () => setError(null),
+            err => setError(errorText(err)),
+          )
+        }
+      >
         Stop this check
       </button>
       {error && <span role="alert">{error}</span>}

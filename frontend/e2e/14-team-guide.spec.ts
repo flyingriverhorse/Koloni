@@ -7,7 +7,9 @@ async function ask(page: Page, text: string) {
   await page.getByRole('button', { name: 'Send' }).click()
 }
 
-test('the user puts a provider in the team guide, the lead picks it for a sub-agent, and the card says so', async ({ page }) => {
+test('the user puts a provider in the team guide, the lead picks it for a sub-agent, and the card says so', async ({
+  page,
+}) => {
   await openFreshConversation(page)
 
   // The guide: a provider agents may choose, what it is good for, and its models.

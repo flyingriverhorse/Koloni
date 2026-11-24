@@ -12,7 +12,11 @@ const leave = (more: object) => ({ write: false, commands: [], agents: 0, ...mor
 
 function page(triggers: Trigger[], hosts: Record<string, string[]> = {}) {
   const h = {
-    onCreate: vi.fn(async (values: object) => ({ ...trigger(values as Partial<Trigger>), id: 'new', key: null as string | null })),
+    onCreate: vi.fn(async (values: object) => ({
+      ...trigger(values as Partial<Trigger>),
+      id: 'new',
+      key: null as string | null,
+    })),
     onSave: vi.fn().mockResolvedValue(undefined),
     onDelete: vi.fn(),
     onRun: vi.fn(),
@@ -22,7 +26,15 @@ function page(triggers: Trigger[], hosts: Record<string, string[]> = {}) {
     onAddRule: vi.fn(),
     onHosts: vi.fn(async (conversationId: string) => hosts[conversationId] ?? []),
   }
-  render(<TriggersPage triggers={triggers} conversations={[conversation, second]} draft={null} origin="http://127.0.0.1:8790" {...h} />)
+  render(
+    <TriggersPage
+      triggers={triggers}
+      conversations={[conversation, second]}
+      draft={null}
+      origin="http://127.0.0.1:8790"
+      {...h}
+    />,
+  )
   return h
 }
 const form = () => within(screen.getByRole('form', { name: /trigger/i }))
@@ -30,18 +42,33 @@ const form = () => within(screen.getByRole('form', { name: /trigger/i }))
 test('what a trigger may do on the web is summed up with the rest', () => {
   const said = (permissions: object) => leaveOf(trigger({ permissions } as never))
   expect(said(leave({ web: true }))).toBe('may search the web')
-  expect(said(leave({ hosts: ['api.example.com', 'example.org'] }))).toBe('may make GET and HEAD requests to: api.example.com, example.org')
-  expect(said(leave({ write: true, web: true, hosts: ['example.org'], notify: true }))).toBe('may change files · may search the web · may make GET and HEAD requests to: example.org · may notify')
+  expect(said(leave({ hosts: ['api.example.com', 'example.org'] }))).toBe(
+    'may make GET and HEAD requests to: api.example.com, example.org',
+  )
+  expect(said(leave({ write: true, web: true, hosts: ['example.org'], notify: true }))).toBe(
+    'may change files · may search the web · may make GET and HEAD requests to: example.org · may notify',
+  )
   // a trigger from before the web tools says nothing of them
   expect(said(leave({}))).toBe('reads only')
 })
 
 test('the form keeps what a trigger has on the web, and sends it; what is off is left out', () => {
   expect(blank('c')).toMatchObject({ web: false, hosts: [], notify: false })
-  expect(toBody({ ...blank('c'), name: 'n', message: 'm' }).permissions).toEqual({ write: false, commands: [], agents: 0 })
+  expect(toBody({ ...blank('c'), name: 'n', message: 'm' }).permissions).toEqual({
+    write: false,
+    commands: [],
+    agents: 0,
+  })
   const values = fromTrigger(trigger({ permissions: leave({ web: true, hosts: ['example.org'], notify: true }) }))
   expect(values).toMatchObject({ web: true, hosts: ['example.org'], notify: true })
-  expect(toPatch(values).permissions).toEqual({ write: false, commands: [], agents: 0, web: true, hosts: ['example.org'], notify: true })
+  expect(toPatch(values).permissions).toEqual({
+    write: false,
+    commands: [],
+    agents: 0,
+    web: true,
+    hosts: ['example.org'],
+    notify: true,
+  })
   // the hosts are a conversation's, like the commands: another one chosen, none stays ticked
   expect(withConversation(values, 'c2')).toMatchObject({ hosts: [], web: true, notify: true })
 })
@@ -52,10 +79,16 @@ test('a new trigger may be let search, ask the hosts its conversation allows, an
   const f = form()
   expect(f.getByLabelText('May search the web')).not.toBeChecked()
   expect(f.getByLabelText('May send you notifications')).not.toBeChecked()
-  expect(f.getByText('Its work searches the web without asking you. The query leaves this machine.')).toBeInTheDocument()
+  expect(
+    f.getByText('Its work searches the web without asking you. The query leaves this machine.'),
+  ).toBeInTheDocument()
   const list = await f.findByRole('group', { name: 'May make requests to these hosts' })
   expect(h.onHosts).toHaveBeenCalledWith('c')
-  expect(within(list).getAllByRole('checkbox').map(box => box.closest('label')?.textContent)).toEqual(['api.example.com', 'example.org'])
+  expect(
+    within(list)
+      .getAllByRole('checkbox')
+      .map(box => box.closest('label')?.textContent),
+  ).toEqual(['api.example.com', 'example.org'])
   // nothing is typed: a host is picked from the list, or it is not there
   expect(within(list).queryByRole('textbox')).not.toBeInTheDocument()
   await userEvent.click(within(list).getByLabelText('example.org'))
@@ -64,7 +97,9 @@ test('a new trigger may be let search, ask the hosts its conversation allows, an
   await userEvent.type(f.getByLabelText('Name'), 'T')
   await userEvent.type(f.getByLabelText('Message'), 'm')
   await userEvent.click(f.getByRole('button', { name: 'Add trigger' }))
-  expect(h.onCreate.mock.calls[0][0]).toMatchObject({ permissions: { web: true, hosts: ['example.org'], notify: true } })
+  expect(h.onCreate.mock.calls[0][0]).toMatchObject({
+    permissions: { web: true, hosts: ['example.org'], notify: true },
+  })
 })
 
 test('another conversation chosen: its own hosts are shown and none stays ticked', async () => {
@@ -80,14 +115,22 @@ test('another conversation chosen: its own hosts are shown and none stays ticked
 test('a conversation with no allowed host says how one gets on its list', async () => {
   page([])
   await newTrigger()
-  expect(await form().findByText(/This conversation has no allowed hosts yet\. A host gets on its list when you answer a request in the chat with “Always allow GET to …”\./)).toBeInTheDocument()
+  expect(
+    await form().findByText(
+      /This conversation has no allowed hosts yet\. A host gets on its list when you answer a request in the chat with “Always allow GET to …”\./,
+    ),
+  ).toBeInTheDocument()
   // what a ticked host is leave for: reading, there, and nothing wider
-  expect(form().getByText(/a ticked host is asked with GET and HEAD only - over https on its usual port/)).toBeInTheDocument()
+  expect(
+    form().getByText(/a ticked host is asked with GET and HEAD only - over https on its usual port/),
+  ).toBeInTheDocument()
   expect(form().queryByText(/any method/)).not.toBeInTheDocument()
 })
 
 test('editing: a host the trigger has is ticked and can be unticked, also one its conversation no longer lists', async () => {
-  const h = page([trigger({ permissions: leave({ hosts: ['gone.example.com', 'example.org'], web: true }) })], { c: ['example.org'] })
+  const h = page([trigger({ permissions: leave({ hosts: ['gone.example.com', 'example.org'], web: true }) })], {
+    c: ['example.org'],
+  })
   await moreOf('Nightly look', 'Edit')
   const f = form()
   expect(f.getByLabelText('May search the web')).toBeChecked()

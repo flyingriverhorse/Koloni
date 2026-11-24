@@ -2,11 +2,25 @@ import { CaretDown, Lock } from '@phosphor-icons/react'
 import { type ClipboardEvent, useState } from 'react'
 import { errorText } from '../api/client'
 import type { McpServer, NewMcpServer } from '../api/types'
-import { argumentKey, commandShown, count, downloadOf, isValue, MASK, masked, NAME, type Pasted, programOf, readPasted } from './paste'
+import {
+  argumentKey,
+  commandShown,
+  count,
+  downloadOf,
+  isValue,
+  MASK,
+  masked,
+  NAME,
+  type Pasted,
+  programOf,
+  readPasted,
+} from './paste'
 
 /** A command as a glance reads it: npx … server-github. */
 const short = ([program, ...args]: string[]) =>
-  [programOf(program), ...(args.length > 1 ? ['…'] : []), ...args.slice(-1).map(arg => arg.split(/[\\/]/).pop())].join(' ')
+  [programOf(program), ...(args.length > 1 ? ['…'] : []), ...args.slice(-1).map(arg => arg.split(/[\\/]/).pop())].join(
+    ' ',
+  )
 
 type Read = ReturnType<typeof readPasted> | null
 /** The servers read from what was pasted, and those of it that cannot be added: none while nothing, or nothing that reads, is pasted. */
@@ -19,7 +33,11 @@ type Shown = { name: string; added: boolean; missing: string[] }
 /** A card's tags, in its head: new or already here, and what stands in the way of adding it. */
 const serverTags = (server: Shown, secret: boolean, downloads: string | null) => (
   <span className="paste-server-tags">
-    {server.added ? <span className="tag">already added — will be skipped</span> : <span className="tag tag-ok">new</span>}
+    {server.added ? (
+      <span className="tag">already added — will be skipped</span>
+    ) : (
+      <span className="tag tag-ok">new</span>
+    )}
     {secret && (
       <span className="tag">
         <Lock size={11} aria-hidden="true" /> key kept secret
@@ -82,21 +100,40 @@ export function PasteServers({ servers, onAdd, onEdit, onDone }: Props) {
   const read = text.trim() ? readPasted(text) : null
   const found = serversOf(read).map(server => {
     const env = Object.fromEntries(
-      Object.entries(server.env).map(([variable, value]) => [variable, value === MASK ? (kept.get(`${server.name}\n${variable}`) ?? '') : value]),
+      Object.entries(server.env).map(([variable, value]) => [
+        variable,
+        value === MASK ? (kept.get(`${server.name}\n${variable}`) ?? '') : value,
+      ]),
     )
     // An argument with MASK in it is the key kept for it; the card shows `shown`, the request sends `command`.
-    const command = server.command.map((part, at) => (part.includes(MASK) ? (kept.get(argumentKey(server.name, at)) ?? '') : part))
+    const command = server.command.map((part, at) =>
+      part.includes(MASK) ? (kept.get(argumentKey(server.name, at)) ?? '') : part,
+    )
     const name = names.get(server.name) ?? server.name
     // Known from the servers as they are now: one added a moment ago is skipped, not added twice.
     const added = servers.some(one => one.name === name)
-    const missing = [...Object.keys(env).filter(variable => !isValue(env[variable])), ...command.flatMap((part, at) => (part ? [] : [`argument ${at}`]))]
+    const missing = [
+      ...Object.keys(env).filter(variable => !isValue(env[variable])),
+      ...command.flatMap((part, at) => (part ? [] : [`argument ${at}`])),
+    ]
     const addable = !added && NAME.test(name) && missing.length === 0
     const shown = commandShown(server.command)
-    return { key: server.name, name, command, shown, env, added, missing, addable, ticked: addable && !unticked.includes(server.name) }
+    return {
+      key: server.name,
+      name,
+      command,
+      shown,
+      env,
+      added,
+      missing,
+      addable,
+      ticked: addable && !unticked.includes(server.name),
+    }
   })
   const ticked = found.filter(server => server.ticked)
   // "Edit before adding": first one whose value is to be typed, then the first ticked, then any not added yet.
-  const editable = found.find(server => !server.added && server.missing.length > 0) ?? ticked[0] ?? found.find(server => !server.added)
+  const editable =
+    found.find(server => !server.added && server.missing.length > 0) ?? ticked[0] ?? found.find(server => !server.added)
 
   function putAway(away: [string, string][]) {
     setKept(was => new Map([...was, ...away]))
@@ -164,8 +201,8 @@ export function PasteServers({ servers, onAdd, onEdit, onDone }: Props) {
           }}
         />
         <p id="paste-text-note" className="muted provider-note">
-          Copy the block from the server’s README. Also read: the same with or without the outer “mcpServers”, one server alone, VS
-          Code’s “servers”, or a claude mcp add line.
+          Copy the block from the server’s README. Also read: the same with or without the outer “mcpServers”, one
+          server alone, VS Code’s “servers”, or a claude mcp add line.
         </p>
       </section>
       <section className="paste-side" aria-labelledby="paste-read-label">
@@ -268,8 +305,8 @@ export function PasteServers({ servers, onAdd, onEdit, onDone }: Props) {
             </ul>
             {unsupported.length > 0 && (
               <p className="muted provider-note">
-                Not added: {unsupported.map(name => name || 'this server').join(', ')} - reached over the network (url). Only servers
-                started by a command can be added yet.
+                Not added: {unsupported.map(name => name || 'this server').join(', ')} - reached over the network (url).
+                Only servers started by a command can be added yet.
               </p>
             )}
           </>
@@ -285,13 +322,20 @@ export function PasteServers({ servers, onAdd, onEdit, onDone }: Props) {
               onEdit({
                 name: editable.name,
                 command: editable.command,
-                env: Object.fromEntries(Object.entries(editable.env).map(([variable, value]) => [variable, isValue(value) ? value : ''])),
+                env: Object.fromEntries(
+                  Object.entries(editable.env).map(([variable, value]) => [variable, isValue(value) ? value : '']),
+                ),
               })
             }
           >
             Edit before adding
           </button>
-          <button type="button" className="btn btn-primary" disabled={busy || ticked.length === 0} onClick={() => void add()}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={busy || ticked.length === 0}
+            onClick={() => void add()}
+          >
             Add {count(ticked.length, 'server')}
           </button>
         </div>

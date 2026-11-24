@@ -62,7 +62,12 @@ export function OwnCommands({ projectId }: { projectId: string }) {
   const save = () =>
     act(async () => {
       const { every, ...values } = form
-      await useApp.getState().saveOwnCommand(editing, { ...values, name: values.name.trim(), role: values.role || null, project_id: every ? null : projectId })
+      await useApp.getState().saveOwnCommand(editing, {
+        ...values,
+        name: values.name.trim(),
+        role: values.role || null,
+        project_id: every ? null : projectId,
+      })
       edit(null)
       setSaved(true)
     })
@@ -71,8 +76,9 @@ export function OwnCommands({ projectId }: { projectId: string }) {
     <>
       <h2>Slash commands</h2>
       <span className="choice-note">
-        Your own commands in the message box’s / menu: <span className="mono">/name</span> and what you type after it put the text
-        in the box, <span className="mono">{'{args}'}</span> replaced by what you typed, to change before you send it.
+        Your own commands in the message box’s / menu: <span className="mono">/name</span> and what you type after it
+        put the text in the box, <span className="mono">{'{args}'}</span> replaced by what you typed, to change before
+        you send it.
       </span>
       {commands.length === 0 ? (
         <p className="muted">None yet.</p>
@@ -83,18 +89,37 @@ export function OwnCommands({ projectId }: { projectId: string }) {
               <span>
                 <span className="mono">/{command.name}</span>{' '}
                 <span className="muted">
-                  {[command.description, command.project_id === null ? 'every project' : 'this project', command.role && `to ${command.role}`].filter(Boolean).join(' · ')}
+                  {[
+                    command.description,
+                    command.project_id === null ? 'every project' : 'this project',
+                    command.role && `to ${command.role}`,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
                 </span>
               </span>
               <span>
-                <button type="button" className="btn btn-small" aria-label={`Edit /${command.name}`} data-edit disabled={busy} onClick={() => edit(command)}>
+                <button
+                  type="button"
+                  className="btn btn-small"
+                  aria-label={`Edit /${command.name}`}
+                  data-edit
+                  disabled={busy}
+                  onClick={() => edit(command)}
+                >
                   Edit
                 </button>{' '}
-                <button type="button" className="btn btn-small" aria-label={`Delete /${command.name}`} disabled={busy} onClick={() => {
+                <button
+                  type="button"
+                  className="btn btn-small"
+                  aria-label={`Delete /${command.name}`}
+                  disabled={busy}
+                  onClick={() => {
                     after.current = index
                     // (Refused, nothing went: the focus is on this row's Edit, the reason said below.)
                     void act(() => useApp.getState().deleteOwnCommand(command.id))
-                  }}>
+                  }}
+                >
                   Delete
                 </button>
               </span>
@@ -105,18 +130,41 @@ export function OwnCommands({ projectId }: { projectId: string }) {
       <h3>{editing ? 'Change the command' : 'Add a command'}</h3>
       <div className="field">
         <label htmlFor="own-name">Name</label>
-        <input ref={nameInput} id="own-name" className="input mono" value={form.name} maxLength={40} placeholder="test-yaz" aria-describedby="own-name-note" onChange={e => set({ name: e.target.value })} />
+        <input
+          ref={nameInput}
+          id="own-name"
+          className="input mono"
+          value={form.name}
+          maxLength={40}
+          placeholder="test-yaz"
+          aria-describedby="own-name-note"
+          onChange={e => set({ name: e.target.value })}
+        />
         <span id="own-name-note" className="choice-note">
           No spaces; not one of the box’s own (new, room, stop, model, mode, plan).
         </span>
       </div>
       <div className="field">
         <label htmlFor="own-description">What it does</label>
-        <input id="own-description" className="input" value={form.description} maxLength={200} onChange={e => set({ description: e.target.value })} />
+        <input
+          id="own-description"
+          className="input"
+          value={form.description}
+          maxLength={200}
+          onChange={e => set({ description: e.target.value })}
+        />
       </div>
       <div className="field">
         <label htmlFor="own-template">Text it puts in the box</label>
-        <textarea id="own-template" className="input mono" rows={3} value={form.template} maxLength={4000} placeholder="Write tests for {args}" onChange={e => set({ template: e.target.value })} />
+        <textarea
+          id="own-template"
+          className="input mono"
+          rows={3}
+          value={form.template}
+          maxLength={4000}
+          placeholder="Write tests for {args}"
+          onChange={e => set({ template: e.target.value })}
+        />
       </div>
       <div className="field">
         <label htmlFor="own-role">Hand it to a role</label>
@@ -139,7 +187,12 @@ export function OwnCommands({ projectId }: { projectId: string }) {
         </div>
       )}
       <div className="role-actions">
-        <button type="button" className="btn btn-primary" disabled={busy || !form.name.trim() || !form.template.trim()} onClick={save}>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={busy || !form.name.trim() || !form.template.trim()}
+          onClick={save}
+        >
           {editing ? 'Save command' : 'Add command'}
         </button>
         {editing && (

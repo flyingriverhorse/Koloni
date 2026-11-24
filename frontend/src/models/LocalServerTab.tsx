@@ -61,7 +61,8 @@ function gpuOf({ gpu }: LocalServer): string {
 }
 
 /** The models to choose from: those in the folder, the one named first when it is not among them. */
-const modelChoices = (named: string, inFolder: string[]) => (named && !inFolder.includes(named) ? [named, ...inFolder] : inFolder)
+const modelChoices = (named: string, inFolder: string[]) =>
+  named && !inFolder.includes(named) ? [named, ...inFolder] : inFolder
 
 const POLL_MS = 3000
 
@@ -100,7 +101,10 @@ export function LocalServerTab({
     let timer: ReturnType<typeof setTimeout>
     let live = true
     const next = () => {
-      timer = setTimeout(() => void (document.hidden ? Promise.resolve() : read()).finally(() => live && next()), POLL_MS)
+      timer = setTimeout(
+        () => void (document.hidden ? Promise.resolve() : read()).finally(() => live && next()),
+        POLL_MS,
+      )
     }
     next()
     return () => {
@@ -114,7 +118,12 @@ export function LocalServerTab({
     setBusy(true)
     setError(null)
     try {
-      shown(await onRun(action, action === 'stop' || !form || exe === null ? undefined : { executable: exe.trim(), args: toArgs(form) }))
+      shown(
+        await onRun(
+          action,
+          action === 'stop' || !form || exe === null ? undefined : { executable: exe.trim(), args: toArgs(form) },
+        ),
+      )
     } catch (err) {
       setError(errorText(err))
     } finally {
@@ -122,7 +131,14 @@ export function LocalServerTab({
     }
   }
 
-  if (!told || !form || exe === null) return error ? <div role="alert" className="alert">{error}</div> : <p className="muted">Reading…</p>
+  if (!told || !form || exe === null)
+    return error ? (
+      <div role="alert" className="alert">
+        {error}
+      </div>
+    ) : (
+      <p className="muted">Reading…</p>
+    )
   const set = (field: keyof ServerForm) => (value: string) => setForm({ ...form, [field]: value })
   // The model named stays a choice when it is not in the folder: nothing is lost by opening the form.
   const models = modelChoices(form.model, told.models)
@@ -132,14 +148,22 @@ export function LocalServerTab({
         {stateText(told)}
       </p>
       {running && <p className="muted">{gpuOf(told)}</p>}
-      <p className="muted provider-note">It starts only when you press Start, and stops when KOLONİ closes. No agent can start it; Start runs exactly what is shown here.</p>
+      <p className="muted provider-note">
+        It starts only when you press Start, and stops when KOLONİ closes. No agent can start it; Start runs exactly
+        what is shown here.
+      </p>
       <div className="field">
         <label htmlFor="local-server-exe">Program</label>
         <input id="local-server-exe" className="input mono" value={exe} onChange={e => setExe(e.target.value)} />
       </div>
       <div className="field">
         <label htmlFor="local-server-model">Model</label>
-        <select id="local-server-model" className="input" value={form.model} onChange={e => set('model')(e.target.value)}>
+        <select
+          id="local-server-model"
+          className="input"
+          value={form.model}
+          onChange={e => set('model')(e.target.value)}
+        >
           <option value="">None (-m not given)</option>
           {models.map(name => (
             <option key={name} value={name}>
@@ -152,13 +176,24 @@ export function LocalServerTab({
         {FIELDS.slice(1).map(([field, label]) => (
           <div className="field" key={field}>
             <label htmlFor={`local-server-${field}`}>{label}</label>
-            <input id={`local-server-${field}`} className="input mono" value={form[field]} onChange={e => set(field)(e.target.value)} />
+            <input
+              id={`local-server-${field}`}
+              className="input mono"
+              value={form[field]}
+              onChange={e => set(field)(e.target.value)}
+            />
           </div>
         ))}
       </div>
       <div className="field">
         <label htmlFor="local-server-advanced">Advanced: every other argument, as given</label>
-        <textarea id="local-server-advanced" className="input mono" rows={3} value={form.advanced} onChange={e => set('advanced')(e.target.value)} />
+        <textarea
+          id="local-server-advanced"
+          className="input mono"
+          rows={3}
+          value={form.advanced}
+          onChange={e => set('advanced')(e.target.value)}
+        />
       </div>
       {error && (
         <div role="alert" className="alert">

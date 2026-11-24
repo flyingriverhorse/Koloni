@@ -40,7 +40,15 @@ export async function takeFrames(file: Blob, make: Makers = BROWSER): Promise<Bl
       video.currentTime = time
       await seeked
       canvas.getContext('2d')?.drawImage(video, 0, 0, canvas.width, canvas.height)
-      frames.push(await new Promise<Blob>((done, failed) => canvas.toBlob(blob => (blob ? done(blob) : failed(new Error('a frame could not be drawn'))), 'image/jpeg', 0.85)))
+      frames.push(
+        await new Promise<Blob>((done, failed) =>
+          canvas.toBlob(
+            blob => (blob ? done(blob) : failed(new Error('a frame could not be drawn'))),
+            'image/jpeg',
+            0.85,
+          ),
+        ),
+      )
     }
     return frames
   } finally {

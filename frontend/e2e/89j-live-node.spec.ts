@@ -11,7 +11,8 @@ const NAME = 'Live Claude'
 const plan = path.join(E2E_ROOT, 'live-claude-plan.json')
 const command = path.join(E2E_ROOT, process.platform === 'win32' ? 'live-claude.cmd' : 'live-claude')
 const fake = path.join(REPO_ROOT, 'tests', 'fake_claude_native_cli.py')
-const lowContrast = async (page: Page, selector: string) => (await page.locator(selector).evaluate(contrasts)).filter(piece => piece.ratio < 4.5)
+const lowContrast = async (page: Page, selector: string) =>
+  (await page.locator(selector).evaluate(contrasts)).filter(piece => piece.ratio < 4.5)
 
 async function removeIt(request: APIRequestContext) {
   for (const provider of (await (await request.get('/api/providers')).json()) as { id: string; name: string }[])
@@ -23,7 +24,10 @@ test.afterEach(async ({ request }) => {
 })
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`a CLI agent's node says how full its context is while it works, and nothing once it has finished (${theme})`, async ({ page, request }) => {
+  test(`a CLI agent's node says how full its context is while it works, and nothing once it has finished (${theme})`, async ({
+    page,
+    request,
+  }) => {
     test.setTimeout(60_000)
     writeFileSync(
       plan,
@@ -33,17 +37,24 @@ for (const theme of ['light', 'dark'] as const) {
         script: [{ say: 'Looking at hello.py.' }, { sleep: 8 }, { say: 'It prints hi.' }],
       }),
     )
-    if (process.platform === 'win32') writeFileSync(command, `@set "FAKE_CLI_PLAN=${plan}"\r\n@"${PYTHON}" "${fake}" %*\r\n`)
+    if (process.platform === 'win32')
+      writeFileSync(command, `@set "FAKE_CLI_PLAN=${plan}"\r\n@"${PYTHON}" "${fake}" %*\r\n`)
     else writeFileSync(command, `#!/bin/sh\nFAKE_CLI_PLAN="${plan}" exec "${PYTHON}" "${fake}" "$@"\n`, { mode: 0o755 })
     await removeIt(request)
-    const made = await request.post('/api/providers', { headers: OWN, data: { name: NAME, kind: 'claude_cli', executable: command, mode: 'native' } })
+    const made = await request.post('/api/providers', {
+      headers: OWN,
+      data: { name: NAME, kind: 'claude_cli', executable: command, mode: 'native' },
+    })
     expect(made.ok()).toBe(true)
     const provider = (await made.json()) as { id: string }
 
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await page.setViewportSize({ width: 1440, height: 900 })
     const id = await openFreshConversation(page)
-    const set = await page.request.patch(`/api/conversations/${id}`, { headers: OWN, data: { permission_mode: 'full_auto', provider_id: provider.id } })
+    const set = await page.request.patch(`/api/conversations/${id}`, {
+      headers: OWN,
+      data: { permission_mode: 'full_auto', provider_id: provider.id },
+    })
     expect(set.ok()).toBe(true)
     await page.getByRole('button', { name: 'Canvas', exact: true }).click()
     await page.getByLabel('Message').fill(`what does hello.py print? (${theme})`)
@@ -54,7 +65,9 @@ for (const theme of ['light', 'dark'] as const) {
     // its node while it works: none opens by itself.)
     await node.locator('.node-title').click()
     await openAgentFold(await windowFromPanel(page), 'Details')
-    await expect(page.getByRole('region', { name: 'Agent window' }).getByText('17% full')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByRole('region', { name: 'Agent window' }).getByText('17% full')).toBeVisible({
+      timeout: 15_000,
+    })
     await node.click()
     // (Its window is open: the inspector does not show it a second time, R160.)
     await expect(page.getByRole('complementary', { name: 'Inspector' }).getByText('Shown in its window.')).toBeVisible()

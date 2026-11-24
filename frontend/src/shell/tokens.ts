@@ -36,7 +36,13 @@ export function tokens(run: Pick<Run, 'input_tokens' | 'output_tokens'>): string
  * What of the tokens sent the provider says it read again from its cache and wrote to it:
  * each part only where it said so, and null where it said neither - never a made-up zero.
  */
-export function cached({ cache_read_tokens: read, cache_write_tokens: written }: { cache_read_tokens: number | null; cache_write_tokens: number | null }): string | null {
+export function cached({
+  cache_read_tokens: read,
+  cache_write_tokens: written,
+}: {
+  cache_read_tokens: number | null
+  cache_write_tokens: number | null
+}): string | null {
   const show = (n: number) => n.toLocaleString('en-US')
   if (read === null) return written === null ? null : `${show(written)} written to the cache`
   return `${show(read)} read again from the cache${written === null ? '' : ` · ${show(written)} written to it`}`
@@ -46,7 +52,13 @@ export function cached({ cache_read_tokens: read, cache_write_tokens: written }:
  * What Copilot says an agent spent in its own unit: AI credits where it said them (given in billionths), else
  * premium requests, its older unit; null where it said neither - never a made-up zero.
  */
-export function spent({ nano_aiu: nano, premium_requests: premium }: { nano_aiu: number | null; premium_requests: number | null }): string | null {
+export function spent({
+  nano_aiu: nano,
+  premium_requests: premium,
+}: {
+  nano_aiu: number | null
+  premium_requests: number | null
+}): string | null {
   const show = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 2 })
   if (nano !== null) return `${nano > 0 && nano < 1e7 ? '< 0.01' : show(nano / 1e9)} AI credits`
   if (premium === null) return null

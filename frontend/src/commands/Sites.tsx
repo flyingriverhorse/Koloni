@@ -42,7 +42,13 @@ export function SiteForm({ onAdd }: { onAdd: (host: string, askFirst: boolean) =
           }}
         />
         <label className="muted" title="Asked about every time an agent opens it, Full auto too">
-          <input type="checkbox" aria-label="Ask first for the new site" checked={askFirst} onChange={e => setAskFirst(e.target.checked)} /> Ask first
+          <input
+            type="checkbox"
+            aria-label="Ask first for the new site"
+            checked={askFirst}
+            onChange={e => setAskFirst(e.target.checked)}
+          />{' '}
+          Ask first
         </label>
         <button type="button" className="btn btn-small" disabled={!host.trim()} onClick={() => void add()}>
           Allow site
@@ -87,20 +93,35 @@ export function ProjectSites({ projectId, onCount }: { projectId: string; onCoun
   return (
     <section aria-label="Sites agents open" className="field">
       <h2>Sites agents open</h2>
-      <span className="choice-note">The agents’ own browsers open these in every chat of this project without asking, unless marked Ask first.</span>
+      <span className="choice-note">
+        The agents’ own browsers open these in every chat of this project without asking, unless marked Ask first.
+      </span>
       {sites?.length === 0 && <p className="muted">None yet.</p>}
       {sites?.map(site => (
         <div key={site.id} className="allow-list-rule">
           <span className="mono">{site.host}</span>
           <label className="muted">
-            <input type="checkbox" aria-label={`Ask first for ${site.host}`} checked={site.ask_first} onChange={e => void act(api.patch(`/allowed-web/${site.id}`, { ask_first: e.target.checked }))} /> Ask first
+            <input
+              type="checkbox"
+              aria-label={`Ask first for ${site.host}`}
+              checked={site.ask_first}
+              onChange={e => void act(api.patch(`/allowed-web/${site.id}`, { ask_first: e.target.checked }))}
+            />{' '}
+            Ask first
           </label>
-          <button type="button" className="icon-btn" aria-label={`Remove site ${site.host}`} onClick={() => void act(api.delete(`/allowed-web/${site.id}`))}>
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label={`Remove site ${site.host}`}
+            onClick={() => void act(api.delete(`/allowed-web/${site.id}`))}
+          >
             <X size={12} />
           </button>
         </div>
       ))}
-      <SiteForm onAdd={(host, askFirst) => api.post(`/projects/${projectId}/sites`, { host, ask_first: askFirst }).then(read)} />
+      <SiteForm
+        onAdd={(host, askFirst) => api.post(`/projects/${projectId}/sites`, { host, ask_first: askFirst }).then(read)}
+      />
       {error && (
         <div role="alert" className="alert">
           {error}

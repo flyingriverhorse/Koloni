@@ -41,7 +41,8 @@ export interface ChecksData extends Record<string, unknown> {
 const LOOKS = new Set(['review', 'finding', 'try'])
 
 /** Whether what failed in the Checked rows is only a look's hold. */
-const heldOnly = (checked: Message | undefined, rows = checked?.checked ?? []) => rows.some(row => row.state === 'failed') && rows.every(row => row.state !== 'failed' || LOOKS.has(row.kind))
+const heldOnly = (checked: Message | undefined, rows = checked?.checked ?? []) =>
+  rows.some(row => row.state === 'failed') && rows.every(row => row.state !== 'failed' || LOOKS.has(row.kind))
 
 /**
  * A command's tool, short: "pytest" of `python -m pytest -q`, "c8" of S9's `npx --no c8 …`, "python -c" of `python -c "…"`
@@ -52,18 +53,28 @@ export function toolOf(command: string): string {
   const after = words.indexOf('-m')
   const inline = inlineAt(words)
   if (inline > 0 && (after < 0 || inline < after)) return `${words[inline - 1].split(/[\\/]/).at(-1)} ${words[inline]}`
-  return (after >= 0 ? words[after + 1] : words.find(word => !word.startsWith('-') && !/^(npx|uv|poetry|run|python[\d.]*|py)$/.test(word))) ?? command
+  return (
+    (after >= 0
+      ? words[after + 1]
+      : words.find(word => !word.startsWith('-') && !/^(npx|uv|poetry|run|python[\d.]*|py)$/.test(word))) ?? command
+  )
 }
 
 /** Where an interpreter is handed its code on the line - `python -c`, `node -e`, `bash -c` -; -1 for none. */
 const inlineAt = (words: string[]) =>
-  words.findIndex((word, at) => at > 0 && /^-[ce]$/.test(word) && /^(python[\d.]*|py|node|bash|sh|zsh|pwsh|ruby|perl)(\.exe)?$/i.test(words[at - 1].split(/[\\/]/).at(-1) ?? ''))
+  words.findIndex(
+    (word, at) =>
+      at > 0 &&
+      /^-[ce]$/.test(word) &&
+      /^(python[\d.]*|py|node|bash|sh|zsh|pwsh|ruby|perl)(\.exe)?$/i.test(words[at - 1].split(/[\\/]/).at(-1) ?? ''),
+  )
 
 export type Line = { state: Row['state']; text: string; since?: string | null }
 
 /** S6's rows by their step: "Full tests running: cmd" is "full tests · running", "Related tests passed: cmd" "related tests · passed"; any other row as it is. */
 function stepOf(row: Row): string | null {
-  const own = row.command && row.text.endsWith(`: ${row.command}`) ? row.text.slice(0, -row.command.length - 2) : row.text
+  const own =
+    row.command && row.text.endsWith(`: ${row.command}`) ? row.text.slice(0, -row.command.length - 2) : row.text
   const step = /^(Full|Related) tests (.*)$/.exec(own)
   return step ? `${step[1].toLowerCase()} tests · ${step[2]}` : null
 }
@@ -77,22 +88,39 @@ export function lineOf(row: Row): Line {
   if (row.state === 'running' && row.started_at) return { state: row.state, text: 'full tests', since: row.started_at }
   const step = stepOf(row)
   const counts = row.counts
-  if (!counts || !row.command || counts.passed + counts.failed === 0) return { state: row.state, text: step ?? row.text }
-  if (step?.startsWith('related')) return { state: row.state, text: `related tests · ${counts.passed} passed${counts.failed ? ` · ${counts.failed} failed` : ''}` }
+  if (!counts || !row.command || counts.passed + counts.failed === 0)
+    return { state: row.state, text: step ?? row.text }
+  if (step?.startsWith('related'))
+    return {
+      state: row.state,
+      text: `related tests · ${counts.passed} passed${counts.failed ? ` · ${counts.failed} failed` : ''}`,
+    }
   const unit = counts.unit === 'tests' ? '' : ` ${counts.unit}`
   const failed = counts.failed ? ` · ${counts.failed} ✗` : ''
   return { state: row.state, text: `${toolOf(row.command)} · ${counts.passed}${unit} ✓${failed}` }
 }
 
 /** S5a: the kinds of work KOLONİ checks after a turn wrote them (`app.proof_kinds.KINDS`), each one line on the node. */
-const KINDS: Record<string, string> = { docs: 'documents', slides: 'slides', diagram: 'diagrams', data: 'data', config: 'config files', scripts: 'scripts', style: 'code style and types' }
+const KINDS: Record<string, string> = {
+  docs: 'documents',
+  slides: 'slides',
+  diagram: 'diagrams',
+  data: 'data',
+  config: 'config files',
+  scripts: 'scripts',
+  style: 'code style and types',
+}
 
 /** A kind's rows as one line, as a test run's: "documents · 2 ✓ · 1 ✗" - its files that passed and failed; "documents · not checked" where it was switched off. */
 function kindLine(kind: string, rows: Row[]): Line {
   const passed = rows.filter(one => one.state === 'passed').length
   const failed = rows.filter(one => one.state === 'failed').length
   const state: Row['state'] = failed ? 'failed' : passed ? 'passed' : 'note'
-  if (!passed && !failed) return { state, text: `${KINDS[kind]} · ${rows.some(one => one.text.startsWith('Not checked')) ? 'not checked' : 'noted'}` }
+  if (!passed && !failed)
+    return {
+      state,
+      text: `${KINDS[kind]} · ${rows.some(one => one.text.startsWith('Not checked')) ? 'not checked' : 'noted'}`,
+    }
   return { state, text: `${KINDS[kind]} · ${passed} ✓${failed ? ` · ${failed} ✗` : ''}` }
 }
 
@@ -104,7 +132,12 @@ export function linesOf(rows: Row[]): Line[] {
     if (!(one.kind in KINDS)) lines.push(lineOf(one))
     else if (!seen.has(one.kind)) {
       seen.add(one.kind)
-      lines.push(kindLine(one.kind, rows.filter(other => other.kind === one.kind)))
+      lines.push(
+        kindLine(
+          one.kind,
+          rows.filter(other => other.kind === one.kind),
+        ),
+      )
     }
   }
   return lines
@@ -126,7 +159,8 @@ function passesOf(calls: { arguments: string }[]): number {
 }
 
 /** Its fix rounds: at its end the Checked section's count (the tests run again on a test KOLONİ asked for are none), before it each pass again. */
-const roundsOf = (checked: Message | undefined, said: number, calls: { arguments: string }[]) => (checked ? said : Math.max(passesOf(calls) - 1, 0))
+const roundsOf = (checked: Message | undefined, said: number, calls: { arguments: string }[]) =>
+  checked ? said : Math.max(passesOf(calls) - 1, 0)
 
 /** The Orchestrator's strip: "✓ checked · 1 round", "✓ checked · related only" (the whole suite stopped or not run), "✗ still failing", "✗ on hold" (a look holds, every check passed), "not checked" - or nothing before its end. */
 export function stripOf(data: ChecksData): string | null {
@@ -187,12 +221,22 @@ export function checksNode(state: ConvState, run: Run, nodes: GraphNode[], edges
 function recipeEnd(run: Run, nodes: GraphNode[], leadId: string): { team?: string; from: string } {
   const frame = nodes.filter(node => node.kind === 'team' && node.runId === run.id).at(-1)
   if (!frame) return { from: `agent:${leadId}` }
-  const last = run.teams?.find(row => row.team_id === frame.refId)?.state?.passes.at(-1)?.agents.at(-1)
-  return { team: frame.id, from: last && nodes.some(node => node.id === `agent:${last}`) ? `agent:${last}` : `agent:${leadId}` }
+  const last = run.teams
+    ?.find(row => row.team_id === frame.refId)
+    ?.state?.passes.at(-1)
+    ?.agents.at(-1)
+  return {
+    team: frame.id,
+    from: last && nodes.some(node => node.id === `agent:${last}`) ? `agent:${last}` : `agent:${leadId}`,
+  }
 }
 
 /** The Checked rows that say nothing was checked, each with the strip's words (none at Nothing: the project's standing choice). */
-const OFF_STRIPS: Record<string, string | null> = { chat_off: OFF_FOR_CHAT, not_checked: null, recipe_off: OFF_IN_RECIPE }
+const OFF_STRIPS: Record<string, string | null> = {
+  chat_off: OFF_FOR_CHAT,
+  not_checked: null,
+  recipe_off: OFF_IN_RECIPE,
+}
 
 /** Off for this chat, or set to Nothing: no Checks node is drawn - the Orchestrator's strip says it, so nobody takes the turn as checked. */
 function notChecked(nodes: GraphNode[], leadId: string, said: string | null): null {

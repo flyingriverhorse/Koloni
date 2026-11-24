@@ -9,7 +9,13 @@ import { toolSummary } from '../chat/toolSummary'
 import { agent, assistantMessage, convState, openAgentFold, run, toolCall, userMessage } from '../test-fixtures'
 import { AgentWindow } from './AgentWindow'
 
-const channel = (id: string, from: string, to: string, kind: ChannelMessage['kind'], content: string): ChannelMessage => ({
+const channel = (
+  id: string,
+  from: string,
+  to: string,
+  kind: ChannelMessage['kind'],
+  content: string,
+): ChannelMessage => ({
   id,
   run_id: 'r',
   from_agent_id: from,
@@ -31,8 +37,24 @@ const state = convState({
   runs: [run('r', 'running')],
   agents: [
     agent('r', 'running', { id: 'lead' }),
-    agent('r', 'completed', { id: 'one', parent_agent_id: 'lead', tool_call_id: '1', role_name: 'Reviewer', name: 'Reviewer', task: 'Look', depth: 1 }),
-    agent('r', 'completed', { id: 'two', parent_agent_id: 'lead', tool_call_id: '2', role_name: 'Reviewer', name: 'Reviewer 2', task: 'Look again', depth: 1 }),
+    agent('r', 'completed', {
+      id: 'one',
+      parent_agent_id: 'lead',
+      tool_call_id: '1',
+      role_name: 'Reviewer',
+      name: 'Reviewer',
+      task: 'Look',
+      depth: 1,
+    }),
+    agent('r', 'completed', {
+      id: 'two',
+      parent_agent_id: 'lead',
+      tool_call_id: '2',
+      role_name: 'Reviewer',
+      name: 'Reviewer 2',
+      task: 'Look again',
+      depth: 1,
+    }),
   ],
   messages: [
     userMessage('r', 'review it'),
@@ -47,10 +69,14 @@ const state = convState({
     toolCall('1', 'r', 'spawn_agent', 'succeeded', '{"role":"Reviewer"}', { agent_id: 'lead', message_id: 'm1' }),
     toolCall('2', 'r', 'spawn_agent', 'succeeded', '{"role":"Reviewer"}', { agent_id: 'lead', message_id: 'm1' }),
     toolCall('3', 'r', 'message_agent', 'succeeded', '{"to":"Lead","message":"Which file?"}', {
-      agent_id: 'one', message_id: 'k1', result: 'Lead replied:\n\nhello.py',
+      agent_id: 'one',
+      message_id: 'k1',
+      result: 'Lead replied:\n\nhello.py',
     }),
     toolCall('4', 'r', 'message_agent', 'succeeded', '{"to":"Reviewer 2","message":"And the tests?"}', {
-      agent_id: 'lead', message_id: 'm1', result: 'Reviewer 2 replied:\n\nThere are none.',
+      agent_id: 'lead',
+      message_id: 'm1',
+      result: 'Reviewer 2 replied:\n\nThere are none.',
     }),
   ],
   channelMessages: [
@@ -125,12 +151,14 @@ test('the chat shows a message from a sub-agent as its own, and the Lead’s mes
   const row = screen.getByRole('button', { name: /Orchestrator → Reviewer 2/ })
   expect(row).toHaveTextContent('done')
   await userEvent.click(row)
-  expect(screen.getAllByText('And the tests?')).toHaveLength(2)  // the row's head, and in full
+  expect(screen.getAllByText('And the tests?')).toHaveLength(2) // the row's head, and in full
   expect(screen.getByText('There are none.')).toBeInTheDocument()
 })
 
 test('an agent’s window shows what it was sent and by whom', async () => {
-  render(<AgentWindow state={state} agentId="two" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />)
+  render(
+    <AgentWindow state={state} agentId="two" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />,
+  )
   expect(screen.getByText('Reviewer 2')).toBeInTheDocument()
   await openAgentFold('Every step as recorded')
   expect(screen.getByText('from Orchestrator')).toBeInTheDocument()
@@ -139,10 +167,18 @@ test('an agent’s window shows what it was sent and by whom', async () => {
 })
 
 test('a message from nobody is KOLONİ’s own word - the user’s said while it works among them (89d C) - in its window and the chat', async () => {
-  const told = { ...sent('t1', 'x', 'two', 'The user tells you while you work - their own word: "use blue"'), from_agent_id: null }
-  const toLead = { ...sent('t2', 'x', 'lead', 'KOLONİ: Reviewer finished its turn before it read your message'), from_agent_id: null }
+  const told = {
+    ...sent('t1', 'x', 'two', 'The user tells you while you work - their own word: "use blue"'),
+    from_agent_id: null,
+  }
+  const toLead = {
+    ...sent('t2', 'x', 'lead', 'KOLONİ: Reviewer finished its turn before it read your message'),
+    from_agent_id: null,
+  }
   const said = convState({ ...state, messages: [...state.messages, told, toLead] })
-  const { unmount } = render(<AgentWindow state={said} agentId="two" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />)
+  const { unmount } = render(
+    <AgentWindow state={said} agentId="two" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />,
+  )
   await openAgentFold('Every step as recorded')
   expect(screen.getByText('from Orchestrator')).toBeInTheDocument()
   expect(screen.getByText('from KOLONİ')).toBeInTheDocument()

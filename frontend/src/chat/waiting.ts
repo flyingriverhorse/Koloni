@@ -1,5 +1,21 @@
 import { isReadyCard } from '../agents/teamRun'
-import type { Agent, Away, AwayJob, BacklogTask, Command, FileChange, Merge, NotesOffer, PendingRole, PendingSkill, Question, Run, ToolCall, TriggerProposal, WebRequest } from '../api/types'
+import type {
+  Agent,
+  Away,
+  AwayJob,
+  BacklogTask,
+  Command,
+  FileChange,
+  Merge,
+  NotesOffer,
+  PendingRole,
+  PendingSkill,
+  Question,
+  Run,
+  ToolCall,
+  TriggerProposal,
+  WebRequest,
+} from '../api/types'
 import { keptToTake } from '../changes/copies'
 import type { ConvState } from '../state/applyEvent'
 import { asksOutside } from './toolSummary'
@@ -49,7 +65,8 @@ const decision = { kind: 'decision' as const, current: true }
  * B-126); upgrade if a turn whose commands wrote nothing is seen counted as a copy to take in.
  */
 const holdsWork = (conv: ConvState, runId: string) =>
-  conv.fileChanges.some(f => f.run_id === runId && f.status === 'in_copy') || conv.commands.some(c => c.run_id === runId && c.started_at !== null)
+  conv.fileChanges.some(f => f.run_id === runId && f.status === 'in_copy') ||
+  conv.commands.some(c => c.run_id === runId && c.started_at !== null)
 
 /**
  * Everything of the chat that waits for you, in one list, whatever the chat could draw (B-99): its questions still asked -
@@ -60,32 +77,88 @@ const holdsWork = (conv: ConvState, runId: string) =>
 export function waitingOf(conv: ConvState): Waiting[] {
   const last = conv.runs.at(-1)
   // A recipe's "Ready for you" card over a copy that changed nothing still asks (Ask for changes), as a decision.
-  const ready = (q: Question): WaitingKind => (!isReadyCard(q) ? 'question' : holdsWork(conv, q.run_id) ? 'ready' : 'decision')
+  const ready = (q: Question): WaitingKind =>
+    !isReadyCard(q) ? 'question' : holdsWork(conv, q.run_id) ? 'ready' : 'decision'
   const rows: Waiting[] = [
     ...conv.questions
-      .filter(q => q.status === 'pending' || (q.run_id === last?.id && (q.status === 'cancelled' || q.status === 'interrupted')))
-      .map(q => ({ kind: ready(q), key: q.id, agentId: q.agent_id, current: q.status === 'pending', what: 'question' as const, item: q })),
-    ...conv.commands.filter(c => c.status === 'proposed').map(c => ({ ...decision, key: c.id, agentId: c.agent_id, what: 'command' as const, item: c })),
-    ...conv.fileChanges.filter(f => f.status === 'proposed').map(f => ({ ...decision, key: f.id, agentId: f.agent_id, what: 'change' as const, item: f })),
-    ...conv.webRequests.filter(w => w.status === 'proposed').map(w => ({ ...decision, key: w.id, agentId: w.agent_id, what: 'web' as const, item: w })),
+      .filter(
+        q =>
+          q.status === 'pending' || (q.run_id === last?.id && (q.status === 'cancelled' || q.status === 'interrupted')),
+      )
+      .map(q => ({
+        kind: ready(q),
+        key: q.id,
+        agentId: q.agent_id,
+        current: q.status === 'pending',
+        what: 'question' as const,
+        item: q,
+      })),
+    ...conv.commands
+      .filter(c => c.status === 'proposed')
+      .map(c => ({ ...decision, key: c.id, agentId: c.agent_id, what: 'command' as const, item: c })),
+    ...conv.fileChanges
+      .filter(f => f.status === 'proposed')
+      .map(f => ({ ...decision, key: f.id, agentId: f.agent_id, what: 'change' as const, item: f })),
+    ...conv.webRequests
+      .filter(w => w.status === 'proposed')
+      .map(w => ({ ...decision, key: w.id, agentId: w.agent_id, what: 'web' as const, item: w })),
     // (Its opener is the one that asks.)
-    ...conv.agents.filter(a => a.status === 'proposed').map(a => ({ ...decision, key: a.id, agentId: a.parent_agent_id, what: 'spawn' as const, item: a })),
-    ...conv.pendingRoles.map(r => ({ ...decision, key: r.tool_call_id, agentId: r.agent_id, what: 'role' as const, item: r })),
-    ...conv.pendingSkills.map(s => ({ ...decision, key: s.tool_call_id, agentId: s.agent_id, what: 'skill' as const, item: s })),
-    ...conv.toolCalls.filter(asksOutside).map(t => ({ ...decision, key: t.id, agentId: t.agent_id, what: 'outside' as const, item: t })),
+    ...conv.agents
+      .filter(a => a.status === 'proposed')
+      .map(a => ({ ...decision, key: a.id, agentId: a.parent_agent_id, what: 'spawn' as const, item: a })),
+    ...conv.pendingRoles.map(r => ({
+      ...decision,
+      key: r.tool_call_id,
+      agentId: r.agent_id,
+      what: 'role' as const,
+      item: r,
+    })),
+    ...conv.pendingSkills.map(s => ({
+      ...decision,
+      key: s.tool_call_id,
+      agentId: s.agent_id,
+      what: 'skill' as const,
+      item: s,
+    })),
+    ...conv.toolCalls
+      .filter(asksOutside)
+      .map(t => ({ ...decision, key: t.id, agentId: t.agent_id, what: 'outside' as const, item: t })),
     // (Only the newest turn's plan can still be approved.)
-    ...(last?.plan?.status === 'proposed' ? [{ ...decision, key: last.id, agentId: null, what: 'plan' as const, item: last }] : []),
+    ...(last?.plan?.status === 'proposed'
+      ? [{ ...decision, key: last.id, agentId: null, what: 'plan' as const, item: last }]
+      : []),
     // B-146: a job of Away that waits for your word. (The Orchestrator's offer to go away is no card: its Go away line.)
     ...conv.away.flatMap(a =>
-      a.status === 'planned' ? [] : a.jobs.filter(job => job.state === 'waits').map(job => ({ ...decision, key: `${a.id}:${job.task_id}`, agentId: null, what: 'night' as const, item: { away: a, job } })),
+      a.status === 'planned'
+        ? []
+        : a.jobs
+            .filter(job => job.state === 'waits')
+            .map(job => ({
+              ...decision,
+              key: `${a.id}:${job.task_id}`,
+              agentId: null,
+              what: 'night' as const,
+              item: { away: a, job },
+            })),
     ),
     // Slice 69: a trigger an agent proposed, until your Approve, Edit or Reject.
-    ...conv.triggerProposals.filter(p => p.status === 'proposed').map(p => ({ ...decision, key: p.id, agentId: null, what: 'trigger' as const, item: p })),
+    ...conv.triggerProposals
+      .filter(p => p.status === 'proposed')
+      .map(p => ({ ...decision, key: p.id, agentId: null, what: 'trigger' as const, item: p })),
     // K-bilgi 6: what turns found for the Project notes, until your Add or Not now - it holds no turn.
-    ...conv.notesOffers.filter(o => o.status === 'waiting').map(o => ({ ...decision, key: o.id, agentId: null, what: 'notes' as const, item: o })),
+    ...conv.notesOffers
+      .filter(o => o.status === 'waiting')
+      .map(o => ({ ...decision, key: o.id, agentId: null, what: 'notes' as const, item: o })),
     ...conv.merges
       .filter(m => m.status === 'pending' || keptToTake(m))
-      .map(m => ({ kind: m.status === 'pending' ? ('decision' as const) : ('ready' as const), key: m.id, agentId: m.agent_id, current: true, what: 'merge' as const, item: m })),
+      .map(m => ({
+        kind: m.status === 'pending' ? ('decision' as const) : ('ready' as const),
+        key: m.id,
+        agentId: m.agent_id,
+        current: true,
+        what: 'merge' as const,
+        item: m,
+      })),
   ]
   return rows.sort((a, b) => KINDS.indexOf(a.kind) - KINDS.indexOf(b.kind))
 }
@@ -99,13 +172,19 @@ export const decidedOf = (conv: ConvState): Question[] =>
  *  shortcut: shown in the chat's Decided for you only - the pill's "decided" count, Ready's Told you and the canvas count
  *  `decidedOf` alone; count these there too if one is missed. */
 export const decidedTasks = (backlog: BacklogTask[] | null, chat: string): BacklogTask[] =>
-  (backlog ?? []).filter(task => task.po?.chat === chat && !task.po.seen && (task.po.lead === 'add' ? task.status !== 'proposed' : task.po.lead === 'no' && task.status === 'proposed'))
+  (backlog ?? []).filter(
+    task =>
+      task.po?.chat === chat &&
+      !task.po.seen &&
+      (task.po.lead === 'add' ? task.status !== 'proposed' : task.po.lead === 'no' && task.status === 'proposed'),
+  )
 
 /** K-yargıç: the commands of this chat Full auto's check of the user's words let run with no card, or did not run, not
  *  yet OK'd.
  *  shortcut: as `decidedTasks`, shown in the chat's Decided for you only - not in `decidedOf`'s pill or Ready's counts;
  *  count these there too if one is missed. */
-export const judgedCommands = (conv: ConvState): Command[] => conv.commands.filter(c => c.judged != null && c.judged.verdict !== 'ask' && !c.judged.seen)
+export const judgedCommands = (conv: ConvState): Command[] =>
+  conv.commands.filter(c => c.judged != null && c.judged.verdict !== 'ask' && !c.judged.seen)
 
 // What a row of the list is, in the canvas's one line: one, and more than one.
 const WORDS: Record<Exclude<Waiting['what'], 'question'>, [string, string]> = {
@@ -127,7 +206,12 @@ const WORDS: Record<Exclude<Waiting['what'], 'question'>, [string, string]> = {
 export function waitingSummary(rows: Waiting[]): string {
   const said = new Map<string, [number, [string, string]]>()
   for (const row of rows.filter(one => one.current)) {
-    const words: [string, string] = row.kind === 'ready' ? ['copy to take in', 'copies to take in'] : row.what === 'question' ? ['question', 'questions'] : WORDS[row.what]
+    const words: [string, string] =
+      row.kind === 'ready'
+        ? ['copy to take in', 'copies to take in']
+        : row.what === 'question'
+          ? ['question', 'questions']
+          : WORDS[row.what]
     said.set(words[0], [(said.get(words[0])?.[0] ?? 0) + 1, words])
   }
   return [...said.values()].map(([n, [one, more]]) => `${n} ${n === 1 ? one : more}`).join(' · ')

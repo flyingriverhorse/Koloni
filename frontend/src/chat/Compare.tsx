@@ -74,7 +74,13 @@ export function Compare({ providers, content, first, onCompare, onModels }: Prop
           <div className="kicker">Compare two models</div>
           <div className="field">
             <label htmlFor="compare-message">Message</label>
-            <textarea id="compare-message" className="input" rows={3} value={message} onChange={e => setMessage(e.target.value)} />
+            <textarea
+              id="compare-message"
+              className="input"
+              rows={3}
+              value={message}
+              onChange={e => setMessage(e.target.value)}
+            />
           </div>
           <div className="muted cmd-approval-note">First: {first}</div>
           <div className="field">
@@ -106,9 +112,10 @@ export function Compare({ providers, content, first, onCompare, onModels }: Prop
             </div>
           )}
           <div className="muted cmd-approval-note">
-            Each model does the work itself, in a copy of the project of its own, one after the other. Files they write stay in their
-            copy until you pick one; the other’s are thrown away. node_modules and .venv are the project’s own, shared: a command that
-            installs or deletes there is asked about first, but another can still change them.
+            Each model does the work itself, in a copy of the project of its own, one after the other. Files they write
+            stay in their copy until you pick one; the other’s are thrown away. node_modules and .venv are the project’s
+            own, shared: a command that installs or deletes there is asked about first, but another can still change
+            them.
           </div>
           {error && (
             <div role="alert" className="alert">

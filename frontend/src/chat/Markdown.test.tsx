@@ -46,7 +46,13 @@ test('in the chat', () => {
     messages: [userMessage('r', 'show me'), assistantMessage('a', 'r', WORDS)],
   })
   const { container } = render(
-    <MessageList state={state} onRemoveQueued={() => {}} onOpenChange={() => {}} onDecide={async () => {}} onDecideCommand={async () => {}} />,
+    <MessageList
+      state={state}
+      onRemoveQueued={() => {}}
+      onOpenChange={() => {}}
+      onDecide={async () => {}}
+      onDecideCommand={async () => {}}
+    />,
   )
   shownWithoutImages(container)
 })
@@ -67,7 +73,9 @@ test('in an agent’s steps', () => {
     agents: [agent('r', 'completed')],
     messages: [assistantMessage('a', 'r', WORDS)],
   })
-  const { container } = render(<AgentSteps state={state} agent={state.agents[0]} onOpenChange={() => {}} onSelectAgent={() => {}} />)
+  const { container } = render(
+    <AgentSteps state={state} agent={state.agents[0]} onOpenChange={() => {}} onSelectAgent={() => {}} />,
+  )
   shownWithoutImages(container)
 })
 
@@ -75,7 +83,16 @@ test('in an earlier turn’s report', () => {
   const s = topicOf(2)
   const state = { ...s, agents: s.agents.map(a => (a.id === 'coder-t1' ? { ...a, report: WORDS } : a)) }
   // (opened: what it did then is drawn only while it is)
-  const { container } = render(<EarlierWork state={state} agentId="coder-t2" open onToggle={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />)
+  const { container } = render(
+    <EarlierWork
+      state={state}
+      agentId="coder-t2"
+      open
+      onToggle={() => {}}
+      onOpenChange={() => {}}
+      onSelectAgent={() => {}}
+    />,
+  )
   shownWithoutImages(container)
 })
 
@@ -97,15 +114,28 @@ test('in the last words of a CLI’s own sub-agent', () => {
 })
 
 test('there is no sixth place: Markdown is rendered by the shared component alone', () => {
-  const sources = import.meta.glob('../**/*.tsx', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
-  const rendering = Object.keys(sources).filter(path => /from 'react-markdown'|<img\b|dangerouslySetInnerHTML/.test(sources[path]))
+  const sources = import.meta.glob('../**/*.tsx', { query: '?raw', import: 'default', eager: true }) as Record<
+    string,
+    string
+  >
+  const rendering = Object.keys(sources).filter(path =>
+    /from 'react-markdown'|<img\b|dangerouslySetInnerHTML/.test(sources[path]),
+  )
   // (and the Files window's picture: a file of the project or the conversation, at the app's own address -
   // slices 39, 42c; and coloured code, a diff's or a file's: highlight.js's own output, which escapes the text - 42a;
   // and a picture the user attached, at the app's own address, typed by its bytes - 85b;
   // and a browser screenshot of the agent's call, at the app's own address, its name KOLONİ's own - 51;
   // and the rail's mark, the app's own fixed /favicon.svg - K-logo;
   // and the empty canvas's bee where motion is reduced, the app's own fixed /brand/ picture - K-logo)
-  expect(rendering.sort()).toEqual(['../canvas/CanvasView.tsx', '../changes/DiffView.tsx', '../shell/Rail.tsx', '../views/FilesWindow.tsx', './Attach.tsx', './Markdown.tsx', './ToolRow.tsx'])
+  expect(rendering.sort()).toEqual([
+    '../canvas/CanvasView.tsx',
+    '../changes/DiffView.tsx',
+    '../shell/Rail.tsx',
+    '../views/FilesWindow.tsx',
+    './Attach.tsx',
+    './Markdown.tsx',
+    './ToolRow.tsx',
+  ])
 })
 
 test('a fenced block of a known language is coloured once for its text, not again on each render', () => {
@@ -122,19 +152,31 @@ test('a fenced block of a known language is coloured once for its text, not agai
 
 test('an inline path and command are marked for their colours, bold kept; a fenced block is not (K-sohbet-renk)', () => {
   const { container } = render(
-    <Markdown>{'**Done.** In `app/views.py`, ran `pytest tests/test_views.py`; `test_empty_title` failed.\n\n```\nnpm run build\n```\n\n```sh\nnpm run build\n```'}</Markdown>,
+    <Markdown>
+      {
+        '**Done.** In `app/views.py`, ran `pytest tests/test_views.py`; `test_empty_title` failed.\n\n```\nnpm run build\n```\n\n```sh\nnpm run build\n```'
+      }
+    </Markdown>,
   )
   expect(container.querySelector('strong')).toHaveTextContent('Done.')
   expect(container.querySelector('p code.md-path')).toHaveTextContent('app/views.py')
   expect(container.querySelector('p code.md-command')).toHaveTextContent('pytest tests/test_views.py')
-  expect(Array.from(container.querySelectorAll('p code')).map(code => code.className)).toEqual(['md-path', 'md-command', ''])
+  expect(Array.from(container.querySelectorAll('p code')).map(code => code.className)).toEqual([
+    'md-path',
+    'md-command',
+    '',
+  ])
   const fenced = Array.from(container.querySelectorAll('pre code'))
   expect(fenced).toHaveLength(2)
   expect(fenced.map(code => code.className)).toEqual(['', 'language-sh'])
 })
 
 test('denetim-010 #20: a link in a model’s words opens in a tab of its own - never the app’s, where a #key= would replace the page’s key', () => {
-  const { container } = render(<Markdown>{'[the page](#key=bad), [the app](http://127.0.0.1:8790/#key=bad) and [docs](https://example.com)'}</Markdown>)
+  const { container } = render(
+    <Markdown>
+      {'[the page](#key=bad), [the app](http://127.0.0.1:8790/#key=bad) and [docs](https://example.com)'}
+    </Markdown>,
+  )
   const links = within(container).getAllByRole('link')
   expect(links).toHaveLength(3)
   for (const link of links) {
@@ -146,13 +188,19 @@ test('denetim-010 #20: a link in a model’s words opens in a tab of its own - n
 test('B-182: a link into an agent’s working copy is the file’s path in the project, as text; any other link stays', () => {
   const copy = 'C:/Users/u/koloni/runtime/copies/coder-1/tree/docs/notes.md'
   const web = 'https://github.com/x/copies/y/tree/main/README.md'
-  const { container } = render(<Markdown>{`See [notes](${copy}), [${copy}](${copy}), [the site](https://example.com/a) and [its repo](${web}).`}</Markdown>)
+  const { container } = render(
+    <Markdown>{`See [notes](${copy}), [${copy}](${copy}), [the site](https://example.com/a) and [its repo](${web}).`}</Markdown>,
+  )
   expect(container).not.toHaveTextContent('runtime/copies')
   const [named, bare] = Array.from(container.querySelectorAll('code.md-path'))
   expect([named.textContent, bare.textContent]).toEqual(['notes', 'docs/notes.md'])
   expect(named).toHaveAttribute('title', 'docs/notes.md, in the project')
   // (a web address with such a path is no copy: it stays a link)
-  expect(within(container).getAllByRole('link').map(link => link.getAttribute('href'))).toEqual(['https://example.com/a', web])
+  expect(
+    within(container)
+      .getAllByRole('link')
+      .map(link => link.getAttribute('href')),
+  ).toEqual(['https://example.com/a', web])
   // a file:// one is this machine's: its path in the project too
   const { container: file } = render(<Markdown>{`[notes](file:///${copy})`}</Markdown>)
   expect(file.querySelector('code.md-path')).toHaveTextContent('notes')

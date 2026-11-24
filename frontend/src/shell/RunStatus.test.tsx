@@ -46,7 +46,12 @@ test('reconnecting is said on its own; a turn in its word and colour, the one su
   expect(screen.getByText('in 1,200 · out 234')).toHaveClass('mono muted topbar-tokens')
   expect(screen.getByRole('button', { name: 'context 1,000 tokens' })).toHaveAttribute('aria-expanded', 'false')
   // An agent that did not say its tokens: what was said, and how many did not.
-  rerender(<RunStatus conv={{ ...conv, agents: [conv.agents[0], { ...conv.agents[1], output_tokens: null }] }} connection="open" />)
+  rerender(
+    <RunStatus
+      conv={{ ...conv, agents: [conv.agents[0], { ...conv.agents[1], output_tokens: null }] }}
+      connection="open"
+    />,
+  )
   expect(screen.getByText('≥ 1k tokens · 1 unknown')).toBeInTheDocument()
   // Over: its word, nobody named.
   rerender(<RunStatus conv={{ ...conv, runs: [run('r', 'cancelled')] }} connection="open" />)
@@ -56,17 +61,26 @@ test('reconnecting is said on its own; a turn in its word and colour, the one su
 // Slice 77a: how full the Lead's context is, as its window says it.
 describe('the header says how full the lead’s context is', () => {
   test('of its window, where that is known', () => {
-    const conv = convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed', { input_tokens: 620, context_window: 1000 })] })
+    const conv = convState({
+      runs: [run('r', 'completed')],
+      agents: [agent('r', 'completed', { input_tokens: 620, context_window: 1000 })],
+    })
     render(<RunStatus conv={conv} connection="open" />)
     expect(screen.getByText('context 62%')).toBeInTheDocument()
   })
 
   test('its tokens where the window is not known; “–” for a CLI or with nothing measured, the button there all the same', () => {
-    const conv = convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed', { input_tokens: 12345 })] })
+    const conv = convState({
+      runs: [run('r', 'completed')],
+      agents: [agent('r', 'completed', { input_tokens: 12345 })],
+    })
     const { unmount } = render(<RunStatus conv={conv} connection="open" />)
     expect(screen.getByText('context 12,345 tokens')).toBeInTheDocument()
     unmount()
-    const cli = convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed', { input_tokens: 12345, provider_mode: 'reads' })] })
+    const cli = convState({
+      runs: [run('r', 'completed')],
+      agents: [agent('r', 'completed', { input_tokens: 12345, provider_mode: 'reads' })],
+    })
     const { unmount: gone } = render(<RunStatus conv={cli} connection="open" />)
     expect(screen.getByRole('button', { name: 'context –' })).toBeInTheDocument()
     expect(screen.queryByText(/12,345/)).toBeNull() // (its count is not what it holds)
@@ -84,7 +98,10 @@ describe('the header says how full the lead’s context is', () => {
 // A CLI lead KOLONİ compacts (it starts each turn anew), and one that goes on in its session (compacts itself).
 test('a CLI lead’s context opens with Compact now where KOLONİ compacts it, “compacts itself” where its session goes on', async () => {
   const lead = (compacts_itself: boolean) =>
-    convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed', { provider_mode: 'native', provider_name: 'agy', compacts_itself })] })
+    convState({
+      runs: [run('r', 'completed')],
+      agents: [agent('r', 'completed', { provider_mode: 'native', provider_name: 'agy', compacts_itself })],
+    })
   const { unmount } = render(<RunStatus conv={lead(false)} connection="open" />)
   await userEvent.click(screen.getByRole('button', { name: 'context –' }))
   const anew = screen.getByRole('dialog', { name: 'Each agent’s context' })
@@ -99,7 +116,10 @@ test('a CLI lead’s context opens with Compact now where KOLONİ compacts it, �
 })
 
 test('a CLI lead run step by step says each step is sent a trimmed history, not that it compacts itself', async () => {
-  const conv = convState({ runs: [run('r', 'completed')], agents: [agent('r', 'completed', { provider_mode: 'step', compacts_itself: true })] })
+  const conv = convState({
+    runs: [run('r', 'completed')],
+    agents: [agent('r', 'completed', { provider_mode: 'step', compacts_itself: true })],
+  })
   render(<RunStatus conv={conv} connection="open" />)
   await userEvent.click(screen.getByRole('button', { name: 'context –' }))
   const panel = screen.getByRole('dialog', { name: 'Each agent’s context' })
@@ -117,7 +137,15 @@ describe('the context in the top bar opens each agent’s', () => {
       agents: [
         agent('r', leadStatus, { input_tokens: 620, context_window: 1000 }),
         agent('r', 'completed', { id: 's1', name: 'Coder', role_name: 'Coder', depth: 1, input_tokens: 4000 }),
-        agent('r', 'completed', { id: 's2', name: 'Claude', role_name: 'Reviewer', depth: 1, provider_mode: 'native', compacts_itself: true, input_tokens: 9000 }),
+        agent('r', 'completed', {
+          id: 's2',
+          name: 'Claude',
+          role_name: 'Reviewer',
+          depth: 1,
+          provider_mode: 'native',
+          compacts_itself: true,
+          input_tokens: 9000,
+        }),
         // Never started: not listed.
         agent('r', 'proposed', { id: 's3', name: 'Tester', role_name: 'Tester', depth: 1, started_at: null }),
       ],
@@ -126,7 +154,9 @@ describe('the context in the top bar opens each agent’s', () => {
   const row = (name: string) => screen.getByText(name).closest('li') as HTMLElement
 
   test('each agent with its % and in / window, unknown as “–”; a CLI compacts itself; Compact now only on a finished lead KOLONİ runs', async () => {
-    const asked = vi.fn(async () => new Response(JSON.stringify(agent('r', 'completed', { summarised: 2 })), { status: 200 }))
+    const asked = vi.fn(
+      async () => new Response(JSON.stringify(agent('r', 'completed', { summarised: 2 })), { status: 200 }),
+    )
     vi.stubGlobal('fetch', asked)
     render(<RunStatus conv={team()} connection="open" />)
     await open()

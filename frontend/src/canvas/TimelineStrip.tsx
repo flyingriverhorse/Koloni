@@ -42,7 +42,11 @@ const waitLabel = (wait: Wait) => (wait.who === 'you' ? WAITS : wait.who ? `wait
 const laneClass = (lane: Lane) => `tl-row tl-depth-${Math.min(lane.depth, 4)}${lane.cli ? ' tl-cli' : ''}`
 const laneTitle = (lane: Lane) => (lane.cli ? `${lane.name} (its CLI’s own sub-agent)` : lane.name)
 /** The sign of a mark, beside its colour: an end (failed, stopped, a limit), or something opened or ended on the way. */
-const SIGN: Record<string, [sign: string, kind: string]> = { failed: ['✕', 'bad'], 'limit reached': ['!', 'bad'], stopped: ['■', 'stop'] }
+const SIGN: Record<string, [sign: string, kind: string]> = {
+  failed: ['✕', 'bad'],
+  'limit reached': ['!', 'bad'],
+  stopped: ['■', 'stop'],
+}
 
 /**
  * A turn's timeline, as a strip under the canvas (slice 44): each agent a row - start, length,
@@ -118,13 +122,21 @@ export function TimelineStrip({ state, runId, onOpen, onClose }: Props) {
 
   if (!line) return null
   const at = (t: number) => `${place(t, line)}%`
-  const span = (from: number, to: number): CSSProperties => ({ left: at(from), width: `${Math.max(0, place(to, line) - place(from, line))}%` })
+  const span = (from: number, to: number): CSSProperties => ({
+    left: at(from),
+    width: `${Math.max(0, place(to, line) - place(from, line))}%`,
+  })
   const since = (t: number | null) => (t === null ? '–' : `+${took(t - line.from)}`)
   const marked = (marks: Mark[]) => marks.map(m => `${m.what} ${since(m.at)}`).join(', ')
   const totals: [string, string][] = [
     ['Length', took(line.length)],
     ['Agents', String(line.agents)],
-    ['Tokens', line.tokens.input_tokens === null && line.tokens.output_tokens === null ? '–' : `in ${n(line.tokens.input_tokens)} · out ${n(line.tokens.output_tokens)}`],
+    [
+      'Tokens',
+      line.tokens.input_tokens === null && line.tokens.output_tokens === null
+        ? '–'
+        : `in ${n(line.tokens.input_tokens)} · out ${n(line.tokens.output_tokens)}`,
+    ],
     ['Known cost', spent && !atWork ? totalCost(spent, prices) : '–'],
     ...(line.marks.length > 0 ? [['Its work', marked(line.marks)] as [string, string]] : []),
   ]
@@ -191,7 +203,13 @@ export function TimelineStrip({ state, runId, onOpen, onClose }: Props) {
               return (
                 <tr key={lane.id} className={laneClass(lane)}>
                   <td>
-                    <button type="button" className="tl-name" style={{ paddingInlineStart: `${lane.depth * 14 + 4}px` }} title={laneTitle(lane)} onClick={open}>
+                    <button
+                      type="button"
+                      className="tl-name"
+                      style={{ paddingInlineStart: `${lane.depth * 14 + 4}px` }}
+                      title={laneTitle(lane)}
+                      onClick={open}
+                    >
                       {lane.name}
                     </button>
                   </td>
@@ -201,11 +219,19 @@ export function TimelineStrip({ state, runId, onOpen, onClose }: Props) {
                     {lane.waits.length === 0 ? (
                       'none'
                     ) : (
-                      <div className="tl-waits" title={lane.waits.map(w => `${waitLabel(w)} ${lengthOf(w)} · ${w.what}`).join('; ')}>
+                      <div
+                        className="tl-waits"
+                        title={lane.waits.map(w => `${waitLabel(w)} ${lengthOf(w)} · ${w.what}`).join('; ')}
+                      >
                         {lane.waits.map((wait, i) => (
                           <span key={i} className="tl-waited">
                             {wait.key ? (
-                              <button type="button" className="tag tag-warn" title="Answer it under Ready for you" onClick={() => answer(wait.key!)}>
+                              <button
+                                type="button"
+                                className="tag tag-warn"
+                                title="Answer it under Ready for you"
+                                onClick={() => answer(wait.key!)}
+                              >
                                 {waitLabel(wait)}
                               </button>
                             ) : (
@@ -226,18 +252,34 @@ export function TimelineStrip({ state, runId, onOpen, onClose }: Props) {
                   </td>
                   <td className="tl-track" aria-hidden onClick={open}>
                     <div className="tl-lane">
-                      {up > 0 && lane.opened !== null && <span className="tl-spawn" style={{ left: at(lane.opened), ['--up' as string]: up }} />}
+                      {up > 0 && lane.opened !== null && (
+                        <span className="tl-spawn" style={{ left: at(lane.opened), ['--up' as string]: up }} />
+                      )}
                       {lane.from !== null && lane.to !== null && (
-                        <span className={`tl-bar${lane.atWork ? ' tl-bar-work' : ''}`} style={{ ...span(lane.from, lane.to), ['--c' as string]: lane.status[1] }} title={`${lane.name} · ${lane.status[0]}`} />
+                        <span
+                          className={`tl-bar${lane.atWork ? ' tl-bar-work' : ''}`}
+                          style={{ ...span(lane.from, lane.to), ['--c' as string]: lane.status[1] }}
+                          title={`${lane.name} · ${lane.status[0]}`}
+                        />
                       )}
                       {lane.calls.map((call, i) => (
-                        <span key={i} className={`tl-call${call.status === 'failed' ? ' tl-call-failed' : ''}`} style={span(call.from, call.to)} title={`${call.name} · ${took(call.to - call.from)}`} />
+                        <span
+                          key={i}
+                          className={`tl-call${call.status === 'failed' ? ' tl-call-failed' : ''}`}
+                          style={span(call.from, call.to)}
+                          title={`${call.name} · ${took(call.to - call.from)}`}
+                        />
                       ))}
                       {lane.waits.map(
                         (wait, i) =>
                           wait.from !== null &&
                           wait.to !== null && (
-                            <span key={i} className={`tl-wait${wait.who === 'you' ? ' tl-wait-you' : ''}`} style={span(wait.from, wait.to)} title={`${waitLabel(wait)} · ${took(wait.to - wait.from)} · ${wait.what}`}>
+                            <span
+                              key={i}
+                              className={`tl-wait${wait.who === 'you' ? ' tl-wait-you' : ''}`}
+                              style={span(wait.from, wait.to)}
+                              title={`${waitLabel(wait)} · ${took(wait.to - wait.from)} · ${wait.what}`}
+                            >
                               <span className={wait.who === 'you' ? 'tag tag-warn' : 'tag'}>
                                 {waitLabel(wait)} {took(wait.to - wait.from)}
                               </span>
@@ -245,7 +287,12 @@ export function TimelineStrip({ state, runId, onOpen, onClose }: Props) {
                           ),
                       )}
                       {lane.marks.map((m, i) => (
-                        <span key={i} className={`tl-mark tl-mark-${SIGN[m.what]?.[1] ?? 'way'}`} style={{ left: at(m.at) }} title={`${m.what} ${since(m.at)}`}>
+                        <span
+                          key={i}
+                          className={`tl-mark tl-mark-${SIGN[m.what]?.[1] ?? 'way'}`}
+                          style={{ left: at(m.at) }}
+                          title={`${m.what} ${since(m.at)}`}
+                        >
                           {SIGN[m.what]?.[0] ?? '◆'}
                         </span>
                       ))}

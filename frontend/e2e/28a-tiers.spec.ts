@@ -1,12 +1,28 @@
 import { expect, test } from './fixtures'
-import { contrasts, editRole, openAgentFold, openFreshConversation, OWN, rail, roleRow, shot, windowFromPanel } from './helpers'
+import {
+  contrasts,
+  editRole,
+  openAgentFold,
+  openFreshConversation,
+  OWN,
+  rail,
+  roleRow,
+  shot,
+  windowFromPanel,
+} from './helpers'
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
-test('models are given a tier, a role asks for one, and a lead’s model follows how hard the message is', async ({ page }) => {
+test('models are given a tier, a role asks for one, and a lead’s model follows how hard the message is', async ({
+  page,
+}) => {
   // The Reviewer as it came, whatever a spec before this one left (05's Reset to default once had not landed).
   const roles: { id: string; name: string }[] = await (await page.request.get('/api/roles')).json()
-  expect((await page.request.post(`/api/roles/${roles.find(role => role.name === 'Reviewer')!.id}/reset`, { headers: OWN })).ok()).toBe(true)
+  expect(
+    (
+      await page.request.post(`/api/roles/${roles.find(role => role.name === 'Reviewer')!.id}/reset`, { headers: OWN })
+    ).ok(),
+  ).toBe(true)
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   const agents = page.getByRole('button', { name: 'Agents', exact: true })
@@ -18,7 +34,10 @@ test('models are given a tier, a role asks for one, and a lead’s model follows
   const rows = page.locator('.model-table tbody tr:not(.model-facts)')
   const had = await rows.count()
   // Each is named once, when added, and its tier is saved as it is chosen (slice 81a).
-  for (const [name, tier] of [['fake-quick', 'fast'], ['fake-strong', 'strongest']] as const) {
+  for (const [name, tier] of [
+    ['fake-quick', 'fast'],
+    ['fake-strong', 'strongest'],
+  ] as const) {
     await page.getByRole('button', { name: 'Add a model' }).click()
     await page.getByLabel('New model’s name').fill(name)
     await page.getByLabel('New model’s name').press('Enter')
@@ -26,7 +45,10 @@ test('models are given a tier, a role asks for one, and a lead’s model follows
     await expect(page.getByRole('status').filter({ hasText: `${name}: ${tier}.` })).toBeVisible()
   }
   // (What a tier is for is behind the ⓘ: one click away.)
-  await page.locator('.hint', { hasText: 'A model with no tier is only ever picked by name' }).getByRole('button', { name: 'About this' }).click()
+  await page
+    .locator('.hint', { hasText: 'A model with no tier is only ever picked by name' })
+    .getByRole('button', { name: 'About this' })
+    .click()
   await expect(page.getByText(/A model with no tier is only ever picked by name/)).toBeVisible()
   await page.getByLabel('Tier of fake-strong').scrollIntoViewIfNeeded()
   await shot(page, '28a-model-tiers')
@@ -37,12 +59,16 @@ test('models are given a tier, a role asks for one, and a lead’s model follows
   await agents.click()
   for (const name of ['Debugger', 'Architect', 'Security reviewer', 'Docs writer', 'Refactorer']) {
     await roleRow(page, name).click()
-    await expect(page.getByRole('complementary', { name: `Role ${name}` })).toContainText('Which modelOrchestrator · fast–strongest')
+    await expect(page.getByRole('complementary', { name: `Role ${name}` })).toContainText(
+      'Which modelOrchestrator · fast–strongest',
+    )
   }
   await editRole(page, 'Docs writer', 'tiers')
   await expect(page.getByRole('radio', { name: 'Orchestrator', exact: true })).toBeChecked()
   // With no tier given: the balanced model, else the conversation's (none is balanced here).
-  await expect(page.getByText(/^Runs on/)).toContainText('no model in your team guide that may be picked for it has the balanced tier')
+  await expect(page.getByText(/^Runs on/)).toContainText(
+    'no model in your team guide that may be picked for it has the balanced tier',
+  )
   await editRole(page, 'Reviewer', 'tiers')
   await expect(page.getByText('It picks a tier for each job, inside this range, and says why.')).toBeVisible()
   await page.getByRole('radio', { name: 'One tier' }).check()
@@ -59,9 +85,16 @@ test('models are given a tier, a role asks for one, and a lead’s model follows
   await chat.getByRole('button', { name: /^Model: / }).click()
   // What it costs and what it overrides stand under the box; how the Lead's model is then chosen is the rest of
   // that note, behind ⓘ beside it - and opening it is not ticking the box.
-  await expect(chat.getByText(/^One more request for each message you send: a fast model of your team guide is sent your message/)).toBeVisible()
-  await expect(chat.getByText(/It overrides the Orchestrator role’s own model and tier\. A trigger’s message does not use it\./)).toBeVisible()
-  await chat.locator('.hint', { hasText: 'The Orchestrator then runs on your first fast' }).getByRole('button', { name: 'About this' }).click()
+  await expect(
+    chat.getByText(/^One more request for each message you send: a fast model of your team guide is sent your message/),
+  ).toBeVisible()
+  await expect(
+    chat.getByText(/It overrides the Orchestrator role’s own model and tier\. A trigger’s message does not use it\./),
+  ).toBeVisible()
+  await chat
+    .locator('.hint', { hasText: 'The Orchestrator then runs on your first fast' })
+    .getByRole('button', { name: 'About this' })
+    .click()
   await expect(chat.getByText(/^The Orchestrator then runs on your first fast/)).toBeVisible()
   await chat.getByText(/^The Orchestrator then runs on your first fast/).click()
   await expect(chat.getByLabel(/Orchestrator model: automatic/)).not.toBeChecked()

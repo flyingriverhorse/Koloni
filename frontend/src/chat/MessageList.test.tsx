@@ -23,7 +23,8 @@ import { MessageList } from './MessageList'
 import { AskCard } from './AskCard'
 
 /** A step's row by its words: in the chat its file is a pill in them (0.1.5). */
-const stepSaid = (words: string) => (_: string, el: Element | null) => el?.classList.contains('tool-row-summary') === true && el.textContent === words
+const stepSaid = (words: string) => (_: string, el: Element | null) =>
+  el?.classList.contains('tool-row-summary') === true && el.textContent === words
 
 const handlers = {
   onRemoveQueued: vi.fn(),
@@ -40,10 +41,7 @@ test('turns are shown in order even when a queued message arrived mid-turn', () 
     assistantMessage('m1', 'a', 'first reply'),
   ]
   const { container } = render(
-    <MessageList
-      {...handlers}
-      state={convState({ runs: [run('a', 'completed'), run('b', 'running')], messages })}
-    />,
+    <MessageList {...handlers} state={convState({ runs: [run('a', 'completed'), run('b', 'running')], messages })} />,
   )
   const text = container.textContent ?? ''
   expect(text.indexOf('first request')).toBeLessThan(text.indexOf('first reply'))
@@ -52,7 +50,11 @@ test('turns are shown in order even when a queued message arrived mid-turn', () 
 
 test('KOLONİ’s line after the Lead’s answer stands above it: the answer stays the turn’s last word, its end line under it', () => {
   // R178 (live): "Tester was not opened this turn." came last, under the summary, and was missed.
-  const note: Message = { ...assistantMessage('k', 'r', 'Tester was not opened this turn.'), role: 'koloni', agent_id: null }
+  const note: Message = {
+    ...assistantMessage('k', 'r', 'Tester was not opened this turn.'),
+    role: 'koloni',
+    agent_id: null,
+  }
   const { container } = render(
     <MessageList
       {...handlers}
@@ -91,8 +93,22 @@ test('B-205: where the turn’s work is stands under the Lead’s answer, as KOL
 })
 
 test('a checked message is not drawn as a KOLONİ line above the answer', () => {
-  const rows = [{ kind: 'tests', state: 'passed' as const, text: 'Tests passed: pytest -q - 4 passed', command: 'pytest -q', guessed: false, started_at: null }]
-  const checked: Message = { ...assistantMessage('k', 'r', '✓ Tests passed: pytest -q - 4 passed'), role: 'checked', agent_id: null, checked: rows }
+  const rows = [
+    {
+      kind: 'tests',
+      state: 'passed' as const,
+      text: 'Tests passed: pytest -q - 4 passed',
+      command: 'pytest -q',
+      guessed: false,
+      started_at: null,
+    },
+  ]
+  const checked: Message = {
+    ...assistantMessage('k', 'r', '✓ Tests passed: pytest -q - 4 passed'),
+    role: 'checked',
+    agent_id: null,
+    checked: rows,
+  }
   render(
     <MessageList
       {...handlers}
@@ -164,13 +180,23 @@ test('a message still queued when KOLONİ restarted says it was not sent, and Se
 test('a message not sent, held back over the budget, is sent on the user’s word; any other refusal is said under it', async () => {
   const sendAgain = vi
     .fn()
-    .mockRejectedValueOnce(new ApiError(409, "this project is over this month's budget (10.50 of 10.00 USD): say to go on over it"))
+    .mockRejectedValueOnce(
+      new ApiError(409, "this project is over this month's budget (10.50 of 10.00 USD): say to go on over it"),
+    )
     .mockResolvedValueOnce(undefined)
     .mockRejectedValueOnce(new ApiError(409, 'only a message of yours that was never sent can be sent'))
   const real = useApp.getState().sendAgain
   useApp.setState({ sendAgain })
   onTestFinished(() => useApp.setState({ sendAgain: real }))
-  render(<MessageList {...handlers} state={convState({ runs: [run('q', 'interrupted', { started_at: null })], messages: [userMessage('q', 'later')] })} />)
+  render(
+    <MessageList
+      {...handlers}
+      state={convState({
+        runs: [run('q', 'interrupted', { started_at: null })],
+        messages: [userMessage('q', 'later')],
+      })}
+    />,
+  )
   await userEvent.click(screen.getByRole('button', { name: 'Send' }))
   await userEvent.click(await screen.findByRole('button', { name: 'Go on anyway' }))
   expect(sendAgain).toHaveBeenLastCalledWith('q', true)
@@ -179,20 +205,27 @@ test('a message not sent, held back over the budget, is sent on the user’s wor
 })
 
 test.each([
-  [run('r', 'failed', { error: 'model server unreachable: refused' }), 'Run failed', 'model server unreachable: refused'],
+  [
+    run('r', 'failed', { error: 'model server unreachable: refused' }),
+    'Run failed',
+    'model server unreachable: refused',
+  ],
   [run('r', 'failed', { error: 'step_limit' }), 'Stopped at its step limit', null],
   [run('r', 'cancelled'), 'Stopped', null],
   [run('r', 'interrupted'), 'Interrupted by a server restart', 'Send a message to continue.'],
-  [run('r', 'interrupted', { started_at: null, unattended: true }), 'Interrupted by a server restart', 'Send a message to continue.'],
+  [
+    run('r', 'interrupted', { started_at: null, unattended: true }),
+    'Interrupted by a server restart',
+    'Send a message to continue.',
+  ],
   // (A turn KOLONİ made and never began - an approved plan's work, a re-run: no message of the user's to send again.)
-  [run('r', 'interrupted', { started_at: null, by_user: false }), 'Interrupted by a server restart', 'Send a message to continue.'],
+  [
+    run('r', 'interrupted', { started_at: null, by_user: false }),
+    'Interrupted by a server restart',
+    'Send a message to continue.',
+  ],
 ])('a turn that did not complete says why, as a card that only tells', (endedRun, title, said) => {
-  render(
-    <MessageList
-      {...handlers}
-      state={convState({ runs: [endedRun], messages: [userMessage('r', 'do it')] })}
-    />,
-  )
+  render(<MessageList {...handlers} state={convState({ runs: [endedRun], messages: [userMessage('r', 'do it')] })} />)
   const card = screen.getByText(title).closest('.cmd-approval')
   expect(card).toHaveClass('card-tell')
   if (said) expect(card).toHaveTextContent(`${title}${said}`)
@@ -201,19 +234,47 @@ test.each([
 
 test('a failed turn says the one thing to do about it under why it failed; where nothing is known to help, nothing', () => {
   const failed = (error: string, lead = agent('r', 'failed')) =>
-    render(<MessageList {...handlers} state={convState({ runs: [run('r', 'failed', { error })], messages: [userMessage('r', 'do it')], agents: [lead] })} />)
+    render(
+      <MessageList
+        {...handlers}
+        state={convState({
+          runs: [run('r', 'failed', { error })],
+          messages: [userMessage('r', 'do it')],
+          agents: [lead],
+        })}
+      />,
+    )
   const { unmount } = failed('model server unreachable: refused')
-  expect(screen.getByRole('alert')).toHaveTextContent('Run failedmodel server unreachable: refusedCheck that the model server is running, or pick another model.')
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'Run failedmodel server unreachable: refusedCheck that the model server is running, or pick another model.',
+  )
   unmount()
   failed('model server returned 429', agent('r', 'failed', { failure: 'rate_limited' }))
   expect(screen.getByRole('alert')).toHaveTextContent(/Wait a while, or pick another model\.$/)
   cleanup()
   // Alibaba's plan key with its quota used up: when it comes back, and where to see what is left.
   const usedUp = 'model server returned 429: Your token-plan quota has been exhausted.'
-  const alibaba = [{ name: 'Local', plan: true, base_url: 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/v1' }] as Provider[]
-  render(<MessageList {...handlers} providers={alibaba} state={convState({ runs: [run('r', 'failed', { error: usedUp })], messages: [userMessage('r', 'do it')], agents: [agent('r', 'failed', { failure: 'rate_limited' })] })} />)
-  expect(screen.getByRole('alert')).toHaveTextContent(/Plan quota used up – it comes back at the start of its next subscription month, or with a usage bundle\./)
-  expect(screen.getByRole('link', { name: "See what is left in Alibaba's console" })).toHaveAttribute('href', ALIBABA_CONSOLE)
+  const alibaba = [
+    { name: 'Local', plan: true, base_url: 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/v1' },
+  ] as Provider[]
+  render(
+    <MessageList
+      {...handlers}
+      providers={alibaba}
+      state={convState({
+        runs: [run('r', 'failed', { error: usedUp })],
+        messages: [userMessage('r', 'do it')],
+        agents: [agent('r', 'failed', { failure: 'rate_limited' })],
+      })}
+    />,
+  )
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    /Plan quota used up – it comes back at the start of its next subscription month, or with a usage bundle\./,
+  )
+  expect(screen.getByRole('link', { name: "See what is left in Alibaba's console" })).toHaveAttribute(
+    'href',
+    ALIBABA_CONSOLE,
+  )
   cleanup()
   failed('something nobody knows')
   expect(screen.getByRole('alert')).toHaveTextContent(/^Run failedsomething nobody knows$/)
@@ -271,7 +332,13 @@ test('thinking is said for each agent whose model is thinking, as the canvas say
     agent('r', 'running', { id, parent_agent_id: 'r', role_name: role, name: role, depth: 1 })
   const state = convState({
     runs: [run('old', 'completed'), run('r', 'running')],
-    agents: [agent('old', 'completed'), agent('r', 'waiting'), kid('c', 'Coder'), kid('v1', 'Reviewer'), kid('v2', 'Reviewer')],
+    agents: [
+      agent('old', 'completed'),
+      agent('r', 'waiting'),
+      kid('c', 'Coder'),
+      kid('v1', 'Reviewer'),
+      kid('v2', 'Reviewer'),
+    ],
     messages: [
       userMessage('old', 'before'),
       assistantMessage('m0', 'old', 'Done before.'),
@@ -302,7 +369,15 @@ const spawned = convState({
   runs: [run('r', 'waiting_approval')],
   agents: [
     agent('r'),
-    agent('r', 'proposed', { id: 'kid', parent_agent_id: 'r', tool_call_id: '1', role_name: 'Coder', task: 'Fix the greeting', depth: 1, tools: ['edit_file'] }),
+    agent('r', 'proposed', {
+      id: 'kid',
+      parent_agent_id: 'r',
+      tool_call_id: '1',
+      role_name: 'Coder',
+      task: 'Fix the greeting',
+      depth: 1,
+      tools: ['edit_file'],
+    }),
   ],
   messages: [
     userMessage('r', 'fix it'),
@@ -336,50 +411,76 @@ test('a spawn call is one row with its approval card, and both report back', asy
 // B-99: every kind a recipe asks (`_ask_row`), with the choices it carries - whoever opened the step's agent: the Lead
 // (under its call), a team's lead (with what its team asks), or the Lead's room (under the room's row).
 test.each([
-  ['an Ask me step', 'Web app: Build it is done. Go on with the Feature recipe?', ['Go on', 'Stop'], 'Go on with the recipe?'],
-  ['a step that failed', 'Web app: Test it failed (Tester). Try it again, skip it, or stop the Feature recipe?', ['Try again', 'Skip', 'Stop'], 'A recipe step did not finish'],
-  ['a role that cannot run', 'Web app: Tester can’t run on Qoder (its limit is reached). Run Test it on Claude Code?', ['Run there', 'Skip', 'Stop'], 'KOLONİ needs your word'],
+  [
+    'an Ask me step',
+    'Web app: Build it is done. Go on with the Feature recipe?',
+    ['Go on', 'Stop'],
+    'Go on with the recipe?',
+  ],
+  [
+    'a step that failed',
+    'Web app: Test it failed (Tester). Try it again, skip it, or stop the Feature recipe?',
+    ['Try again', 'Skip', 'Stop'],
+    'A recipe step did not finish',
+  ],
+  [
+    'a role that cannot run',
+    'Web app: Tester can’t run on Qoder (its limit is reached). Run Test it on Claude Code?',
+    ['Run there', 'Skip', 'Stop'],
+    'KOLONİ needs your word',
+  ],
   // (KOLONİ's Ready for you card is one line in the chat: K-hazir-satir.)
-  ['Ready for you', 'Ready for you: Web app (Feature): ready. Take the work into the project?', ['Take in', 'Ask for changes'], "Teams' work is ready"],
-])('%s is answered in the chat, by any of its choices, wherever its agent was opened', async (_kind, asked, options, title) => {
-  const onAnswer = vi.fn().mockResolvedValue(undefined)
-  const last = options[options.length - 1]
-  const spec = { id: 'kid', parent_agent_id: 'r', tool_call_id: '1', role_name: 'Tester', task: 'Test it', depth: 1 }
-  const where = {
-    lead: { agents: [agent('r', 'completed', spec)], questions: [question('q', 'r', { tool_call_id: '1', question: asked, options, leave: true })] },
-    'team lead': {
-      agents: [
-        agent('r', 'running', { ...spec, id: 'tl', role_name: 'Web app lead', task: 'Lead Web app' }),
-        agent('r', 'completed', { ...spec, parent_agent_id: 'tl', tool_call_id: '7', depth: 2 }),
-      ],
-      questions: [question('q', 'r', { agent_id: 'tl', tool_call_id: '7', question: asked, options, leave: true })],
-    },
-  }
-  for (const [, over] of Object.entries(where)) {
-    const { unmount } = render(
-      <MessageList
-        {...handlers}
-        onAnswer={onAnswer}
-        state={convState({
-          runs: [run('r', 'waiting_approval')],
-          agents: [agent('r', 'waiting'), ...over.agents],
-          messages: [userMessage('r', 'x'), assistantMessage('m', 'r', '')],
-          toolCalls: [toolCall('1', 'r', 'spawn_agent', 'running', '{"role":"Tester"}', { message_id: 'm' })],
-          questions: over.questions,
-        })}
-      />,
-    )
-    // (A title of KOLONİ's own, its words whole under it - sample A.)
-    expect(screen.getByText(title)).toBeInTheDocument()
-    if (!asked.startsWith('Ready for you')) expect(screen.getByText(asked)).toHaveClass('card-said')
-    for (const option of options) expect(screen.getByRole('button', { name: option })).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: last }))
-    // (B-114: Ask for changes first asks what to change - here sent with nothing written)
-    if (last === 'Ask for changes') await userEvent.click(screen.getByRole('button', { name: 'Send' }))
-    expect(onAnswer).toHaveBeenLastCalledWith('q', last)
-    unmount()
-  }
-})
+  [
+    'Ready for you',
+    'Ready for you: Web app (Feature): ready. Take the work into the project?',
+    ['Take in', 'Ask for changes'],
+    "Teams' work is ready",
+  ],
+])(
+  '%s is answered in the chat, by any of its choices, wherever its agent was opened',
+  async (_kind, asked, options, title) => {
+    const onAnswer = vi.fn().mockResolvedValue(undefined)
+    const last = options[options.length - 1]
+    const spec = { id: 'kid', parent_agent_id: 'r', tool_call_id: '1', role_name: 'Tester', task: 'Test it', depth: 1 }
+    const where = {
+      lead: {
+        agents: [agent('r', 'completed', spec)],
+        questions: [question('q', 'r', { tool_call_id: '1', question: asked, options, leave: true })],
+      },
+      'team lead': {
+        agents: [
+          agent('r', 'running', { ...spec, id: 'tl', role_name: 'Web app lead', task: 'Lead Web app' }),
+          agent('r', 'completed', { ...spec, parent_agent_id: 'tl', tool_call_id: '7', depth: 2 }),
+        ],
+        questions: [question('q', 'r', { agent_id: 'tl', tool_call_id: '7', question: asked, options, leave: true })],
+      },
+    }
+    for (const [, over] of Object.entries(where)) {
+      const { unmount } = render(
+        <MessageList
+          {...handlers}
+          onAnswer={onAnswer}
+          state={convState({
+            runs: [run('r', 'waiting_approval')],
+            agents: [agent('r', 'waiting'), ...over.agents],
+            messages: [userMessage('r', 'x'), assistantMessage('m', 'r', '')],
+            toolCalls: [toolCall('1', 'r', 'spawn_agent', 'running', '{"role":"Tester"}', { message_id: 'm' })],
+            questions: over.questions,
+          })}
+        />,
+      )
+      // (A title of KOLONİ's own, its words whole under it - sample A.)
+      expect(screen.getByText(title)).toBeInTheDocument()
+      if (!asked.startsWith('Ready for you')) expect(screen.getByText(asked)).toHaveClass('card-said')
+      for (const option of options) expect(screen.getByRole('button', { name: option })).toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: last }))
+      // (B-114: Ask for changes first asks what to change - here sent with nothing written)
+      if (last === 'Ask for changes') await userEvent.click(screen.getByRole('button', { name: 'Send' }))
+      expect(onAnswer).toHaveBeenLastCalledWith('q', last)
+      unmount()
+    }
+  },
+)
 
 test('K-hazir-satir: the teams’ Ready for you card is one line in the chat - what each team changed, its choices, and the way to the card in full', async () => {
   const onAnswer = vi.fn().mockResolvedValue(undefined)
@@ -389,17 +490,48 @@ test('K-hazir-satir: the teams’ Ready for you card is one line in the chat - w
     no_recipe: false,
     picked_by: 'user' as const,
     why: null,
-    state: { run_id: 'r', team, recipe, status: 'ready' as const, why: null, steps: [], agents, ended_ready: false, passes: [] },
+    state: {
+      run_id: 'r',
+      team,
+      recipe,
+      status: 'ready' as const,
+      why: null,
+      steps: [],
+      agents,
+      ended_ready: false,
+      passes: [],
+    },
   })
-  const asked = question('q', 'r', { tool_call_id: '1', question: 'Ready for you: Web app (Feature): ready; Docs (no recipe): done. Take the work into the project?', options: ['Take in', 'Ask for changes'], leave: true })
+  const asked = question('q', 'r', {
+    tool_call_id: '1',
+    question: 'Ready for you: Web app (Feature): ready; Docs (no recipe): done. Take the work into the project?',
+    options: ['Take in', 'Ask for changes'],
+    leave: true,
+  })
   const base = convState()
   const state = convState({
-    conversation: { ...base.conversation, teams_mode: 'manual', teams: [row('web', 'Web app', ['c'], 'Feature'), row('docs', 'Docs', ['d'])] },
+    conversation: {
+      ...base.conversation,
+      teams_mode: 'manual',
+      teams: [row('web', 'Web app', ['c'], 'Feature'), row('docs', 'Docs', ['d'])],
+    },
     runs: [run('r', 'waiting_approval')],
-    agents: [agent('r', 'waiting'), agent('r', 'completed', { id: 'c', parent_agent_id: 'r', tool_call_id: '1', role_name: 'Coder', task: 't', depth: 1 })],
+    agents: [
+      agent('r', 'waiting'),
+      agent('r', 'completed', {
+        id: 'c',
+        parent_agent_id: 'r',
+        tool_call_id: '1',
+        role_name: 'Coder',
+        task: 't',
+        depth: 1,
+      }),
+    ],
     messages: [userMessage('r', 'x'), assistantMessage('m', 'r', '')],
     toolCalls: [toolCall('1', 'r', 'spawn_agent', 'running', '{"role":"Coder"}', { message_id: 'm' })],
-    fileChanges: ['a.py', 'b.py', 'a.py', 'c.py'].map((path, at) => fileChange(`f${at}`, 'r', { agent_id: 'c', path })).concat(fileChange('f9', 'r', { agent_id: 'd', path: 'README.md' })),
+    fileChanges: ['a.py', 'b.py', 'a.py', 'c.py']
+      .map((path, at) => fileChange(`f${at}`, 'r', { agent_id: 'c', path }))
+      .concat(fileChange('f9', 'r', { agent_id: 'd', path: 'README.md' })),
     questions: [asked],
   })
   const { rerender } = render(<MessageList {...handlers} state={state} onAnswer={onAnswer} />)
@@ -413,7 +545,13 @@ test('K-hazir-satir: the teams’ Ready for you card is one line in the chat - w
   await userEvent.click(screen.getByRole('button', { name: 'Take in' }))
   expect(onAnswer).toHaveBeenCalledWith('q', 'Take in')
   // Answered - here or on the list, the one question: the line and the answer, still not titled Ready for you.
-  rerender(<MessageList {...handlers} state={{ ...state, questions: [{ ...asked, status: 'answered', answer: 'Take in' }] }} onAnswer={onAnswer} />)
+  rerender(
+    <MessageList
+      {...handlers}
+      state={{ ...state, questions: [{ ...asked, status: 'answered', answer: 'Take in' }] }}
+      onAnswer={onAnswer}
+    />,
+  )
   expect(screen.getByText("Teams' work is ready · Web app 3 files · Docs 1 file, kept apart")).toBeInTheDocument()
   expect(screen.getByText('Take in')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Take in' })).not.toBeInTheDocument()
@@ -428,10 +566,27 @@ test('the ready line says what changes what Take in does: a row not at its end a
     no_recipe: false,
     picked_by: 'user' as const,
     why: null,
-    state: { run_id: 'r', team, recipe: 'Feature', status: 'ready' as const, why: null, steps: [], agents, ended_ready: false, passes: [], ...more },
+    state: {
+      run_id: 'r',
+      team,
+      recipe: 'Feature',
+      status: 'ready' as const,
+      why: null,
+      steps: [],
+      agents,
+      ended_ready: false,
+      passes: [],
+      ...more,
+    },
   })
   const base = convState()
-  const asked = question('q', 'r', { tool_call_id: '1', question: 'Ready for you: … Take the work into the project?', options: ['Take in', 'Ask for changes'], leave: true, created_at: '2026-10-05T10:05:00Z' })
+  const asked = question('q', 'r', {
+    tool_call_id: '1',
+    question: 'Ready for you: … Take the work into the project?',
+    options: ['Take in', 'Ask for changes'],
+    leave: true,
+    created_at: '2026-10-05T10:05:00Z',
+  })
   const state = convState({
     conversation: {
       ...base.conversation,
@@ -444,7 +599,17 @@ test('the ready line says what changes what Take in does: a row not at its end a
       ],
     },
     runs: [run('r', 'waiting_approval')],
-    agents: [agent('r', 'waiting'), agent('r', 'completed', { id: 'c', parent_agent_id: 'r', tool_call_id: '1', role_name: 'Coder', task: 't', depth: 1 })],
+    agents: [
+      agent('r', 'waiting'),
+      agent('r', 'completed', {
+        id: 'c',
+        parent_agent_id: 'r',
+        tool_call_id: '1',
+        role_name: 'Coder',
+        task: 't',
+        depth: 1,
+      }),
+    ],
     messages: [userMessage('r', 'x'), assistantMessage('m', 'r', '')],
     toolCalls: [toolCall('1', 'r', 'spawn_agent', 'running', '{"role":"Coder"}', { message_id: 'm' })],
     fileChanges: [
@@ -456,12 +621,26 @@ test('the ready line says what changes what Take in does: a row not at its end a
   })
   const { rerender } = render(<MessageList {...handlers} state={state} />)
   // K-r152: a team stopped, so no "Teams' work is ready": each team says its own state.
-  const line = 'Web app stopped: Stopped by you (1 file) · Backend is ready (1 file) · Docs is ready (1 file, kept apart) · Quality is ready (nothing to take in)'
+  const line =
+    'Web app stopped: Stopped by you (1 file) · Backend is ready (1 file) · Docs is ready (1 file, kept apart) · Quality is ready (nothing to take in)'
   expect(screen.getByText(`${line} · Take in also takes in what Web app left before it stopped.`)).toBeInTheDocument()
   // Answered: counted as it was asked - a file changed later is not in it - and what came of it is the answer's.
   const later = fileChange('f4', 'r', { agent_id: 'b', path: 'more.py', created_at: '2026-10-05T10:09:00Z' })
-  rerender(<MessageList {...handlers} state={{ ...state, fileChanges: [...state.fileChanges, later], questions: [{ ...asked, status: 'answered', answer: 'Take in' }] }} />)
-  expect(screen.getByText('Web app stopped (1 file) · Backend is ready (1 file) · Docs is ready (1 file, kept apart) · Quality is ready (nothing to take in)')).toBeInTheDocument()
+  rerender(
+    <MessageList
+      {...handlers}
+      state={{
+        ...state,
+        fileChanges: [...state.fileChanges, later],
+        questions: [{ ...asked, status: 'answered', answer: 'Take in' }],
+      }}
+    />,
+  )
+  expect(
+    screen.getByText(
+      'Web app stopped (1 file) · Backend is ready (1 file) · Docs is ready (1 file, kept apart) · Quality is ready (nothing to take in)',
+    ),
+  ).toBeInTheDocument()
 })
 
 test('K-r152: a team whose lead failed at once is not "ready" in the line', () => {
@@ -471,12 +650,31 @@ test('K-r152: a team whose lead failed at once is not "ready" in the line', () =
     no_recipe: false,
     picked_by: 'user' as const,
     why: null,
-    state: { run_id: 'r', team, recipe: 'Feature', status: 'ready' as const, why: null, steps: [], agents, ended_ready: false, passes: [] },
+    state: {
+      run_id: 'r',
+      team,
+      recipe: 'Feature',
+      status: 'ready' as const,
+      why: null,
+      steps: [],
+      agents,
+      ended_ready: false,
+      passes: [],
+    },
   })
   const base = convState()
-  const asked = question('q', 'r', { tool_call_id: '1', question: 'Ready for you: … Take the work into the project?', options: ['Take in'], leave: true })
+  const asked = question('q', 'r', {
+    tool_call_id: '1',
+    question: 'Ready for you: … Take the work into the project?',
+    options: ['Take in'],
+    leave: true,
+  })
   const state = convState({
-    conversation: { ...base.conversation, teams_mode: 'manual', teams: [row('docs', 'Docs', ['d']), row('web', 'Web app', ['w'])] },
+    conversation: {
+      ...base.conversation,
+      teams_mode: 'manual',
+      teams: [row('docs', 'Docs', ['d']), row('web', 'Web app', ['w'])],
+    },
     runs: [run('r', 'waiting_approval')],
     agents: [
       agent('r', 'waiting'),
@@ -493,13 +691,29 @@ test('K-r152: a team whose lead failed at once is not "ready" in the line', () =
 })
 
 test('K-r152: an agent’s report is markdown, folded to one line with KOLONİ’s record under it; KOLONİ’s frame of it is not shown', async () => {
-  const report = 'Docs lead finished.\n\n### Summary\n\nI wrote **setup.md** for new users. It has three parts.\n\n```\nnpm start\n```\n\nWhat it did, from KOLONİ\'s record: read 2 files, wrote 1 ("setup.md"), ran 0 commands'
-  const frame = 'KOLONİ, of your spawn_agent for Docs lead (failed): what came of it follows, as a message from Docs lead.'
-  const said = (id: string, content: string, from: string | null): Message => ({ ...assistantMessage(id, 'r', content), role: 'agent', agent_id: 'r', from_agent_id: from })
+  const report =
+    'Docs lead finished.\n\n### Summary\n\nI wrote **setup.md** for new users. It has three parts.\n\n```\nnpm start\n```\n\nWhat it did, from KOLONİ\'s record: read 2 files, wrote 1 ("setup.md"), ran 0 commands'
+  const frame =
+    'KOLONİ, of your spawn_agent for Docs lead (failed): what came of it follows, as a message from Docs lead.'
+  const said = (id: string, content: string, from: string | null): Message => ({
+    ...assistantMessage(id, 'r', content),
+    role: 'agent',
+    agent_id: 'r',
+    from_agent_id: from,
+  })
   const state = convState({
     runs: [run('r', 'running')],
-    agents: [agent('r', 'running'), agent('r', 'completed', { id: 'd', parent_agent_id: 'r', role_name: 'Docs lead', depth: 1 })],
-    messages: [userMessage('r', 'x'), said('k', frame, null), said('n', report, 'd'), said('s', 'Which **file**?', 'd'), assistantMessage('m', 'r', 'All done.')],
+    agents: [
+      agent('r', 'running'),
+      agent('r', 'completed', { id: 'd', parent_agent_id: 'r', role_name: 'Docs lead', depth: 1 }),
+    ],
+    messages: [
+      userMessage('r', 'x'),
+      said('k', frame, null),
+      said('n', report, 'd'),
+      said('s', 'Which **file**?', 'd'),
+      assistantMessage('m', 'r', 'All done.'),
+    ],
   })
   render(<MessageList {...handlers} state={state} />)
   expect(screen.queryByText(/what came of it follows/)).toBeNull()
@@ -516,23 +730,42 @@ test('K-r152: an agent’s report is markdown, folded to one line with KOLONİ�
 })
 
 test('K-r152: a failed report’s line says its name once, then why', () => {
-  const failed = 'Web app lead failed: the model said no tokens\n\nWhat it did, from KOLONİ\'s record: read 0 files, wrote 0, ran 0 commands'
+  const failed =
+    "Web app lead failed: the model said no tokens\n\nWhat it did, from KOLONİ's record: read 0 files, wrote 0, ran 0 commands"
   const state = convState({
     runs: [run('r', 'running')],
-    agents: [agent('r', 'running'), agent('r', 'failed', { id: 'w', parent_agent_id: 'r', role_name: 'Web app lead', depth: 1 })],
-    messages: [userMessage('r', 'x'), { ...assistantMessage('n', 'r', failed), role: 'agent', agent_id: 'r', from_agent_id: 'w' }],
+    agents: [
+      agent('r', 'running'),
+      agent('r', 'failed', { id: 'w', parent_agent_id: 'r', role_name: 'Web app lead', depth: 1 }),
+    ],
+    messages: [
+      userMessage('r', 'x'),
+      { ...assistantMessage('n', 'r', failed), role: 'agent', agent_id: 'r', from_agent_id: 'w' },
+    ],
   })
   render(<MessageList {...handlers} state={state} />)
-  expect(screen.getByRole('button', { name: /^\s*Web app lead · failed · the model said no tokens$/ })).toBeInTheDocument()
+  expect(
+    screen.getByRole('button', { name: /^\s*Web app lead · failed · the model said no tokens$/ }),
+  ).toBeInTheDocument()
 })
 
 test('B-362: an answer KOLONİ hands on as data is folded, with its real line breaks', async () => {
-  const late = 'KOLONİ: Spec writer\'s answer to Docs lead was not delivered - Docs lead ended (failed) before it came. The answer, as data: "## Spec\\n\\nOne page.\\nTwo parts."'
-  const toLead = 'KOLONİ: Coder of the Web app team asked the Docs team for work, and it did not reach them: it is not open. The request, as data: "a README". Decide what becomes of it: open Docs\'s coordinator with it, or tell Coder.'
-  const said = (id: string, content: string): Message => ({ ...assistantMessage(id, 'r', content), role: 'agent', agent_id: 'r', from_agent_id: 'c' })
+  const late =
+    'KOLONİ: Spec writer\'s answer to Docs lead was not delivered - Docs lead ended (failed) before it came. The answer, as data: "## Spec\\n\\nOne page.\\nTwo parts."'
+  const toLead =
+    'KOLONİ: Coder of the Web app team asked the Docs team for work, and it did not reach them: it is not open. The request, as data: "a README". Decide what becomes of it: open Docs\'s coordinator with it, or tell Coder.'
+  const said = (id: string, content: string): Message => ({
+    ...assistantMessage(id, 'r', content),
+    role: 'agent',
+    agent_id: 'r',
+    from_agent_id: 'c',
+  })
   const state = convState({
     runs: [run('r', 'running')],
-    agents: [agent('r', 'running'), agent('r', 'running', { id: 'c', parent_agent_id: 'r', role_name: 'Coder', depth: 1 })],
+    agents: [
+      agent('r', 'running'),
+      agent('r', 'running', { id: 'c', parent_agent_id: 'r', role_name: 'Coder', depth: 1 }),
+    ],
     messages: [userMessage('r', 'x'), said('k', late), said('t', toLead)],
   })
   render(<MessageList {...handlers} state={state} />)
@@ -550,7 +783,17 @@ test('a question a recipe’s Room step puts in the Lead’s room call is answer
   const asked = 'Web app: Design meeting failed (Coder). Skip it, or stop the Odali recipe?'
   const state = convState({
     runs: [run('r', 'waiting_approval')],
-    agents: [agent('r', 'waiting'), agent('r', 'failed', { id: 'kid', parent_agent_id: 'r', tool_call_id: '1', role_name: 'Coder', task: 't', depth: 1 })],
+    agents: [
+      agent('r', 'waiting'),
+      agent('r', 'failed', {
+        id: 'kid',
+        parent_agent_id: 'r',
+        tool_call_id: '1',
+        role_name: 'Coder',
+        task: 't',
+        depth: 1,
+      }),
+    ],
     messages: [userMessage('r', 'x'), assistantMessage('m', 'r', '')],
     toolCalls: [toolCall('1', 'r', 'open_room', 'running', '{"goal":"Design"}', { message_id: 'm' })],
     questions: [question('q', 'r', { tool_call_id: '1', question: asked, options: ['Skip', 'Stop'], leave: true })],
@@ -564,10 +807,31 @@ test('a recipe’s question, put in the call that opened its step’s agent, is 
   const onAnswer = vi.fn().mockResolvedValue(undefined)
   const state = convState({
     runs: [run('r', 'waiting_approval')],
-    agents: [agent('r', 'waiting'), agent('r', 'completed', { id: 'kid', parent_agent_id: 'r', tool_call_id: '1', role_name: 'Spec writer', task: 'Write the spec', depth: 1 })],
+    agents: [
+      agent('r', 'waiting'),
+      agent('r', 'completed', {
+        id: 'kid',
+        parent_agent_id: 'r',
+        tool_call_id: '1',
+        role_name: 'Spec writer',
+        task: 'Write the spec',
+        depth: 1,
+      }),
+    ],
     messages: [userMessage('r', 'x'), assistantMessage('m', 'r', '')],
-    toolCalls: [toolCall('1', 'r', 'spawn_agent', 'running', '{"role":"Spec writer","task":"Write the spec"}', { message_id: 'm' })],
-    questions: [question('q', 'r', { tool_call_id: '1', question: 'Web app: Write the spec is done. Go on with the Feature recipe?', options: ['Go on', 'Stop'], leave: true })],
+    toolCalls: [
+      toolCall('1', 'r', 'spawn_agent', 'running', '{"role":"Spec writer","task":"Write the spec"}', {
+        message_id: 'm',
+      }),
+    ],
+    questions: [
+      question('q', 'r', {
+        tool_call_id: '1',
+        question: 'Web app: Write the spec is done. Go on with the Feature recipe?',
+        options: ['Go on', 'Stop'],
+        leave: true,
+      }),
+    ],
   })
   const { rerender } = render(<MessageList {...handlers} state={state} onAnswer={onAnswer} />)
   expect(screen.getByRole('button', { name: /Spec writer.*Write the spec/ })).toBeInTheDocument()
@@ -581,7 +845,12 @@ test('a recipe’s question, put in the call that opened its step’s agent, is 
   expect(screen.getByText('Web app: Write the spec is done. Go on with the Feature recipe?')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Stop' })).not.toBeInTheDocument()
   // the recipe's next question, in the same call: under the first, and answered there
-  const takeIn = question('q2', 'r', { tool_call_id: '1', question: 'Ready for you: Web app (Feature): ready. Take the work into the project?', options: ['Take in', 'Ask for changes'], leave: true })
+  const takeIn = question('q2', 'r', {
+    tool_call_id: '1',
+    question: 'Ready for you: Web app (Feature): ready. Take the work into the project?',
+    options: ['Take in', 'Ask for changes'],
+    leave: true,
+  })
   rerender(<MessageList {...handlers} state={{ ...state, questions: [answered, takeIn] }} onAnswer={onAnswer} />)
   await userEvent.click(screen.getByRole('button', { name: 'Take in' }))
   expect(onAnswer).toHaveBeenCalledWith('q2', 'Take in')
@@ -607,7 +876,9 @@ test('the Lead’s pick of teams stands in the chat as its own line, not folded 
     toolCalls: [
       toolCall('1', 'r', 'read_file', 'succeeded', '{"path":"a.py"}', { message_id: 'm' }),
       toolCall('2', 'r', 'read_file', 'succeeded', '{"path":"b.py"}', { message_id: 'm' }),
-      toolCall('3', 'r', 'pick_teams', 'succeeded', '{"teams":[{"team":"Docs","why":"it is words"}]}', { message_id: 'm' }),
+      toolCall('3', 'r', 'pick_teams', 'succeeded', '{"teams":[{"team":"Docs","why":"it is words"}]}', {
+        message_id: 'm',
+      }),
     ],
   })
   render(<MessageList {...handlers} state={state} />)
@@ -620,8 +891,20 @@ test('a role an agent wants to create is asked for under its call', async () => 
     runs: [run('r', 'waiting_approval')],
     agents: [agent('r')],
     messages: [userMessage('r', 'x'), assistantMessage('m', 'r', '')],
-    toolCalls: [toolCall('1', 'r', 'create_role', 'running', '{"name":"Documenter","tools":["read_file"]}', { message_id: 'm' })],
-    pendingRoles: [{ tool_call_id: '1', run_id: 'r', agent_id: 'r', name: 'Documenter', description: '', instructions: '', tools: ['read_file'] }],
+    toolCalls: [
+      toolCall('1', 'r', 'create_role', 'running', '{"name":"Documenter","tools":["read_file"]}', { message_id: 'm' }),
+    ],
+    pendingRoles: [
+      {
+        tool_call_id: '1',
+        run_id: 'r',
+        agent_id: 'r',
+        name: 'Documenter',
+        description: '',
+        instructions: '',
+        tools: ['read_file'],
+      },
+    ],
   })
   render(<MessageList {...handlers} state={state} onDecideRole={onDecideRole} />)
   expect(screen.getByRole('button', { name: /create_role Documenter/ })).toBeInTheDocument()
@@ -634,14 +917,54 @@ const asking = convState({
   runs: [run('r', 'waiting_approval')],
   agents: [
     agent('r', 'waiting'),
-    agent('r', 'waiting', { id: 'planner', parent_agent_id: 'r', tool_call_id: '1', role_name: 'Planner', task: 'plan it', depth: 1 }),
-    agent('r', 'running', { id: 'coder', parent_agent_id: 'planner', tool_call_id: '2', role_name: 'Coder', task: 'code it', depth: 2 }),
-    agent('r', 'proposed', { id: 'tester', parent_agent_id: 'planner', tool_call_id: '3', role_name: 'Tester', task: 'test it', depth: 2 }),
+    agent('r', 'waiting', {
+      id: 'planner',
+      parent_agent_id: 'r',
+      tool_call_id: '1',
+      role_name: 'Planner',
+      task: 'plan it',
+      depth: 1,
+    }),
+    agent('r', 'running', {
+      id: 'coder',
+      parent_agent_id: 'planner',
+      tool_call_id: '2',
+      role_name: 'Coder',
+      task: 'code it',
+      depth: 2,
+    }),
+    agent('r', 'proposed', {
+      id: 'tester',
+      parent_agent_id: 'planner',
+      tool_call_id: '3',
+      role_name: 'Tester',
+      task: 'test it',
+      depth: 2,
+    }),
   ],
   messages: [userMessage('r', 'go'), assistantMessage('m', 'r', '')],
   toolCalls: [toolCall('1', 'r', 'spawn_agent', 'running', '{"role":"Planner"}', { message_id: 'm' })],
-  pendingRoles: [{ tool_call_id: '9', run_id: 'r', agent_id: 'planner', name: 'Documenter', description: '', instructions: '', tools: ['read_file'] }],
-  commands: [command('k1', 'r', { agent_id: 'coder', status: 'proposed', command: 'pytest -q', exit_code: null, started_at: null, ended_at: null })],
+  pendingRoles: [
+    {
+      tool_call_id: '9',
+      run_id: 'r',
+      agent_id: 'planner',
+      name: 'Documenter',
+      description: '',
+      instructions: '',
+      tools: ['read_file'],
+    },
+  ],
+  commands: [
+    command('k1', 'r', {
+      agent_id: 'coder',
+      status: 'proposed',
+      command: 'pytest -q',
+      exit_code: null,
+      started_at: null,
+      ended_at: null,
+    }),
+  ],
   fileChanges: [fileChange('f1', 'r', { agent_id: 'coder', status: 'proposed', path: 'src/deep.py' })],
 })
 
@@ -674,10 +997,18 @@ test('what sub-agents ask for is answered in the chat, each request naming who a
 })
 
 test('a sub-agent’s command card says why it is asked, as its call’s record says', () => {
-  const why = 'it names the project folder (C:\\p), outside the working copy it works in: there it would act on the project itself'
+  const why =
+    'it names the project folder (C:\\p), outside the working copy it works in: there it would act on the project itself'
   const state = {
     ...asking,
-    toolCalls: [...asking.toolCalls, toolCall('c', 'r', 'run_command', 'running', '{"command":"pytest -q"}', { agent_id: 'coder', message_id: 'coder-step', why_asked: why })],
+    toolCalls: [
+      ...asking.toolCalls,
+      toolCall('c', 'r', 'run_command', 'running', '{"command":"pytest -q"}', {
+        agent_id: 'coder',
+        message_id: 'coder-step',
+        why_asked: why,
+      }),
+    ],
     commands: [{ ...asking.commands[0], tool_call_id: 'c' }],
   }
   render(<MessageList {...handlers} state={state} />)
@@ -757,7 +1088,14 @@ const leaveAsked = (status: 'running' | 'succeeded', over: Parameters<typeof que
     agents: [agent('r')],
     messages: [userMessage('r', 'x'), assistantMessage('m', 'r', '')],
     toolCalls: [toolCall('1', 'r', 'rea__scan', status, '{"target":"a.exe"}', { message_id: 'm' })],
-    questions: [question('q', 'r', { question: 'May the tool "scan" of the MCP server "rea" run?', options: ['Allow', 'Deny'], leave: true, ...over })],
+    questions: [
+      question('q', 'r', {
+        question: 'May the tool "scan" of the MCP server "rea" run?',
+        options: ['Allow', 'Deny'],
+        leave: true,
+        ...over,
+      }),
+    ],
   })
 
 test('a call of an MCP server’s tool keeps its row while leave is asked for it, and waits', async () => {
@@ -781,11 +1119,26 @@ test('leave asked for a sub-agent’s call says whose call it is, and that the a
     runs: [run('r', 'waiting_approval')],
     agents: [
       agent('r', 'waiting'),
-      agent('r', 'running', { id: 'kid', parent_agent_id: 'r', tool_call_id: '1', role_name: 'Reviewer', task: 't', depth: 1 }),
+      agent('r', 'running', {
+        id: 'kid',
+        parent_agent_id: 'r',
+        tool_call_id: '1',
+        role_name: 'Reviewer',
+        task: 't',
+        depth: 1,
+      }),
     ],
     messages: [userMessage('r', 'x'), assistantMessage('m', 'r', '')],
     toolCalls: [toolCall('1', 'r', 'spawn_agent', 'running', '{"role":"Reviewer","task":"t"}', { message_id: 'm' })],
-    questions: [question('q', 'r', { agent_id: 'kid', tool_call_id: '7', question: 'May the tool "scan" of the MCP server "rea" run?', options: ['Allow', 'Deny'], leave: true })],
+    questions: [
+      question('q', 'r', {
+        agent_id: 'kid',
+        tool_call_id: '7',
+        question: 'May the tool "scan" of the MCP server "rea" run?',
+        options: ['Allow', 'Deny'],
+        leave: true,
+      }),
+    ],
   })
   render(<MessageList {...handlers} state={state} />)
   expect(screen.getByText('for Reviewer')).toBeInTheDocument()
@@ -813,7 +1166,14 @@ test('a sub-agent’s question is answered in the chat, and its card names who a
     runs: [run('r', 'waiting_approval')],
     agents: [
       agent('r', 'waiting'),
-      agent('r', 'running', { id: 'kid', parent_agent_id: 'r', tool_call_id: '1', role_name: 'Reviewer', task: 't', depth: 1 }),
+      agent('r', 'running', {
+        id: 'kid',
+        parent_agent_id: 'r',
+        tool_call_id: '1',
+        role_name: 'Reviewer',
+        task: 't',
+        depth: 1,
+      }),
     ],
     messages: [userMessage('r', 'x'), assistantMessage('m', 'r', '')],
     toolCalls: [toolCall('1', 'r', 'spawn_agent', 'running', '{"role":"Reviewer"}', { message_id: 'm' })],
@@ -831,7 +1191,20 @@ test('a sub-agent’s question is answered in the chat, and its card names who a
 
 test('a question from two levels down is still answered in the chat', async () => {
   const onAnswer = vi.fn().mockResolvedValue(undefined)
-  const state = { ...asking, pendingRoles: [], commands: [], fileChanges: [], questions: [question('deep', 'r', { agent_id: 'coder', tool_call_id: '8', question: 'Tabs or spaces?', options: ['tabs', 'spaces'] })] }
+  const state = {
+    ...asking,
+    pendingRoles: [],
+    commands: [],
+    fileChanges: [],
+    questions: [
+      question('deep', 'r', {
+        agent_id: 'coder',
+        tool_call_id: '8',
+        question: 'Tabs or spaces?',
+        options: ['tabs', 'spaces'],
+      }),
+    ],
+  }
   opened(state)
   render(<MessageList {...handlers} state={state} onAnswer={onAnswer} />)
   expect(screen.getByText('Coder asks')).toBeInTheDocument()
@@ -853,9 +1226,18 @@ function unattended(over: Parameters<typeof convState>[0] = {}) {
     agents: [agent('n', 'completed')],
     messages: [started, assistantMessage('m1', 'n', ''), assistantMessage('m2', 'n', 'I could not do everything.')],
     toolCalls: [
-      toolCall('1', 'n', 'write_file', 'denied', '{"path":"made.txt","content":"x"}', { message_id: 'm1', result: refusedWith('change files') }),
-      toolCall('2', 'n', 'run_command', 'denied', '{"command":"python check.py"}', { message_id: 'm1', result: refusedWith('run "python check.py"') }),
-      toolCall('3', 'n', 'ask_user', 'denied', '{"question":"Which?"}', { message_id: 'm1', result: refusedWith('ask the user anything') }),
+      toolCall('1', 'n', 'write_file', 'denied', '{"path":"made.txt","content":"x"}', {
+        message_id: 'm1',
+        result: refusedWith('change files'),
+      }),
+      toolCall('2', 'n', 'run_command', 'denied', '{"command":"python check.py"}', {
+        message_id: 'm1',
+        result: refusedWith('run "python check.py"'),
+      }),
+      toolCall('3', 'n', 'ask_user', 'denied', '{"question":"Which?"}', {
+        message_id: 'm1',
+        result: refusedWith('ask the user anything'),
+      }),
     ],
     ...over,
   })
@@ -874,9 +1256,15 @@ test('at the end of such a turn, what it would have asked you is listed once, ea
   render(<MessageList state={unattended()} {...handlers} onAllowInTrigger={onAllow} />)
   const block = screen.getByRole('group', { name: 'It would have asked you' })
   const asked = within(block).getAllByRole('listitem')
-  expect(asked.map(item => item.firstChild?.textContent)).toEqual(['write made.txt', 'run `python check.py`', 'ask the user anything'])
+  expect(asked.map(item => item.firstChild?.textContent)).toEqual([
+    'write made.txt',
+    'run `python check.py`',
+    'ask the user anything',
+  ])
   // it stands after the turn's last words, not among them
-  expect(screen.getByText('I could not do everything.').compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(
+    screen.getByText('I could not do everything.').compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy()
   // what no trigger can allow has no link
   expect(within(asked[2]).queryByRole('button')).not.toBeInTheDocument()
   await userEvent.click(within(asked[0]).getByRole('button', { name: 'Allow this in the trigger' }))
@@ -892,14 +1280,21 @@ test('a turn that was refused nothing has no such block; nor has a turn of the u
   const own = convState({
     runs: [run('r', 'completed')],
     messages: [userMessage('r', 'x'), assistantMessage('m1', 'r', 'done')],
-    toolCalls: [toolCall('1', 'r', 'write_file', 'denied', '{"path":"a"}', { message_id: 'm1', result: refusedWith('change files') })],
+    toolCalls: [
+      toolCall('1', 'r', 'write_file', 'denied', '{"path":"a"}', {
+        message_id: 'm1',
+        result: refusedWith('change files'),
+      }),
+    ],
   })
   render(<MessageList state={own} {...handlers} />)
   expect(screen.queryByRole('group', { name: 'It would have asked you' })).not.toBeInTheDocument()
 })
 
 test('a trigger that is no longer on record cannot be allowed anything: the requests are listed without the link', () => {
-  const state = unattended({ runs: [run('n', 'completed', { unattended: true, trigger_id: null, trigger_name: 'Nightly look' })] })
+  const state = unattended({
+    runs: [run('n', 'completed', { unattended: true, trigger_id: null, trigger_name: 'Nightly look' })],
+  })
   render(<MessageList state={state} {...handlers} onAllowInTrigger={vi.fn()} />)
   const block = screen.getByRole('group', { name: 'It would have asked you' })
   expect(within(block).getAllByRole('listitem')).toHaveLength(3)
@@ -911,7 +1306,11 @@ test('a trigger that is no longer on record cannot be allowed anything: the requ
 test('where the topic changes there is a divider: a new topic the first time, and the topic by name when the talk comes back to it', () => {
   const started: Message = { ...userMessage('n', 'Look the project over.'), id: 't-n', role: 'trigger' }
   const state = convState({
-    topics: [topic('ta', 'Fix the greeting'), topic('tb', 'Write the docs'), topic('tn', 'Look the project over.', { trigger_id: 't1' })],
+    topics: [
+      topic('ta', 'Fix the greeting'),
+      topic('tb', 'Write the docs'),
+      topic('tn', 'Look the project over.', { trigger_id: 't1' }),
+    ],
     runs: [
       run('a1', 'completed', { topic_id: 'ta' }),
       run('a2', 'completed', { topic_id: 'ta' }),
@@ -936,7 +1335,9 @@ test('where the topic changes there is a divider: a new topic the first time, an
     'Continuing: Fix the greeting',
   ])
   // in reading order: each stands before the turn it opens
-  const order = Array.from(document.querySelectorAll('.topic-divider, .msg-bubble, .msg-quote')).map(piece => piece.textContent)
+  const order = Array.from(document.querySelectorAll('.topic-divider, .msg-bubble, .msg-quote')).map(
+    piece => piece.textContent,
+  )
   expect(order).toEqual([
     'Fix the greeting',
     'now in Turkish',
@@ -969,19 +1370,37 @@ test('the card that asks before an agent goes on from an earlier turn says so', 
       agent('a1', 'completed'),
       agent('a1', 'completed', { id: 'coder1', parent_agent_id: 'a1', role_name: 'Coder', depth: 1 }),
       agent('a2', 'waiting'),
-      agent('a2', 'proposed', { id: 'coder2', parent_agent_id: 'a2', role_name: 'Coder', depth: 1, continues_id: 'coder1', tool_call_id: '7', task: 'Now in Turkish' }),
+      agent('a2', 'proposed', {
+        id: 'coder2',
+        parent_agent_id: 'a2',
+        role_name: 'Coder',
+        depth: 1,
+        continues_id: 'coder1',
+        tool_call_id: '7',
+        task: 'Now in Turkish',
+      }),
     ],
-    toolCalls: [toolCall('7', 'a2', 'message_agent', 'running', '{"to":"Coder","message":"Now in Turkish"}', { message_id: 'm2' })],
+    toolCalls: [
+      toolCall('7', 'a2', 'message_agent', 'running', '{"to":"Coder","message":"Now in Turkish"}', {
+        message_id: 'm2',
+      }),
+    ],
   })
   const { rerender } = render(<MessageList state={state} {...handlers} />)
   expect(screen.getByText(`continues Coder from the ${when('2026-10-05T10:00:00Z')} message`)).toBeInTheDocument()
   // with the roles not known here, only where it stays is said
   expect(screen.getByText('It stays on Local · qwen, where it ran before.')).toBeInTheDocument()
   // its role runs elsewhere now: the card says where, and that this agent stays where it ran before
-  const providers = [{ id: 'p-local', name: 'Local', default_model: 'qwen' }, { id: 'p-fast', name: 'Fast', default_model: 'quick' }] as Provider[]
-  const coder = (over: Partial<Role>) => [{ id: 'r', name: 'Coder', provider_id: null, model_id: null, ...over }] as Role[]
+  const providers = [
+    { id: 'p-local', name: 'Local', default_model: 'qwen' },
+    { id: 'p-fast', name: 'Fast', default_model: 'quick' },
+  ] as Provider[]
+  const coder = (over: Partial<Role>) =>
+    [{ id: 'r', name: 'Coder', provider_id: null, model_id: null, ...over }] as Role[]
   rerender(<MessageList state={state} {...handlers} roles={coder({ provider_id: 'p-fast' })} providers={providers} />)
-  expect(screen.getByText('It stays on Local · qwen, where it ran before. Its role would now run on Fast · quick.')).toBeInTheDocument()
+  expect(
+    screen.getByText('It stays on Local · qwen, where it ran before. Its role would now run on Fast · quick.'),
+  ).toBeInTheDocument()
   // its role would run where it runs: nothing is said
   rerender(<MessageList state={state} {...handlers} roles={coder({})} providers={providers} />)
   expect(screen.queryByText(/It stays on/)).not.toBeInTheDocument()
@@ -995,7 +1414,11 @@ test('a plan turn ends with its plan card; the decision goes with the turn it is
       {...handlers}
       onDecidePlan={onDecidePlan}
       state={convState({
-        runs: [run('o', 'completed', { plan_turn: true, plan }), run('w', 'completed'), run('p', 'completed', { plan_turn: true, plan })],
+        runs: [
+          run('o', 'completed', { plan_turn: true, plan }),
+          run('w', 'completed'),
+          run('p', 'completed', { plan_turn: true, plan }),
+        ],
         messages: [
           userMessage('o', 'make b.txt'),
           assistantMessage('m0', 'o', 'PLAN: 1. look'),
@@ -1020,8 +1443,15 @@ const UNDO = { turns: [], revert: ['a.txt'], skip: [], reject: [], copies: [], c
 const AT = '2026-10-26T10:42:00'
 
 test('slice 107: a message whose work changed files has ↺ beside it, named with its time; one that runs, or changed nothing, has none', async () => {
-  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(UNDO), { status: 200 })))
-  const messages = [{ ...userMessage('a', 'make a'), created_at: AT }, userMessage('b', 'make b'), userMessage('c', 'thanks')]
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(JSON.stringify(UNDO), { status: 200 })),
+  )
+  const messages = [
+    { ...userMessage('a', 'make a'), created_at: AT },
+    userMessage('b', 'make b'),
+    userMessage('c', 'thanks'),
+  ]
   const fileChanges = [fileChange('fa', 'a', { path: 'a.txt' }), fileChange('fb', 'b', { path: 'b.txt' })]
   const runs = [run('a', 'completed'), run('b', 'running'), run('c', 'completed')]
   const { rerender } = render(<MessageList {...handlers} state={convState({ runs, messages, fileChanges })} />)
@@ -1035,7 +1465,12 @@ test('slice 107: a message whose work changed files has ↺ beside it, named wit
   expect(String(vi.mocked(fetch).mock.calls[0][0])).toBe('/api/runs/a/undo')
   // Undone: its change is reverted, and the card stays to say so; closed, no ↺ is left.
   await userEvent.click(within(card).getByRole('button', { name: 'Undo' }))
-  rerender(<MessageList {...handlers} state={convState({ runs, messages, fileChanges: [{ ...fileChanges[0], status: 'reverted' }, fileChanges[1]] })} />)
+  rerender(
+    <MessageList
+      {...handlers}
+      state={convState({ runs, messages, fileChanges: [{ ...fileChanges[0], status: 'reverted' }, fileChanges[1]] })}
+    />,
+  )
   expect(await within(card).findByRole('region', { name: 'Reverted' })).toHaveTextContent('a.txt')
   await userEvent.click(within(card).getByRole('button', { name: 'Close' }))
   expect(screen.queryByRole('button', { name: /^Undo these changes/ })).toBeNull()
@@ -1043,19 +1478,32 @@ test('slice 107: a message whose work changed files has ↺ beside it, named wit
 })
 
 test('slice 107: a message’s ⋯ copies it (and says so), restores to before it, and shows its work on the canvas - as does a click on it', async () => {
-  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(UNDO), { status: 200 })))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(JSON.stringify(UNDO), { status: 200 })),
+  )
   const writeText = vi.fn().mockResolvedValue(undefined)
   Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
   const onShowTurn = vi.fn()
   const messages = [{ ...userMessage('a', 'make a'), created_at: AT }, userMessage('b', 'thanks')]
-  render(<MessageList {...handlers} onShowTurn={onShowTurn} state={convState({ runs: [run('a', 'completed'), run('b', 'completed')], messages })} />)
+  render(
+    <MessageList
+      {...handlers}
+      onShowTurn={onShowTurn}
+      state={convState({ runs: [run('a', 'completed'), run('b', 'completed')], messages })}
+    />,
+  )
   const more = screen.getAllByRole('button', { name: /^Copy, restore, show its work · / })
   expect(more).toHaveLength(2)
   // (its time tells one message's ⋯ from another's)
   expect(more[0]).toHaveAccessibleName(`Copy, restore, show its work · ${when(AT)}`)
   await userEvent.click(more[0])
   const menu = screen.getByRole('menu', { name: 'Copy, restore, show its work' })
-  expect(within(menu).getAllByRole('menuitem').map(item => item.textContent?.trim())).toEqual(['Copy', 'Restore to before this message', 'Show its work on the canvas'])
+  expect(
+    within(menu)
+      .getAllByRole('menuitem')
+      .map(item => item.textContent?.trim()),
+  ).toEqual(['Copy', 'Restore to before this message', 'Show its work on the canvas'])
   await userEvent.click(within(menu).getByRole('menuitem', { name: 'Copy' }))
   expect(writeText).toHaveBeenCalledWith('make a')
   expect(await within(menu).findByRole('menuitem', { name: 'Copied' })).toBeInTheDocument()
@@ -1077,9 +1525,29 @@ test('slice 107: a message’s ⋯ copies it (and says so), restores to before i
 test('slice 107: a message still queued or at work cannot be restored to before; one of files alone copies their names', async () => {
   const writeText = vi.fn().mockResolvedValue(undefined)
   Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
-  const files: Attachment = { id: 'f1', conversation_id: 'c', message_id: 'm-a', frame_of: null, name: 'notes.pdf', kind: 'pdf', mime: 'application/pdf', size: 10, summary: '', given_to: [], shown_to: {}, keep_in_project: false, created_at: AT }
+  const files: Attachment = {
+    id: 'f1',
+    conversation_id: 'c',
+    message_id: 'm-a',
+    frame_of: null,
+    name: 'notes.pdf',
+    kind: 'pdf',
+    mime: 'application/pdf',
+    size: 10,
+    summary: '',
+    given_to: [],
+    shown_to: {},
+    keep_in_project: false,
+    created_at: AT,
+  }
   const messages = [{ ...userMessage('a', ''), id: 'm-a' }, userMessage('b', 'go')]
-  render(<MessageList {...handlers} onShowTurn={() => {}} state={convState({ runs: [run('a', 'completed'), run('b', 'running')], messages, attachments: [files] })} />)
+  render(
+    <MessageList
+      {...handlers}
+      onShowTurn={() => {}}
+      state={convState({ runs: [run('a', 'completed'), run('b', 'running')], messages, attachments: [files] })}
+    />,
+  )
   const [done, working] = screen.getAllByRole('button', { name: /^Copy, restore, show its work · / })
   await userEvent.click(working)
   expect(screen.queryByRole('menuitem', { name: 'Restore to before this message' })).toBeNull()
@@ -1091,19 +1559,35 @@ test('slice 107: a message still queued or at work cannot be restored to before;
 
 test('slice 107: a message taken off the queue has no ⋯ and a click draws nothing; a comparison’s has no ↺; with no canvas no Show its work', async () => {
   const onShowTurn = vi.fn()
-  const { container, unmount } = render(<MessageList {...handlers} onShowTurn={onShowTurn} state={convState({ runs: [run('q', 'cancelled', { started_at: null })], messages: [userMessage('q', 'never mind')] })} />)
+  const { container, unmount } = render(
+    <MessageList
+      {...handlers}
+      onShowTurn={onShowTurn}
+      state={convState({
+        runs: [run('q', 'cancelled', { started_at: null })],
+        messages: [userMessage('q', 'never mind')],
+      })}
+    />,
+  )
   expect(container.querySelector('.msg-user')).toHaveAttribute('class', 'msg msg-user msg-removed')
   expect(screen.queryByRole('button', { name: /^Copy, restore, show its work/ })).toBeNull()
   await userEvent.click(screen.getByText('never mind'))
   expect(onShowTurn).not.toHaveBeenCalled()
   unmount()
 
-  const compared = convState({ runs: [run('k1', 'completed', { compare_id: 'k' })], messages: [userMessage('k1', 'compare it')], fileChanges: [fileChange('fk', 'k1', { path: 'k.txt' })] })
+  const compared = convState({
+    runs: [run('k1', 'completed', { compare_id: 'k' })],
+    messages: [userMessage('k1', 'compare it')],
+    fileChanges: [fileChange('fk', 'k1', { path: 'k.txt' })],
+  })
   const { container: plain } = render(<MessageList {...handlers} state={compared} />)
   expect(plain.querySelector('.msg-user')).toHaveAttribute('class', 'msg msg-user')
   expect(screen.queryByRole('button', { name: /^Undo these changes/ })).toBeNull()
   await userEvent.click(screen.getByRole('button', { name: /^Copy, restore, show its work/ }))
-  expect(screen.getAllByRole('menuitem').map(item => item.textContent?.trim())).toEqual(['Copy', 'Restore to before this message'])
+  expect(screen.getAllByRole('menuitem').map(item => item.textContent?.trim())).toEqual([
+    'Copy',
+    'Restore to before this message',
+  ])
 })
 
 test('a lead opened for another team’s request is the request’s card; a command approved but not started says it waits for a place', () => {
@@ -1113,14 +1597,38 @@ test('a lead opened for another team’s request is the request’s card; a comm
     agents: [
       agent('r', 'waiting'),
       agent('r', 'waiting', { id: 'cv-asker', name: 'Coder', role_name: 'Coder', depth: 1, parent_agent_id: 'r' }),
-      agent('r', 'running', { id: 'cv-lead', name: 'Backend lead', role_name: 'Backend lead', depth: 1, parent_agent_id: 'r', tool_call_id: 'cv-open' }),
+      agent('r', 'running', {
+        id: 'cv-lead',
+        name: 'Backend lead',
+        role_name: 'Backend lead',
+        depth: 1,
+        parent_agent_id: 'r',
+        tool_call_id: 'cv-open',
+      }),
     ],
     toolCalls: [
-      toolCall('cv-req', 'r', 'request_work', 'running', JSON.stringify({ to: 'Backend', what: 'GET /items\nin pages' }), { agent_id: 'cv-asker', message_id: 'elsewhere' }),
-      toolCall('cv-open', 'r', 'spawn_agent', 'running', JSON.stringify({ role: 'Backend lead', task: 'the items' }), { parent_call_id: 'cv-req' }),
+      toolCall(
+        'cv-req',
+        'r',
+        'request_work',
+        'running',
+        JSON.stringify({ to: 'Backend', what: 'GET /items\nin pages' }),
+        { agent_id: 'cv-asker', message_id: 'elsewhere' },
+      ),
+      toolCall('cv-open', 'r', 'spawn_agent', 'running', JSON.stringify({ role: 'Backend lead', task: 'the items' }), {
+        parent_call_id: 'cv-req',
+      }),
       toolCall('cv-cmd', 'r', 'run_command', 'running', JSON.stringify({ command: 'pytest -q' })),
     ],
-    commands: [command('cv-k', 'r', { tool_call_id: 'cv-cmd', status: 'approved', exit_code: null, started_at: null, ended_at: null })],
+    commands: [
+      command('cv-k', 'r', {
+        tool_call_id: 'cv-cmd',
+        status: 'approved',
+        exit_code: null,
+        started_at: null,
+        ended_at: null,
+      }),
+    ],
   })
   const { container } = render(<MessageList {...handlers} state={state} />)
   const card = container.querySelector('.request-card')
@@ -1128,7 +1636,10 @@ test('a lead opened for another team’s request is the request’s card; a comm
   expect(card).toHaveTextContent('GET /items')
   expect(card).not.toHaveTextContent('in pages')
   expect(container.querySelector('.request-card-line')).toHaveAttribute('title', 'Show its lead on the canvas')
-  expect(screen.getByText(/^Approved — it starts once its agent has a place among the agents at work/)).toHaveAttribute('role', 'note')
+  expect(screen.getByText(/^Approved — it starts once its agent has a place among the agents at work/)).toHaveAttribute(
+    'role',
+    'note',
+  )
 })
 
 test('slice 23: a file saved into the project says where under its message, once the change is in', () => {
@@ -1139,14 +1650,22 @@ test('slice 23: a file saved into the project says where under its message, once
     fileChange('s3', 'a', { path: 'src/a.py' }),
   ]
   render(<MessageList {...handlers} state={convState({ runs: [run('a', 'running')], messages, fileChanges: saved })} />)
-  expect(screen.getByText('docs/attachments/2026-11-03-shot.png').parentElement).toHaveTextContent('saved to docs/attachments/2026-11-03-shot.png')
+  expect(screen.getByText('docs/attachments/2026-11-03-shot.png').parentElement).toHaveTextContent(
+    'saved to docs/attachments/2026-11-03-shot.png',
+  )
   expect(screen.queryByText(/saved to docs\/attachments\/2026-11-03-cart\.ts/)).toBeNull()
   expect(screen.queryByText(/saved to src/)).toBeNull()
 })
 
 test('slice 107: a click on a link or a button in a message does not draw its work', async () => {
   const onShowTurn = vi.fn()
-  render(<MessageList {...handlers} onShowTurn={onShowTurn} state={convState({ runs: [run('a', 'completed')], messages: [userMessage('a', 'see this')] })} />)
+  render(
+    <MessageList
+      {...handlers}
+      onShowTurn={onShowTurn}
+      state={convState({ runs: [run('a', 'completed')], messages: [userMessage('a', 'see this')] })}
+    />,
+  )
   // (a diagram's "Show source", a link: what the message holds of its own)
   const bubble = screen.getByText('see this').closest('.msg-bubble') as HTMLElement
   const [button, link] = [document.createElement('button'), document.createElement('a')]
@@ -1160,10 +1679,27 @@ test('slice 107: a click on a link or a button in a message does not draw its wo
 })
 
 test('slice 107: a trigger’s message has the same ⋯ - its work on the canvas, Restore to before it', async () => {
-  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(UNDO), { status: 200 })))
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(JSON.stringify(UNDO), { status: 200 })),
+  )
   const onShowTurn = vi.fn()
-  const byTrigger: Message = { ...userMessage('n', 'Look the project over'), id: 't-n', role: 'trigger', created_at: AT }
-  render(<MessageList {...handlers} onShowTurn={onShowTurn} state={convState({ runs: [run('n', 'completed', { unattended: true, trigger_name: 'Nightly look' })], messages: [byTrigger] })} />)
+  const byTrigger: Message = {
+    ...userMessage('n', 'Look the project over'),
+    id: 't-n',
+    role: 'trigger',
+    created_at: AT,
+  }
+  render(
+    <MessageList
+      {...handlers}
+      onShowTurn={onShowTurn}
+      state={convState({
+        runs: [run('n', 'completed', { unattended: true, trigger_name: 'Nightly look' })],
+        messages: [byTrigger],
+      })}
+    />,
+  )
   await userEvent.click(screen.getByRole('button', { name: `Copy, restore, show its work · ${when(AT)}` }))
   await userEvent.click(screen.getByRole('menuitem', { name: 'Show its work on the canvas' }))
   expect(onShowTurn).toHaveBeenCalledWith('n')
@@ -1177,7 +1713,9 @@ test('slice 107: a trigger’s message has the same ⋯ - its work on the canvas
 
 test('scrolled up, a button jumps back to the latest and then goes away', async () => {
   const messages = [userMessage('a', 'make a'), userMessage('b', 'make b')]
-  const { container } = render(<MessageList {...handlers} state={convState({ runs: [run('a', 'completed'), run('b', 'completed')], messages })} />)
+  const { container } = render(
+    <MessageList {...handlers} state={convState({ runs: [run('a', 'completed'), run('b', 'completed')], messages })} />,
+  )
   const list = container.querySelector('.msg-list') as HTMLDivElement
   Object.defineProperties(list, { scrollHeight: { value: 1000 }, clientHeight: { value: 300 } })
   expect(screen.queryByRole('button', { name: 'Jump to the latest' })).not.toBeInTheDocument()
@@ -1192,7 +1730,12 @@ test('scrolled up, a button jumps back to the latest and then goes away', async 
 
 test('the user’s fenced code is shown as an answer’s, coloured in its box; the rest of their words stay as written', () => {
   const said = '# not a heading, *not* bold\n```python\ndef greet():\n    return 1\n```\nand after'
-  const { container } = render(<MessageList {...handlers} state={convState({ runs: [run('r', 'completed')], messages: [userMessage('r', said)] })} />)
+  const { container } = render(
+    <MessageList
+      {...handlers}
+      state={convState({ runs: [run('r', 'completed')], messages: [userMessage('r', said)] })}
+    />,
+  )
   const bubble = container.querySelector('.msg-user .msg-bubble')!
   expect(bubble.querySelector('h1, em')).toBeNull()
   expect(bubble.firstChild).toHaveProperty('nodeValue', '# not a heading, *not* bold')
@@ -1204,7 +1747,12 @@ test('the user’s fenced code is shown as an answer’s, coloured in its box; t
 
 test('three backticks with more after them on the line are inline code, not a fence: the words stay as written', () => {
   const said = '```inline``` is how\nI wrote it\n```'
-  const { container } = render(<MessageList {...handlers} state={convState({ runs: [run('r', 'completed')], messages: [userMessage('r', said)] })} />)
+  const { container } = render(
+    <MessageList
+      {...handlers}
+      state={convState({ runs: [run('r', 'completed')], messages: [userMessage('r', said)] })}
+    />,
+  )
   const bubble = container.querySelector('.msg-user .msg-bubble')!
   expect(bubble.querySelector('pre')).toBeNull()
   expect(bubble.textContent).toBe(said)
@@ -1221,8 +1769,14 @@ function looksAround(key: string, calls: Parameters<typeof toolCall>[], over: Pa
   return convState({
     runs: [run('r', 'running')],
     agents: [agent('r', 'running', { name: 'Lead' })],
-    messages: [userMessage('r', 'look around'), ...calls.map((_, n) => assistantMessage(`m${n}`, 'r', '')), assistantMessage('end', 'r', 'Found it.')],
-    toolCalls: calls.map(([id, runId, name, status, args, more], n) => toolCall(`ml-${key}${id}`, runId, name, status, args, { message_id: `m${n}`, ...more })),
+    messages: [
+      userMessage('r', 'look around'),
+      ...calls.map((_, n) => assistantMessage(`m${n}`, 'r', '')),
+      assistantMessage('end', 'r', 'Found it.'),
+    ],
+    toolCalls: calls.map(([id, runId, name, status, args, more], n) =>
+      toolCall(`ml-${key}${id}`, runId, name, status, args, { message_id: `m${n}`, ...more }),
+    ),
     ...over,
   })
 }
@@ -1267,24 +1821,43 @@ test('a line left open stays open when the chat is shown again', async () => {
 })
 
 test('an open line split by a call that asks stays open on both sides; closed lines joined again open with the open one', async () => {
-  const calls = (third: Parameters<typeof toolCall>[]) => [
-    ['1', 'r', 'read_file', 'succeeded', '{"path":"a.py"}'],
-    ['2', 'r', 'read_file', 'succeeded', '{"path":"b.py"}'],
-    ...third,
-    ['4', 'r', 'list_dir', 'succeeded', '{}'],
-    ['5', 'r', 'list_dir', 'succeeded', '{"path":"docs"}'],
-  ] as Parameters<typeof toolCall>[]
+  const calls = (third: Parameters<typeof toolCall>[]) =>
+    [
+      ['1', 'r', 'read_file', 'succeeded', '{"path":"a.py"}'],
+      ['2', 'r', 'read_file', 'succeeded', '{"path":"b.py"}'],
+      ...third,
+      ['4', 'r', 'list_dir', 'succeeded', '{}'],
+      ['5', 'r', 'list_dir', 'succeeded', '{"path":"docs"}'],
+    ] as Parameters<typeof toolCall>[]
   // (a call that has not asked yet: one of a batch, not started)
-  const { rerender } = render(<MessageList {...handlers} state={looksAround('c', calls([['3', 'r', 'read_file', 'pending', '{"path":"c.py"}']]))} />)
+  const { rerender } = render(
+    <MessageList
+      {...handlers}
+      state={looksAround('c', calls([['3', 'r', 'read_file', 'pending', '{"path":"c.py"}']]))}
+    />,
+  )
   await userEvent.click(screen.getByRole('button', { name: /5 calls/ }))
-  rerender(<MessageList {...handlers} state={looksAround('c', calls([['3', 'r', 'read_file', 'pending', '{"path":"D:/x/n.md"}', OUTSIDE]]))} />)
+  rerender(
+    <MessageList
+      {...handlers}
+      state={looksAround('c', calls([['3', 'r', 'read_file', 'pending', '{"path":"D:/x/n.md"}', OUTSIDE]]))}
+    />,
+  )
   expect(screen.getByRole('button', { name: 'Read 2 files, 2 calls, done' })).toHaveAttribute('aria-expanded', 'true')
-  expect(screen.getByRole('button', { name: 'Listed 2 folders, 2 calls, done' })).toHaveAttribute('aria-expanded', 'true')
+  expect(screen.getByRole('button', { name: 'Listed 2 folders, 2 calls, done' })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  )
   cleanup()
 
   // A line left open that becomes part of a longer one, its other calls never opened: open.
   const later = looksAround('d', calls([['3', 'r', 'read_file', 'succeeded', '{"path":"c.py"}']]))
-  render(<MessageList {...handlers} state={{ ...later, toolCalls: later.toolCalls.filter(call => call.id === 'ml-d4' || call.id === 'ml-d5') }} />)
+  render(
+    <MessageList
+      {...handlers}
+      state={{ ...later, toolCalls: later.toolCalls.filter(call => call.id === 'ml-d4' || call.id === 'ml-d5') }}
+    />,
+  )
   await userEvent.click(screen.getByRole('button', { name: /^Listed 2 folders/ }))
   cleanup()
   render(<MessageList {...handlers} state={later} />)
@@ -1293,11 +1866,15 @@ test('an open line split by a call that asks stays open on both sides; closed li
 
 test('a call you decided keeps its own row afterwards: an approved command runs in sight, not folded into a line', () => {
   const state = (status: 'proposed' | 'running') =>
-    looksAround('e', [
-      ['1', 'r', 'read_file', 'succeeded', '{"path":"a.py"}'],
-      ['2', 'r', 'run_command', status === 'proposed' ? 'pending' : 'running', '{"command":"pytest -q"}'],
-      ['3', 'r', 'read_file', 'succeeded', '{"path":"b.py"}'],
-    ], { commands: [command('k', 'r', { tool_call_id: 'ml-e2', status, exit_code: null, ended_at: null })] })
+    looksAround(
+      'e',
+      [
+        ['1', 'r', 'read_file', 'succeeded', '{"path":"a.py"}'],
+        ['2', 'r', 'run_command', status === 'proposed' ? 'pending' : 'running', '{"command":"pytest -q"}'],
+        ['3', 'r', 'read_file', 'succeeded', '{"path":"b.py"}'],
+      ],
+      { commands: [command('k', 'r', { tool_call_id: 'ml-e2', status, exit_code: null, ended_at: null })] },
+    )
   const { rerender } = render(<MessageList {...handlers} state={state('proposed')} />)
   expect(screen.getByRole('button', { name: /Run once|Allow once|Approve/ })).toBeInTheDocument()
   rerender(<MessageList {...handlers} state={state('running')} />)
@@ -1325,14 +1902,23 @@ test('while the line runs it says what runs now', () => {
     ['2', 'r', 'read_file', 'running', '{"path":"cart.py"}'],
   ])
   render(<MessageList {...handlers} state={state} />)
-  expect(screen.getByRole('button', { name: 'Read 1 file · now: read_file cart.py, 2 calls, running' })).toBeInTheDocument()
+  expect(
+    screen.getByRole('button', { name: 'Read 1 file · now: read_file cart.py, 2 calls, running' }),
+  ).toBeInTheDocument()
 })
 
 test('a call that asks you is never inside a line: it splits the line, and its card is in view', () => {
   const state = looksAround('h', [
     ['1', 'r', 'read_file', 'succeeded', '{"path":"a.py"}'],
     ['2', 'r', 'read_file', 'succeeded', '{"path":"b.py"}'],
-    ['3', 'r', 'read_file', 'pending', '{"path":"D:/x/notes.md"}', { started_at: '2026-10-05T10:00:02Z', outside_folder: 'D:\\x' }],
+    [
+      '3',
+      'r',
+      'read_file',
+      'pending',
+      '{"path":"D:/x/notes.md"}',
+      { started_at: '2026-10-05T10:00:02Z', outside_folder: 'D:\\x' },
+    ],
     ['4', 'r', 'list_dir', 'succeeded', '{}'],
     ['5', 'r', 'list_dir', 'succeeded', '{"path":"docs"}'],
     ['6', 'r', 'run_command', 'succeeded', '{"command":"pytest -q"}'],
@@ -1344,7 +1930,9 @@ test('a call that asks you is never inside a line: it splits the line, and its c
 })
 
 test('a single call stays a row of its own', () => {
-  render(<MessageList {...handlers} state={looksAround('i', [['1', 'r', 'read_file', 'succeeded', '{"path":"a.py"}']])} />)
+  render(
+    <MessageList {...handlers} state={looksAround('i', [['1', 'r', 'read_file', 'succeeded', '{"path":"a.py"}']])} />,
+  )
   expect(screen.getByRole('button', { name: /read_file a\.py/ })).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: /calls/ })).not.toBeInTheDocument()
 })
@@ -1364,7 +1952,10 @@ test('a question the Lead was not let ask stands on its own line, not folded int
     )
     expect(screen.getByText('Wanted to ask: Which greeting? · not asked')).toBeInTheDocument()
     // (the step's other calls are still one closed line)
-    expect(screen.getByRole('button', { name: 'Read 2 files, 2 calls, done' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Read 2 files, 2 calls, done' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
     cleanup()
   }
 })
@@ -1391,8 +1982,18 @@ test('what KOLONİ told the lead the same, several times in a row, is one line w
 test('KOLONİ’s card that the Orchestrator’s model is slow hangs off no call: under the turn’s last message, with its two answers', async () => {
   const onAnswer = vi.fn(async () => {})
   const said = 'Codex · gpt-6-astra has not answered for 5 min. Keep waiting, or stop this turn and pick another model?'
-  const asked = question('q', 'r', { tool_call_id: null, leave: true, question: said, options: ['Keep waiting', 'Stop and pick another model'] })
-  const state = convState({ runs: [run('r', 'waiting_approval')], agents: [agent('r', 'running')], messages: [userMessage('r', 'do it')], questions: [asked] })
+  const asked = question('q', 'r', {
+    tool_call_id: null,
+    leave: true,
+    question: said,
+    options: ['Keep waiting', 'Stop and pick another model'],
+  })
+  const state = convState({
+    runs: [run('r', 'waiting_approval')],
+    agents: [agent('r', 'running')],
+    messages: [userMessage('r', 'do it')],
+    questions: [asked],
+  })
   const { rerender } = render(<MessageList {...handlers} state={state} onAnswer={onAnswer} />)
   expect(screen.getByText('The model is slow to answer')).toHaveClass('cmd-approval-kicker')
   expect(screen.getByText(said)).toHaveClass('card-said')
@@ -1421,7 +2022,8 @@ test('a Lead turn is one card named after the Lead (the Orchestrator, as the scr
   )
   const card = screen.getByRole('article', { name: `Orchestrator, ${when(AT)}` })
   expect(card).toHaveTextContent('qwen')
-  for (const part of ['I read it first.', stepSaid('read_file a.py'), 'It greets twice.']) expect(within(card).getByText(part)).toBeInTheDocument()
+  for (const part of ['I read it first.', stepSaid('read_file a.py'), 'It greets twice.'])
+    expect(within(card).getByText(part)).toBeInTheDocument()
   // The user's message stands above it, not in it.
   expect(screen.getByText('look at a.py').closest('.turn')).toBeNull()
   // The answer opens with its point; the words before it do not.
@@ -1434,7 +2036,11 @@ test('while a turn runs no line of it takes the answer’s look: its words keep 
     convState({
       runs: [run('r', status)],
       agents: [agent('r', status)],
-      messages: [userMessage('r', 'look at a.py'), assistantMessage('m', 'r', 'I’ll read a.py first.'), assistantMessage('m2', 'r', 'It greets', answer)],
+      messages: [
+        userMessage('r', 'look at a.py'),
+        assistantMessage('m', 'r', 'I’ll read a.py first.'),
+        assistantMessage('m2', 'r', 'It greets', answer),
+      ],
       toolCalls: [toolCall('1', 'r', 'read_file', 'succeeded', '{"path":"a.py"}', { message_id: 'm' })],
     })
   const { container, rerender } = render(<MessageList {...handlers} state={state('running', 'streaming')} />)
@@ -1446,7 +2052,17 @@ test('while a turn runs no line of it takes the answer’s look: its words keep 
 })
 
 test('a compare run and a turn with only the user’s message get no card', () => {
-  const { unmount } = render(<MessageList {...handlers} state={convState({ runs: [run('r')], agents: [agent('r')], messages: [userMessage('r', 'hm')], thinkingRunId: 'r' })} />)
+  const { unmount } = render(
+    <MessageList
+      {...handlers}
+      state={convState({
+        runs: [run('r')],
+        agents: [agent('r')],
+        messages: [userMessage('r', 'hm')],
+        thinkingRunId: 'r',
+      })}
+    />,
+  )
   // (Thinking… stays under the message, as before.)
   expect(screen.getByText('Thinking…').closest('.msg-group')).toHaveTextContent('hm')
   expect(screen.queryByRole('article')).toBeNull()
@@ -1457,7 +2073,12 @@ test('a compare run and a turn with only the user’s message get no card', () =
       state={convState({
         runs: [run('a', 'completed', { compare_id: 'k' }), run('b', 'completed', { compare_id: 'k' })],
         agents: [agent('a', 'completed'), agent('b', 'completed')],
-        messages: [userMessage('a', 'go'), assistantMessage('ma', 'a', 'A side.'), userMessage('b', 'go'), assistantMessage('mb', 'b', 'B side.')],
+        messages: [
+          userMessage('a', 'go'),
+          assistantMessage('ma', 'a', 'A side.'),
+          userMessage('b', 'go'),
+          assistantMessage('mb', 'b', 'B side.'),
+        ],
         toolCalls: [toolCall('1', 'a', 'read_file', 'succeeded', '{"path":"a.py"}', { message_id: 'ma' })],
       })}
     />,
@@ -1535,14 +2156,18 @@ test('two open questions in one turn show one queued-message note, under both', 
     ...asked,
     runs: [...asked.runs, run('q2', 'queued', { started_at: null })],
     messages: [...asked.messages, userMessage('q2', 'and then')],
-    toolCalls: [...asked.toolCalls, toolCall('2', 'r', 'ask_user', 'running', '{"question":"Which colour?"}', { message_id: 'm' })],
+    toolCalls: [
+      ...asked.toolCalls,
+      toolCall('2', 'r', 'ask_user', 'running', '{"question":"Which colour?"}', { message_id: 'm' }),
+    ],
     questions: [...asked.questions, question('q-2', 'r', { tool_call_id: '2', question: 'Which colour?' })],
   })
   render(<MessageList {...handlers} state={state} />)
   expect(screen.getAllByText(WAITS_FOR_ANSWER)).toHaveLength(1)
   const card = screen.getByRole('article', { name: 'Orchestrator, waits for you' })
   const text = card.textContent ?? ''
-  for (const one of ['Which greeting?', 'Which colour?']) expect(text.indexOf(one)).toBeLessThan(text.indexOf(WAITS_FOR_ANSWER))
+  for (const one of ['Which greeting?', 'Which colour?'])
+    expect(text.indexOf(one)).toBeLessThan(text.indexOf(WAITS_FOR_ANSWER))
 })
 
 test('answered, "Question: … / Answered: …" opens to its options with the given one ticked; the foot counts it', async () => {
@@ -1552,7 +2177,13 @@ test('answered, "Question: … / Answered: …" opens to its options with the gi
     question('k', 'r', { tool_call_id: '9', leave: true, status: 'answered', answer: 'Allow' }),
     question('d', 'r', { tool_call_id: '9', status: 'answered', answer: 'strict', lead_why: 'the task says so' }),
   ]
-  const state = { ...asked, runs: [run('r', 'completed')], agents: [agent('r', 'completed')], messages: [...asked.messages, assistantMessage('m2', 'r', 'Going with hey.')], questions: [...asked.questions, ...others] }
+  const state = {
+    ...asked,
+    runs: [run('r', 'completed')],
+    agents: [agent('r', 'completed')],
+    messages: [...asked.messages, assistantMessage('m2', 'r', 'Going with hey.')],
+    questions: [...asked.questions, ...others],
+  }
   render(<MessageList {...handlers} state={state} />)
   const card = screen.getByRole('article', { name: /^Orchestrator, / })
   const row = within(card).getByText('Which greeting?').closest('details.asked-row') as HTMLElement
@@ -1571,7 +2202,11 @@ const twoSteps = (status: 'running' | 'completed') =>
   convState({
     runs: [run('r', status, { ended_at: status === 'completed' ? ENDED : null })],
     agents: [agent('r', status)],
-    messages: [userMessage('r', 'look at a.py'), assistantMessage('m', 'r', 'I read it first.'), assistantMessage('m2', 'r', 'It greets twice.')],
+    messages: [
+      userMessage('r', 'look at a.py'),
+      assistantMessage('m', 'r', 'I read it first.'),
+      assistantMessage('m2', 'r', 'It greets twice.'),
+    ],
     toolCalls: [toolCall('1', 'r', 'read_file', 'succeeded', '{"path":"a.py"}', { message_id: 'm' })],
   })
 
@@ -1597,11 +2232,26 @@ test('under two steps before the answer nothing folds', () => {
 /** A turn whose Lead read two files (one failed), opened a sub-agent whose work waits to be taken in, a room and a discussion, and started a server that still runs. */
 function busyTurn(status: 'running' | 'completed'): ConvState {
   const at = '2026-10-05T10:00:05Z'
-  const lead = (id: string, name: string, state: 'succeeded' | 'failed' | 'running', args: string) => toolCall(id, 'r', name, state, args, { message_id: 'm', seq: Number(id.slice(1)) })
+  const lead = (id: string, name: string, state: 'succeeded' | 'failed' | 'running', args: string) =>
+    toolCall(id, 'r', name, state, args, { message_id: 'm', seq: Number(id.slice(1)) })
   return convState({
     runs: [run('r', status, { ended_at: status === 'completed' ? ENDED : null })],
-    agents: [agent('r', status), agent('r', 'completed', { id: 'k', name: 'Coder', role_name: 'Coder', parent_agent_id: 'r', depth: 1, tool_call_id: 'b3' })],
-    messages: [userMessage('r', 'go'), assistantMessage('m', 'r', 'I’ll look first.'), assistantMessage('m2', 'r', 'Done.')],
+    agents: [
+      agent('r', status),
+      agent('r', 'completed', {
+        id: 'k',
+        name: 'Coder',
+        role_name: 'Coder',
+        parent_agent_id: 'r',
+        depth: 1,
+        tool_call_id: 'b3',
+      }),
+    ],
+    messages: [
+      userMessage('r', 'go'),
+      assistantMessage('m', 'r', 'I’ll look first.'),
+      assistantMessage('m2', 'r', 'Done.'),
+    ],
     toolCalls: [
       lead('b1', 'read_file', 'succeeded', '{"path":"a.py"}'),
       lead('b2', 'read_file', 'failed', '{"path":"gone.py"}'),
@@ -1610,15 +2260,67 @@ function busyTurn(status: 'running' | 'completed'): ConvState {
       lead('b5', 'start_discussion', 'succeeded', '{"topic":"Keep hi?"}'),
       lead('b6', 'run_command', 'running', '{"command":"python -m http.server"}'),
     ],
-    commands: [command('s', 'r', { tool_call_id: 'b6', command: 'python -m http.server', keep_running: true, status: 'running', exit_code: null, ended_at: null })],
-    rooms: [{ id: 'o', run_id: 'r', agent_id: 'r', goal: 'Meet on it', status: 'working', outcome: null, why: null, members: [] }] as unknown as ConvState['rooms'],
+    commands: [
+      command('s', 'r', {
+        tool_call_id: 'b6',
+        command: 'python -m http.server',
+        keep_running: true,
+        status: 'running',
+        exit_code: null,
+        ended_at: null,
+      }),
+    ],
+    rooms: [
+      {
+        id: 'o',
+        run_id: 'r',
+        agent_id: 'r',
+        goal: 'Meet on it',
+        status: 'working',
+        outcome: null,
+        why: null,
+        members: [],
+      },
+    ] as unknown as ConvState['rooms'],
     discussions: [
-      { id: 't', run_id: 'r', agent_id: 'r', tool_call_id: 'b5', topic: 'Keep hi?', status: 'ended', outcome: 'agreed', round: 1, max_rounds: 3, created_at: at, ended_at: at, members: [] },
+      {
+        id: 't',
+        run_id: 'r',
+        agent_id: 'r',
+        tool_call_id: 'b5',
+        topic: 'Keep hi?',
+        status: 'ended',
+        outcome: 'agreed',
+        round: 1,
+        max_rounds: 3,
+        created_at: at,
+        ended_at: at,
+        members: [],
+      },
     ] as unknown as ConvState['discussions'],
     merges: [
       {
-        id: 'g', run_id: 'r', agent_id: 'k', status: 'pending', kept_in: null, check: null, commit: null, created_at: at, decided_at: null,
-        files: [{ path: 'a.py', kind: 'changed', state: 'ready', whole: false, diff: '', additions: 3, deletions: 1, note: null }],
+        id: 'g',
+        run_id: 'r',
+        agent_id: 'k',
+        status: 'pending',
+        kept_in: null,
+        check: null,
+        commit: null,
+        created_at: at,
+        decided_at: null,
+        files: [
+          {
+            path: 'a.py',
+            kind: 'changed',
+            state: 'ready',
+            whole: false,
+            diff: '',
+            additions: 3,
+            deletions: 1,
+            note: null,
+          },
+        ],
       },
     ] as unknown as ConvState['merges'],
   })
@@ -1658,12 +2360,23 @@ test('while the turn runs nothing folds; its newest group of steps is open, and 
     toolCall('32', 'r', 'read_file', 'running', '{"path":"b.py"}', { message_id: 'm' }),
   ]
   const state = (more: Message[]) =>
-    convState({ runs: [run('r')], agents: [agent('r')], messages: [userMessage('r', 'go'), assistantMessage('m', 'r', ''), ...more], toolCalls: calls })
+    convState({
+      runs: [run('r')],
+      agents: [agent('r')],
+      messages: [userMessage('r', 'go'), assistantMessage('m', 'r', ''), ...more],
+      toolCalls: calls,
+    })
   const { container, rerender } = render(<MessageList {...handlers} state={state([])} />)
   expect(container.querySelector('details.turn-steps')).toBeNull()
-  expect(screen.getByRole('button', { name: /^Read 1 file · now: read_file b\.py/ })).toHaveAttribute('aria-expanded', 'true')
+  expect(screen.getByRole('button', { name: /^Read 1 file · now: read_file b\.py/ })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  )
   rerender(<MessageList {...handlers} state={state([assistantMessage('m3', 'r', 'Both read.')])} />)
-  expect(screen.getByRole('button', { name: /^Read 1 file · now: read_file b\.py/ })).toHaveAttribute('aria-expanded', 'false')
+  expect(screen.getByRole('button', { name: /^Read 1 file · now: read_file b\.py/ })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  )
 })
 
 test('a command that exited with an error is counted as failed on the fold’s line, though its call ended well', () => {
@@ -1671,7 +2384,11 @@ test('a command that exited with an error is counted as failed on the fold’s l
   const state = convState({
     runs: [run('r', 'completed', { ended_at: ENDED })],
     agents: [agent('r', 'completed')],
-    messages: [userMessage('r', 'test it'), assistantMessage('m', 'r', 'I’ll run the tests.'), assistantMessage('m2', 'r', 'One test fails.')],
+    messages: [
+      userMessage('r', 'test it'),
+      assistantMessage('m', 'r', 'I’ll run the tests.'),
+      assistantMessage('m2', 'r', 'One test fails.'),
+    ],
     toolCalls: [toolCall('41', 'r', 'run_command', 'succeeded', '{"command":"pytest -q"}', { message_id: 'm' })],
     commands: [command('k41', 'r', { tool_call_id: '41', exit_code: 1, output: '1 failed' })],
   })
@@ -1683,13 +2400,26 @@ test('a command that exited with an error is counted as failed on the fold’s l
 
 test('a folded turn with failed steps says the first one’s reason in one line under its line, outside the fold; with none failed, nothing', () => {
   const reason = 'the Feature recipe of Docs is at its Write the spec step, for Spec writer: it draws 1 agent'
-  const failed = (id: string, why: string, seq: number) => toolCall(id, 'r', 'spawn_agent', 'failed', '{"role":"Coder","task":"Add farewell.py"}', { message_id: 'm', seq, result: `error: ${why}
-the rest` })
+  const failed = (id: string, why: string, seq: number) =>
+    toolCall(id, 'r', 'spawn_agent', 'failed', '{"role":"Coder","task":"Add farewell.py"}', {
+      message_id: 'm',
+      seq,
+      result: `error: ${why}
+the rest`,
+    })
   const state = convState({
     runs: [run('r', 'completed', { ended_at: ENDED })],
     agents: [agent('r', 'completed')],
-    messages: [userMessage('r', 'make farewell'), assistantMessage('m', 'r', 'I’ll ask a Coder.'), assistantMessage('m2', 'r', 'I could not finish.')],
-    toolCalls: [toolCall('90', 'r', 'read_file', 'succeeded', '{"path":"a.py"}', { message_id: 'm', seq: 1 }), failed('91', reason, 2), failed('92', 'a later one', 3)],
+    messages: [
+      userMessage('r', 'make farewell'),
+      assistantMessage('m', 'r', 'I’ll ask a Coder.'),
+      assistantMessage('m2', 'r', 'I could not finish.'),
+    ],
+    toolCalls: [
+      toolCall('90', 'r', 'read_file', 'succeeded', '{"path":"a.py"}', { message_id: 'm', seq: 1 }),
+      failed('91', reason, 2),
+      failed('92', 'a later one', 3),
+    ],
   })
   const { container, rerender } = render(<MessageList {...handlers} state={state} />)
   const fold = container.querySelector('details.turn-steps') as HTMLElement
@@ -1700,18 +2430,46 @@ the rest` })
   expect(fold.nextElementSibling).toContainElement(why)
   expect(fold.nextElementSibling).toHaveTextContent(`↳ ${reason}`)
   expect(screen.queryByText(/a later one/)).toBeNull()
-  rerender(<MessageList {...handlers} state={{ ...state, toolCalls: state.toolCalls.slice(0, 1).concat(toolCall('93', 'r', 'read_file', 'succeeded', '{"path":"b.py"}', { message_id: 'm', seq: 2 })) }} />)
+  rerender(
+    <MessageList
+      {...handlers}
+      state={{
+        ...state,
+        toolCalls: state.toolCalls
+          .slice(0, 1)
+          .concat(toolCall('93', 'r', 'read_file', 'succeeded', '{"path":"b.py"}', { message_id: 'm', seq: 2 })),
+      }}
+    />,
+  )
   expect(screen.queryByText(reason)).toBeNull()
   expect(container.querySelector('details.turn-steps')!.nextElementSibling?.textContent ?? '').not.toMatch(/^↳/)
 })
 
 test('a night’s closing line and the room you opened stay plain lines in the new flow: outside the fold, the room’s line its focus target', () => {
-  const night = { ...assistantMessage('w', 'r', 'While you were away: 2 done - on the canvas'), role: 'away' as const, agent_id: null }
-  const room = { id: 'o6', run_id: 'r', agent_id: null, goal: 'Meet on the greeting', status: 'done', outcome: null, why: null, members: [] }
+  const night = {
+    ...assistantMessage('w', 'r', 'While you were away: 2 done - on the canvas'),
+    role: 'away' as const,
+    agent_id: null,
+  }
+  const room = {
+    id: 'o6',
+    run_id: 'r',
+    agent_id: null,
+    goal: 'Meet on the greeting',
+    status: 'done',
+    outcome: null,
+    why: null,
+    members: [],
+  }
   const state = convState({
     runs: [run('r', 'completed', { ended_at: ENDED })],
     agents: [agent('r', 'completed')],
-    messages: [userMessage('r', 'Meet on the greeting'), assistantMessage('m', 'r', 'I read it first.'), night, assistantMessage('m2', 'r', 'It greets twice.')],
+    messages: [
+      userMessage('r', 'Meet on the greeting'),
+      assistantMessage('m', 'r', 'I read it first.'),
+      night,
+      assistantMessage('m2', 'r', 'It greets twice.'),
+    ],
     toolCalls: [toolCall('61', 'r', 'read_file', 'succeeded', '{"path":"a.py"}', { message_id: 'm' })],
     rooms: [room] as unknown as ConvState['rooms'],
   })
@@ -1728,7 +2486,11 @@ test('a night’s closing line and the room you opened stay plain lines in the n
 test('the fold’s line says how the turn ended: completed in its time, or failed, stopped or interrupted after its steps', () => {
   const ended = (status: 'failed' | 'cancelled' | 'interrupted') => {
     const state = twoSteps('completed')
-    return { ...state, runs: [run('r', status, { ended_at: ENDED, error: status === 'failed' ? 'boom' : null })], agents: [agent('r', 'completed')] }
+    return {
+      ...state,
+      runs: [run('r', status, { ended_at: ENDED, error: status === 'failed' ? 'boom' : null })],
+      agents: [agent('r', 'completed')],
+    }
   }
   const { container, rerender } = render(<MessageList {...handlers} state={ended('failed')} />)
   const summary = () => container.querySelector('details.turn-steps > summary')
@@ -1741,14 +2503,28 @@ test('the fold’s line says how the turn ended: completed in its time, or faile
 
 test('a command that ran on your words (K-yargıç) never folds: what ran on them stays in sight', () => {
   const state = twoSteps('completed')
-  const judged = { verdict: 'run' as const, quote: 'rm build/ is fine', source: 'rules' as const, why: 'It names build/.', model: 'Fast', seen: false }
+  const judged = {
+    verdict: 'run' as const,
+    quote: 'rm build/ is fine',
+    source: 'rules' as const,
+    why: 'It names build/.',
+    model: 'Fast',
+    seen: false,
+  }
   const { container } = render(
     <MessageList
       {...handlers}
       state={{
         ...state,
-        toolCalls: [...state.toolCalls, toolCall('71', 'r', 'run_command', 'succeeded', '{"command":"rm -rf build"}', { message_id: 'm', seq: 2 })],
-        commands: [command('k71', 'r', { tool_call_id: '71', command: 'rm -rf build', judged } as Partial<ReturnType<typeof command>>)],
+        toolCalls: [
+          ...state.toolCalls,
+          toolCall('71', 'r', 'run_command', 'succeeded', '{"command":"rm -rf build"}', { message_id: 'm', seq: 2 }),
+        ],
+        commands: [
+          command('k71', 'r', { tool_call_id: '71', command: 'rm -rf build', judged } as Partial<
+            ReturnType<typeof command>
+          >),
+        ],
       }}
     />,
   )
@@ -1759,14 +2535,34 @@ test('a command that ran on your words (K-yargıç) never folds: what ran on the
 
 test('a command a line of yours kept from running never folds either', () => {
   const state = twoSteps('completed')
-  const judged = { verdict: 'refuse' as const, quote: 'Never push to main.', source: 'rules' as const, why: '', model: 'Fast', seen: false }
+  const judged = {
+    verdict: 'refuse' as const,
+    quote: 'Never push to main.',
+    source: 'rules' as const,
+    why: '',
+    model: 'Fast',
+    seen: false,
+  }
   const { container } = render(
     <MessageList
       {...handlers}
       state={{
         ...state,
-        toolCalls: [...state.toolCalls, toolCall('72', 'r', 'run_command', 'denied', '{"command":"git push origin main"}', { message_id: 'm', seq: 2 })],
-        commands: [command('k72', 'r', { tool_call_id: '72', command: 'git push origin main', status: 'refused', judged } as Partial<ReturnType<typeof command>>)],
+        toolCalls: [
+          ...state.toolCalls,
+          toolCall('72', 'r', 'run_command', 'denied', '{"command":"git push origin main"}', {
+            message_id: 'm',
+            seq: 2,
+          }),
+        ],
+        commands: [
+          command('k72', 'r', {
+            tool_call_id: '72',
+            command: 'git push origin main',
+            status: 'refused',
+            judged,
+          } as Partial<ReturnType<typeof command>>),
+        ],
       }}
     />,
   )
@@ -1778,9 +2574,17 @@ test('a command a line of yours kept from running never folds either', () => {
 test('a turn KOLONİ started has its topic’s line before the fold, not after it', () => {
   const state = convState({
     topics: [topic('t1', 'Greeting'), topic('t2', 'Nightly look')],
-    runs: [run('a', 'completed', { topic_id: 't1' }), run('b', 'completed', { topic_id: 't2', ended_at: ENDED, by_user: false })],
+    runs: [
+      run('a', 'completed', { topic_id: 't1' }),
+      run('b', 'completed', { topic_id: 't2', ended_at: ENDED, by_user: false }),
+    ],
     agents: [agent('a', 'completed'), agent('b', 'completed')],
-    messages: [userMessage('a', 'hi'), assistantMessage('a1', 'a', 'Hello.'), assistantMessage('b1', 'b', 'I’ll look at the night.'), assistantMessage('b2', 'b', 'All well.')],
+    messages: [
+      userMessage('a', 'hi'),
+      assistantMessage('a1', 'a', 'Hello.'),
+      assistantMessage('b1', 'b', 'I’ll look at the night.'),
+      assistantMessage('b2', 'b', 'All well.'),
+    ],
     toolCalls: [toolCall('81', 'b', 'read_file', 'succeeded', '{"path":"log.txt"}', { message_id: 'b1' })],
   })
   const { container } = render(<MessageList {...handlers} state={state} />)
@@ -1798,7 +2602,11 @@ test('the focus on a step that folds as its turn ends goes to the fold’s line,
 })
 
 test('only the newest turn is "latest": a newer comparison leaves an older turn’s Copy and Read aloud to the pointer', () => {
-  const older = convState({ runs: [run('a', 'completed')], agents: [agent('a', 'completed')], messages: [userMessage('a', 'hi'), assistantMessage('a1', 'a', 'Hello.')] })
+  const older = convState({
+    runs: [run('a', 'completed')],
+    agents: [agent('a', 'completed')],
+    messages: [userMessage('a', 'hi'), assistantMessage('a1', 'a', 'Hello.')],
+  })
   const { container, rerender } = render(<MessageList {...handlers} state={older} />)
   expect(container.querySelector('article.turn')).toHaveClass('turn-latest')
   rerender(
@@ -1808,7 +2616,13 @@ test('only the newest turn is "latest": a newer comparison leaves an older turn�
         ...older,
         runs: [...older.runs, run('b', 'completed', { compare_id: 'k' }), run('c', 'completed', { compare_id: 'k' })],
         agents: [...older.agents, agent('b', 'completed'), agent('c', 'completed')],
-        messages: [...older.messages, userMessage('b', 'go'), assistantMessage('mb', 'b', 'B side.'), userMessage('c', 'go'), assistantMessage('mc', 'c', 'C side.')],
+        messages: [
+          ...older.messages,
+          userMessage('b', 'go'),
+          assistantMessage('mb', 'b', 'B side.'),
+          userMessage('c', 'go'),
+          assistantMessage('mc', 'c', 'C side.'),
+        ],
       }}
     />,
   )
@@ -1821,7 +2635,12 @@ test('an older turn that ends with its answer’s words lets its hidden foot sta
     convState({
       runs: [run('a', 'completed'), run('b', 'completed')],
       agents: [agent('a', 'completed'), agent('b', 'completed')],
-      messages: [userMessage('a', 'hi'), assistantMessage('a1', 'a', 'Hello.'), userMessage('b', 'and'), assistantMessage('b1', 'b', 'Done.')],
+      messages: [
+        userMessage('a', 'hi'),
+        assistantMessage('a1', 'a', 'Hello.'),
+        userMessage('b', 'and'),
+        assistantMessage('b1', 'b', 'Done.'),
+      ],
       notesOffers: offers as ConvState['notesOffers'],
     })
   const { container, rerender } = render(<MessageList {...handlers} state={state([])} />)

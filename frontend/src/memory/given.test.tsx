@@ -3,7 +3,16 @@ import { expect, test, vi } from 'vitest'
 import { AgentWindow } from '../agents/AgentWindow'
 import { MessageList } from '../chat/MessageList'
 import { toolSummary } from '../chat/toolSummary'
-import { agent, assistantMessage, convState, memoryRecord, openAgentFold, projectMemory, run, toolCall } from '../test-fixtures'
+import {
+  agent,
+  assistantMessage,
+  convState,
+  memoryRecord,
+  openAgentFold,
+  projectMemory,
+  run,
+  toolCall,
+} from '../test-fixtures'
 
 const fact = memoryRecord('f1', {
   tier: 'fact',
@@ -27,15 +36,32 @@ const state = convState({
   ],
   messages: [{ ...assistantMessage('m1', 'r', 'Looking.'), agent_id: 'kid' }],
   toolCalls: [
-    toolCall('1', 'r', 'recall', 'succeeded', '{"query":"how is the greeting spelled"}', { agent_id: 'kid', message_id: 'm1', result: FOUND }),
-    toolCall('2', 'r', 'recall', 'succeeded', '{"query":"database"}', { agent_id: 'kid', message_id: 'm1', result: 'nothing on record about that.' }),
+    toolCall('1', 'r', 'recall', 'succeeded', '{"query":"how is the greeting spelled"}', {
+      agent_id: 'kid',
+      message_id: 'm1',
+      result: FOUND,
+    }),
+    toolCall('2', 'r', 'recall', 'succeeded', '{"query":"database"}', {
+      agent_id: 'kid',
+      message_id: 'm1',
+      result: 'nothing on record about that.',
+    }),
     toolCall('3', 'r', 'recall', 'running', '{"query":"port"}', { agent_id: 'kid', message_id: 'm1' }),
   ],
 })
 
 /** An agent's window, its steps opened: what it was given and looked up is at their head. */
 async function windowOf(agentId: string, withMemory: typeof memory | null = memory) {
-  render(<AgentWindow state={state} memory={withMemory} agentId={agentId} onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />)
+  render(
+    <AgentWindow
+      state={state}
+      memory={withMemory}
+      agentId={agentId}
+      onClose={() => {}}
+      onOpenChange={() => {}}
+      onSelectAgent={() => {}}
+    />,
+  )
   await openAgentFold('Every step as recorded')
 }
 
@@ -108,7 +134,16 @@ test('an agent from before memory, or one that did nothing with it, shows neithe
 })
 
 test('its window’s raw steps show the two sections, each agent its own', async () => {
-  const shown = (id: string) => <AgentWindow state={state} memory={memory} agentId={id} onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />
+  const shown = (id: string) => (
+    <AgentWindow
+      state={state}
+      memory={memory}
+      agentId={id}
+      onClose={() => {}}
+      onOpenChange={() => {}}
+      onSelectAgent={() => {}}
+    />
+  )
   const { rerender } = render(shown('lead'))
   await openAgentFold('Every step as recorded')
   const given = screen.getByRole('group', { name: 'Given from memory' })
@@ -128,24 +163,41 @@ test('what KOLONİ told an agent about a fact it was given reads as KOLONİ’s 
   const toLead = { ...told, id: 't2', agent_id: 'lead' }
   const withTold = { ...state, messages: [...state.messages, told, toLead] }
   const { unmount } = render(
-    <AgentWindow state={withTold} memory={memory} agentId="kid" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />,
+    <AgentWindow
+      state={withTold}
+      memory={memory}
+      agentId="kid"
+      onClose={() => {}}
+      onOpenChange={() => {}}
+      onSelectAgent={() => {}}
+    />,
   )
   // in its story, as KOLONİ's reminder, and in its raw steps the same
   expect(screen.getByRole('heading', { name: 'KOLONİ reminded it' })).toBeInTheDocument()
   const inStory = screen.getByRole('note', { name: 'Told by KOLONİ about its memory' })
   expect(inStory).toHaveTextContent('Its source changed since this turn began')
   const steps = await openAgentFold('Every step as recorded')
-  expect(within(steps).getByRole('note', { name: 'Told by KOLONİ about its memory' })).toHaveTextContent('do not rely on it')
+  expect(within(steps).getByRole('note', { name: 'Told by KOLONİ about its memory' })).toHaveTextContent(
+    'do not rely on it',
+  )
   unmount()
   // in the chat, which is the lead's conversation: the lead's own, not the sub-agent's
   render(
-    <MessageList state={withTold} onDecide={vi.fn()} onDecideCommand={vi.fn()} onOpenChange={() => {}} onRemoveQueued={() => {}} />,
+    <MessageList
+      state={withTold}
+      onDecide={vi.fn()}
+      onDecideCommand={vi.fn()}
+      onOpenChange={() => {}}
+      onRemoveQueued={() => {}}
+    />,
   )
   expect(screen.getAllByRole('note', { name: 'Told by KOLONİ about its memory' })).toHaveLength(1)
 })
 
 test('the two memory tools read as what they did, in one line', () => {
   expect(toolSummary({ name: 'recall', arguments: '{"query":"the greeting"}' })).toBe('recall "the greeting"')
-  expect(toolSummary({ name: 'remember', arguments: '{"text":"x","about":"greeting","file":"notes.md","start_line":3}' })).toBe('remember greeting')
+  expect(
+    toolSummary({ name: 'remember', arguments: '{"text":"x","about":"greeting","file":"notes.md","start_line":3}' }),
+  ).toBe('remember greeting')
   expect(toolSummary({ name: 'remember', arguments: '{"text":"The port is 8790."}' })).toBe('remember')
 })

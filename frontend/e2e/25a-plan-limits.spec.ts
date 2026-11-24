@@ -47,11 +47,15 @@ test('the Usage page says what each CLI says of its plan, and what is not known 
   expect(afresh).toEqual([])
   // A model server is not a CLI on a plan: it has no row.
   await expect(rows.getByRole('row', { name: /^Local/ })).toHaveCount(0)
-  await expect(limits.getByText(/These are the limits of the account the CLI on this machine is signed in to\./)).toBeVisible()
+  await expect(
+    limits.getByText(/These are the limits of the account the CLI on this machine is signed in to\./),
+  ).toBeVisible()
   await limits.getByRole('button', { name: 'Check now' }).click()
   await expect(limits.getByRole('button', { name: 'Check now' })).toBeEnabled()
   // Only now is anything read afresh - from the app's own page, which the server takes it from.
-  await expect(rows.getByRole('row', { name: /^Limits Codex/ })).toContainText('not known — the codex command was not found')
+  await expect(rows.getByRole('row', { name: /^Limits Codex/ })).toContainText(
+    'not known — the codex command was not found',
+  )
   // agy's /quota, from its stand-in (tests/fake_agy_cli.py): a week of its Gemini models, by their name.
   await expect(rows.getByRole('row', { name: /^Limits agy/ })).toContainText('8% of Gemini Models this week used')
   await expect(rows.getByRole('row', { name: /^Limits Claude/ })).toContainText('not known — not run yet')

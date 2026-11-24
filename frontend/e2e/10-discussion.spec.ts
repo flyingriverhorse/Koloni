@@ -41,7 +41,11 @@ test('agents discuss in a shared place, and you can speak in it', async ({ page 
         const card = document.querySelector(`.react-flow__node[data-id="${source}"]`)?.getBoundingClientRect()
         return target?.startsWith('discussion:') && card && Math.abs(card.x - place.x) < 1 ? [edge] : []
       })
-      return { stacked: stacked.length, behind: stacked.filter(edge => edge.querySelector('path')!.getBoundingClientRect().left < place.right - 1).length }
+      return {
+        stacked: stacked.length,
+        behind: stacked.filter(edge => edge.querySelector('path')!.getBoundingClientRect().left < place.right - 1)
+          .length,
+      }
     })
   await expect.poll(behind).toEqual({ stacked: 2, behind: 0 })
 
@@ -64,7 +68,10 @@ test('agents discuss in a shared place, and you can speak in it', async ({ page 
 
   // A reload shows the same discussion from the records; the row opens it again.
   await page.reload()
-  await page.getByRole('region', { name: 'Chat' }).getByRole('button', { name: /Discussion/ }).click()
+  await page
+    .getByRole('region', { name: 'Chat' })
+    .getByRole('button', { name: /Discussion/ })
+    .click()
   const again = page.getByRole('region', { name: 'Discussion' })
   await expect(again.getByText('Mind the tests.')).toBeVisible()
   await expect(again.getByText('I would keep hi.')).toBeVisible()

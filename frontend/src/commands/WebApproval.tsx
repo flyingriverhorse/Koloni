@@ -15,7 +15,12 @@ interface Props {
 }
 
 /** K-tarayici-disari A2: what each action on a site's page asks. */
-const ACTS: Partial<Record<WebRequest['kind'], string>> = { form: 'Send this form?', password: 'Type into a password field?', sign: 'Click this?', field: 'Type into this field?' }
+const ACTS: Partial<Record<WebRequest['kind'], string>> = {
+  form: 'Send this form?',
+  password: 'Type into a password field?',
+  sign: 'Click this?',
+  field: 'Type into this field?',
+}
 
 /** The body a request would send, as its call's record has it; null without one. */
 function bodyOf(call?: ToolCall): string | null {
@@ -41,7 +46,9 @@ function whereOf(request: WebRequest, search: boolean) {
               {name}: ***
             </span>
           ))}
-          {request.body_chars !== null && <span className="mono muted">with a body of {request.body_chars} characters</span>}
+          {request.body_chars !== null && (
+            <span className="mono muted">with a body of {request.body_chars} characters</span>
+          )}
         </>
       )}
     </div>
@@ -50,7 +57,9 @@ function whereOf(request: WebRequest, search: boolean) {
 
 /** Why no "always" is offered: what is asked every time. */
 const everyTime = (request: WebRequest, search: boolean) =>
-  search ? 'An expert’s search is asked every time.' : `A ${request.method}${request.method === 'GET' ? ' with a body or headers of its own' : ''} is asked every time.`
+  search
+    ? 'An expert’s search is asked every time.'
+    : `A ${request.method}${request.method === 'GET' ? ' with a body or headers of its own' : ''} is asked every time.`
 
 /**
  * Asks before a web search or an HTTP request leaves this machine: what goes out and where,
@@ -66,7 +75,13 @@ export function WebApproval({ request, call, expert = false, onDecide }: Props) 
   // alone is that host over https on its usual port; anything else is written in full.
   // A GET with a body or headers of the agent's own is covered by no rule: none is offered.
   const bare = request.headers.length === 0 && request.body_chars === null
-  const always = search ? (expert ? null : 'Always allow searching in this conversation') : request.method === 'GET' && bare && request.host ? `Always allow GET to ${request.host}` : null
+  const always = search
+    ? expert
+      ? null
+      : 'Always allow searching in this conversation'
+    : request.method === 'GET' && bare && request.host
+      ? `Always allow GET to ${request.host}`
+      : null
   const place = request.host?.includes('://') ? request.host : `https://${request.host}`
 
   async function decide(decision: CommandDecision) {
@@ -88,7 +103,9 @@ export function WebApproval({ request, call, expert = false, onDecide }: Props) 
       {/* (The site apart: the page's own words, which it chooses, are only in what is quoted.) */}
       <div className="cmd-approval-where">{request.host && <span className="tag">{request.host}</span>}</div>
       <pre className="mono cmd-approval-command">{request.target}</pre>
-      <div className="muted cmd-approval-note">Sending a form, a password, a sign-in or a payment on a site is asked every time, at every level.</div>
+      <div className="muted cmd-approval-note">
+        Sending a form, a password, a sign-in or a payment on a site is asked every time, at every level.
+      </div>
       <div className="change-actions">
         <button type="button" className="btn btn-small btn-primary" disabled={busy} onClick={() => decide('once')}>
           <Check size={13} />
@@ -115,7 +132,10 @@ export function WebApproval({ request, call, expert = false, onDecide }: Props) 
       <div className="cmd-approval-where">
         <span className="tag">{request.host}</span>
       </div>
-      <div className="muted cmd-approval-note">The agent’s own browser opens it, with an empty profile: none of your sign-ins. “Allow this site” lets every chat of this project open it without asking, unless you mark it Ask first.</div>
+      <div className="muted cmd-approval-note">
+        The agent’s own browser opens it, with an empty profile: none of your sign-ins. “Allow this site” lets every
+        chat of this project open it without asking, unless you mark it Ask first.
+      </div>
       <div className="change-actions">
         <button type="button" className="btn btn-small btn-primary" disabled={busy} onClick={() => decide('once')}>
           <Check size={13} />
@@ -149,7 +169,12 @@ export function WebApproval({ request, call, expert = false, onDecide }: Props) 
           {body}
         </pre>
       )}
-      {!search && <div className="muted cmd-approval-note">Anything written in the address or the body is sent as it is, and kept in the record, except values of fields named like a secret.</div>}
+      {!search && (
+        <div className="muted cmd-approval-note">
+          Anything written in the address or the body is sent as it is, and kept in the record, except values of fields
+          named like a secret.
+        </div>
+      )}
       <div className="change-actions">
         <button type="button" className="btn btn-small btn-primary" disabled={busy} onClick={() => decide('once')}>
           <Check size={13} />
@@ -167,7 +192,9 @@ export function WebApproval({ request, call, expert = false, onDecide }: Props) 
         </button>
       </div>
       {!always && <CardMore>{everyTime(request, search)}</CardMore>}
-      {always && !search && <div className="muted cmd-approval-note">“Always” is for GET to {place} only: this scheme, host and port.</div>}
+      {always && !search && (
+        <div className="muted cmd-approval-note">“Always” is for GET to {place} only: this scheme, host and port.</div>
+      )}
       {error && (
         <div role="alert" className="alert">
           {error}

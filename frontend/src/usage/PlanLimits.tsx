@@ -23,7 +23,10 @@ export function PlanLimits({ providers, onLimits, onModels }: Props) {
   const all = providers.filter(p => p.kind.endsWith('_cli') || p.kind === 'anthropic' || p.kind === 'openai_compat')
   const ids = all.map(p => p.id).join(' ')
   // Asked afresh on "Check now": all but Claude Code (the server asks only those it can ask without a model turn).
-  const afresh = all.filter(p => p.kind !== 'claude_cli').map(p => p.id).join(' ')
+  const afresh = all
+    .filter(p => p.kind !== 'claude_cli')
+    .map(p => p.id)
+    .join(' ')
   // Which reading is wanted, and the last one that came: provider id -> what it said, or why it could not be read.
   const [round, setRound] = useState(0)
   const [read, setRead] = useState<{ round: number; told: Record<string, Limits | string> }>({ round: -1, told: {} })
@@ -33,7 +36,11 @@ export function PlanLimits({ providers, onLimits, onModels }: Props) {
     const asked = ids.split(' ').filter(Boolean)
     // The first round is the page opening: what is known. Each later one is "Check now", which asks only Codex:
     // reading Claude Code's runs a turn, which only its own Read now on the Models page does.
-    void Promise.all(asked.map(async id => [id, await onLimits(id, round > 0 && afresh.split(' ').includes(id)).catch(errorText)] as const)).then(told => {
+    void Promise.all(
+      asked.map(
+        async id => [id, await onLimits(id, round > 0 && afresh.split(' ').includes(id)).catch(errorText)] as const,
+      ),
+    ).then(told => {
       if (latest) setRead({ round, told: Object.fromEntries(told) })
     })
     return () => {
@@ -42,7 +49,11 @@ export function PlanLimits({ providers, onLimits, onModels }: Props) {
   }, [ids, afresh, onLimits, round])
 
   // An OpenAI-compatible server is shown once it has said something: a model server on this machine says nothing.
-  const clis = all.filter(p => p.kind !== 'openai_compat' || (typeof read.told[p.id] === 'object' && (read.told[p.id] as Limits).unknown !== NO_PLAN))
+  const clis = all.filter(
+    p =>
+      p.kind !== 'openai_compat' ||
+      (typeof read.told[p.id] === 'object' && (read.told[p.id] as Limits).unknown !== NO_PLAN),
+  )
   if (clis.length === 0) return null
   const checking = read.round !== round
   return (
@@ -63,7 +74,12 @@ export function PlanLimits({ providers, onLimits, onModels }: Props) {
                   {provider.name}
                   {onModels && (
                     <span className="choice-note">
-                      <button type="button" className="usage-open" aria-label={`Limit ${provider.name} in Models`} onClick={() => onModels(provider.id)}>
+                      <button
+                        type="button"
+                        className="usage-open"
+                        aria-label={`Limit ${provider.name} in Models`}
+                        onClick={() => onModels(provider.id)}
+                      >
                         Limit in Models →
                       </button>
                     </span>
@@ -75,10 +91,28 @@ export function PlanLimits({ providers, onLimits, onModels }: Props) {
                     limits.windows
                       .filter(w => w.used_percent !== null && !w.stale)
                       .map((w, at) => (
-                        <meter key={at} className="budget-meter" aria-label={`${provider.name}: ${windowName(w)} used`} min={0} max={100} low={80} high={100} optimum={0} value={w.used_percent!} />
+                        <meter
+                          key={at}
+                          className="budget-meter"
+                          aria-label={`${provider.name}: ${windowName(w)} used`}
+                          min={0}
+                          max={100}
+                          low={80}
+                          high={100}
+                          optimum={0}
+                          value={w.used_percent!}
+                        />
                       ))}
-                  {limits === undefined ? 'reading…' : typeof limits === 'string' ? `could not be read: ${limits}` : limitsLine(limits)}
-                  {provider.kind === 'claude_cli' && <span className="choice-note">Check now does not read it: that takes a Claude Code turn. Read now on its Models card does.</span>}
+                  {limits === undefined
+                    ? 'reading…'
+                    : typeof limits === 'string'
+                      ? `could not be read: ${limits}`
+                      : limitsLine(limits)}
+                  {provider.kind === 'claude_cli' && (
+                    <span className="choice-note">
+                      Check now does not read it: that takes a Claude Code turn. Read now on its Models card does.
+                    </span>
+                  )}
                   {typeof limits === 'object' &&
                     nearOf(limits).map((w, at) => (
                       <span key={`near ${at}`} className="choice-note">
@@ -101,12 +135,12 @@ export function PlanLimits({ providers, onLimits, onModels }: Props) {
         These are the limits of the account the CLI on this machine is signed in to.{' '}
         <Hint doc={GUIDE.planMeters}>
           This page shows the last reading; agy and Copilot are read again in the background once it is over 10 minutes
-          old. Codex and Copilot also say it in their own native runs, with no model turn of its own. “Check now” asks Codex,
-          agy and Copilot again, without calling a model. Claude Code is not asked here: its limits are read from its own runs
-          and your own Claude Code sessions, or in one short request by Read now on its Models card. Each last reading is kept
-          with its time, also after KOLONİ restarts. No other CLI says what is left of its plan. An API says its rate
-          limits in each answer, read as its agents run (kept until KOLONİ restarts); “Check now” asks DeepSeek its
-          balance.
+          old. Codex and Copilot also say it in their own native runs, with no model turn of its own. “Check now” asks
+          Codex, agy and Copilot again, without calling a model. Claude Code is not asked here: its limits are read from
+          its own runs and your own Claude Code sessions, or in one short request by Read now on its Models card. Each
+          last reading is kept with its time, also after KOLONİ restarts. No other CLI says what is left of its plan. An
+          API says its rate limits in each answer, read as its agents run (kept until KOLONİ restarts); “Check now” asks
+          DeepSeek its balance.
         </Hint>
       </div>
     </section>

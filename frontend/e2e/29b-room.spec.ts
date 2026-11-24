@@ -1,7 +1,9 @@
 import { expect, test } from './fixtures'
 import { more, openFreshConversation, shot } from './helpers'
 
-test('you open a room: its members share the work out and do it, you speak in it, and the lead has the last word', async ({ page }) => {
+test('you open a room: its members share the work out and do it, you speak in it, and the lead has the last word', async ({
+  page,
+}) => {
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
 

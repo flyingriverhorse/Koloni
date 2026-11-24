@@ -15,9 +15,11 @@ test.each([
 })
 
 test('a stack trace is code in no one language', () => {
-  const trace = 'Traceback (most recent call last):\n  File "app.py", line 3, in <module>\n    main()\nValueError: bad value'
+  const trace =
+    'Traceback (most recent call last):\n  File "app.py", line 3, in <module>\n    main()\nValueError: bad value'
   expect(asCode(trace)).toEqual({ text: fenced('', trace), language: null })
-  const node = "TypeError: Cannot read properties of undefined (reading 'x')\n    at load (/app/src/a.js:10:5)\n    at main (/app/src/b.js:3:1)"
+  const node =
+    "TypeError: Cannot read properties of undefined (reading 'x')\n    at load (/app/src/a.js:10:5)\n    at main (/app/src/b.js:3:1)"
   expect(asCode(node)?.language).toBeNull()
 })
 
@@ -26,7 +28,10 @@ test('code without a strong sign of its language gets a bare fence', () => {
 })
 
 test('the clipboard of Windows: its line ends are made one', () => {
-  expect(asCode('def a():\r\n    pass\r\nimport os\r\n')).toEqual({ text: fenced('python', 'def a():\n    pass\nimport os'), language: 'python' })
+  expect(asCode('def a():\r\n    pass\r\nimport os\r\n')).toEqual({
+    text: fenced('python', 'def a():\n    pass\nimport os'),
+    language: 'python',
+  })
 })
 
 test.each([
@@ -36,7 +41,10 @@ test.each([
   ['already fenced', 'look:\n```python\nprint(1)\n```'],
   ['a time after a blank line', 'Hi all,\nThe meeting moved.\n\nat 14:30 in the small room\nSee you'],
   ['a place and a time', 'See you tomorrow\n\nat the office at 10:30\nbring the slides'],
-  ['chat lines that start with keywords', 'let me know when it is done\nfrom what I saw it works\nreturn the old one if not'],
+  [
+    'chat lines that start with keywords',
+    'let me know when it is done\nfrom what I saw it works\nreturn the old one if not',
+  ],
   ['indented lists of other marks', 'Steps:\n  + first\n  a) second\n  1) third\n  2) fourth'],
   ['labelled lines that end in ; or [', 'Attendees: Ali; Ayşe;\nAgenda: budget (draft) [\nOk'],
 ])('%s stays as it is', (_, text) => {

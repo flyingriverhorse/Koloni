@@ -63,7 +63,11 @@ test('a page of another origin on this machine cannot put the app in a frame', a
     }),
   )
   await page.goto(outside)
-  const frame = (name: string) => page.frames().find(one => one.name() === name)?.url()
+  const frame = (name: string) =>
+    page
+      .frames()
+      .find(one => one.name() === name)
+      ?.url()
   await expect.poll(() => frame('other')).toBe(allowed)
   // The browser refuses the app's: an error page stands in the frame, nothing of the app.
   await expect.poll(() => frame('app')).toMatch(/^chrome-error:/)

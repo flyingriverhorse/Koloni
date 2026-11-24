@@ -52,7 +52,11 @@ type Kind = (typeof KINDS)[number][0]
 
 /** A server's state on its row: one that could not be read, one watched, one trusted. */
 const tagOf = (server: McpServer) =>
-  server.read_error ? ['could not be read', 'tag-del'] : server.trusted ? ['trusted', 'tag-ok'] : ['watching', 'tag-warn']
+  server.read_error
+    ? ['could not be read', 'tag-del']
+    : server.trusted
+      ? ['trusted', 'tag-ok']
+      : ['watching', 'tag-warn']
 
 /** Its row's second line: how many tools and how they run, or why there are none. */
 function subOf(server: McpServer) {
@@ -65,8 +69,12 @@ function subOf(server: McpServer) {
 }
 
 /** The tab a page opened anew is on: Skills or Built-in where `picked` says so and that tab is there, else Servers. */
-const firstKind = (toSkills: string | undefined, skillActions: SkillActions | undefined, picked: string | undefined, onSwitchTool: Props['onSwitchTool']): Kind =>
-  toSkills && skillActions ? 'skills' : picked === 'builtin' && onSwitchTool ? 'builtin' : 'servers'
+const firstKind = (
+  toSkills: string | undefined,
+  skillActions: SkillActions | undefined,
+  picked: string | undefined,
+  onSwitchTool: Props['onSwitchTool'],
+): Kind => (toSkills && skillActions ? 'skills' : picked === 'builtin' && onSwitchTool ? 'builtin' : 'servers')
 
 /** The server open under its row: the one selected, or else the first; none while one is added ('new') or all are closed (''). */
 const openOf = (servers: McpServer[], selected: string | null) =>
@@ -101,7 +109,9 @@ export function ToolsPage({ servers, picked, builtin = [], onSwitchTool, skills 
   // The arrow keys, Home and End move along the tabs (WAI-ARIA tabs: one tab stop, chosen as it is reached).
   function onTabKey(event: KeyboardEvent<HTMLDivElement>) {
     const at = kinds.findIndex(([id]) => id === kind)
-    const to = ({ ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: kinds.length - 1 } as Record<string, number>)[event.key]
+    const to = ({ ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: kinds.length - 1 } as Record<string, number>)[
+      event.key
+    ]
     if (to === undefined) return
     event.preventDefault()
     const next = kinds[(to + kinds.length) % kinds.length][0]
@@ -165,28 +175,41 @@ export function ToolsPage({ servers, picked, builtin = [], onSwitchTool, skills 
         ))}
       </div>
       {onSwitchTool && (
-        <div id="tools-panel-builtin" role="tabpanel" aria-labelledby="tools-tab-builtin" className="tools-panel" hidden={kind !== 'builtin'}>
+        <div
+          id="tools-panel-builtin"
+          role="tabpanel"
+          aria-labelledby="tools-tab-builtin"
+          className="tools-panel"
+          hidden={kind !== 'builtin'}
+        >
           <p className="muted provider-note tools-lead">
             KOLONİ’s own tools; one switched off is given to no agent.{' '}
             <Hint doc={GUIDE.builtInTools}>
-              One you switch off is given to no agent, whatever its role lists. Claude Code’s and Codex’s own web tools, and
-              Codex’s apps, switch off with them. While Search the web or Web requests is off, a command that reaches the
-              internet (curl, git clone, an https address) asks you on a card at every level, Full auto too.
+              One you switch off is given to no agent, whatever its role lists. Claude Code’s and Codex’s own web tools,
+              and Codex’s apps, switch off with them. While Search the web or Web requests is off, a command that
+              reaches the internet (curl, git clone, an https address) asks you on a card at every level, Full auto too.
             </Hint>
           </p>
           <BuiltIn tools={builtin} onSwitch={onSwitchTool} />
         </div>
       )}
-      <div id="tools-panel-servers" role="tabpanel" aria-labelledby="tools-tab-servers" className="tools-panel" hidden={kind !== 'servers'}>
+      <div
+        id="tools-panel-servers"
+        role="tabpanel"
+        aria-labelledby="tools-tab-servers"
+        className="tools-panel"
+        hidden={kind !== 'servers'}
+      >
         <p className="muted provider-note tools-lead">
           Programs that give agents more tools. A new one asks before every call until you trust it.{' '}
           <Hint doc={GUIDE.mcpTrust}>
             <span className="hint-para">
-              Programs that give agents more tools (MCP). Each tool asks you before it runs, unless you say otherwise. A server
-              you add is watched: every call asks, at every level, until you trust it.
+              Programs that give agents more tools (MCP). Each tool asks you before it runs, unless you say otherwise. A
+              server you add is watched: every call asks, at every level, until you trust it.
             </span>
             <span className="hint-para">
-              <Warning size={13} color="var(--warn)" aria-hidden="true" /> A server runs with your rights on this machine.
+              <Warning size={13} color="var(--warn)" aria-hidden="true" /> A server runs with your rights on this
+              machine.
             </span>
             {NOTES.map(note => (
               <span key={note} className="hint-para">
@@ -205,7 +228,14 @@ export function ToolsPage({ servers, picked, builtin = [], onSwitchTool, skills 
               return (
                 <li key={server.id}>
                   <div className="tools-row">
-                    <input type="checkbox" role="switch" className="switch" aria-label={`${server.name} on`} checked={server.enabled} onChange={() => switchServer(server)} />
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      className="switch"
+                      aria-label={`${server.name} on`}
+                      checked={server.enabled}
+                      onChange={() => switchServer(server)}
+                    />
                     <button
                       id={`tools-row-${server.id}`}
                       type="button"
@@ -263,7 +293,13 @@ export function ToolsPage({ servers, picked, builtin = [], onSwitchTool, skills 
         )}
       </div>
       {skillActions && (
-        <div id="tools-panel-skills" role="tabpanel" aria-labelledby="tools-tab-skills" className="tools-panel" hidden={kind !== 'skills'}>
+        <div
+          id="tools-panel-skills"
+          role="tabpanel"
+          aria-labelledby="tools-tab-skills"
+          className="tools-panel"
+          hidden={kind !== 'skills'}
+        >
           <SkillsSection
             skills={skills}
             roles={rest.roles}

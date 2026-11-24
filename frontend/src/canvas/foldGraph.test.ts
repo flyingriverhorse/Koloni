@@ -15,7 +15,10 @@ test('an agent is one node with nothing inside: nothing to close (the user’s, 
       runs: [run('r')],
       agents: [agent('r')],
       messages: [userMessage('r', 'x')],
-      toolCalls: [toolCall('1', 'r', 'read_file', 'succeeded'), toolCall('2', 'r', 'claude__Agent', 'succeeded', '{}', cli)],
+      toolCalls: [
+        toolCall('1', 'r', 'read_file', 'succeeded'),
+        toolCall('2', 'r', 'claude__Agent', 'succeeded', '{}', cli),
+      ],
       commands: [command('k1', 'r')],
       fileChanges: [fileChange('f1', 'r')],
     }),
@@ -30,7 +33,11 @@ function turns(over: Partial<ConvState> = {}) {
   return deriveGraph(
     convState({
       runs: [run('a', 'completed'), run('b', 'failed'), run('c')],
-      messages: [userMessage('a', '\nFix the greeting\nand then the tests'), userMessage('b', 'x'.repeat(200)), userMessage('c', 'go on')],
+      messages: [
+        userMessage('a', '\nFix the greeting\nand then the tests'),
+        userMessage('b', 'x'.repeat(200)),
+        userMessage('c', 'go on'),
+      ],
       agents: [
         agent('a', 'completed'),
         agent('a', 'completed', { id: 'kid', parent_agent_id: 'a', role_name: 'Reviewer', depth: 1 }),
@@ -54,14 +61,26 @@ test('folding hides nothing of a turn without frames: no node stands for a turn,
   const whole = turns()
   const g = foldGraph(whole, {})
   expect(ids(g)).toEqual(['request:a', 'agent:a', 'agent:kid', 'request:b', 'agent:b', 'request:c', 'agent:c'])
-  expect(g.edges.every(e => whole.nodes.find(n => n.id === e.source)!.runId === whole.nodes.find(n => n.id === e.target)!.runId)).toBe(true)
+  expect(
+    g.edges.every(
+      e => whole.nodes.find(n => n.id === e.source)!.runId === whole.nodes.find(n => n.id === e.target)!.runId,
+    ),
+  ).toBe(true)
   expect(foldAll(oneTurn(whole, 'a'), false)).toEqual({})
 })
 
 test('a call, a command or a file selected elsewhere is drawn as its agent; any other selection as it is', () => {
   const whole = turns()
-  const state = { toolCalls: [{ id: '4', agent_id: 'kid' }], commands: [{ id: 'k1', agent_id: 'a' }], fileChanges: [{ id: 'f2', agent_id: 'kid' }] }
-  expect([agentOf(state, 'call:4'), agentOf(state, 'command:k1'), agentOf(state, 'file:f2')]).toEqual(['agent:kid', 'agent:a', 'agent:kid'])
+  const state = {
+    toolCalls: [{ id: '4', agent_id: 'kid' }],
+    commands: [{ id: 'k1', agent_id: 'a' }],
+    fileChanges: [{ id: 'f2', agent_id: 'kid' }],
+  }
+  expect([agentOf(state, 'call:4'), agentOf(state, 'command:k1'), agentOf(state, 'file:f2')]).toEqual([
+    'agent:kid',
+    'agent:a',
+    'agent:kid',
+  ])
   expect([agentOf(state, 'file:nope'), agentOf(state, 'agent:c')]).toEqual(['file:nope', 'agent:c'])
   expect(nodeOf(whole, agentOf(state, 'file:f2'))?.id).toBe('agent:kid')
   expect(turnOf(whole, 'agent:c')).toBe('c')

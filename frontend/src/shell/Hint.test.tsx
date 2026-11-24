@@ -68,10 +68,67 @@ test('a short explanation behind ⓘ: shown while hovered, kept by a click or a 
 })
 
 const project: Project = {
-  id: 'p', name: 'demo', root_path: 'C:/demo', created_at: 't', exec_location: 'host', docker_image: null, docker_network: false,
-  search_url: null, search_order: 'builtin', search_agy: false, has_notify_url: false, notify_format: 'slack', notify_desktop: false,
-  turn_token_limit: null, max_agents: null, continue_steps: 25, monthly_budget: null, measure_command: null, after_change: 'check', fix_rounds: 2, stronger_model: true, check_kinds: {}, review_lines: 80, review_files: 3, after_change_from_off: false, tests_found: {}, tests_look: null, test_commands: {}, full_auto_check: 'ask', disposable_deletes: false, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small', git_commit: false, finish_way: null, auto_notes: false, observe_reports: false, suggest_tasks: true, suggest_tier: 'fast', day_note_at: null, also_in: [], read_in: [], teams_mode: 'none', teams: [],
-  hide_secrets: true, canary: true, lead_work: 'delegates', when_away: 'waits', away_minutes: 10, spawn_approval: 'auto', spawn_max_depth: 2, spawn_max_agents: 6, spawn_max_parallel: 2, discussion_budget: null, room_posts: 40, room_tokens: null, room_minutes: 30, room_min_tokens: 60000, pass_env: null, held_env: [], koloni: { settings_kept: false, rules_kept: false, rules: null, broken: [], asks: {} },
+  id: 'p',
+  name: 'demo',
+  root_path: 'C:/demo',
+  created_at: 't',
+  exec_location: 'host',
+  docker_image: null,
+  docker_network: false,
+  search_url: null,
+  search_order: 'builtin',
+  search_agy: false,
+  has_notify_url: false,
+  notify_format: 'slack',
+  notify_desktop: false,
+  turn_token_limit: null,
+  max_agents: null,
+  continue_steps: 25,
+  monthly_budget: null,
+  measure_command: null,
+  after_change: 'check',
+  fix_rounds: 2,
+  stronger_model: true,
+  check_kinds: {},
+  review_lines: 80,
+  review_files: 3,
+  after_change_from_off: false,
+  tests_found: {},
+  tests_look: null,
+  test_commands: {},
+  full_auto_check: 'ask',
+  disposable_deletes: false,
+  memory_links: [],
+  embedding_provider_id: null,
+  embedding_model: 'text-embedding-3-small',
+  git_commit: false,
+  finish_way: null,
+  auto_notes: false,
+  observe_reports: false,
+  suggest_tasks: true,
+  suggest_tier: 'fast',
+  day_note_at: null,
+  also_in: [],
+  read_in: [],
+  teams_mode: 'none',
+  teams: [],
+  hide_secrets: true,
+  canary: true,
+  lead_work: 'delegates',
+  when_away: 'waits',
+  away_minutes: 10,
+  spawn_approval: 'auto',
+  spawn_max_depth: 2,
+  spawn_max_agents: 6,
+  spawn_max_parallel: 2,
+  discussion_budget: null,
+  room_posts: 40,
+  room_tokens: null,
+  room_minutes: 30,
+  room_min_tokens: 60000,
+  pass_env: null,
+  held_env: [],
+  koloni: { settings_kept: false, rules_kept: false, rules: null, broken: [], asks: {} },
 }
 
 test('a note with a hint loses nothing: its first sentence stands, the rest is behind ⓘ, and its field points at both for its description', async () => {
@@ -127,9 +184,27 @@ test('a note with a hint loses nothing: its first sentence stands, the rest is b
 })
 
 const local: Provider = {
-  id: 'p1', name: 'Local', kind: 'openai_compat', base_url: 'http://127.0.0.1:8080/v1', default_model: null, executable: null, mode: null, options: null,
-  for_agents: false, note: null, models: [], only_listed: false, max_running: null, plan: false, step_down_at: null, day_limit: null, month_limit: null,
-  has_key: false, position: 0, created_at: 't', updated_at: 't',
+  id: 'p1',
+  name: 'Local',
+  kind: 'openai_compat',
+  base_url: 'http://127.0.0.1:8080/v1',
+  default_model: null,
+  executable: null,
+  mode: null,
+  options: null,
+  for_agents: false,
+  note: null,
+  models: [],
+  only_listed: false,
+  max_running: null,
+  plan: false,
+  step_down_at: null,
+  day_limit: null,
+  month_limit: null,
+  has_key: false,
+  position: 0,
+  created_at: 't',
+  updated_at: 't',
 }
 
 /**
@@ -144,9 +219,29 @@ const elsewhere: [string, () => Promise<void>, RegExp[]][] = [
       useApp.setState({ projectId: 'p', projects: [{ ...project, embedding_provider_id: 'p1' }], providers: [local] })
       onTestFinished(() => useApp.setState({ projectId: null, projects: [], providers: [] }))
       const none = vi.fn(async () => {})
-      const suggested = memoryRecord('s1', { tier: 'preference', status: 'proposed', origin: 'auto', text: 'short answers', about: null })
+      const suggested = memoryRecord('s1', {
+        tier: 'preference',
+        status: 'proposed',
+        origin: 'auto',
+        text: 'short answers',
+        about: null,
+      })
       render(
-        <MemoryPage memory={projectMemory({ suggestions: [suggested] })} onApprove={none} onReject={none} onRestore={none} onConfirm={none} onCorrect={none} onWrite={none} onSaveRules={none} onSavePreferences={none} onAddPreference={none} onReload={none} onSearch={vi.fn()} onMeaning={none} />,
+        <MemoryPage
+          memory={projectMemory({ suggestions: [suggested] })}
+          onApprove={none}
+          onReject={none}
+          onRestore={none}
+          onConfirm={none}
+          onCorrect={none}
+          onWrite={none}
+          onSaveRules={none}
+          onSavePreferences={none}
+          onAddPreference={none}
+          onReload={none}
+          onSearch={vi.fn()}
+          onMeaning={none}
+        />,
       )
       await userEvent.click(screen.getByRole('tab', { name: /^Told/ }))
     },
@@ -160,7 +255,20 @@ const elsewhere: [string, () => Promise<void>, RegExp[]][] = [
     async () => {
       const none = vi.fn()
       render(
-        <TriggersPage triggers={[]} conversations={[conversation]} draft={null} origin="http://127.0.0.1:8790" onCreate={none} onSave={none} onDelete={none} onRun={none} onShowTurn={none} onDraftTaken={none} onRules={vi.fn(async () => [])} onAddRule={none} />,
+        <TriggersPage
+          triggers={[]}
+          conversations={[conversation]}
+          draft={null}
+          origin="http://127.0.0.1:8790"
+          onCreate={none}
+          onSave={none}
+          onDelete={none}
+          onRun={none}
+          onShowTurn={none}
+          onDraftTaken={none}
+          onRules={vi.fn(async () => [])}
+          onAddRule={none}
+        />,
       )
       await newTrigger()
       await userEvent.selectOptions(screen.getByLabelText('Starts'), 'files')
@@ -179,12 +287,20 @@ const elsewhere: [string, () => Promise<void>, RegExp[]][] = [
     'The approval cards',
     async () => {
       const card = (name: string, args: string, why_asked: string | null = null) => (
-        <OutsideApproval call={toolCall(name, 'r', name, 'pending', args, { why_asked })} who="Lead" onDecide={vi.fn()} />
+        <OutsideApproval
+          call={toolCall(name, 'r', name, 'pending', args, { why_asked })}
+          who="Lead"
+          onDecide={vi.fn()}
+        />
       )
       render(
         <>
           {card('read_file', '{"path":".env"}', 'This is a secret file.')}
-          {card('edit_file', '{"path":"C:/Users/me/.codex/config.toml"}', 'It is Codex’s settings for this whole computer.')}
+          {card(
+            'edit_file',
+            '{"path":"C:/Users/me/.codex/config.toml"}',
+            'It is Codex’s settings for this whole computer.',
+          )}
           {card('ask_secret', '{"name":"API_KEY"}')}
         </>,
       )
@@ -199,7 +315,30 @@ const elsewhere: [string, () => Promise<void>, RegExp[]][] = [
     'To-do',
     async () => {
       const none = vi.fn(async () => {})
-      render(<BacklogPage backlog={[]} error={null} auto={{ on: true, halt: null, permission_mode: 'ask', provider_id: null, model_id: null, lead_work: 'delegates', cannot_run: null }} providers={[]} onAuto={none} onChoice={none} onAdd={none} onChange={none} onDelete={none} onDecide={none} onRun={none} onOpen={vi.fn()} />)
+      render(
+        <BacklogPage
+          backlog={[]}
+          error={null}
+          auto={{
+            on: true,
+            halt: null,
+            permission_mode: 'ask',
+            provider_id: null,
+            model_id: null,
+            lead_work: 'delegates',
+            cannot_run: null,
+          }}
+          providers={[]}
+          onAuto={none}
+          onChoice={none}
+          onAdd={none}
+          onChange={none}
+          onDelete={none}
+          onDecide={none}
+          onRun={none}
+          onOpen={vi.fn()}
+        />,
+      )
     },
     [
       /A task not finished gets one fix round; still not, it is stuck and the next goes on\. A stop, a restart or a limit pauses the run and says why\./,
@@ -210,8 +349,18 @@ const elsewhere: [string, () => Promise<void>, RegExp[]][] = [
     'Today',
     async () => {
       const day = {
-        turns: 1, agents: ['Lead'], changed_files: [], waiting: 0, failed: 0, input_tokens: null, output_tokens: null, tokens_at_least: false, cost: null,
-        conversations: [{ conversation_id: 'c1', title: 'Docs', turns: 1, changed_files: 0, failed: 0, files: [], failed_runs: [] }],
+        turns: 1,
+        agents: ['Lead'],
+        changed_files: [],
+        waiting: 0,
+        failed: 0,
+        input_tokens: null,
+        output_tokens: null,
+        tokens_at_least: false,
+        cost: null,
+        conversations: [
+          { conversation_id: 'c1', title: 'Docs', turns: 1, changed_files: 0, failed: 0, files: [], failed_runs: [] },
+        ],
       }
       render(<TodayView currentId="c1" noteAt={null} onLoad={vi.fn(async () => day)} onWords={vi.fn()} />)
       await screen.findByRole('button', { name: 'Say it in words' })
@@ -227,7 +376,9 @@ const elsewhere: [string, () => Promise<void>, RegExp[]][] = [
       render(<ModelPicker providers={[local]} providerId={null} modelId={null} onSave={vi.fn()} />)
       await userEvent.click(screen.getByRole('button', { name: /Model: Local/ }))
     },
-    [/One more request for each message you send: .* It overrides the Orchestrator role’s own model and tier\. A trigger’s message does not use it\./],
+    [
+      /One more request for each message you send: .* It overrides the Orchestrator role’s own model and tier\. A trigger’s message does not use it\./,
+    ],
   ],
   [
     'Models, Limits',
@@ -249,16 +400,59 @@ const elsewhere: [string, () => Promise<void>, RegExp[]][] = [
     'The room window',
     async () => {
       const noop = async () => {}
-      const on = { onOpenChange: () => {}, onDecide: noop, onDecideCommand: noop, onDecideWeb: noop, onSelectAgent: () => {}, onDecideSpawn: noop, onDecideRole: noop, onDecideMerge: noop, onCheckMerge: noop, onCommitMerge: noop, onAnswer: noop } as RequestHandlers
+      const on = {
+        onOpenChange: () => {},
+        onDecide: noop,
+        onDecideCommand: noop,
+        onDecideWeb: noop,
+        onSelectAgent: () => {},
+        onDecideSpawn: noop,
+        onDecideRole: noop,
+        onDecideMerge: noop,
+        onCheckMerge: noop,
+        onCommitMerge: noop,
+        onAnswer: noop,
+      } as RequestHandlers
       const room = (id: string, lead_follows: Room['lead_follows']): Room => ({
-        id, run_id: 'r', goal: `Room ${id}`, agent_id: null, status: 'working', outcome: null, why: null, budget: { posts: 40, tokens: 400000, minutes: 30 },
-        spent: { posts: 0, tokens: 0, minutes: 0 }, summary: null, paused: false, lead_follows, members: [], created_at: 't', ended_at: null,
+        id,
+        run_id: 'r',
+        goal: `Room ${id}`,
+        agent_id: null,
+        status: 'working',
+        outcome: null,
+        why: null,
+        budget: { posts: 40, tokens: 400000, minutes: 30 },
+        spent: { posts: 0, tokens: 0, minutes: 0 },
+        summary: null,
+        paused: false,
+        lead_follows,
+        members: [],
+        created_at: 't',
+        ended_at: null,
       })
-      const state = convState({ runs: [run('r', 'running')], agents: [agent('r', 'waiting', { id: 'lead' })], rooms: [room('o1', 'on'), room('o2', 'stopped')] })
+      const state = convState({
+        runs: [run('r', 'running')],
+        agents: [agent('r', 'waiting', { id: 'lead' })],
+        rooms: [room('o1', 'on'), room('o2', 'stopped')],
+      })
       render(
         <>
           {state.rooms.map(one => (
-            <RoomWindow key={one.id} state={state} room={one} on={on} roles={[]} providers={[]} onSay={noop} onEnd={noop} onMore={noop} onPause={noop} onFollow={noop} onShrink={() => {}} onClose={() => {}} />
+            <RoomWindow
+              key={one.id}
+              state={state}
+              room={one}
+              on={on}
+              roles={[]}
+              providers={[]}
+              onSay={noop}
+              onEnd={noop}
+              onMore={noop}
+              onPause={noop}
+              onFollow={noop}
+              onShrink={() => {}}
+              onClose={() => {}}
+            />
           ))}
         </>,
       )
@@ -270,26 +464,86 @@ const elsewhere: [string, () => Promise<void>, RegExp[]][] = [
     async () => {
       // (Sample A folds what only explains a button under Details: never how far a yes reaches, nor what is deleted.)
       const web = (over: Partial<WebRequest>): WebRequest => ({
-        id: 'w', run_id: 'r', agent_id: 'r', tool_call_id: 't', kind: 'search', method: null, target: 'x', host: null, headers: [], body_chars: null,
-        status: 'proposed', created_at: 't', decided_at: null, ...over,
+        id: 'w',
+        run_id: 'r',
+        agent_id: 'r',
+        tool_call_id: 't',
+        kind: 'search',
+        method: null,
+        target: 'x',
+        host: null,
+        headers: [],
+        body_chars: null,
+        status: 'proposed',
+        created_at: 't',
+        decided_at: null,
+        ...over,
       })
-      const file = { path: 'a.txt', kind: 'new', state: 'ready', whole: false, diff: '', additions: 1, deletions: 0, note: null } as const
-      const kept: Merge = { id: 'g', run_id: 'r', agent_id: 'c', status: 'kept', files: [file], kept_in: 'C:/copies/c', check: null, commit: null, created_at: 't', decided_at: null }
+      const file = {
+        path: 'a.txt',
+        kind: 'new',
+        state: 'ready',
+        whole: false,
+        diff: '',
+        additions: 1,
+        deletions: 0,
+        note: null,
+      } as const
+      const kept: Merge = {
+        id: 'g',
+        run_id: 'r',
+        agent_id: 'c',
+        status: 'kept',
+        files: [file],
+        kept_in: 'C:/copies/c',
+        check: null,
+        commit: null,
+        created_at: 't',
+        decided_at: null,
+      }
       render(
         <>
-          <WebApproval request={web({ kind: 'page', target: 'https://example.com/a', host: 'example.com' })} onDecide={vi.fn()} />
-          <WebApproval request={web({ kind: 'http', method: 'GET', target: 'https://example.com/a', host: 'example.com' })} onDecide={vi.fn()} />
-          <OutsideApproval call={toolCall('p', 'r', 'read_file', 'pending', '{"path":"C:/n/a.md"}', { outside_folder: 'C:/n' })} who="Lead" onDecide={vi.fn()} />
-          <OutsideApproval call={toolCall('f', 'r', 'ask_folder', 'pending', '{"path":"D:/s","access":"read","why":"schemas"}', { outside_folder: 'D:/s' })} who="Lead" onDecide={vi.fn()} />
-          <OutsideApproval call={toolCall('w', 'r', 'edit_file', 'pending', '{"path":"C:/m/b.md"}', { outside_folder: 'C:/m' })} who="Lead" onDecide={vi.fn()} />
-          <OutsideApproval call={toolCall('g', 'r', 'ask_folder', 'pending', '{"path":"E:/t","access":"write","why":"output"}', { outside_folder: 'E:/t' })} who="Lead" onDecide={vi.fn()} />
+          <WebApproval
+            request={web({ kind: 'page', target: 'https://example.com/a', host: 'example.com' })}
+            onDecide={vi.fn()}
+          />
+          <WebApproval
+            request={web({ kind: 'http', method: 'GET', target: 'https://example.com/a', host: 'example.com' })}
+            onDecide={vi.fn()}
+          />
+          <OutsideApproval
+            call={toolCall('p', 'r', 'read_file', 'pending', '{"path":"C:/n/a.md"}', { outside_folder: 'C:/n' })}
+            who="Lead"
+            onDecide={vi.fn()}
+          />
+          <OutsideApproval
+            call={toolCall('f', 'r', 'ask_folder', 'pending', '{"path":"D:/s","access":"read","why":"schemas"}', {
+              outside_folder: 'D:/s',
+            })}
+            who="Lead"
+            onDecide={vi.fn()}
+          />
+          <OutsideApproval
+            call={toolCall('w', 'r', 'edit_file', 'pending', '{"path":"C:/m/b.md"}', { outside_folder: 'C:/m' })}
+            who="Lead"
+            onDecide={vi.fn()}
+          />
+          <OutsideApproval
+            call={toolCall('g', 'r', 'ask_folder', 'pending', '{"path":"E:/t","access":"write","why":"output"}', {
+              outside_folder: 'E:/t',
+            })}
+            who="Lead"
+            onDecide={vi.fn()}
+          />
           <MergeCard merge={kept} name="Coder" onDecide={vi.fn()} />
           <MergeCard merge={{ ...kept, id: 'h', status: 'pending', kept_in: null }} name="Tester" onDecide={vi.fn()} />
         </>,
       )
       // And nothing folded on these cards says what reaches further, is deleted, runs, is sent or spent.
       for (const fold of Array.from(document.querySelectorAll('.card-more-body')))
-        expect(fold.textContent).not.toMatch(/every chat|from now on|asks again|delete|discard|runs?|sen[dt]s?|spen[dt]|pay|always/i)
+        expect(fold.textContent).not.toMatch(
+          /every chat|from now on|asks again|delete|discard|runs?|sen[dt]s?|spen[dt]|pay|always/i,
+        )
     },
     [
       /“Allow this site” lets every chat of this project open it without asking/,
@@ -304,12 +558,15 @@ const elsewhere: [string, () => Promise<void>, RegExp[]][] = [
   ],
 ]
 
-test.each(elsewhere)('%s: its warnings are in sight, never behind ⓘ or in a closed fold', async (_page, show, warnings) => {
-  await show()
-  for (const warning of warnings) {
-    const shown = screen.getByText(warning)
-    expect(shown.closest('.hint')).toBeNull()
-    expect(shown.closest('details:not([open])')).toBeNull()
-  }
-  cleanup()
-})
+test.each(elsewhere)(
+  '%s: its warnings are in sight, never behind ⓘ or in a closed fold',
+  async (_page, show, warnings) => {
+    await show()
+    for (const warning of warnings) {
+      const shown = screen.getByText(warning)
+      expect(shown.closest('.hint')).toBeNull()
+      expect(shown.closest('details:not([open])')).toBeNull()
+    }
+    cleanup()
+  },
+)

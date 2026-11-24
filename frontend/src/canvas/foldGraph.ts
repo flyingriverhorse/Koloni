@@ -68,11 +68,16 @@ function drawnNodes(all: GraphNode[], folds: Folds, shut: Set<string>, folded: F
   return nodes
 }
 
-const inShut = (node: GraphNode, shut: Set<string>) => (node.parent && shut.has(node.parent)) || (node.team && shut.has(node.team)) || (node.round && shut.has(node.round))
+const inShut = (node: GraphNode, shut: Set<string>) =>
+  (node.parent && shut.has(node.parent)) || (node.team && shut.has(node.team)) || (node.round && shut.has(node.round))
 
 /** What a hidden node is drawn as: its folded frame or round, what its box is hidden in, or - a file - its closed box. */
 const hiddenIn = (node: GraphNode, shut: Set<string>, folded: Folded) =>
-  node.team && shut.has(node.team) ? node.team : node.round && shut.has(node.round) ? node.round : (folded.get(node.parent ?? '') ?? (node.kind === 'attachment' ? node.parent : undefined))
+  node.team && shut.has(node.team)
+    ? node.team
+    : node.round && shut.has(node.round)
+      ? node.round
+      : (folded.get(node.parent ?? '') ?? (node.kind === 'attachment' ? node.parent : undefined))
 
 function withRows(node: GraphNode, folds: Folds): GraphNode {
   // K-belge-ciktilari: an output card the user unfolded shows all its rows.
@@ -90,7 +95,8 @@ function drawnEdges(all: GraphEdge[], nodes: GraphNode[], folded: Folded): Graph
     // (A copy: what is added up on it is not added to the graph it was folded from.)
     if (drawn.has(e.source) && drawn.has(e.target)) edges.push({ ...e })
     // A lane discussion's member in a folded frame: the frame, to light it.
-    else if (e.member && folded.has(e.source) && drawn.has(e.target)) edges.push({ ...e, id: `${e.id}@${folded.get(e.source)}`, source: folded.get(e.source)! })
+    else if (e.member && folded.has(e.source) && drawn.has(e.target))
+      edges.push({ ...e, id: `${e.id}@${folded.get(e.source)}`, source: folded.get(e.source)! })
     else if (e.messages) talkLine(e, e.messages, drawn, folded, edges)
     // An end in a folded round: the round's line - one line of a kind for each way, its findings added up.
     else if ([e.source, e.target].some(id => rounds.has(folded.get(id) ?? ''))) roundLine(e, drawn, folded, edges)
@@ -99,25 +105,47 @@ function drawnEdges(all: GraphEdge[], nodes: GraphNode[], folded: Folded): Graph
 }
 
 /** A line's two ends as drawn: each itself, or what it is hidden in (undefined: in nothing that is drawn). */
-const endsOf = (e: GraphEdge, drawn: Set<string>, folded: Folded) => [drawn.has(e.source) ? e.source : folded.get(e.source), drawn.has(e.target) ? e.target : folded.get(e.target)]
+const endsOf = (e: GraphEdge, drawn: Set<string>, folded: Folded) => [
+  drawn.has(e.source) ? e.source : folded.get(e.source),
+  drawn.has(e.target) ? e.target : folded.get(e.target),
+]
 
 /** Talk with an end that is hidden (`messages`: how many it counts), added to `edges`. */
 function talkLine(e: GraphEdge, messages: number, drawn: Set<string>, folded: Folded, edges: GraphEdge[]) {
   const [source, target] = endsOf(e, drawn, folded)
   if (!source || !target || source === target) return
   // (Several on one way, one line: they add up, its last words the newest.)
-  const same = edges.find(one => one.messages && [one.source, one.target].sort().join() === [source, target].sort().join())
+  const same = edges.find(
+    one => one.messages && [one.source, one.target].sort().join() === [source, target].sort().join(),
+  )
   if (!same) edges.push({ ...e, id: `${e.id}@${source === e.source ? target : source}`, source, target, cross: false })
-  else Object.assign(same, { messages: (same.messages ?? 0) + messages }, (e.lastAt ?? '') >= (same.lastAt ?? '') && { last: e.last, lastAt: e.lastAt })
+  else
+    Object.assign(
+      same,
+      { messages: (same.messages ?? 0) + messages },
+      (e.lastAt ?? '') >= (same.lastAt ?? '') && { last: e.last, lastAt: e.lastAt },
+    )
 }
 
 /** A line with an end in a folded round, added to `edges`. */
 function roundLine(e: GraphEdge, drawn: Set<string>, folded: Folded, edges: GraphEdge[]) {
   const [source, target] = endsOf(e, drawn, folded)
   if (!source || !target || source === target) return
-  const same = edges.find(one => one.source === source && one.target === target && !one.work === !e.work && !one.spawn === !e.spawn && (one.findings === undefined) === (e.findings === undefined))
+  const same = edges.find(
+    one =>
+      one.source === source &&
+      one.target === target &&
+      !one.work === !e.work &&
+      !one.spawn === !e.spawn &&
+      (one.findings === undefined) === (e.findings === undefined),
+  )
   if (!same) edges.push({ ...e, id: `${e.id}@${source}>${target}`, source, target })
-  else Object.assign(same, { active: same.active || e.active }, e.findings !== undefined && { findings: (same.findings ?? 0) + e.findings })
+  else
+    Object.assign(
+      same,
+      { active: same.active || e.active },
+      e.findings !== undefined && { findings: (same.findings ?? 0) + e.findings },
+    )
 }
 
 /** Every group of the graph that has something inside, opened or closed. */
@@ -133,7 +161,9 @@ export function nodeOf(graph: Graph, selected: string): GraphNode | undefined {
 
 /** An agent drawn in its turn's Checks box (`settleChecks`) - selected in the chat, say - is shown as that box. */
 const inChecks = (graph: Graph, selected: string) =>
-  graph.nodes.find(n => n.kind === 'checks' && (n.data as ChecksData).loop?.agents.includes(selected.replace(/^agent:/, '')))
+  graph.nodes.find(
+    n => n.kind === 'checks' && (n.data as ChecksData).loop?.agents.includes(selected.replace(/^agent:/, '')),
+  )
 
 type Owned = { id: string; agent_id: string }[]
 
@@ -141,10 +171,14 @@ type Owned = { id: string; agent_id: string }[]
  * A call, a command or a file selected elsewhere ("call:", "command:", "file:" and its id) is no node of its own (the
  * user's, 5 Nov): it is drawn as its agent's node, by that node's id. Any other selection as it is.
  */
-export function agentOf(state: { toolCalls: Owned; commands: Owned; fileChanges: Owned } | null, selected: string): string {
+export function agentOf(
+  state: { toolCalls: Owned; commands: Owned; fileChanges: Owned } | null,
+  selected: string,
+): string {
   const [kind, id] = selected.split(/:(.*)/s)
   if (!state) return selected
-  const records = kind === 'call' ? state.toolCalls : kind === 'command' ? state.commands : kind === 'file' ? state.fileChanges : []
+  const records =
+    kind === 'call' ? state.toolCalls : kind === 'command' ? state.commands : kind === 'file' ? state.fileChanges : []
   const agent = records.find(r => r.id === id)?.agent_id
   return agent ? `agent:${agent}` : selected
 }
@@ -167,7 +201,8 @@ export function unfold(graph: Graph, folds: Folds, selected: string): Folds {
   // (And the team frame its agent is drawn in, and the round it is folded into.)
   const agent = graph.nodes.find(a => a.kind === 'agent' && a.agentId === node.agentId)
   const around = [agent?.team, agent?.round].flatMap(id => graph.nodes.find(n => n.id === id) ?? [])
-  for (let box = graph.nodes.find(n => n.id === node.parent); box; box = graph.nodes.find(n => n.id === box?.parent)) around.push(box)
+  for (let box = graph.nodes.find(n => n.id === node.parent); box; box = graph.nodes.find(n => n.id === box?.parent))
+    around.push(box)
   for (const box of around) {
     if (!opens(box, folds)) {
       next[box.id] = true

@@ -9,12 +9,16 @@ import { appSettings, contrasts, LINK } from './helpers'
 const SHOTS = path.join(os.tmpdir(), 'koloni-docs', 'da-shots')
 
 for (const theme of ['light', 'dark'] as const)
-  test(`in the ${theme} theme Export everything downloads a .zip, and restoring it says it is restored at the next start`, async ({ page }) => {
+  test(`in the ${theme} theme Export everything downloads a .zip, and restoring it says it is restored at the next start`, async ({
+    page,
+  }) => {
     await page.addInitScript(given => localStorage.setItem('koloni-theme', given), theme)
     await page.goto(LINK)
     await appSettings(page, 'Your data')
     const panel = page.getByRole('region', { name: 'Your data' })
-    await expect(panel.getByRole('checkbox', { name: 'Include API keys and secrets (keep this file safe)' })).not.toBeChecked()
+    await expect(
+      panel.getByRole('checkbox', { name: 'Include API keys and secrets (keep this file safe)' }),
+    ).not.toBeChecked()
     mkdirSync(SHOTS, { recursive: true })
     await panel.screenshot({ path: path.join(SHOTS, `your-data-${theme}.png`) })
 

@@ -21,9 +21,25 @@ const project: Project = {
   notify_format: 'slack',
   notify_desktop: false,
   turn_token_limit: null,
-  max_agents: null, continue_steps: 25,
+  max_agents: null,
+  continue_steps: 25,
   monthly_budget: null,
-  measure_command: null, after_change: 'check', fix_rounds: 2, stronger_model: true, check_kinds: {}, review_lines: 80, review_files: 3, after_change_from_off: false, tests_found: {}, tests_look: null, test_commands: {}, full_auto_check: 'ask', disposable_deletes: false, memory_links: [], embedding_provider_id: null, embedding_model: 'text-embedding-3-small',
+  measure_command: null,
+  after_change: 'check',
+  fix_rounds: 2,
+  stronger_model: true,
+  check_kinds: {},
+  review_lines: 80,
+  review_files: 3,
+  after_change_from_off: false,
+  tests_found: {},
+  tests_look: null,
+  test_commands: {},
+  full_auto_check: 'ask',
+  disposable_deletes: false,
+  memory_links: [],
+  embedding_provider_id: null,
+  embedding_model: 'text-embedding-3-small',
   git_commit: false,
   finish_way: null,
   auto_notes: false,
@@ -31,17 +47,47 @@ const project: Project = {
   suggest_tasks: true,
   suggest_tier: 'fast',
   day_note_at: null,
-  also_in: [], read_in: [], teams_mode: 'none', teams: [],
-  hide_secrets: true, canary: true, lead_work: 'delegates', when_away: 'waits', away_minutes: 10, spawn_approval: 'auto', spawn_max_depth: 2, spawn_max_agents: 6, spawn_max_parallel: 2, discussion_budget: null, room_posts: 40, room_tokens: null, room_minutes: 30, room_min_tokens: 60000, pass_env: null, held_env: [], koloni: { settings_kept: false, rules_kept: false, rules: null, broken: [], asks: {} },
+  also_in: [],
+  read_in: [],
+  teams_mode: 'none',
+  teams: [],
+  hide_secrets: true,
+  canary: true,
+  lead_work: 'delegates',
+  when_away: 'waits',
+  away_minutes: 10,
+  spawn_approval: 'auto',
+  spawn_max_depth: 2,
+  spawn_max_agents: 6,
+  spawn_max_parallel: 2,
+  discussion_budget: null,
+  room_posts: 40,
+  room_tokens: null,
+  room_minutes: 30,
+  room_min_tokens: 60000,
+  pass_env: null,
+  held_env: [],
+  koloni: { settings_kept: false, rules_kept: false, rules: null, broken: [], asks: {} },
 }
 // (Opened on Commands, the first section before tek-ev: the tests of it need no click to reach it.)
-const base = { project, dockerAvailable: true, dockerError: null, desktopAvailable: true, picked: { section: 'commands' as const, n: 1 } }
+const base = {
+  project,
+  dockerAvailable: true,
+  dockerError: null,
+  desktopAvailable: true,
+  picked: { section: 'commands' as const, n: 1 },
+}
 
 test('under “This machine” the shell is named; without PowerShell 7, or with only the Store’s, what 5.1 costs and how to get 7', () => {
-  const store = 'PowerShell 7 from the Store cannot be used (its commands\' child processes escape KOLONİ\'s kill): install it with winget install --id Microsoft.PowerShell -e --source winget; until then commands run in Windows PowerShell 5.1 (Set-Content writes a UTF-8 BOM)'
+  const store =
+    "PowerShell 7 from the Store cannot be used (its commands' child processes escape KOLONİ's kill): install it with winget install --id Microsoft.PowerShell -e --source winget; until then commands run in Windows PowerShell 5.1 (Set-Content writes a UTF-8 BOM)"
   const said: [string | null, string | null, string][] = [
     ['PowerShell 7', null, 'Commands are not isolated. Commands run in PowerShell 7.'],
-    ['Windows PowerShell', null, 'PowerShell 7 not found: commands run in Windows PowerShell 5.1, where Set-Content writes a UTF-8 BOM — install PowerShell 7 to avoid it.'],
+    [
+      'Windows PowerShell',
+      null,
+      'PowerShell 7 not found: commands run in Windows PowerShell 5.1, where Set-Content writes a UTF-8 BOM — install PowerShell 7 to avoid it.',
+    ],
     ['Windows PowerShell', store, `Commands are not isolated. ${store}.`],
     [null, null, 'Commands are not isolated.'],
   ]
@@ -63,17 +109,29 @@ test('no test command to fill in for added work: what runs is said - the sub-age
   const { unmount } = render(<ProjectSettings {...base} onSave={onSave} />)
   await choose(/^Checks/)
   expect(screen.queryByLabelText('Test before adding')).toBeNull()
-  const said = screen.getByText(/^Before its work is added, the tests the sub-agent wrote or changed run in its working copy - only those/)
-  expect(said).toHaveTextContent(/none written: no test before adding, and the card says so\. KOLONİ’s check at the turn’s end still runs every test\./)
-  expect(said).toHaveTextContent(/they run by themselves in Full auto, or where the part’s test command is yours .*; with KOLONİ’s guess the card waits for your Run the test, and while you are away or in a trigger’s run a guess never runs them./)
+  const said = screen.getByText(
+    /^Before its work is added, the tests the sub-agent wrote or changed run in its working copy - only those/,
+  )
+  expect(said).toHaveTextContent(
+    /none written: no test before adding, and the card says so\. KOLONİ’s check at the turn’s end still runs every test\./,
+  )
+  expect(said).toHaveTextContent(
+    /they run by themselves in Full auto, or where the part’s test command is yours .*; with KOLONİ’s guess the card waits for your Run the test, and while you are away or in a trigger’s run a guess never runs them./,
+  )
   const commit = screen.getByLabelText(/^Save each sub-agent’s work as a git commit/)
   expect(commit).not.toBeChecked()
   // (its first sentence stands under the box; the rest of the note is behind ⓘ beside it, closed)
-  const offered = screen.getByText(/^One commit per piece of work\. Offered on the card .* top folder of a git repository\.$/)
-  expect(within(offered).getByText(/^Always your click: never made by itself, never in a trigger’s turn/)).not.toBeVisible()
+  const offered = screen.getByText(
+    /^One commit per piece of work\. Offered on the card .* top folder of a git repository\.$/,
+  )
+  expect(
+    within(offered).getByText(/^Always your click: never made by itself, never in a trigger’s turn/),
+  ).not.toBeVisible()
   // The box is named as it was - by all of its note, word for word what the page shows - and not by the
   // button that opens it. It says so in its own label: a browser leaves a closed hint out of a name.
-  expect(commit).toHaveAccessibleName(/^Save each sub-agent’s work as a git commit One commit per piece of work\. Offered on the card .* top folder of a git repository\. Always your click.* Nothing is pushed\.$/)
+  expect(commit).toHaveAccessibleName(
+    /^Save each sub-agent’s work as a git commit One commit per piece of work\. Offered on the card .* top folder of a git repository\. Always your click.* Nothing is pushed\.$/,
+  )
   // (less the hint's "Learn more →": a link to the guide, no part of the note)
   const shown = offered.closest('label')!.textContent!.replace('Learn more →', '')
   expect(commit.getAttribute('aria-label')!.replace(/\s+/g, '')).toBe(shown.replace(/\s+/g, ''))
@@ -94,7 +152,9 @@ test('the measure command is set beside the test command, saying its last line i
   const { unmount } = render(<ProjectSettings {...base} onSave={onSave} />)
   await choose(/^Checks/)
   const measure = screen.getByLabelText('Measure command')
-  expect(measure).toHaveAccessibleDescription(/^The last line of its output is a number from 0 to 100: the score .* measured in its working copy\. Empty: nothing is measured\./)
+  expect(measure).toHaveAccessibleDescription(
+    /^The last line of its output is a number from 0 to 100: the score .* measured in its working copy\. Empty: nothing is measured\./,
+  )
   await userEvent.type(measure, ' python measure.py ')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenCalledWith({ measure_command: 'python measure.py' })
@@ -111,12 +171,25 @@ test('the measure command is set beside the test command, saying its last line i
 
 test('After a change saves after_change', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
-  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  vi.spyOn(api, 'get').mockImplementation(
+    async path =>
+      (path === '/compaction'
+        ? { compact_at: 75 }
+        : path.endsWith('/sites')
+          ? []
+          : path.endsWith('/pull-request')
+            ? { why_not: null }
+            : { paths: [], more: 0, partial: false }) as never,
+  )
   render(<ProjectSettings {...base} onSave={onSave} />)
   await choose(/^Checks/)
   const box = screen.getByLabelText('After a change')
   expect(box).toHaveValue('check')
-  expect(within(box).getAllByRole('option').map(one => one.textContent)).toEqual(['Test and review', 'Tests only', 'Nothing'])
+  expect(
+    within(box)
+      .getAllByRole('option')
+      .map(one => one.textContent),
+  ).toEqual(['Test and review', 'Tests only', 'Nothing'])
   // (One line, live: what it runs now, when the Reviewer reads, the Fix rounds.)
   expect(box).toHaveAccessibleDescription(
     'Runs the test command KOLONİ finds (it asks you once), related tests first, the whole suite in the background; a change over 80 lines or 3 files, or one touching sign-in, secrets or commands, is read by a Reviewer (one more model request). A turn you watch waits for the related tests (with none, at most 1 minute for the whole suite; in its own working copy, at most 2 minutes for them all). Failing work goes back up to 2 times, then to a stronger model.',
@@ -128,13 +201,24 @@ test('After a change saves after_change', async () => {
 
 test('S11: Then a stronger model is on, and saves off', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
-  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  vi.spyOn(api, 'get').mockImplementation(
+    async path =>
+      (path === '/compaction'
+        ? { compact_at: 75 }
+        : path.endsWith('/sites')
+          ? []
+          : path.endsWith('/pull-request')
+            ? { why_not: null }
+            : { paths: [], more: 0, partial: false }) as never,
+  )
   render(<ProjectSettings {...base} onSave={onSave} />)
   await choose(/^Checks/)
   const box = screen.getByRole('checkbox', { name: /Then a stronger model/ })
   expect(box).toBeChecked()
   await userEvent.click(box)
-  expect(screen.getByLabelText('After a change')).toHaveAccessibleDescription(expect.stringMatching(/Failing work goes back up to 2 times\.$/))
+  expect(screen.getByLabelText('After a change')).toHaveAccessibleDescription(
+    expect.stringMatching(/Failing work goes back up to 2 times\.$/),
+  )
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenLastCalledWith({ stronger_model: false })
 })
@@ -146,12 +230,22 @@ test('the old Finish only when the tests pass switch is gone', async () => {
 })
 
 test('a project moved from the old switch says so once', async () => {
-  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  vi.spyOn(api, 'get').mockImplementation(
+    async path =>
+      (path === '/compaction'
+        ? { compact_at: 75 }
+        : path.endsWith('/sites')
+          ? []
+          : path.endsWith('/pull-request')
+            ? { why_not: null }
+            : { paths: [], more: 0, partial: false }) as never,
+  )
   const moved = { ...project, after_change: 'nothing' as const, after_change_from_off: true }
   render(<ProjectSettings {...base} project={moved} onSave={vi.fn()} />)
   await choose(/^Checks/)
   expect(screen.getByTestId('after-change-from-off')).toHaveTextContent(
-    'You had turned off “Finish only when the tests pass”, so this is Nothing: KOLONİ runs no tests after a change here.')
+    'You had turned off “Finish only when the tests pass”, so this is Nothing: KOLONİ runs no tests after a change here.',
+  )
   expect(screen.getAllByText(/You had turned off/)).toHaveLength(1)
   // (Chosen otherwise, it says nothing of the old switch.)
   await userEvent.selectOptions(screen.getByLabelText('After a change'), 'check')
@@ -175,7 +269,13 @@ test('where a search and a notification go is set here, and only what was change
   unmount()
   // One that is set is never shown: only that there is one, and it can be replaced or removed.
   onSave.mockClear()
-  render(<ProjectSettings {...base} project={{ ...project, search_url: 'http://localhost:8888', search_order: 'cli', has_notify_url: true }} onSave={onSave} />)
+  render(
+    <ProjectSettings
+      {...base}
+      project={{ ...project, search_url: 'http://localhost:8888', search_order: 'cli', has_notify_url: true }}
+      onSave={onSave}
+    />,
+  )
   await choose(/^Memory and web/)
   expect(screen.getByLabelText('Search address (SearXNG)')).toHaveValue('http://localhost:8888')
   await userEvent.clear(screen.getByLabelText('Search address (SearXNG)'))
@@ -183,7 +283,9 @@ test('where a search and a notification go is set here, and only what was change
   expect(onSave).toHaveBeenLastCalledWith({ search_url: '' })
   await choose(/^Notifications/)
   expect(screen.getByLabelText('Notification address')).toHaveValue('')
-  expect(screen.getByText('A notification address is set. It is not shown again; type a new one to replace it.')).toBeInTheDocument()
+  expect(
+    screen.getByText('A notification address is set. It is not shown again; type a new one to replace it.'),
+  ).toBeInTheDocument()
   await userEvent.click(screen.getByLabelText('Remove the notification address'))
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenLastCalledWith({ notify_url: '' })
@@ -195,7 +297,11 @@ test('agy searches only where the box is ticked, which says why it is a risk; it
   await choose(/^Memory and web/)
   const box = screen.getByLabelText(/^Let agy search too/)
   expect(box).not.toBeChecked()
-  expect(screen.getByText('While it searches, agy is not held to its search tool: it may read files on this machine or open pages unasked. Codex and Claude Code are held to it.')).toBeInTheDocument()
+  expect(
+    screen.getByText(
+      'While it searches, agy is not held to its search tool: it may read files on this machine or open pages unasked. Codex and Claude Code are held to it.',
+    ),
+  ).toBeInTheDocument()
   await userEvent.click(box)
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenCalledWith({ search_agy: true })
@@ -223,7 +329,13 @@ test('the desktop notification and the form of the posted body are set here, and
   unmount()
   // What is set is shown, and taking the box off is sent as that.
   onSave.mockClear()
-  render(<ProjectSettings {...base} project={{ ...project, notify_format: 'discord', notify_desktop: true }} onSave={onSave} />)
+  render(
+    <ProjectSettings
+      {...base}
+      project={{ ...project, notify_format: 'discord', notify_desktop: true }}
+      onSave={onSave}
+    />,
+  )
   await choose(/^Notifications/)
   expect(screen.getByLabelText('Post it as')).toHaveValue('discord')
   await userEvent.click(screen.getByLabelText(/^Show a desktop notification/))
@@ -238,7 +350,14 @@ test('where the system shows no desktop notification the box is off and says so;
   expect(screen.getByText('A desktop notification is not available on this system.')).toBeInTheDocument()
   unmount()
   const onSave = vi.fn().mockResolvedValue(undefined)
-  render(<ProjectSettings {...base} desktopAvailable={false} project={{ ...project, notify_desktop: true }} onSave={onSave} />)
+  render(
+    <ProjectSettings
+      {...base}
+      desktopAvailable={false}
+      project={{ ...project, notify_desktop: true }}
+      onSave={onSave}
+    />,
+  )
   await choose(/^Notifications/)
   await userEvent.click(screen.getByLabelText(/^Show a desktop notification/))
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -252,9 +371,15 @@ test('a limit on a turn’s tokens is set and taken away here, says what it cann
   const field = screen.getByLabelText('Stop the work on a message over this many tokens')
   expect(field).toHaveValue('')
   // What the limit does, as it does it - and what it cannot hold.
-  const note = screen.getByText(/Checked before each model step, and for a CLI session as its messages arrive\. Once over, whatever is still at work is stopped/)
-  expect(note).toHaveTextContent(/Only what a model reports is counted: a CLI that reports no tokens is not limited by this, and one that reports only at its end can go past it\./)
-  expect(note).toHaveTextContent(/Agents at work at the same time can each take one more step before the limit is seen\./)
+  const note = screen.getByText(
+    /Checked before each model step, and for a CLI session as its messages arrive\. Once over, whatever is still at work is stopped/,
+  )
+  expect(note).toHaveTextContent(
+    /Only what a model reports is counted: a CLI that reports no tokens is not limited by this, and one that reports only at its end can go past it\./,
+  )
+  expect(note).toHaveTextContent(
+    /Agents at work at the same time can each take one more step before the limit is seen\./,
+  )
   for (const wrong of ['0', '-5', '1.5', 'many']) {
     await userEvent.clear(field)
     await userEvent.type(field, wrong)
@@ -297,12 +422,20 @@ test('choosing Docker needs an image before it can be saved', async () => {
 
 test('secret files are hidden from commands unless turned off, a secret variable is passed by name, and the held-back names are listed', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
-  render(<ProjectSettings {...base} project={{ ...project, held_env: ['GITHUB_TOKEN', 'OPENAI_API_KEY'] }} onSave={onSave} />)
+  render(
+    <ProjectSettings
+      {...base}
+      project={{ ...project, held_env: ['GITHUB_TOKEN', 'OPENAI_API_KEY'] }}
+      onSave={onSave}
+    />,
+  )
   const hide = screen.getByLabelText(/^Hide secret files from commands/)
   expect(hide).toBeChecked()
   // only where that is so: Docker and Copilot's sandbox; elsewhere the cards ask
   expect(
-    screen.getByText('In Docker and in Copilot’s sandbox, commands see secret files (.env, keys) as empty or blocked. Elsewhere, an agent’s read or search of one asks you first. Turn off only if a command must read one.'),
+    screen.getByText(
+      'In Docker and in Copilot’s sandbox, commands see secret files (.env, keys) as empty or blocked. Elsewhere, an agent’s read or search of one asks you first. Turn off only if a command must read one.',
+    ),
   ).toBeVisible()
   const passed = screen.getByLabelText('Secret variables commands may see')
   expect(passed).toHaveValue('')
@@ -312,7 +445,13 @@ test('secret files are hidden from commands unless turned off, a secret variable
   await userEvent.click(hide)
   await userEvent.type(passed, ' OPENAI_API_KEY ')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(onSave).toHaveBeenCalledWith({ exec_location: 'host', docker_image: null, docker_network: false, hide_secrets: false, pass_env: 'OPENAI_API_KEY' })
+  expect(onSave).toHaveBeenCalledWith({
+    exec_location: 'host',
+    docker_image: null,
+    docker_network: false,
+    hide_secrets: false,
+    pass_env: 'OPENAI_API_KEY',
+  })
 })
 
 test('with no secret variable held back, none is listed', () => {
@@ -334,9 +473,7 @@ test('a server older than the page, without the secret fields, does not break it
 })
 
 test('when Docker is not available the option is off and says why', () => {
-  render(
-    <ProjectSettings {...base} dockerAvailable={false} dockerError="Docker is not running" onSave={vi.fn()} />,
-  )
+  render(<ProjectSettings {...base} dockerAvailable={false} dockerError="Docker is not running" onSave={vi.fn()} />)
   expect(screen.getByLabelText(/Docker container/)).toBeDisabled()
   expect(screen.getByText('Docker is not running')).toBeInTheDocument()
 })
@@ -389,17 +526,27 @@ test('noting what a turn found is switched here, says what it costs and that not
   const box = screen.getByLabelText(/^Note what the work found, by itself/)
   expect(box).not.toBeChecked()
   // what it costs, what it holds up and what it does not do are in sight; how it is made is behind ⓘ, closed
-  const said = screen.getByText(/^After each message’s work, a fast model writes at most three notes of what it found\./)
+  const said = screen.getByText(
+    /^After each message’s work, a fast model writes at most three notes of what it found\./,
+  )
   expect(said.closest('.hint')).toBeNull()
-  expect(said).toHaveTextContent(/one more model request after every message, on your plan or your bill; Usage shows it under that model/)
+  expect(said).toHaveTextContent(
+    /one more model request after every message, on your plan or your bill; Usage shows it under that model/,
+  )
   expect(said).toHaveTextContent(/Nothing goes into the core by itself: that stays your decision\./)
-  expect(said).toHaveTextContent(/While it runs \(at most 90 seconds\) it holds a place like any model step, so the next message may wait for one\./)
+  expect(said).toHaveTextContent(
+    /While it runs \(at most 90 seconds\) it holds a place like any model step, so the next message may wait for one\./,
+  )
   const rest = screen.getByText(/^It is the first model you gave the fast tier in the team guide, with no tools\./)
   expect(rest).not.toBeVisible()
   expect(rest).not.toHaveTextContent(/90 seconds/)
   // the box is named by all of its note, and not by the hint's button
-  expect(box).toHaveAccessibleName(/^Note what the work found, by itself After each message’s work, .* The Memory page shows how the last one went\.$/)
-  expect(box.getAttribute('aria-label')!.replace(/\s+/g, '')).toBe(said.closest('label')!.textContent!.replace('Learn more →', '').replace(/\s+/g, ''))
+  expect(box).toHaveAccessibleName(
+    /^Note what the work found, by itself After each message’s work, .* The Memory page shows how the last one went\.$/,
+  )
+  expect(box.getAttribute('aria-label')!.replace(/\s+/g, '')).toBe(
+    said.closest('label')!.textContent!.replace('Learn more →', '').replace(/\s+/g, ''),
+  )
   // Left as it is, nothing is sent: there is nothing to save.
   expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   expect(onSave).not.toHaveBeenCalled()
@@ -422,7 +569,17 @@ test('the list has the eleven sections of Settings › This project (sample A), 
   render(<ProjectSettings {...base} picked={undefined} onSave={vi.fn()} />)
   expect(screen.getByRole('navigation', { name: 'Project settings sections' })).toBeInTheDocument()
   expect(rows().map(row => row.textContent)).toEqual([
-    'Agents', 'Asking and away', 'New chats start with', 'Limits and money', 'Commands and secrets', 'Runs without asking', 'Checks and git', 'Memory and web', 'Notifications', 'Slash commands', 'This folder',
+    'Agents',
+    'Asking and away',
+    'New chats start with',
+    'Limits and money',
+    'Commands and secrets',
+    'Runs without asking',
+    'Checks and git',
+    'Memory and web',
+    'Notifications',
+    'Slash commands',
+    'This folder',
   ])
   // The page opens on the first.
   expect(rows()[0]).toHaveAttribute('aria-current', 'true')
@@ -436,16 +593,34 @@ test('a chosen section alone is shown, each field under its label as before', as
     [/^Asking and away/, ['Opening a sub-agent', 'When you’re away', 'A harmful-looking command at Full auto']],
     [/^New chats start with/, ['New chats’ teams', 'Posts, at most', 'Minutes, at most', 'Tokens, at most']],
     [/^Checks/, ['After a change', /^Save each sub-agent’s work as a git commit/]],
-    [/^Memory and web/, [/^Note what the work found, by itself/, 'Search by meaning with', 'Search address (SearXNG)', 'Otherwise search with', /^Let agy search too/]],
+    [
+      /^Memory and web/,
+      [
+        /^Note what the work found, by itself/,
+        'Search by meaning with',
+        'Search address (SearXNG)',
+        'Otherwise search with',
+        /^Let agy search too/,
+      ],
+    ],
     [/^Notifications/, ['Notification address', 'Post it as', /^Show a desktop notification/]],
-    [/^Limits and money/, ['At most this many agents at work in this project', 'Agents at the same time', 'Continue gives this many more steps', 'Stop the work on a message over this many tokens']],
+    [
+      /^Limits and money/,
+      [
+        'At most this many agents at work in this project',
+        'Agents at the same time',
+        'Continue gives this many more steps',
+        'Stop the work on a message over this many tokens',
+      ],
+    ],
   ]
   for (const [section, labels] of fields) {
     await choose(section)
     expect(screen.getByRole('button', { name: section })).toHaveAttribute('aria-current', 'true')
     for (const label of labels) expect(screen.getByLabelText(label)).toBeInTheDocument()
     // and nothing of any other section
-    for (const [other, theirs] of fields) if (other !== section) for (const label of theirs) expect(screen.queryByLabelText(label)).toBeNull()
+    for (const [other, theirs] of fields)
+      if (other !== section) for (const label of theirs) expect(screen.queryByLabelText(label)).toBeNull()
   }
 })
 
@@ -503,7 +678,8 @@ test('a notification address once saved is cleared from its field, and the secti
 })
 
 test('Docker not running is one line under the Docker choice, with what Docker said behind ⓘ, and nowhere else', async () => {
-  const said = 'Docker is not running (failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine)'
+  const said =
+    'Docker is not running (failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine)'
   render(<ProjectSettings {...base} dockerAvailable={false} dockerError={said} onSave={vi.fn()} />)
   const line = screen.getByText(/^Docker is not running: a container cannot be chosen\.$/).parentElement!
   // Under the Docker choice, and before anything else of the section: the sentence, and ⓘ beside it.
@@ -513,7 +689,14 @@ test('Docker not running is one line under the Docker choice, with what Docker s
   expect(within(line).getByText(said)).not.toBeVisible()
   await userEvent.click(within(line).getByRole('button', { name: 'About this' }))
   expect(within(line).getByText(said)).toBeVisible()
-  for (const section of [/^Agents/, /^New chats start with/, /^Checks/, /^Memory and web/, /^Notifications/, /^Limits and money/]) {
+  for (const section of [
+    /^Agents/,
+    /^New chats start with/,
+    /^Checks/,
+    /^Memory and web/,
+    /^Notifications/,
+    /^Limits and money/,
+  ]) {
     await choose(section)
     expect(screen.queryByText(/Docker is not running/)).toBeNull()
   }
@@ -613,7 +796,9 @@ test('the switch says what the observer is sent, and to which model, in sight', 
   await choose(/^Agents/)
   const shown = screen.getByText(/^One more model request after every sub-agent’s report/)
   expect(shown.closest('.hint')).toBeNull()
-  expect(shown).toHaveTextContent(/The Observer role’s model \(set on the Agents page\) is sent the task, the report, the diffs of the changed files and the test’s output, with the secrets KOLONİ knows masked\./)
+  expect(shown).toHaveTextContent(
+    /The Observer role’s model \(set on the Agents page\) is sent the task, the report, the diffs of the changed files and the test’s output, with the secrets KOLONİ knows masked\./,
+  )
   expect(screen.getByRole('checkbox', { name: /^Have a model look over/ })).toHaveAccessibleName(
     /the diffs of the changed files and the test’s output, with the secrets KOLONİ knows masked/,
   )
@@ -639,7 +824,11 @@ test('the day’s summary is sent at a time set here; emptied, it is not sent an
 test('the first save that puts settings into the folder’s .koloni/ says so, once', async () => {
   // (As the store does: the project as saved comes back - and now .koloni/settings.json is there.)
   const kept = { ...project, koloni: { ...project.koloni, settings_kept: true } }
-  const onSave = vi.fn().mockImplementation(async (values: Partial<Project>) => rerender(<ProjectSettings {...base} project={{ ...kept, ...values }} onSave={onSave} />))
+  const onSave = vi
+    .fn()
+    .mockImplementation(async (values: Partial<Project>) =>
+      rerender(<ProjectSettings {...base} project={{ ...kept, ...values }} onSave={onSave} />),
+    )
   const { rerender } = render(<ProjectSettings {...base} onSave={onSave} />)
   await choose(/^Memory and web/)
   await userEvent.selectOptions(screen.getByLabelText('Otherwise search with'), 'cli')
@@ -652,12 +841,27 @@ test('the first save that puts settings into the folder’s .koloni/ says so, on
 })
 
 test('what the folder’s settings ask for is used only on “Use them”; “Not now” leaves it', async () => {
-  const asking = { ...project, koloni: { ...project.koloni, settings_kept: true, asks: { exec_location: 'docker' as const, docker_image: 'other:1', docker_network: true } } }
-  const used = { ...asking, exec_location: 'docker' as const, docker_image: 'other:1', docker_network: true, koloni: { ...asking.koloni, asks: {} } }
+  const asking = {
+    ...project,
+    koloni: {
+      ...project.koloni,
+      settings_kept: true,
+      asks: { exec_location: 'docker' as const, docker_image: 'other:1', docker_network: true },
+    },
+  }
+  const used = {
+    ...asking,
+    exec_location: 'docker' as const,
+    docker_image: 'other:1',
+    docker_network: true,
+    koloni: { ...asking.koloni, asks: {} },
+  }
   const onUseKoloni = vi.fn().mockResolvedValue(used)
   const { unmount } = render(<ProjectSettings {...base} project={asking} onSave={vi.fn()} onUseKoloni={onUseKoloni} />)
   const ask = screen.getByRole('group', { name: 'This folder’s settings' })
-  expect(ask).toHaveTextContent('This folder’s settings ask to run commands in Docker image other:1, with network access — use them?')
+  expect(ask).toHaveTextContent(
+    'This folder’s settings ask to run commands in Docker image other:1, with network access — use them?',
+  )
   await userEvent.click(within(ask).getByRole('button', { name: 'Not now' }))
   expect(screen.queryByRole('group', { name: 'This folder’s settings' })).not.toBeInTheDocument()
   expect(onUseKoloni).not.toHaveBeenCalled()
@@ -678,7 +882,9 @@ test('what the folder’s settings ask for is used only on “Use them”; “No
 
 test('when the folder’s settings changed since the card showed them, it says so and nothing is used', async () => {
   const asking = { ...project, koloni: { ...project.koloni, settings_kept: true, asks: { docker_image: 'shown:1' } } }
-  const onUseKoloni = vi.fn().mockRejectedValue(new ApiError(409, 'the folder’s settings changed since they were shown: look at them again'))
+  const onUseKoloni = vi
+    .fn()
+    .mockRejectedValue(new ApiError(409, 'the folder’s settings changed since they were shown: look at them again'))
   render(<ProjectSettings {...base} project={asking} onSave={vi.fn()} onUseKoloni={onUseKoloni} />)
   const ask = screen.getByRole('group', { name: 'This folder’s settings' })
   expect(ask).toHaveTextContent('This folder’s settings ask to use the Docker image shown:1 — use them?')
@@ -688,15 +894,27 @@ test('when the folder’s settings changed since the card showed them, it says s
 })
 
 test('a file of .koloni/ that is not read is said, and the folder’s rules are shown under This folder', async () => {
-  const broken = '.koloni/settings.json is not read - it is not valid JSON (Expecting value: line 1 column 1 (char 0)): the settings saved in KOLONİ are used, and a save here does not change the file'
+  const broken =
+    '.koloni/settings.json is not read - it is not valid JSON (Expecting value: line 1 column 1 (char 0)): the settings saved in KOLONİ are used, and a save here does not change the file'
   // (the map beside them: none here)
-  vi.spyOn(api, 'get').mockImplementation(async path => (path.endsWith('/map') ? Promise.reject(new Error('no map')) : { paths: [], more: 0, partial: false }) as never)
-  render(<ProjectSettings {...base} project={{ ...project, koloni: { ...project.koloni, rules_kept: true, rules: 'Use tabs.', broken: [broken] } }} onSave={vi.fn()} />)
+  vi.spyOn(api, 'get').mockImplementation(
+    async path =>
+      (path.endsWith('/map') ? Promise.reject(new Error('no map')) : { paths: [], more: 0, partial: false }) as never,
+  )
+  render(
+    <ProjectSettings
+      {...base}
+      project={{ ...project, koloni: { ...project.koloni, rules_kept: true, rules: 'Use tabs.', broken: [broken] } }}
+      onSave={vi.fn()}
+    />,
+  )
   expect(screen.getByText(broken)).toBeInTheDocument()
   await choose(/^This folder/)
   const rules = screen.getByRole('region', { name: 'This folder’s rules' })
   expect(rules).toHaveTextContent('Use tabs.')
-  expect(rules).toHaveTextContent(/From \.koloni\/rules\.md, kept in git: every agent working here is given them\. You change them on the Memory page\./)
+  expect(rules).toHaveTextContent(
+    /From \.koloni\/rules\.md, kept in git: every agent working here is given them\. You change them on the Memory page\./,
+  )
 })
 
 test('who changes the files is every chat’s, three ways, each said behind ⓘ; sent only when changed (K-devret, tek-ev)', async () => {
@@ -706,7 +924,11 @@ test('who changes the files is every chat’s, three ways, each said behind ⓘ;
   expect(screen.getByText('Every chat of this project follows these, the ones made before too.')).toBeInTheDocument()
   const work = screen.getByLabelText('Who changes the files')
   expect(work).toHaveValue('delegates')
-  expect(screen.getByText(/^Orchestrator delegates the work: The Orchestrator plans, asks and checks; sub-agents change the files\. Orchestrator decides: A small change/)).not.toBeVisible()
+  expect(
+    screen.getByText(
+      /^Orchestrator delegates the work: The Orchestrator plans, asks and checks; sub-agents change the files\. Orchestrator decides: A small change/,
+    ),
+  ).not.toBeVisible()
   expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   await userEvent.selectOptions(work, 'Orchestrator decides')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -720,7 +942,9 @@ test('who answers while you are away is every chat’s, said in sight to use you
   const away = screen.getByLabelText('When you’re away')
   expect(away).toHaveValue('waits')
   // (its why: the minutes, and at once while you're away - ☾ Away on a chat's line)
-  expect(document.body).toHaveTextContent(/Once a card has waited this many minutes - at once while you’re away \(☾ Away on a chat’s line\)/)
+  expect(document.body).toHaveTextContent(
+    /Once a card has waited this many minutes - at once while you’re away \(☾ Away on a chat’s line\)/,
+  )
   expect(screen.queryByText('An Orchestrator on a CLI uses one request of your plan for each answer.')).toBeNull()
   await userEvent.selectOptions(away, 'The Orchestrator answers what it safely can')
   const plan = screen.getByText('An Orchestrator on a CLI uses one request of your plan for each answer.')
@@ -755,7 +979,9 @@ test('disposable deletes are off until you allow them, and sent only when change
   await choose(/^Asking and away/)
   const allow = screen.getByRole('checkbox', { name: /^Agents may delete what is disposable without asking/ })
   expect(allow).not.toBeChecked()
-  expect(allow.closest('label')).toHaveTextContent('clean worktrees and merged branches you no longer use, build and cache folders')
+  expect(allow.closest('label')).toHaveTextContent(
+    'clean worktrees and merged branches you no longer use, build and cache folders',
+  )
   await userEvent.click(allow)
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
   expect(onSave).toHaveBeenCalledWith({ disposable_deletes: true })
@@ -773,7 +999,9 @@ test('another project’s agent instructions below this folder are said, with ho
   // A walk cut short says so; none found says nothing.
   get.mockImplementation(async () => ({ ...found, more: 0, partial: true }) as never)
   const again = render(<ProjectSettings {...base} onSave={vi.fn()} />)
-  expect(await screen.findByText(/^Another project’s/)).toHaveTextContent(/sub\/\.claude\/ \(CLI agents load them by themselves\)\. Not every folder was looked in$/)
+  expect(await screen.findByText(/^Another project’s/)).toHaveTextContent(
+    /sub\/\.claude\/ \(CLI agents load them by themselves\)\. Not every folder was looked in$/,
+  )
   again.unmount()
   get.mockImplementation(async () => ({ paths: [], more: 0, partial: true }) as never)
   render(<ProjectSettings {...base} onSave={vi.fn()} />)
@@ -785,12 +1013,18 @@ test('another project’s agent instructions below this folder are said, with ho
 
 test('the other projects of this KOLONİ are offered to look in, read only; the whole list is sent only when changed', async () => {
   useApp.setState({
-    projects: [project, { ...project, id: 'q', name: 'Other one', root_path: 'C:/other' }, { ...project, id: 'z', name: 'Third', root_path: 'C:/third' }],
+    projects: [
+      project,
+      { ...project, id: 'q', name: 'Other one', root_path: 'C:/other' },
+      { ...project, id: 'z', name: 'Third', root_path: 'C:/third' },
+    ],
   })
   const onSave = vi.fn().mockResolvedValue(undefined)
   const { unmount } = render(<ProjectSettings {...base} onSave={onSave} />)
   await choose(/^Memory/)
-  expect(screen.getByText(/^An agent’s recall also finds their notes, facts and earlier messages/)).toHaveTextContent('nothing is written there')
+  expect(screen.getByText(/^An agent’s recall also finds their notes, facts and earlier messages/)).toHaveTextContent(
+    'nothing is written there',
+  )
   // not itself
   expect(screen.queryByLabelText('Also look in the memory of demo')).toBeNull()
   await userEvent.click(screen.getByLabelText('Also look in the memory of Other one'))
@@ -809,17 +1043,25 @@ test('the other projects of this KOLONİ are offered to look in, read only; the 
 
 test('101: the planted test key is on by default under Commands, says what it does not catch, and is sent only when changed', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
-  vi.spyOn(api, 'get').mockImplementation(async path => (path.endsWith('/sites') ? [] : { paths: [], more: 0, partial: false }) as never)
+  vi.spyOn(api, 'get').mockImplementation(
+    async path => (path.endsWith('/sites') ? [] : { paths: [], more: 0, partial: false }) as never,
+  )
   render(<ProjectSettings {...base} onSave={onSave} />)
   const box = screen.getByRole('checkbox', { name: /^Planted test key \(canary\)/ })
   expect(box).toBeChecked()
-  expect(box).toHaveAccessibleName(/A command, web request, browser or MCP call that would send it out is refused and the work stops/)
+  expect(box).toHaveAccessibleName(
+    /A command, web request, browser or MCP call that would send it out is refused and the work stops/,
+  )
   expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   await userEvent.click(box)
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-  expect(onSave).toHaveBeenLastCalledWith({ exec_location: 'host', docker_image: null, docker_network: false, canary: false })
+  expect(onSave).toHaveBeenLastCalledWith({
+    exec_location: 'host',
+    docker_image: null,
+    docker_network: false,
+    canary: false,
+  })
 })
-
 
 test('K-dal-takim D2: how a finished branch reaches yours - a pull request greyed out with why, sent only when changed', async () => {
   let whyNot: string | null = 'gh is not logged in: run gh auth login'
@@ -862,19 +1104,47 @@ test('what the folder’s settings ask for is said in words, each part only when
     [project, { docker_image: null }, 'use the Docker image none'],
     [project, { docker_network: true }, 'with network access'],
     [project, { search_order: 'cli' }, 'search with a CLI first'],
-    [project, { search_order: 'builtin', docker_network: false }, 'without network access, search with the built-in search first'],
+    [
+      project,
+      { search_order: 'builtin', docker_network: false },
+      'without network access, search with the built-in search first',
+    ],
   ]
   for (const [saved, asks, said] of cases) {
-    const { unmount } = render(<ProjectSettings {...base} project={{ ...saved, koloni: { ...saved.koloni, settings_kept: true, asks } }} onSave={vi.fn()} onUseKoloni={vi.fn()} />)
-    expect(screen.getByRole('group', { name: 'This folder’s settings' })).toHaveTextContent(`This folder’s settings ask to ${said} — use them?`)
+    const { unmount } = render(
+      <ProjectSettings
+        {...base}
+        project={{ ...saved, koloni: { ...saved.koloni, settings_kept: true, asks } }}
+        onSave={vi.fn()}
+        onUseKoloni={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('group', { name: 'This folder’s settings' })).toHaveTextContent(
+      `This folder’s settings ask to ${said} — use them?`,
+    )
     unmount()
   }
 })
 
 test('the test command KOLONİ found is shown with where it came from, and can be forgotten', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
-  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
-  const found = { ...project, tests_found: { '.': { command: 'python -m pytest -q', from: 'look', at: '2026-11-22T16:00:00' }, web: { command: 'npm test', from: 'guess', at: '2026-11-22T16:01:00' } } }
+  vi.spyOn(api, 'get').mockImplementation(
+    async path =>
+      (path === '/compaction'
+        ? { compact_at: 75 }
+        : path.endsWith('/sites')
+          ? []
+          : path.endsWith('/pull-request')
+            ? { why_not: null }
+            : { paths: [], more: 0, partial: false }) as never,
+  )
+  const found = {
+    ...project,
+    tests_found: {
+      '.': { command: 'python -m pytest -q', from: 'look', at: '2026-11-22T16:00:00' },
+      web: { command: 'npm test', from: 'guess', at: '2026-11-22T16:01:00' },
+    },
+  }
   render(<ProjectSettings {...base} project={found} onSave={onSave} />)
   await choose(/^Checks/)
   const shown = screen.getByTestId('tests-found')
@@ -886,17 +1156,41 @@ test('the test command KOLONİ found is shown with where it came from, and can b
 })
 
 test('After a change names the test command you set for a part, then what KOLONİ saved for another folder', async () => {
-  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  vi.spyOn(api, 'get').mockImplementation(
+    async path =>
+      (path === '/compaction'
+        ? { compact_at: 75 }
+        : path.endsWith('/sites')
+          ? []
+          : path.endsWith('/pull-request')
+            ? { why_not: null }
+            : { paths: [], more: 0, partial: false }) as never,
+  )
   const saved = (command: string) => ({ command, from: 'guess', at: '2026-11-22T16:00:00' })
   // (the root part set to no test; web's save is not run - yours is; a dot folder keeps its dot)
-  const parts = { ...project, test_commands: { './': '', 'web/': 'npm test', '.tools/': 'make check' }, tests_found: { '.': saved('python -m pytest -q'), WEB: saved('npm run all') } }
+  const parts = {
+    ...project,
+    test_commands: { './': '', 'web/': 'npm test', '.tools/': 'make check' },
+    tests_found: { '.': saved('python -m pytest -q'), WEB: saved('npm run all') },
+  }
   render(<ProjectSettings {...base} project={parts} onSave={vi.fn()} />)
   await choose(/^Checks/)
-  expect(screen.getByLabelText('After a change')).toHaveAccessibleDescription(/^Runs npm test in web\/, make check in \.tools\/, python -m pytest -q in \.\/ \(found by KOLONİ\), related tests first/)
+  expect(screen.getByLabelText('After a change')).toHaveAccessibleDescription(
+    /^Runs npm test in web\/, make check in \.tools\/, python -m pytest -q in \.\/ \(found by KOLONİ\), related tests first/,
+  )
 })
 
 test('with nothing found, nothing of it is shown', async () => {
-  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  vi.spyOn(api, 'get').mockImplementation(
+    async path =>
+      (path === '/compaction'
+        ? { compact_at: 75 }
+        : path.endsWith('/sites')
+          ? []
+          : path.endsWith('/pull-request')
+            ? { why_not: null }
+            : { paths: [], more: 0, partial: false }) as never,
+  )
   render(<ProjectSettings {...base} onSave={vi.fn()} />)
   await choose(/^Checks/)
   expect(screen.queryByTestId('tests-found')).toBeNull()
@@ -904,12 +1198,25 @@ test('with nothing found, nothing of it is shown', async () => {
 
 test('Fix rounds: 1 to 10 beside After a change, saved as fix_rounds', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
-  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  vi.spyOn(api, 'get').mockImplementation(
+    async path =>
+      (path === '/compaction'
+        ? { compact_at: 75 }
+        : path.endsWith('/sites')
+          ? []
+          : path.endsWith('/pull-request')
+            ? { why_not: null }
+            : { paths: [], more: 0, partial: false }) as never,
+  )
   render(<ProjectSettings {...base} onSave={onSave} />)
   await choose(/^Checks/)
   const box = screen.getByLabelText('Fix rounds')
   expect(box).toHaveValue('2')
-  expect(within(box).getAllByRole('option').map(one => one.textContent)).toEqual(['Until it passes', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'])
+  expect(
+    within(box)
+      .getAllByRole('option')
+      .map(one => one.textContent),
+  ).toEqual(['Until it passes', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'])
   expect(box).toHaveAccessibleDescription(/failing tests or the Reviewer’s blocking findings go back/)
   await userEvent.selectOptions(box, '10')
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -918,11 +1225,26 @@ test('Fix rounds: 1 to 10 beside After a change, saved as fix_rounds', async () 
 
 test('k-canli-016: Fix rounds Until it passes - a project’s null - is chosen and saved as "until"', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
-  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
-  const { unmount } = render(<ProjectSettings {...base} project={{ ...base.project, fix_rounds: null }} onSave={onSave} />)
+  vi.spyOn(api, 'get').mockImplementation(
+    async path =>
+      (path === '/compaction'
+        ? { compact_at: 75 }
+        : path.endsWith('/sites')
+          ? []
+          : path.endsWith('/pull-request')
+            ? { why_not: null }
+            : { paths: [], more: 0, partial: false }) as never,
+  )
+  const { unmount } = render(
+    <ProjectSettings {...base} project={{ ...base.project, fix_rounds: null }} onSave={onSave} />,
+  )
   await choose(/^Checks/)
   expect(screen.getByLabelText('Fix rounds')).toHaveValue('until')
-  expect(screen.getByLabelText('After a change')).toHaveAccessibleDescription(expect.stringMatching(/Failing work goes back until it passes, while each round makes progress, then to a stronger model\.$/))
+  expect(screen.getByLabelText('After a change')).toHaveAccessibleDescription(
+    expect.stringMatching(
+      /Failing work goes back until it passes, while each round makes progress, then to a stronger model\.$/,
+    ),
+  )
   unmount()
   render(<ProjectSettings {...base} onSave={onSave} />)
   await choose(/^Checks/)
@@ -933,12 +1255,29 @@ test('k-canli-016: Fix rounds Until it passes - a project’s null - is chosen a
 
 test('Check by kind of work: all on by default; unticking Slides saves check_kinds.slides false (S5a)', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
-  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  vi.spyOn(api, 'get').mockImplementation(
+    async path =>
+      (path === '/compaction'
+        ? { compact_at: 75 }
+        : path.endsWith('/sites')
+          ? []
+          : path.endsWith('/pull-request')
+            ? { why_not: null }
+            : { paths: [], more: 0, partial: false }) as never,
+  )
   render(<ProjectSettings {...base} onSave={onSave} />)
   await choose(/^Checks/)
   const group = screen.getByRole('group', { name: 'Check by kind of work' })
-  expect(within(group).getAllByRole('checkbox').map(box => (box as HTMLInputElement).checked)).toEqual([true, true, true, true, true, true, true, true])
-  expect(within(group).getAllByRole('checkbox').map(box => box.closest('label')?.textContent?.trim())).toEqual(['Documents', 'Slides', 'Diagrams', 'Data', 'Pages', 'Config', 'Scripts', 'Code style and types'])
+  expect(
+    within(group)
+      .getAllByRole('checkbox')
+      .map(box => (box as HTMLInputElement).checked),
+  ).toEqual([true, true, true, true, true, true, true, true])
+  expect(
+    within(group)
+      .getAllByRole('checkbox')
+      .map(box => box.closest('label')?.textContent?.trim()),
+  ).toEqual(['Documents', 'Slides', 'Diagrams', 'Data', 'Pages', 'Config', 'Scripts', 'Code style and types'])
   expect(group).toHaveAccessibleDescription(/without a model/)
   await userEvent.click(within(group).getByRole('checkbox', { name: 'Slides' }))
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -947,7 +1286,16 @@ test('Check by kind of work: all on by default; unticking Slides saves check_kin
 
 test('Check by kind of work: unticking Pages saves check_kinds.ui false (S5b)', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
-  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  vi.spyOn(api, 'get').mockImplementation(
+    async path =>
+      (path === '/compaction'
+        ? { compact_at: 75 }
+        : path.endsWith('/sites')
+          ? []
+          : path.endsWith('/pull-request')
+            ? { why_not: null }
+            : { paths: [], more: 0, partial: false }) as never,
+  )
   render(<ProjectSettings {...base} onSave={onSave} />)
   await choose(/^Checks/)
   const group = screen.getByRole('group', { name: 'Check by kind of work' })
@@ -959,7 +1307,16 @@ test('Check by kind of work: unticking Pages saves check_kinds.ui false (S5b)', 
 
 test('Check by kind of work: Config is on, said, and unticking it saves check_kinds.config false (0.1.7)', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
-  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  vi.spyOn(api, 'get').mockImplementation(
+    async path =>
+      (path === '/compaction'
+        ? { compact_at: 75 }
+        : path.endsWith('/sites')
+          ? []
+          : path.endsWith('/pull-request')
+            ? { why_not: null }
+            : { paths: [], more: 0, partial: false }) as never,
+  )
   render(<ProjectSettings {...base} onSave={onSave} />)
   await choose(/^Checks/)
   const group = screen.getByRole('group', { name: 'Check by kind of work' })
@@ -972,11 +1329,22 @@ test('Check by kind of work: Config is on, said, and unticking it saves check_ki
 
 test('Check by kind of work: Scripts is on, said, and unticking it saves check_kinds.scripts false (0.1.7)', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
-  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  vi.spyOn(api, 'get').mockImplementation(
+    async path =>
+      (path === '/compaction'
+        ? { compact_at: 75 }
+        : path.endsWith('/sites')
+          ? []
+          : path.endsWith('/pull-request')
+            ? { why_not: null }
+            : { paths: [], more: 0, partial: false }) as never,
+  )
   render(<ProjectSettings {...base} onSave={onSave} />)
   await choose(/^Checks/)
   const group = screen.getByRole('group', { name: 'Check by kind of work' })
-  expect(group).toHaveAccessibleDescription(/shell and PowerShell scripts that parse \(read by their own shell, never run\)/)
+  expect(group).toHaveAccessibleDescription(
+    /shell and PowerShell scripts that parse \(read by their own shell, never run\)/,
+  )
   expect(within(group).getByRole('checkbox', { name: 'Scripts' })).toBeChecked()
   await userEvent.click(within(group).getByRole('checkbox', { name: 'Scripts' }))
   await userEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -985,7 +1353,16 @@ test('Check by kind of work: Scripts is on, said, and unticking it saves check_k
 
 test('Check by kind of work: Code style and types is on, said, and unticking it saves check_kinds.style false (0.1.7)', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
-  vi.spyOn(api, 'get').mockImplementation(async path => (path === '/compaction' ? { compact_at: 75 } : path.endsWith('/sites') ? [] : path.endsWith('/pull-request') ? { why_not: null } : { paths: [], more: 0, partial: false }) as never)
+  vi.spyOn(api, 'get').mockImplementation(
+    async path =>
+      (path === '/compaction'
+        ? { compact_at: 75 }
+        : path.endsWith('/sites')
+          ? []
+          : path.endsWith('/pull-request')
+            ? { why_not: null }
+            : { paths: [], more: 0, partial: false }) as never,
+  )
   render(<ProjectSettings {...base} onSave={onSave} />)
   await choose(/^Checks/)
   const group = screen.getByRole('group', { name: 'Check by kind of work' })

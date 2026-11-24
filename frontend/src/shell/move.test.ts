@@ -27,7 +27,8 @@ test('a window is kept inside the stage: never past an edge; as far left as its 
 })
 
 test('the window clicked last is the one in front; the rest are side by side behind it', () => {
-  document.body.innerHTML = '<div class="stage"><section class="chat"></section><section class="view-panel"></section><section class="changes"></section></div>'
+  document.body.innerHTML =
+    '<div class="stage"><section class="chat"></section><section class="view-panel"></section><section class="changes"></section></div>'
   const [chat, view, changes] = ['.chat', '.view-panel', '.changes'].map(s => document.querySelector(s)!)
   toFront(view)
   expect(view).toHaveAttribute('data-front')
@@ -49,32 +50,73 @@ describe('K-38b-sinirlar: a window opening in the top right', () => {
   })
 
   test('narrow: made shorter, to end above the chat at the bottom left', () => {
-    expect(placeWindow(want, stage, chat(14, 356, 480, 300), [])).toEqual({ left: 266, top: 14, width: 320, height: 328 })
+    expect(placeWindow(want, stage, chat(14, 356, 480, 300), [])).toEqual({
+      left: 266,
+      top: 14,
+      width: 320,
+      height: 328,
+    })
   })
 
   test('CL-264: the open chat column is a hard left edge - beside it, as wide as is left, never narrower than LEAST', () => {
-    expect(placeWindow(want, stage, { ...chat(0, 0, 300, 670), column: true }, [])).toEqual({ left: 314, top: 14, width: 272, height: 360 })
+    expect(placeWindow(want, stage, { ...chat(0, 0, 300, 670), column: true }, [])).toEqual({
+      left: 314,
+      top: 14,
+      width: 272,
+      height: 360,
+    })
     // (Less than LEAST beside it: where it was before, over the chat, in front.)
     expect(placeWindow(want, stage, { ...chat(0, 0, 360, 670), column: true }, [])).toBe(want)
     // (Not over it where it meets nothing of the column; the closed chat's small box keeps its four ways.)
-    expect(placeWindow({ ...want, left: 400, width: 186 }, stage, { ...chat(0, 0, 300, 670), column: true }, [])).toEqual({ ...want, left: 400, width: 186 })
-    expect(placeWindow(want, stage, chat(14, 16, 300, 640), [])).toEqual({ left: 328, top: 14, width: 258, height: 360 })
+    expect(
+      placeWindow({ ...want, left: 400, width: 186 }, stage, { ...chat(0, 0, 300, 670), column: true }, []),
+    ).toEqual({ ...want, left: 400, width: 186 })
+    expect(placeWindow(want, stage, chat(14, 16, 300, 640), [])).toEqual({
+      left: 328,
+      top: 14,
+      width: 258,
+      height: 360,
+    })
     expect(placeWindow(want, stage, chat(14, 16, 480, 640), [])).toBe(want)
     // B-157: with the inspector over the stage's right side, its CSS holds its right edge off it, and that edge holds here
     // too - 220 left beside a 420 column at 1048 px is less than LEAST: where it was before, never 6 px under the inspector.
     const left = { left: 334, top: 14, width: 320, height: 360 }
     expect(placeWindow(left, { width: 984, height: 670 }, { ...chat(0, 0, 420, 670), column: true }, [])).toBe(left)
-    expect(placeWindow(left, { width: 984, height: 670 }, { ...chat(0, 0, 340, 670), column: true }, [])).toEqual({ ...left, left: 354, width: 300 })
+    expect(placeWindow(left, { width: 984, height: 670 }, { ...chat(0, 0, 340, 670), column: true }, [])).toEqual({
+      ...left,
+      left: 354,
+      width: 300,
+    })
   })
 
   test('a chat moved to the top right: left of it, or below it, wherever is more room - never past the stage', () => {
-    expect(placeWindow(want, stage, chat(330, 14, 256, 300), [])).toEqual({ left: 14, top: 14, width: 302, height: 360 })
-    expect(placeWindow(want, stage, chat(100, 14, 486, 200), [])).toEqual({ left: 266, top: 228, width: 320, height: 360 })
-    expect(placeWindow({ ...want, height: 600 }, stage, chat(100, 14, 486, 200), [])).toEqual({ left: 266, top: 228, width: 320, height: 428 })
+    expect(placeWindow(want, stage, chat(330, 14, 256, 300), [])).toEqual({
+      left: 14,
+      top: 14,
+      width: 302,
+      height: 360,
+    })
+    expect(placeWindow(want, stage, chat(100, 14, 486, 200), [])).toEqual({
+      left: 266,
+      top: 228,
+      width: 320,
+      height: 360,
+    })
+    expect(placeWindow({ ...want, height: 600 }, stage, chat(100, 14, 486, 200), [])).toEqual({
+      left: 266,
+      top: 228,
+      width: 320,
+      height: 428,
+    })
   })
 
   test('cascades below the header of a window it would lie over, while it stays tall enough', () => {
-    expect(placeWindow(want, stage, null, [{ left: 200, top: 56, width: 380, height: 500 }])).toEqual({ left: 266, top: 106, width: 320, height: 268 })
+    expect(placeWindow(want, stage, null, [{ left: 200, top: 56, width: 380, height: 500 }])).toEqual({
+      left: 266,
+      top: 106,
+      width: 320,
+      height: 268,
+    })
     // (too short below that header: it stays, in front)
     expect(placeWindow(want, stage, null, [{ left: 200, top: 200, width: 380, height: 300 }])).toBe(want)
     // (beside it, or under its header already: as it was)

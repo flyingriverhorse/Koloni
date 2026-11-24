@@ -57,7 +57,12 @@ export function Chips({
               <b title={file.name}>{file.name}</b>
               <span className="att-meta">{look.meta}</span>
             </span>
-            <button type="button" className="icon-btn" aria-label={`Remove ${file.name}`} onClick={() => onRemove(file.id)}>
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label={`Remove ${file.name}`}
+              onClick={() => onRemove(file.id)}
+            >
               <X size={12} />
             </button>
           </li>
@@ -73,7 +78,12 @@ export function Chips({
             </span>
           </span>
           {one.error && (
-            <button type="button" className="icon-btn" aria-label={`Dismiss ${one.name}`} onClick={() => onDismiss(one.key)}>
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label={`Dismiss ${one.name}`}
+              onClick={() => onDismiss(one.key)}
+            >
               <X size={12} />
             </button>
           )}
@@ -81,7 +91,12 @@ export function Chips({
       ))}
       {links.map(link => (
         // (The link stays in the message: its chip goes when the text does.)
-        <li key={link} className="att-chip" style={tone(LINK)} title="A link in your message: edit the message to take it out">
+        <li
+          key={link}
+          className="att-chip"
+          style={tone(LINK)}
+          title="A link in your message: edit the message to take it out"
+        >
           <Square look={LINK} />
           <span className="att-text">
             <b>{linkName(link)}</b>
@@ -123,7 +138,13 @@ export function Minis({ files, links }: { files: Attachment[]; links: string[] }
  * closes it; a key typed meanwhile closes it too and goes to the message box (`onType`): the
  * list stands over the box, and what was typed was lost (B-106).
  */
-export function AttachMenu({ projectId, onFiles, onProject, onError, onType }: {
+export function AttachMenu({
+  projectId,
+  onFiles,
+  onProject,
+  onError,
+  onType,
+}: {
   projectId: string | null
   onFiles: (files: File[]) => void
   onProject: (path: string) => void
@@ -152,8 +173,13 @@ export function AttachMenu({ projectId, onFiles, onProject, onError, onType }: {
         event.stopPropagation() // (the menu's: the chat stays open)
         setOpen(null)
         button.current?.focus()
-      } else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey
-        && !(event.key === ' ' && target && box.current?.contains(target))) {
+      } else if (
+        event.key.length === 1 &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
+        !(event.key === ' ' && target && box.current?.contains(target))
+      ) {
         // (A letter is the message's; a space on one of the menu's items presses it.)
         setOpen(null)
         if (!target?.matches('input, textarea, select')) typed.current()
@@ -176,7 +202,13 @@ export function AttachMenu({ projectId, onFiles, onProject, onError, onType }: {
         const type = item.types.find(t => t.startsWith('image/'))
         if (!type) continue
         const blob = await item.getType(type)
-        return onFiles([new File([blob], `screenshot-${new Date().toISOString().slice(11, 19).replaceAll(':', '')}.${type.split('/')[1]}`, { type })])
+        return onFiles([
+          new File(
+            [blob],
+            `screenshot-${new Date().toISOString().slice(11, 19).replaceAll(':', '')}.${type.split('/')[1]}`,
+            { type },
+          ),
+        ])
       }
       onError('There is no picture on the clipboard.')
     } catch {
@@ -219,7 +251,13 @@ export function AttachMenu({ projectId, onFiles, onProject, onError, onType }: {
           <button type="button" role="menuitem" onClick={() => void screenshot()}>
             <ImageIcon size={13} /> A screenshot from the clipboard <span className="muted att-key">Ctrl+V</span>
           </button>
-          <button type="button" role="menuitem" disabled={!projectId} title={projectId ? undefined : 'This chat has no project folder'} onClick={() => setOpen('project')}>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!projectId}
+            title={projectId ? undefined : 'This chat has no project folder'}
+            onClick={() => setOpen('project')}
+          >
             <FolderSimple size={13} /> A file of the project…
           </button>
         </div>
@@ -314,7 +352,16 @@ export function AttachmentPreview({ file }: { file: Attachment }) {
       <div className="muted">{look.meta}</div>
       {file.kind === 'image' && <img className="view-image" src={fileUrl(file.id)} alt={file.name} />}
       {/* (No Download in its controls: one would keep its address, key and all, in the browser's list of downloads.) */}
-      {file.kind === 'video' && file.size <= MAX_BYTES && <video className="view-image" src={fileUrl(file.id)} controls controlsList="nodownload" preload="metadata" aria-label={file.name} />}
+      {file.kind === 'video' && file.size <= MAX_BYTES && (
+        <video
+          className="view-image"
+          src={fileUrl(file.id)}
+          controls
+          controlsList="nodownload"
+          preload="metadata"
+          aria-label={file.name}
+        />
+      )}
       {file.kind === 'video' && file.size > MAX_BYTES && <div className="muted">{file.summary}</div>}
       {reads && <GivenText text={text} />}
       {file.kind === 'executable' && <div className="muted">Kept by name and size only: it is never read or run.</div>}

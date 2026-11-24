@@ -5,7 +5,8 @@ import { FAKE_CLAUDE } from './paths.mjs'
 test.use({ viewport: { width: 1440, height: 900 } })
 
 const NAME = 'Usage Claude'
-const project = async (request: APIRequestContext) => (await (await request.get('/api/projects')).json())[0].id as string
+const project = async (request: APIRequestContext) =>
+  (await (await request.get('/api/projects')).json())[0].id as string
 
 // The backend is shared: the budget, price and provider made here are not left for whatever runs after.
 async function putBack(request: APIRequestContext) {
@@ -20,19 +21,36 @@ test.afterEach(async ({ request }) => {
 })
 
 for (const theme of ['light', 'dark'] as const)
-  test(`in the ${theme} theme the Usage page reads at a glance: boxes on top, plan limits and the budget side by side, the long tables folded`, async ({ page, request }) => {
+  test(`in the ${theme} theme the Usage page reads at a glance: boxes on top, plan limits and the budget side by side, the long tables folded`, async ({
+    page,
+    request,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page)
     await page.getByLabel('Message').fill(`hello from the ${theme} usage page`)
     await page.getByRole('button', { name: 'Send' }).click()
-    await expect(page.getByRole('region', { name: 'Chat' }).getByText('Hello! Ask me to read or change a file.')).toBeVisible()
+    await expect(
+      page.getByRole('region', { name: 'Chat' }).getByText('Hello! Ask me to read or change a file.'),
+    ).toBeVisible()
     // A price, and a budget twice what is spent: the month's bar is half full.
-    expect((await request.put('/api/prices', { headers: OWN, data: { model_id: 'fake-qwen', input: 1000, output: 2000, currency: 'USD' } })).ok()).toBe(true)
+    expect(
+      (
+        await request.put('/api/prices', {
+          headers: OWN,
+          data: { model_id: 'fake-qwen', input: 1000, output: 2000, currency: 'USD' },
+        })
+      ).ok(),
+    ).toBe(true)
     const pid = await project(request)
     const { spent } = await (await request.get(`/api/projects/${pid}/budget`)).json()
-    expect((await request.patch(`/api/projects/${pid}`, { headers: OWN, data: { monthly_budget: spent * 2 } })).ok()).toBe(true)
+    expect(
+      (await request.patch(`/api/projects/${pid}`, { headers: OWN, data: { monthly_budget: spent * 2 } })).ok(),
+    ).toBe(true)
     // A Claude Code whose last run said 42% of its five hours: its reading is answered here, no CLI is run.
-    const made = await request.post('/api/providers', { headers: OWN, data: { name: NAME, kind: 'claude_cli', executable: FAKE_CLAUDE } })
+    const made = await request.post('/api/providers', {
+      headers: OWN,
+      data: { name: NAME, kind: 'claude_cli', executable: FAKE_CLAUDE },
+    })
     expect(made.ok()).toBe(true)
     const { id } = await made.json()
     const resets = new Date(Date.now() + 3600_000).toISOString()
@@ -54,7 +72,14 @@ for (const theme of ['light', 'dark'] as const)
     await page.getByLabel('Period').selectOption({ label: 'Today' })
     // Boxes on top, each a number: the usage's four, then what the day alone knows (Today, this project).
     const boxes = page.locator('.usage-stats > div')
-    await expect(boxes.locator('dt')).toHaveText(['Messages', 'Tokens sent', 'Tokens written', 'Cost', 'Failed', 'Files changed'])
+    await expect(boxes.locator('dt')).toHaveText([
+      'Messages',
+      'Tokens sent',
+      'Tokens written',
+      'Cost',
+      'Failed',
+      'Files changed',
+    ])
     await expect(boxes.filter({ hasText: 'Cost' }).locator('.usage-stat')).toHaveText(/^[≈≥] [\d,.]+ USD$/)
     // Under them, side by side at this width: what is left of the plan, with its bar, and the month's budget, with its own.
     const limits = page.getByRole('region', { name: 'Plan limits' })
@@ -79,8 +104,12 @@ for (const theme of ['light', 'dark'] as const)
     await shot(page, `60a-usage-${theme}`)
 
     // Every text on the page, folds and hints opened, stands out from what it is on.
-    await page.locator('.memory-page details').evaluateAll(folds => folds.forEach(fold => ((fold as HTMLDetailsElement).open = true)))
-    await page.locator('.memory-page .hint-bubble').evaluateAll(hints => hints.forEach(hint => ((hint as HTMLElement).hidden = false)))
+    await page
+      .locator('.memory-page details')
+      .evaluateAll(folds => folds.forEach(fold => ((fold as HTMLDetailsElement).open = true)))
+    await page
+      .locator('.memory-page .hint-bubble')
+      .evaluateAll(hints => hints.forEach(hint => ((hint as HTMLElement).hidden = false)))
     await expect(page.getByRole('table', { name: 'Usage by conversation' })).toBeVisible()
     const pieces = await page.locator('.memory-page').evaluate(contrasts)
     expect(pieces.length).toBeGreaterThanOrEqual(60)

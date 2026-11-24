@@ -43,7 +43,8 @@ export function whenOf(trigger: Pick<Trigger, 'kind' | 'config'>): string {
   if (trigger.kind === 'files') return `when ${config.glob ?? 'its files'} changes`
   if (trigger.kind === 'webhook') return 'on a request from outside'
   if (typeof config.every_minutes === 'number') return `every ${some(config.every_minutes, 'minute')}`
-  if (config.at) return `${Array.isArray(config.days) ? daysInWords(config.days) : config.days === 'weekdays' ? 'weekdays' : 'every day'} at ${config.at}`
+  if (config.at)
+    return `${Array.isArray(config.days) ? daysInWords(config.days) : config.days === 'weekdays' ? 'weekdays' : 'every day'} at ${config.at}`
   return 'by the clock'
 }
 
@@ -85,7 +86,7 @@ const OUTCOME: Record<NonNullable<TriggerRun['outcome']>, string> = {
   skipped_busy: 'skipped: conversation was busy',
   skipped_budget: "skipped: day's budget used",
   skipped_month: "skipped: over the project's monthly budget",
-  skipped_limit: "skipped: its provider was over its limit",
+  skipped_limit: 'skipped: its provider was over its limit',
   skipped_same: 'skipped: nothing changed since the last run',
 }
 
@@ -117,7 +118,9 @@ export function offLine(trigger: Trigger): string | null {
   if (trigger.enabled || !trigger.off_because) return null
   // (Its end came - "ended: 10 runs done" - whatever failed before it.)
   if (trigger.off_because.startsWith('ended:')) return trigger.off_because
-  return trigger.failures > 0 ? `switched off after ${some(trigger.failures, 'failure')}: ${trigger.off_because}` : `switched off: ${trigger.off_because}`
+  return trigger.failures > 0
+    ? `switched off after ${some(trigger.failures, 'failure')}: ${trigger.off_because}`
+    : `switched off: ${trigger.off_because}`
 }
 
 /** When a trigger ends by itself (K-tetik-bitis): "after 10 runs", "after 2026-11-01"; null for no end. */
@@ -177,7 +180,19 @@ export interface FormValues {
   runUnchanged: boolean
 }
 
-export type Field = 'name' | 'when' | 'days' | 'glob' | 'conversation' | 'message' | 'commands' | 'agents' | 'steps' | 'minutes' | 'perDay' | 'ends'
+export type Field =
+  | 'name'
+  | 'when'
+  | 'days'
+  | 'glob'
+  | 'conversation'
+  | 'message'
+  | 'commands'
+  | 'agents'
+  | 'steps'
+  | 'minutes'
+  | 'perDay'
+  | 'ends'
 
 /** A new trigger: by the clock every hour, allowed nothing, with the usual budget. */
 export function blank(conversationId: string): FormValues {
@@ -242,13 +257,19 @@ export const READY: { name: string; says: string; values: Partial<FormValues> }[
       schedule: 'at',
       at: '09:00',
       days: 'weekdays',
-      message: 'Summarise the work in this project since the last working day: what was asked, what changed, what failed and what is still open. Write it on the notebook. Change nothing.',
+      message:
+        'Summarise the work in this project since the last working day: what was asked, what changed, what failed and what is still open. Write it on the notebook. Change nothing.',
     },
   },
   {
     name: 'When source files change: run the tests',
     says: `Each change under src/ runs it (at most ${FILES_PER_DAY} a day); with no src/ folder it never starts - change the pattern to your own. To let it run the tests, tick your test command in the form.`,
-    values: { kind: 'files', glob: 'src/**/*', perDay: String(FILES_PER_DAY), message: 'Files under src/ changed. Run the project’s tests and say which fail and why. Change nothing.' },
+    values: {
+      kind: 'files',
+      glob: 'src/**/*',
+      perDay: String(FILES_PER_DAY),
+      message: 'Files under src/ changed. Run the project’s tests and say which fail and why. Change nothing.',
+    },
   },
   {
     name: 'Every Friday at 17:00: check the dependencies',
@@ -258,7 +279,8 @@ export const READY: { name: string; says: string; values: Partial<FormValues> }[
       at: '17:00',
       days: 'chosen',
       week: ['fri'],
-      message: 'Look over the project’s dependencies: which are not pinned, which are no longer used, which appear twice? Write what you find on the notebook. Change nothing.',
+      message:
+        'Look over the project’s dependencies: which are not pinned, which are no longer used, which appear twice? Write what you find on the notebook. Change nothing.',
     },
   },
 ]
@@ -340,7 +362,8 @@ function sendsErrors(values: FormValues, errors: Errors) {
   if (!values.name.trim()) errors.name = 'Give it a name.'
   else if (values.name.trim().length > LIMITS.name) errors.name = `A name of at most ${LIMITS.name} characters.`
   if (!values.message.trim()) errors.message = 'Write the message it sends.'
-  else if (values.message.trim().length > LIMITS.message) errors.message = `A message of at most ${LIMITS.message} characters.`
+  else if (values.message.trim().length > LIMITS.message)
+    errors.message = `A message of at most ${LIMITS.message} characters.`
   if (!values.conversationId) errors.conversation = 'Choose the conversation its messages go into.'
 }
 
@@ -350,8 +373,10 @@ function clockErrors(values: FormValues, errors: Errors) {
     if (values.schedule === 'every' && !within(values.every, LIMITS.every)) {
       errors.when = `At least ${LIMITS.every[0]} minutes, at most ${LIMITS.every[1]} (a week).`
     }
-    if (values.schedule === 'at' && !/^([01]\d|2[0-3]):[0-5]\d$/.test(values.at)) errors.when = 'Give the time of day as HH:MM.'
-    else if (values.schedule === 'at' && values.days === 'chosen' && values.week.length === 0) errors.days = 'Tick at least one day.'
+    if (values.schedule === 'at' && !/^([01]\d|2[0-3]):[0-5]\d$/.test(values.at))
+      errors.when = 'Give the time of day as HH:MM.'
+    else if (values.schedule === 'at' && values.days === 'chosen' && values.week.length === 0)
+      errors.days = 'Tick at least one day.'
   }
 }
 
@@ -360,7 +385,12 @@ function filesErrors(values: FormValues, errors: Errors) {
   if (values.kind === 'files') {
     const pattern = values.glob.trim().replace(/\\/g, '/')
     if (!pattern) errors.glob = 'Give a pattern, such as src/**/*.py.'
-    else if (pattern.length > LIMITS.glob || pattern.startsWith('/') || pattern.includes(':') || pattern.split('/').some(part => part === '' || part === '.' || part === '..')) {
+    else if (
+      pattern.length > LIMITS.glob ||
+      pattern.startsWith('/') ||
+      pattern.includes(':') ||
+      pattern.split('/').some(part => part === '' || part === '.' || part === '..')
+    ) {
       errors.glob = `The pattern names paths inside the project folder: no drive, no leading slash, no "..", at most ${LIMITS.glob} characters.`
     }
   }
@@ -368,7 +398,8 @@ function filesErrors(values: FormValues, errors: Errors) {
 
 /** What it may do and spend, and when it ends. */
 function allowsErrors(values: FormValues, errors: Errors) {
-  if (values.commands.length > LIMITS.commands) errors.commands = `A trigger may run at most ${LIMITS.commands} commands.`
+  if (values.commands.length > LIMITS.commands)
+    errors.commands = `A trigger may run at most ${LIMITS.commands} commands.`
   if (!within(values.agents, LIMITS.agents)) errors.agents = range(LIMITS.agents)
   if (!within(values.steps, LIMITS.steps)) errors.steps = range(LIMITS.steps)
   if (!within(values.minutes, LIMITS.minutes)) errors.minutes = range(LIMITS.minutes)
@@ -426,7 +457,12 @@ export function toPatch(values: FormValues): Required<Omit<TriggerChange, 'enabl
     },
     budget: { steps: whole(values.steps), minutes: whole(values.minutes), per_day: whole(values.perDay) },
     catch_up: values.catchUp,
-    ends: values.ends === 'runs' ? { runs: whole(values.endRuns) } : values.ends === 'until' ? { until: values.endUntil } : null,
+    ends:
+      values.ends === 'runs'
+        ? { runs: whole(values.endRuns) }
+        : values.ends === 'until'
+          ? { until: values.endUntil }
+          : null,
     run_unchanged: values.runUnchanged,
   }
 }

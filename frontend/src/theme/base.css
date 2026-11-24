@@ -636,13 +636,16 @@ p.hive-empty {
 }
 
 .hive-empty::before {
-  content: "";
+  content: '';
   position: absolute;
   inset: -16px -32px;
   z-index: -1;
   background: var(--text);
   opacity: 0.1;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48.4974' height='84' viewBox='0 0 48.4974 84'%3E%3Cpath d='M24.2487 0L48.4974 14V42L24.2487 56L0 42V14ZM24.2487 56V84' fill='none' stroke='%23000' stroke-width='2'/%3E%3C/svg%3E") 0 0 / 24.2487px 42px, radial-gradient(closest-side, #000, transparent);
+  mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48.4974' height='84' viewBox='0 0 48.4974 84'%3E%3Cpath d='M24.2487 0L48.4974 14V42L24.2487 56L0 42V14ZM24.2487 56V84' fill='none' stroke='%23000' stroke-width='2'/%3E%3C/svg%3E")
+      0 0 / 24.2487px 42px,
+    radial-gradient(closest-side, #000, transparent);
   mask-composite: intersect;
   pointer-events: none;
 }
@@ -1603,7 +1606,9 @@ a.view-run {
 
 @keyframes glow {
   50% {
-    box-shadow: 0 0 0 3px var(--accent-soft), 0 0 12px var(--accent-fill);
+    box-shadow:
+      0 0 0 3px var(--accent-soft),
+      0 0 12px var(--accent-fill);
   }
 }
 

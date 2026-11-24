@@ -46,7 +46,10 @@ function useRefreshing(onRefresh: (() => Promise<void>) | undefined, onError: (s
     const read = () => {
       if (document.visibilityState !== 'visible' || Date.now() - last < 5000) return
       last = Date.now()
-      void onRefresh().then(() => onError(null), () => {}) // (a failed one by itself waits for the next; the button says one)
+      void onRefresh().then(
+        () => onError(null),
+        () => {},
+      ) // (a failed one by itself waits for the next; the button says one)
     }
     // No timer while the page is hidden.
     const shown = () => {
@@ -73,7 +76,13 @@ const Alert = ({ said }: { said: string | null }) =>
   )
 
 /** Its own failed read is said with the list's other alerts, and gone once a read works; theirs are not touched. */
-function RefreshButton({ onRefresh, onError }: { onRefresh?: () => Promise<void>; onError: (said: string | null) => void }) {
+function RefreshButton({
+  onRefresh,
+  onError,
+}: {
+  onRefresh?: () => Promise<void>
+  onError: (said: string | null) => void
+}) {
   const [busy, setBusy] = useState(false)
   useRefreshing(onRefresh, onError)
   if (!onRefresh) return null
@@ -89,7 +98,15 @@ function RefreshButton({ onRefresh, onError }: { onRefresh?: () => Promise<void>
     }
   }
   return (
-    <button type="button" className="icon-btn" aria-label="Refresh conversations" title="Refresh conversations" aria-busy={busy} disabled={busy} onClick={() => void now()}>
+    <button
+      type="button"
+      className="icon-btn"
+      aria-label="Refresh conversations"
+      title="Refresh conversations"
+      aria-busy={busy}
+      disabled={busy}
+      onClick={() => void now()}
+    >
       <ArrowClockwise size={14} className={busy ? 'spin' : undefined} aria-hidden />
     </button>
   )
@@ -148,19 +165,38 @@ function TaskState({ task, on }: { task: ListedConversation['backlog_task']; on?
 
 /** The names of an archived chat's triggers that still run: switched on, and not all held back. */
 const stillRunning = (c: ListedConversation, triggers: Props['triggers'], triggersPaused: boolean) =>
-  c.archived_at && !triggersPaused ? (triggers ?? []).filter(t => t.conversation_id === c.id && t.enabled).map(t => t.name) : []
+  c.archived_at && !triggersPaused
+    ? (triggers ?? []).filter(t => t.conversation_id === c.id && t.enabled).map(t => t.name)
+    : []
 
 /** What a chat's last turn ran with - its agents, its model, its tokens where they are known; nothing where the Board has no turn of it. */
 const ranOf = (turn: BoardConversation['turn'] | undefined) =>
-  turn && [count(turn.agents, 'agent'), ranOn(turn.provider_name, turn.model_id), turn.tokens != null && `${turn.tokens.toLocaleString('en-US')} tokens`]
+  turn && [
+    count(turn.agents, 'agent'),
+    ranOn(turn.provider_name, turn.model_id),
+    turn.tokens != null && `${turn.tokens.toLocaleString('en-US')} tokens`,
+  ]
 
 const triggerNote = (running: string[]) => (
   <span className="muted conv-trigger">
-    {running.length === 1 ? 'Its trigger' : 'Its triggers'} {running.join(', ')} still {running.length === 1 ? 'runs' : 'run'}
+    {running.length === 1 ? 'Its trigger' : 'Its triggers'} {running.join(', ')} still{' '}
+    {running.length === 1 ? 'runs' : 'run'}
   </span>
 )
 
-export function ConversationList({ conversations, projects = [], currentId, onOpen, onNew, onArchive, onDelete, board, triggers, triggersPaused = false, onRefresh }: Props) {
+export function ConversationList({
+  conversations,
+  projects = [],
+  currentId,
+  onOpen,
+  onNew,
+  onArchive,
+  onDelete,
+  board,
+  triggers,
+  triggersPaused = false,
+  onRefresh,
+}: Props) {
   const [by, setBy] = useState<'date' | 'name'>('date')
   // The folders whose group was opened or closed here by hand, by their project's id ('none': the chats with no folder).
   const [turned, setTurned] = useState<string[]>([])
@@ -175,10 +211,15 @@ export function ConversationList({ conversations, projects = [], currentId, onOp
   const words = query.trim().toLowerCase()
   const found = conversations.filter(c => c.title.toLowerCase().includes(words))
   const [, showLabel, standings] = SHOW.find(([key]) => key === show)!
-  const shown = show === 'all' ? found : found.filter(c => (standings as readonly (string | null)[]).includes(standingOf(on.get(c.id))))
+  const shown =
+    show === 'all'
+      ? found
+      : found.filter(c => (standings as readonly (string | null)[]).includes(standingOf(on.get(c.id))))
   // Those that wait for you first; within them, as chosen (newest first is how the server lists them).
   const sorted = shown
-    .sort((a, b) => (by === 'name' ? a.title.localeCompare(b.title) : lastAt(b, on.get(b.id)) - lastAt(a, on.get(a.id))))
+    .sort((a, b) =>
+      by === 'name' ? a.title.localeCompare(b.title) : lastAt(b, on.get(b.id)) - lastAt(a, on.get(a.id)),
+    )
     .sort((a, b) => Number(waits(b.id)) - Number(waits(a.id)))
   // One that waits for you is listed even when archived (and says so), as the badge counts it.
   const kept = sorted.filter(c => !c.archived_at || waits(c.id))
@@ -186,7 +227,10 @@ export function ConversationList({ conversations, projects = [], currentId, onOp
   // Each under its folder, by last activity under Today, Last 7 days and Older; one that waits says so on its row - all
   // of them together are Ready for you's (tek-ev §1).
   const rest = kept
-  const groups = (list: ListedConversation[]) => ['Today', 'Last 7 days', 'Older'].map(day => [day, list.filter(c => dayOf(lastAt(c, on.get(c.id))) === day)] as const)
+  const groups = (list: ListedConversation[]) =>
+    ['Today', 'Last 7 days', 'Older'].map(
+      day => [day, list.filter(c => dayOf(lastAt(c, on.get(c.id))) === day)] as const,
+    )
   // Each folder's chats under its name (slice 86a): the open tab's folder first and open, the others closed (86e) - the
   // one used last first, the chats with no folder last; with no chat open, all of them open.
   const keyOf = (c: ListedConversation) => tabOf(c.project_id)
@@ -194,8 +238,12 @@ export function ConversationList({ conversations, projects = [], currentId, onOp
   const here = current ? keyOf(current) : null
   const openAtFirst = (key: string) => here === null || key === here
   const newest = (key: string) => Math.max(...rest.filter(c => keyOf(c) === key).map(c => lastAt(c, on.get(c.id))))
-  const folders = [...new Set(rest.map(keyOf))].sort((a, b) => Number(b === here) - Number(a === here) || Number(a === 'none') - Number(b === 'none') || newest(b) - newest(a))
-  const nameOf = (key: string) => (key === 'none' ? 'No folder' : (projects.find(p => p.id === key)?.name ?? 'A folder'))
+  const folders = [...new Set(rest.map(keyOf))].sort(
+    (a, b) =>
+      Number(b === here) - Number(a === here) || Number(a === 'none') - Number(b === 'none') || newest(b) - newest(a),
+  )
+  const nameOf = (key: string) =>
+    key === 'none' ? 'No folder' : (projects.find(p => p.id === key)?.name ?? 'A folder')
   const isOpen = (key: string) => openAtFirst(key) !== turned.includes(key)
   // B-395: the rows on screen - not those under a closed folder.
   const visible = [...rest.filter(c => isOpen(keyOf(c))), ...archived]
@@ -224,7 +272,8 @@ export function ConversationList({ conversations, projects = [], currentId, onOp
     const ids = toDelete.map(c => c.id)
     // (Not "for good": backups and a CLI's own transcripts may still hold copies.)
     const asked = `Delete ${n} archived ${n === 1 ? 'chat' : 'chats'} from KOLONİ? This cannot be undone in KOLONİ.`
-    const more = 'Their messages, their agents’ work and what they spent on Usage go too; the project’s files and git are not touched.'
+    const more =
+      'Their messages, their agents’ work and what they spent on Usage go too; the project’s files and git are not touched.'
     confirm.ask(`${asked} ${more}`, 'Delete', () => void deleteNow(ids), 'Cancel')
   }
   async function deleteNow(ids: string[]) {
@@ -232,7 +281,8 @@ export function ConversationList({ conversations, projects = [], currentId, onOp
     try {
       const told = await onDelete!(ids)
       setPicked(was => was.filter(id => !told.deleted.includes(id)))
-      if (told.refused.length) setRefused(told.refused.map(one => `${one.title ?? 'A conversation'} was not deleted: ${one.why}`).join('; '))
+      if (told.refused.length)
+        setRefused(told.refused.map(one => `${one.title ?? 'A conversation'} was not deleted: ${one.why}`).join('; '))
     } catch (err) {
       setRefused(`Nothing was deleted: ${errorText(err)}`)
     }
@@ -252,10 +302,20 @@ export function ConversationList({ conversations, projects = [], currentId, onOp
               checked={picked.includes(c.id)}
               onChange={e => setPicked(was => (e.target.checked ? [...was, c.id] : was.filter(id => id !== c.id)))}
             />
-            <button type="button" className="conv-row" aria-current={c.id === currentId ? 'true' : undefined} onClick={() => onOpen(c.id)}>
+            <button
+              type="button"
+              className="conv-row"
+              aria-current={c.id === currentId ? 'true' : undefined}
+              onClick={() => onOpen(c.id)}
+            >
               <span className="conv-row-title" title={c.title}>
                 {c.backlog_task && (
-                  <span className="muted conv-row-todo" role="img" aria-label="From the to-do list" title="From the to-do list">
+                  <span
+                    className="muted conv-row-todo"
+                    role="img"
+                    aria-label="From the to-do list"
+                    title="From the to-do list"
+                  >
                     <ListChecks size={14} aria-hidden />
                   </span>
                 )}
@@ -265,12 +325,18 @@ export function ConversationList({ conversations, projects = [], currentId, onOp
               <span className="mono muted conv-row-when">
                 <Standing on={on.get(c.id)} /> <TaskState task={c.backlog_task} on={on.get(c.id)} />{' '}
                 {/* As its turn says in the turn list: over, and its changes still yours to take in or discard. */}
-                {c.kept && <span className="tag turn-row-waits">changes kept</span>} {!underArchived && c.archived_at && <span className="tag">archived</span>}{' '}
+                {c.kept && <span className="tag turn-row-waits">changes kept</span>}{' '}
+                {!underArchived && c.archived_at && <span className="tag">archived</span>}{' '}
                 {ran && `${ran.filter(Boolean).join(' · ')} · `}
                 {when(lastAt(c, on.get(c.id)))}
               </span>
             </button>
-            <button type="button" className="btn btn-small" aria-label={`${c.archived_at ? 'Unarchive' : 'Archive'} ${c.title}`} onClick={() => void archive(c, !c.archived_at)}>
+            <button
+              type="button"
+              className="btn btn-small"
+              aria-label={`${c.archived_at ? 'Unarchive' : 'Archive'} ${c.title}`}
+              onClick={() => void archive(c, !c.archived_at)}
+            >
               {c.archived_at ? 'Unarchive' : 'Archive'}
             </button>
             {running.length > 0 && triggerNote(running)}
@@ -286,7 +352,14 @@ export function ConversationList({ conversations, projects = [], currentId, onOp
         <h2>Conversations</h2>
         <RefreshButton onRefresh={onRefresh} onError={setStale} />
         <div className="usage-filters">
-          <input type="search" className="input" aria-label="Search conversations" placeholder="Search by name" value={query} onChange={e => setQuery(e.target.value)} />
+          <input
+            type="search"
+            className="input"
+            aria-label="Search conversations"
+            placeholder="Search by name"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+          />
           <select className="input" aria-label="Show" value={show} onChange={e => setShow(e.target.value as Show)}>
             {SHOW.map(([key, label]) => (
               <option key={key} value={key}>
@@ -294,7 +367,12 @@ export function ConversationList({ conversations, projects = [], currentId, onOp
               </option>
             ))}
           </select>
-          <select className="input" aria-label="Sort by" value={by} onChange={e => setBy(e.target.value as 'date' | 'name')}>
+          <select
+            className="input"
+            aria-label="Sort by"
+            value={by}
+            onChange={e => setBy(e.target.value as 'date' | 'name')}
+          >
             <option value="date">Last activity</option>
             <option value="name">Name</option>
           </select>
@@ -316,11 +394,22 @@ export function ConversationList({ conversations, projects = [], currentId, onOp
             />
             Select all
           </label>
-          <button type="button" className="btn btn-small" disabled={toArchive.length === 0} onClick={() => void archiveChosen()}>
+          <button
+            type="button"
+            className="btn btn-small"
+            disabled={toArchive.length === 0}
+            onClick={() => void archiveChosen()}
+          >
             Archive selected ({toArchive.length})
           </button>
           {onDelete && (
-            <button type="button" className="btn btn-small" title="Only archived conversations are deleted" disabled={toDelete.length === 0} onClick={deleteChosen}>
+            <button
+              type="button"
+              className="btn btn-small"
+              title="Only archived conversations are deleted"
+              disabled={toDelete.length === 0}
+              onClick={deleteChosen}
+            >
               Delete selected ({toDelete.length})
             </button>
           )}
@@ -334,7 +423,9 @@ export function ConversationList({ conversations, projects = [], currentId, onOp
       ) : found.length === 0 ? (
         <p className="muted">No conversation has that in its name.</p>
       ) : shown.length === 0 ? (
-        <p className="muted">{board ? `None of them is “${showLabel}”.` : 'How each conversation stands is not read yet.'}</p>
+        <p className="muted">
+          {board ? `None of them is “${showLabel}”.` : 'How each conversation stands is not read yet.'}
+        </p>
       ) : (
         <>
           {folders.map((key, folder) => {
@@ -343,7 +434,13 @@ export function ConversationList({ conversations, projects = [], currentId, onOp
             return (
               <section key={key} className="memory-section" aria-labelledby={`${groupId}-${folder}`}>
                 <h3 className="conv-folder">
-                  <button type="button" id={`${groupId}-${folder}`} className="conv-folder-button" aria-expanded={open} onClick={() => toggle(key)}>
+                  <button
+                    type="button"
+                    id={`${groupId}-${folder}`}
+                    className="conv-folder-button"
+                    aria-expanded={open}
+                    onClick={() => toggle(key)}
+                  >
                     {open ? <CaretDown size={12} aria-hidden /> : <CaretRight size={12} aria-hidden />}
                     {key !== 'none' && <FolderSimple size={14} weight="fill" className="folder-icon" aria-hidden />}
                     {nameOf(key)}
@@ -355,7 +452,11 @@ export function ConversationList({ conversations, projects = [], currentId, onOp
                     : groups(list).map(
                         ([day, under], at) =>
                           under.length > 0 && (
-                            <section key={day} className="memory-section" aria-labelledby={`${groupId}-${folder}-${at}`}>
+                            <section
+                              key={day}
+                              className="memory-section"
+                              aria-labelledby={`${groupId}-${folder}-${at}`}
+                            >
                               <h4 id={`${groupId}-${folder}-${at}`} className="kicker">
                                 {day}
                               </h4>

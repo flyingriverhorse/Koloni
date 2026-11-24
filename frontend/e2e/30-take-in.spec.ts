@@ -25,7 +25,9 @@ test.afterEach(async ({ request }) => {
   await request.delete(`/api/projects/${project.id}/map/test?path=./`, { headers: OWN })
 })
 
-test('the same line changed on both sides is asked about, the Coder’s own test runs from the card on what would be taken, and that is applied', async ({ page }) => {
+test('the same line changed on both sides is asked about, the Coder’s own test runs from the card on what would be taken, and that is applied', async ({
+  page,
+}) => {
   // (the Coder stays at work a while after each of its two writes)
   test.setTimeout(60_000)
   await openFreshConversation(page)
@@ -35,7 +37,9 @@ test('the same line changed on both sides is asked about, the Coder’s own test
   await page.getByRole('navigation', { name: 'Main' }).getByRole('button', { name: 'Settings' }).click()
   const settings = page.getByRole('form', { name: 'Project settings' })
   await settings.getByRole('button', { name: /^Checks/ }).click()
-  await expect(settings.getByText(/^Before its work is added, the tests the sub-agent wrote or changed run in its working copy/)).toBeVisible()
+  await expect(
+    settings.getByText(/^Before its work is added, the tests the sub-agent wrote or changed run in its working copy/),
+  ).toBeVisible()
   await expect(settings.getByText(/with KOLONİ’s guess the card waits for your Run the test/)).toBeVisible()
   await expect(settings.getByLabel('Test before adding')).toHaveCount(0)
   await expect(settings.getByLabel(/^Save each sub-agent’s work as a git commit/)).not.toBeChecked()
@@ -57,7 +61,9 @@ test('the same line changed on both sides is asked about, the Coder’s own test
 
   // The Coder has changed line two in its copy and is still at work. Meanwhile, by the user's own
   // hand, the project's file changes on the same line - and on another.
-  await expect(page.locator('.react-flow__node-agent').filter({ has: page.locator('.node-title', { hasText: /^Coder$/ }) })).toContainText('1 file', { timeout: 15_000 })
+  await expect(
+    page.locator('.react-flow__node-agent').filter({ has: page.locator('.node-title', { hasText: /^Coder$/ }) }),
+  ).toContainText('1 file', { timeout: 15_000 })
   writeFileSync(LINES, text(NUMBERS.map(line => ({ two: 'TWO-user', six: 'SIX-user' })[line] ?? line)))
 
   // One card: the lines that clash, both sides of them, when each changed and which is newer - and the Coder's test.
@@ -79,7 +85,9 @@ test('the same line changed on both sides is asked about, the Coder’s own test
   // Its own test ran in the copy, on the two sides together (it asks for both lines): the project still has the user's line.
   await expect(check.getByText('passed', { exact: true })).toBeVisible({ timeout: 20_000 })
   await expect(check.getByText('exit code 0')).toBeVisible()
-  expect(readFileSync(LINES, 'utf8')).toBe(text(NUMBERS.map(line => ({ two: 'TWO-user', six: 'SIX-user' })[line] ?? line)))
+  expect(readFileSync(LINES, 'utf8')).toBe(
+    text(NUMBERS.map(line => ({ two: 'TWO-user', six: 'SIX-user' })[line] ?? line)),
+  )
   // The file is now one that went together, with the lines you chose.
   const merged = chat.getByRole('group', { name: "Merged with the project's changes" })
   await expect(merged).toContainText("lines.txt — Coder's")
@@ -88,7 +96,9 @@ test('the same line changed on both sides is asked about, the Coder’s own test
   await chat.getByRole('button', { name: 'Take in', exact: true }).click()
   await expect(page.getByText('DONE', { exact: true })).toBeVisible({ timeout: 15_000 })
   // The Coder's line where they clashed; the user's own change elsewhere is kept - and the Coder's test is in.
-  expect(readFileSync(LINES, 'utf8')).toBe(text(NUMBERS.map(line => ({ two: 'TWO-agent', six: 'SIX-user' })[line] ?? line)))
+  expect(readFileSync(LINES, 'utf8')).toBe(
+    text(NUMBERS.map(line => ({ two: 'TWO-agent', six: 'SIX-user' })[line] ?? line)),
+  )
   expect(readFileSync(OWN_TEST, 'utf8')).toContain("assert 'TWO-agent' in said and 'SIX-user' in said")
   // Decided: the card is gone. (No commit is offered: the setting is off.)
   await expect(chat.getByText("Take in Coder's work?")).toHaveCount(0)

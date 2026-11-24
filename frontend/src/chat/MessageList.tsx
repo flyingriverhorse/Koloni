@@ -1,4 +1,16 @@
-import { ArrowCounterClockwise, ArrowDown, CaretRight, ChatsCircle, Clock, Copy, DotsThree, FolderOpen, GitBranch, Graph, Moon } from '@phosphor-icons/react'
+import {
+  ArrowCounterClockwise,
+  ArrowDown,
+  CaretRight,
+  ChatsCircle,
+  Clock,
+  Copy,
+  DotsThree,
+  FolderOpen,
+  GitBranch,
+  Graph,
+  Moon,
+} from '@phosphor-icons/react'
 import { SUMMARISING, titleOf as agentTitle } from '../agents/agentStatus'
 import { Fragment, type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Markdown, UserText } from './Markdown'
@@ -11,7 +23,25 @@ import { failureText, nextStep, planConsole } from '../agents/failure'
 import { SpawnRow } from '../agents/SpawnRow'
 import { isReadyCard, keptNote, readyLine, turnTeams } from '../agents/teamRun'
 import { staysOn } from '../agents/staysOn'
-import type { Agent, Attachment, Command, Compare, Discussion, FileChange, Merge, Message, Price, Provider, NotesOffer, Question, Role, Run, ToolCall, TriggerProposal, Usage } from '../api/types'
+import type {
+  Agent,
+  Attachment,
+  Command,
+  Compare,
+  Discussion,
+  FileChange,
+  Merge,
+  Message,
+  Price,
+  Provider,
+  NotesOffer,
+  Question,
+  Role,
+  Run,
+  ToolCall,
+  TriggerProposal,
+  Usage,
+} from '../api/types'
 import { Minis } from './Attach'
 import { linksIn } from './attachments'
 import { ChangeActions, type ChangeAction } from '../changes/ChangeActions'
@@ -77,11 +107,21 @@ interface Props {
   onSelectAgent?: (agentId: string) => void
   onDecideSpawn?: (agentId: string, decision: SpawnDecision) => Promise<void>
   /** A role an agent asked to create, or a path outside the project: once, or its whole folder. */
-  onDecideRole?: (toolCallId: string, decision: SpawnDecision, scope?: 'once' | 'folder' | 'ask_scripts') => Promise<void>
+  onDecideRole?: (
+    toolCallId: string,
+    decision: SpawnDecision,
+    scope?: 'once' | 'folder' | 'ask_scripts',
+  ) => Promise<void>
   /** Approve a plan turn's plan (as edited) or turn it down (with why). */
   onDecidePlan?: (runId: string, decision: SpawnDecision, text?: string, overBudget?: boolean) => Promise<void>
   /** Take an agent's changes into the project - with whose side is taken of each file that clashes - or discard them. */
-  onDecideMerge?: (mergeId: string, decision: SpawnDecision, choices?: Choices, shown?: Shown, said?: BranchSaid) => Promise<void>
+  onDecideMerge?: (
+    mergeId: string,
+    decision: SpawnDecision,
+    choices?: Choices,
+    shown?: Shown,
+    said?: BranchSaid,
+  ) => Promise<void>
   /** Run the project's check command on what an agent's card would take. */
   onCheckMerge?: (mergeId: string, choices: Choices) => Promise<void>
   /** Commit the files that were taken from an agent, with this message. */
@@ -196,7 +236,9 @@ function runNotice(run: Run, lead?: Agent, providers: Provider[] = []): Notice |
       return run.started_at ? { title: 'Stopped', alert: false } : null
     case 'interrupted':
       // (A message of yours that never began is said under it: `NotSent`. A trigger's or KOLONİ's own, here as before.)
-      return run.started_at || !run.by_user || run.unattended ? { title: 'Interrupted by a server restart', text: 'Send a message to continue.', alert: false } : null
+      return run.started_at || !run.by_user || run.unattended
+        ? { title: 'Interrupted by a server restart', text: 'Send a message to continue.', alert: false }
+        : null
     default:
       return null
   }
@@ -210,7 +252,8 @@ interface ChangeLineProps {
 
 /** The decision on a path outside the project, as the tool-call route takes it. */
 function outsideWord(decide: Handlers['onDecideRole'], callId: string) {
-  return (decision: OutsideDecision) => (decision === 'reject' ? decide(callId, 'reject') : decide(callId, 'approve', decision))
+  return (decision: OutsideDecision) =>
+    decision === 'reject' ? decide(callId, 'reject') : decide(callId, 'approve', decision)
 }
 
 /**
@@ -219,14 +262,17 @@ function outsideWord(decide: Handlers['onDecideRole'], callId: string) {
  * was decided on them stays in sight.
  */
 const commandFolds = (command: Command) =>
-  !['proposed', 'approved', 'refused'].includes(command.status) && !(command.keep_running && command.status === 'running') && command.judged?.verdict !== 'run'
+  !['proposed', 'approved', 'refused'].includes(command.status) &&
+  !(command.keep_running && command.status === 'running') &&
+  command.judged?.verdict !== 'run'
 
 /**
  * A call that is a line of its own, never folded into a run: the Lead's pick of the chat's teams (slice 84b), the chat's
  * one line of it; a question it was not let ask, refused or failed, read without opening anything (0.1.4).
  */
 const ownLine = (call: ToolCall) =>
-  (call.name === 'pick_teams' && call.status === 'succeeded') || (call.name === 'ask_user' && (call.status === 'denied' || call.status === 'failed'))
+  (call.name === 'pick_teams' && call.status === 'succeeded') ||
+  (call.name === 'ask_user' && (call.status === 'denied' || call.status === 'failed'))
 
 type CallParts = Record<'asked' | 'web' | 'role' | 'skill' | 'waits', unknown>
 
@@ -237,14 +283,19 @@ function waitsOnYou(call: ToolCall, change: FileChange | undefined, { web, role,
 }
 
 /** A call that is more than a row: something of it asks or waits for you, or you decide its change - or a line of its own. */
-const standsAlone = (call: ToolCall, change: FileChange | undefined, parts: CallParts) => Boolean(parts.asked) || ownLine(call) || waitsOnYou(call, change, parts)
+const standsAlone = (call: ToolCall, change: FileChange | undefined, parts: CallParts) =>
+  Boolean(parts.asked) || ownLine(call) || waitsOnYou(call, change, parts)
 
 function ChangeLine({ change, onOpen, onDecide }: ChangeLineProps) {
   return (
     <div className={`chat-change${change.status === 'proposed' ? ' chat-change-waiting' : ''}`}>
       <span className="mono chat-change-path">{change.path}</span>
-      <span className="mono" style={{ color: 'var(--ok)' }}>+{change.additions}</span>
-      <span className="mono" style={{ color: 'var(--del)' }}>−{change.deletions}</span>
+      <span className="mono" style={{ color: 'var(--ok)' }}>
+        +{change.additions}
+      </span>
+      <span className="mono" style={{ color: 'var(--del)' }}>
+        −{change.deletions}
+      </span>
       <button type="button" className="btn btn-small" onClick={onOpen}>
         View diff
       </button>
@@ -254,7 +305,23 @@ function ChangeLine({ change, onOpen, onDecide }: ChangeLineProps) {
 }
 
 type Handlers = Required<
-  Omit<Props, 'state' | 'onRemoveQueued' | 'onOpenDiscussion' | 'onOpenRoom' | 'onAllowInTrigger' | 'onDecidePlan' | 'roles' | 'providers' | 'onUsage' | 'prices' | 'onLoadCompare' | 'onDecideCompare' | 'onShowTurn' | 'onShowGit'>
+  Omit<
+    Props,
+    | 'state'
+    | 'onRemoveQueued'
+    | 'onOpenDiscussion'
+    | 'onOpenRoom'
+    | 'onAllowInTrigger'
+    | 'onDecidePlan'
+    | 'roles'
+    | 'providers'
+    | 'onUsage'
+    | 'prices'
+    | 'onLoadCompare'
+    | 'onDecideCompare'
+    | 'onShowTurn'
+    | 'onShowGit'
+  >
 >
 type Known = Required<Pick<Props, 'roles' | 'providers'>>
 /** A call as the chat shows it (`callView`). */
@@ -271,7 +338,17 @@ const stood = new Set<string>()
  * saying who asks - a question's card says it itself. (A room's members were opened by no call of the lead's: theirs are
  * brought to the room's window the same way.)
  */
-export function SubtreeRequests({ root, state, on, known }: { root: Agent; state: ConvState; on: Handlers; known: Known }) {
+export function SubtreeRequests({
+  root,
+  state,
+  on,
+  known,
+}: {
+  root: Agent
+  state: ConvState
+  on: Handlers
+  known: Known
+}) {
   const continueSteps = useApp(s => s.projects.find(p => p.id === state.conversation.project_id)?.continue_steps)
   const teams = useApp(s => s.teams)
   const inside = new Map<string, Agent>([[root.id, root]])
@@ -316,7 +393,10 @@ export function SubtreeRequests({ root, state, on, known }: { root: Agent; state
         .map(skill => (
           <Fragment key={skill.tool_call_id}>
             {asks(skill.agent_id)}
-            <SkillApproval skill={skill} onDecide={(decision, scope) => on.onDecideRole(skill.tool_call_id, decision, scope)} />
+            <SkillApproval
+              skill={skill}
+              onDecide={(decision, scope) => on.onDecideRole(skill.tool_call_id, decision, scope)}
+            />
           </Fragment>
         ))}
       {state.agents
@@ -338,7 +418,11 @@ export function SubtreeRequests({ root, state, on, known }: { root: Agent; state
         .map(c => (
           <Fragment key={c.id}>
             {asks(c.agent_id)}
-            <CommandApproval command={c} why={state.toolCalls.find(t => t.id === c.tool_call_id)?.why_asked} onDecide={decision => on.onDecideCommand(c.id, decision)} />
+            <CommandApproval
+              command={c}
+              why={state.toolCalls.find(t => t.id === c.tool_call_id)?.why_asked}
+              onDecide={decision => on.onDecideCommand(c.id, decision)}
+            />
           </Fragment>
         ))}
       {state.webRequests
@@ -351,7 +435,15 @@ export function SubtreeRequests({ root, state, on, known }: { root: Agent; state
               call={state.toolCalls.find(call => call.id === w.tool_call_id)}
               // B-134: an expert's search is asked every time - no rule of the conversation covers it.
               // (As the server tells one: its role, found by name in any case, has knowledge.)
-              expert={known.roles.some(role => role.name.toLowerCase() === inside.get(w.agent_id)?.role_name.toLowerCase() && (role.knows ?? []).some(one => one.mode === 'full' && (one.project_id === null || one.project_id === state.conversation.project_id)))}
+              expert={known.roles.some(
+                role =>
+                  role.name.toLowerCase() === inside.get(w.agent_id)?.role_name.toLowerCase() &&
+                  (role.knows ?? []).some(
+                    one =>
+                      one.mode === 'full' &&
+                      (one.project_id === null || one.project_id === state.conversation.project_id),
+                  ),
+              )}
               onDecide={decision => on.onDecideWeb(w.id, decision)}
             />
           </Fragment>
@@ -374,7 +466,11 @@ export function SubtreeRequests({ root, state, on, known }: { root: Agent; state
         .map(f => (
           <Fragment key={f.id}>
             {asks(f.agent_id)}
-            <ChangeLine change={f} onOpen={() => on.onOpenChange(f.id)} onDecide={action => on.onDecide(f.id, action)} />
+            <ChangeLine
+              change={f}
+              onOpen={() => on.onOpenChange(f.id)}
+              onDecide={action => on.onDecide(f.id, action)}
+            />
           </Fragment>
         ))}
       {/* What a sub-agent changed in its working copy: asked about once, for all of it. */}
@@ -389,7 +485,11 @@ export function SubtreeRequests({ root, state, on, known }: { root: Agent; state
             onDecide={(...said) => on.onDecideMerge(m.id, ...said)}
             onCheck={choices => on.onCheckMerge(m.id, choices)}
             onCommit={(message, hooks) => on.onCommitMerge(m.id, message, hooks)}
-            onContinue={continueSteps != null && canContinue(state, m) ? { steps: continueSteps, run: () => useApp.getState().continueMerge(m.id) } : undefined}
+            onContinue={
+              continueSteps != null && canContinue(state, m)
+                ? { steps: continueSteps, run: () => useApp.getState().continueMerge(m.id) }
+                : undefined
+            }
           />
         ))}
       {/* Settled, and not all of it reached the project: said here, in a turn nobody watched too. */}
@@ -406,11 +506,27 @@ export function SubtreeRequests({ root, state, on, known }: { root: Agent; state
  * A question in the chat, as its card - or, answered, what was asked and said. KOLONİ's Ready for you card is one line
  * here, with its choices and a way to the card in full on the Ready for you list (K-hazir-satir).
  */
-function ChatQuestion({ state, question, onAnswer }: { state: ConvState; question: Question; onAnswer: (answer: string) => Promise<void> }) {
-  const line = isReadyCard(question) ? readyLine(state, question.run_id, { at: question.created_at, open: question.status === 'pending' }) : undefined
+function ChatQuestion({
+  state,
+  question,
+  onAnswer,
+}: {
+  state: ConvState
+  question: Question
+  onAnswer: (answer: string) => Promise<void>
+}) {
+  const line = isReadyCard(question)
+    ? readyLine(state, question.run_id, { at: question.created_at, open: question.status === 'pending' })
+    : undefined
   if (question.status !== 'pending') return <QuestionRow question={question} text={line} />
   const details = () => useApp.getState().showReady(true, waitingId(question.id))
-  return <QuestionCard question={question} onAnswer={onAnswer} line={line === undefined ? undefined : { text: line, onDetails: details }} />
+  return (
+    <QuestionCard
+      question={question}
+      onAnswer={onAnswer}
+      line={line === undefined ? undefined : { text: line, onDetails: details }}
+    />
+  )
 }
 
 /**
@@ -419,7 +535,8 @@ function ChatQuestion({ state, question, onAnswer }: { state: ConvState; questio
  * only in the room's window, so the chat's turn leaves those out.
  */
 export function QueuedNote({ state, asks }: { state: ConvState; asks: (question: Question) => boolean }) {
-  if (!state.questions.some(q => q.status === 'pending' && asks(q)) || !state.runs.some(r => r.status === 'queued')) return null
+  if (!state.questions.some(q => q.status === 'pending' && asks(q)) || !state.runs.some(r => r.status === 'queued'))
+    return null
   return (
     <div role="note" className="muted cmd-approval-note">
       Your message waits until this question is answered
@@ -440,11 +557,19 @@ function mergeSaid(state: ConvState, merge: Merge): { name: string; unfinished: 
 /** A proposed trigger's card, with what Approve, Edit and Reject do (slice 69). */
 /** K-bilgi 6: a Project notes offer's card, answered through the store - whenever you like. */
 function NotesCard({ offer }: { offer: NotesOffer }) {
-  return <NotesOfferCard offer={offer} onAnswer={(lines, add) => useApp.getState().answerNotesOffer(offer.id, lines, add)} />
+  return (
+    <NotesOfferCard offer={offer} onAnswer={(lines, add) => useApp.getState().answerNotesOffer(offer.id, lines, add)} />
+  )
 }
 
 function ProposalCard({ proposal }: { proposal: TriggerProposal }) {
-  return <TriggerProposalCard proposal={proposal} onDecide={decision => useApp.getState().decideProposal(proposal.id, decision)} onEdit={() => useApp.getState().editProposal(proposal)} />
+  return (
+    <TriggerProposalCard
+      proposal={proposal}
+      onDecide={decision => useApp.getState().decideProposal(proposal.id, decision)}
+      onEdit={() => useApp.getState().editProposal(proposal)}
+    />
+  )
 }
 
 /**
@@ -467,7 +592,8 @@ export function WaitingList({ state, on, onDecidePlan, known }: WaitingProps) {
   // (What can be answered now: a question no longer asked waits for nothing - the panel counts these.)
   const rows = waitingOf(state).filter(row => row.current)
   const teams = useApp(s => s.teams)
-  const nameOf = (agentId: string | null) => agentTitle(state.agents.find(a => a.id === agentId)?.name || 'Agent', teams)
+  const nameOf = (agentId: string | null) =>
+    agentTitle(state.agents.find(a => a.id === agentId)?.name || 'Agent', teams)
   // B-183: in the same place as below, so Decided for you stays mounted once its last one is changed - and
   // says whom that Change was sent to.
   if (rows.length === 0 && decidedOf(state).length === 0)
@@ -513,16 +639,35 @@ type WaitingProps = { state: ConvState; on: Handlers; onDecidePlan: Required<Pro
 export function WaitingCard({ state, row, on, onDecidePlan, known }: WaitingProps & { row: Waiting }): ReactNode {
   const continueSteps = useApp(s => s.projects.find(p => p.id === state.conversation.project_id)?.continue_steps)
   const teams = useApp(s => s.teams)
-  const nameOf = (agentId: string | null) => agentTitle(state.agents.find(a => a.id === agentId)?.name || 'Agent', teams)
+  const nameOf = (agentId: string | null) =>
+    agentTitle(state.agents.find(a => a.id === agentId)?.name || 'Agent', teams)
   switch (row.what) {
     case 'question':
       return <QuestionCard question={row.item} onAnswer={answer => on.onAnswer(row.item.id, answer)} />
     case 'command':
-      return <CommandApproval command={row.item} why={state.toolCalls.find(t => t.id === row.item.tool_call_id)?.why_asked} onDecide={decision => on.onDecideCommand(row.item.id, decision)} />
+      return (
+        <CommandApproval
+          command={row.item}
+          why={state.toolCalls.find(t => t.id === row.item.tool_call_id)?.why_asked}
+          onDecide={decision => on.onDecideCommand(row.item.id, decision)}
+        />
+      )
     case 'change':
-      return <ChangeLine change={row.item} onOpen={() => on.onOpenChange(row.item.id)} onDecide={action => on.onDecide(row.item.id, action)} />
+      return (
+        <ChangeLine
+          change={row.item}
+          onOpen={() => on.onOpenChange(row.item.id)}
+          onDecide={action => on.onDecide(row.item.id, action)}
+        />
+      )
     case 'web':
-      return <WebApproval request={row.item} call={state.toolCalls.find(call => call.id === row.item.tool_call_id)} onDecide={decision => on.onDecideWeb(row.item.id, decision)} />
+      return (
+        <WebApproval
+          request={row.item}
+          call={state.toolCalls.find(call => call.id === row.item.tool_call_id)}
+          onDecide={decision => on.onDecideWeb(row.item.id, decision)}
+        />
+      )
     case 'spawn':
       return (
         <SpawnApproval
@@ -536,9 +681,21 @@ export function WaitingCard({ state, row, on, onDecidePlan, known }: WaitingProp
     case 'role':
       return <RoleApproval role={row.item} onDecide={decision => on.onDecideRole(row.item.tool_call_id, decision)} />
     case 'skill':
-      return <SkillApproval skill={row.item} onDecide={(decision, scope) => on.onDecideRole(row.item.tool_call_id, decision, scope)} />
+      return (
+        <SkillApproval
+          skill={row.item}
+          onDecide={(decision, scope) => on.onDecideRole(row.item.tool_call_id, decision, scope)}
+        />
+      )
     case 'outside':
-      return <OutsideApproval call={row.item} who={nameOf(row.item.agent_id)} onDecide={outsideWord(on.onDecideRole, row.item.id)} plain={state.conversation.project_id === null} />
+      return (
+        <OutsideApproval
+          call={row.item}
+          who={nameOf(row.item.agent_id)}
+          onDecide={outsideWord(on.onDecideRole, row.item.id)}
+          plain={state.conversation.project_id === null}
+        />
+      )
     default:
       return turnCard(state, row, on, onDecidePlan, continueSteps)
   }
@@ -547,7 +704,13 @@ export function WaitingCard({ state, row, on, onDecidePlan, known }: WaitingProp
 type TurnWaiting = Extract<Waiting, { what: 'plan' | 'merge' | 'trigger' | 'notes' | 'night' }>
 
 /** What waits for you that no agent asked leave for: the turn's plan and its work to take in, a night's card and jobs, what was proposed. */
-function turnCard(state: ConvState, row: TurnWaiting, on: Handlers, onDecidePlan: WaitingProps['onDecidePlan'], continueSteps: number | null | undefined): ReactNode {
+function turnCard(
+  state: ConvState,
+  row: TurnWaiting,
+  on: Handlers,
+  onDecidePlan: WaitingProps['onDecidePlan'],
+  continueSteps: number | null | undefined,
+): ReactNode {
   switch (row.what) {
     case 'plan':
       return <PlanCard run={row.item} onDecide={(...decision) => onDecidePlan(row.item.id, ...decision)} />
@@ -559,7 +722,11 @@ function turnCard(state: ConvState, row: TurnWaiting, on: Handlers, onDecidePlan
           onDecide={(...said) => on.onDecideMerge(row.item.id, ...said)}
           onCheck={choices => on.onCheckMerge(row.item.id, choices)}
           onCommit={(message, hooks) => on.onCommitMerge(row.item.id, message, hooks)}
-          onContinue={continueSteps != null && canContinue(state, row.item) ? { steps: continueSteps, run: () => useApp.getState().continueMerge(row.item.id) } : undefined}
+          onContinue={
+            continueSteps != null && canContinue(state, row.item)
+              ? { steps: continueSteps, run: () => useApp.getState().continueMerge(row.item.id) }
+              : undefined
+          }
         />
       )
     case 'trigger':
@@ -575,7 +742,17 @@ function turnCard(state: ConvState, row: TurnWaiting, on: Handlers, onDecidePlan
  * A message's ⋯ (slice 107): Copy, Restore to before it, Show its work on the canvas. `at` - its
  * time - tells one message's buttons from another's to a screen reader.
  */
-function MessageMenu({ at, copy, onRestore, onShow }: { at: string; copy: string; onRestore?: () => void; onShow?: () => void }) {
+function MessageMenu({
+  at,
+  copy,
+  onRestore,
+  onShow,
+}: {
+  at: string
+  copy: string
+  onRestore?: () => void
+  onShow?: () => void
+}) {
   const { open, setOpen, close, button, panel } = usePanel()
   const [copied, setCopied] = useState(false)
   if (!open && copied) setCopied(false)
@@ -598,9 +775,25 @@ function MessageMenu({ at, copy, onRestore, onShow }: { at: string; copy: string
         <DotsThree size={14} weight="bold" />
       </button>
       {open && (
-        <div ref={panel} tabIndex={-1} className="allow-list-panel msg-menu" role="menu" aria-label="Copy, restore, show its work">
+        <div
+          ref={panel}
+          tabIndex={-1}
+          className="allow-list-panel msg-menu"
+          role="menu"
+          aria-label="Copy, restore, show its work"
+        >
           {/* (It stays open to say so; no clipboard here, or the browser refused: it stays "Copy".) */}
-          <button type="button" role="menuitem" aria-live="polite" onClick={() => void navigator.clipboard?.writeText(copy).then(() => setCopied(true), () => {})}>
+          <button
+            type="button"
+            role="menuitem"
+            aria-live="polite"
+            onClick={() =>
+              void navigator.clipboard?.writeText(copy).then(
+                () => setCopied(true),
+                () => {},
+              )
+            }
+          >
             <Copy size={13} /> {copied ? 'Copied' : 'Copy'}
           </button>
           {onRestore && (
@@ -621,11 +814,17 @@ function MessageMenu({ at, copy, onRestore, onShow }: { at: string; copy: string
 
 /** The card that puts the conversation back to before a message: what it would take back first. */
 const restoreCard = (run: Run, title: string, onClose: () => void) => (
-  <UndoCard path={`/conversations/${run.conversation_id}/restore?before=${run.id}`} title={title} confirm="Restore" onClose={onClose} />
+  <UndoCard
+    path={`/conversations/${run.conversation_id}/restore?before=${run.id}`}
+    title={title}
+    confirm="Restore"
+    onClose={onClose}
+  />
 )
 
 /** What is drawn of it by a click: not a click that selected its words, nor one on a link or a button in it. */
-const picked = (event: MouseEvent) => window.getSelection()?.isCollapsed !== false && !(event.target as Element).closest('a, button')
+const picked = (event: MouseEvent) =>
+  window.getSelection()?.isCollapsed !== false && !(event.target as Element).closest('a, button')
 
 interface UserMessageProps {
   message: Message
@@ -655,7 +854,8 @@ function UserMessage({ message, run, files = [], saved = [], changed, onRemove, 
   const { removed, over, undoable } = turnOf(run, changed)
   const at = when(message.created_at)
   const menu = () =>
-    run && !removed && (
+    run &&
+    !removed && (
       <MessageMenu
         at={at}
         copy={message.content || files.map(file => file.name).join('\n')}
@@ -668,12 +868,21 @@ function UserMessage({ message, run, files = [], saved = [], changed, onRemove, 
     <div className={`msg msg-user${removed ? ' msg-removed' : ''}`}>
       <div className="msg-user-row">
         {undoable && !undoing && (
-          <button type="button" className="icon-btn msg-tool" aria-label={`Undo these changes · ${at}`} title="Undo these changes" onClick={() => setUndoing('undo')}>
+          <button
+            type="button"
+            className="icon-btn msg-tool"
+            aria-label={`Undo these changes · ${at}`}
+            title="Undo these changes"
+            onClick={() => setUndoing('undo')}
+          >
             <ArrowCounterClockwise size={13} />
           </button>
         )}
         {menu()}
-        <div className="msg-bubble" onClick={event => run && onShow && !removed && picked(event.nativeEvent) && onShow(run.id)}>
+        <div
+          className="msg-bubble"
+          onClick={event => run && onShow && !removed && picked(event.nativeEvent) && onShow(run.id)}
+        >
           {message.content && <UserText>{message.content}</UserText>}
           {/* The files sent with it (slice 85b), and its links: these are chips in the chat too. */}
           <Minis files={files} links={linksIn(message.content)} />
@@ -685,7 +894,14 @@ function UserMessage({ message, run, files = [], saved = [], changed, onRemove, 
         </div>
       ))}
       {/* (Not by `undoable`: once undone nothing it changed stands, and the card still says what was done.) */}
-      {run && undoing === 'undo' && <UndoCard path={`/runs/${run.id}/undo`} title="Undo these changes" confirm="Undo" onClose={() => setUndoing(null)} />}
+      {run && undoing === 'undo' && (
+        <UndoCard
+          path={`/runs/${run.id}/undo`}
+          title="Undo these changes"
+          confirm="Undo"
+          onClose={() => setUndoing(null)}
+        />
+      )}
       {run && undoing === 'restore' && restoreCard(run, `Restore to before your ${at} message`, () => setUndoing(null))}
       {run?.status === 'queued' && (
         <div className="msg-meta">
@@ -712,7 +928,11 @@ function TriggerMessage({ message, run, onShow }: { message: Message; run?: Run;
   return (
     <div className="msg msg-from">
       <div className="msg-user-row msg-from-row">
-        <div className="asked-by trigger-badge mono" role="note" aria-label={`Started by the trigger ${run?.trigger_name ?? ''}`.trim()}>
+        <div
+          className="asked-by trigger-badge mono"
+          role="note"
+          aria-label={`Started by the trigger ${run?.trigger_name ?? ''}`.trim()}
+        >
           <Clock size={12} />
           <span>started by the trigger {run?.trigger_name ?? ''}</span>
           <span className="tag tag-warn">nobody watching</span>
@@ -782,7 +1002,11 @@ const drawGroup = (group: Group) => (
  * The chat's groups (one per message of `ordered`, null where nothing is drawn) with each turn's after its opener as
  * `card` puts them: in one card, or as they are with what the turn did under them.
  */
-function turnsOf(ordered: Message[], card: (runId: string, inside: Group[]) => ReactNode[], groups: (Group | null)[]): ReactNode[] {
+function turnsOf(
+  ordered: Message[],
+  card: (runId: string, inside: Group[]) => ReactNode[],
+  groups: (Group | null)[],
+): ReactNode[] {
   const out: ReactNode[] = []
   let inside: Group[] = []
   // (A turn's messages are next to one another: `ordered` is sorted by turn.)
@@ -848,7 +1072,9 @@ export function MessageList({
   const teams = useApp(s => s.teams)
   const [loadCompare, decideCompare] = useMemo(() => {
     const seen = (compare: Compare) => {
-      setPicks(was => (was[compare.id] === compare.chosen_run_id ? was : { ...was, [compare.id]: compare.chosen_run_id }))
+      setPicks(was =>
+        was[compare.id] === compare.chosen_run_id ? was : { ...was, [compare.id]: compare.chosen_run_id },
+      )
       return compare
     }
     return [
@@ -865,7 +1091,8 @@ export function MessageList({
 
   const runs = new Map(state.runs.map(r => [r.id, r]))
   // K-isimler: a team's lead by its team's title, as the canvas has it (K-r152).
-  const nameOf = (agentId: string | null) => agentTitle(state.agents.find(a => a.id === agentId)?.name || 'Agent', teams)
+  const nameOf = (agentId: string | null) =>
+    agentTitle(state.agents.find(a => a.id === agentId)?.name || 'Agent', teams)
   // The chat is the conversation with the lead agent; what sub-agents say among
   // themselves is on the canvas and in Talk.
   const subAgents = new Set(state.agents.filter(a => a.depth > 0).map(a => a.id))
@@ -884,9 +1111,9 @@ export function MessageList({
   // What KOLONİ told the lead the same, several times in a row in one turn, is one line (×N): never the
   // user's or an agent's words, nor a turn's last message (what is said under it goes with it).
   const repeated = new Map(
-    foldRepeats(ordered, m => (m.role === 'memory' && lastOfRun.get(m.run_id) !== m.id ? `${m.run_id} ${m.agent_id} ${m.content}` : null)).map(
-      ([m, count]) => [m.id, count],
-    ),
+    foldRepeats(ordered, m =>
+      m.role === 'memory' && lastOfRun.get(m.run_id) !== m.id ? `${m.run_id} ${m.agent_id} ${m.content}` : null,
+    ).map(([m, count]) => [m.id, count]),
   )
 
   const dividers = topicDividers(state, ordered, runs)
@@ -894,14 +1121,18 @@ export function MessageList({
   // A comparison (slice 54): its message once, under the first side's turn, with the two side by side;
   // each side's answer is there, and what it did - with whatever waits for you - under its model's name.
   const firstSide = new Map<string, string>()
-  for (const run of state.runs) if (run.compare_id && !firstSide.has(run.compare_id)) firstSide.set(run.compare_id, run.id)
+  for (const run of state.runs)
+    if (run.compare_id && !firstSide.has(run.compare_id)) firstSide.set(run.compare_id, run.id)
   const withCalls = new Set(state.toolCalls.map(call => call.message_id))
   const sideWork = new Map<string, string>()
   for (const message of ordered) {
-    if (runs.get(message.run_id)?.compare_id && withCalls.has(message.id) && !sideWork.has(message.run_id)) sideWork.set(message.run_id, message.id)
+    if (runs.get(message.run_id)?.compare_id && withCalls.has(message.id) && !sideWork.has(message.run_id))
+      sideWork.set(message.run_id, message.id)
   }
   // Once one side is picked, what the other did is one closed row (the user's word, 25 Oct). (Both thrown away: as they were.)
-  const unused = new Set(state.runs.filter(r => r.compare_id && picks[r.compare_id] && picks[r.compare_id] !== r.id).map(r => r.id))
+  const unused = new Set(
+    state.runs.filter(r => r.compare_id && picks[r.compare_id] && picks[r.compare_id] !== r.id).map(r => r.id),
+  )
 
   /**
    * B-128: a Take in that met a clash waits on the Lead's card - under the Ready for you its turn's last Take in answered,
@@ -909,10 +1140,17 @@ export function MessageList({
    */
   const clashOf = (call: ToolCall) => {
     const tookIn = state.questions
-      .filter(q => q.run_id === call.run_id && (q.answer === 'Take in' || q.answer === 'Fix the findings') && isReadyCard(q))
+      .filter(
+        q => q.run_id === call.run_id && (q.answer === 'Take in' || q.answer === 'Fix the findings') && isReadyCard(q),
+      )
       .reduce<Question | null>((last, q) => (last && last.created_at > q.created_at ? last : q), null)
     return tookIn?.tool_call_id === call.id
-      ? state.merges.find(m => m.run_id === call.run_id && m.status === 'pending' && state.agents.some(a => a.id === m.agent_id && a.depth === 0))
+      ? state.merges.find(
+          m =>
+            m.run_id === call.run_id &&
+            m.status === 'pending' &&
+            state.agents.some(a => a.id === m.agent_id && a.depth === 0),
+        )
       : undefined
   }
 
@@ -921,8 +1159,13 @@ export function MessageList({
    * once over what was asked and answered; KOLONİ's and a Ready for you card as their cards.
    */
   const askRow = (q: Question) => {
-    if (!isLeadAsk(state, q)) return <ChatQuestion key={q.id} state={state} question={q} onAnswer={answer => onAnswer(q.id, answer)} />
-    return q.status === 'pending' ? <AskLine key={q.id} question={q} who={nameOf(q.agent_id)} /> : <AskedRow key={q.id} question={q} />
+    if (!isLeadAsk(state, q))
+      return <ChatQuestion key={q.id} state={state} question={q} onAnswer={answer => onAnswer(q.id, answer)} />
+    return q.status === 'pending' ? (
+      <AskLine key={q.id} question={q} who={nameOf(q.agent_id)} />
+    ) : (
+      <AskedRow key={q.id} question={q} />
+    )
   }
 
   /** The questions put in a call, one after another, and the Lead's card where a Take in met a clash. */
@@ -948,7 +1191,8 @@ export function MessageList({
   const roomCall = (call: ToolCall, question: ReactNode) => {
     // Its members are asked for together, under the call; once it is open, it is the room.
     // (One refused opened none: the turn's room is a later call's.)
-    const room = call.status !== 'failed' && state.rooms.find(r => r.agent_id === call.agent_id && r.run_id === call.run_id)
+    const room =
+      call.status !== 'failed' && state.rooms.find(r => r.agent_id === call.agent_id && r.run_id === call.run_id)
     return (
       <Fragment key={call.id}>
         {room ? (
@@ -975,7 +1219,9 @@ export function MessageList({
   /** A call that opened an agent: its row, what it asks, and what the agents under it wait on you for. */
   const agentCall = (call: ToolCall, child: Agent, question: ReactNode) => {
     // A team's lead KOLONİ opened for another team's request (K-takimlar-arasi): the request's card.
-    const asked = call.parent_call_id ? requestsOf(state, call.run_id).find(r => r.call.id === call.parent_call_id) : undefined
+    const asked = call.parent_call_id
+      ? requestsOf(state, call.run_id).find(r => r.call.id === call.parent_call_id)
+      : undefined
     return (
       <Fragment key={call.id}>
         {asked ? (
@@ -1044,38 +1290,52 @@ export function MessageList({
   })
 
   /** Any other call: its row, and under it what of it waits for your word. */
-  const toolCallRow = (call: ToolCall, { question, asked, pending, change }: { question: ReactNode; asked: Question | undefined; pending: boolean; change: FileChange | undefined }) => {
+  const toolCallRow = (
+    call: ToolCall,
+    {
+      question,
+      asked,
+      pending,
+      change,
+    }: { question: ReactNode; asked: Question | undefined; pending: boolean; change: FileChange | undefined },
+  ) => {
     const role = state.pendingRoles.find(r => r.tool_call_id === call.id)
     const skill = state.pendingSkills.find(r => r.tool_call_id === call.id)
     const web = state.webRequests.find(w => w.tool_call_id === call.id && w.status === 'proposed')
     const waits = pending ? 'waits for your answer' : callWaits(state, call)
     const parts = { asked, web, role, skill, waits }
     const Kind = stepIcon(call, state)
-    return { stands: standsAlone(call, change, parts), folds: !waitsOnYou(call, change, parts), node: (
-      <Fragment key={call.id}>
-        {/* (Nothing of it runs before the user's yes: it waits, it does not run.) */}
-        <ToolRow call={call} waits={waits} icon={<Kind size={13} />} />
-        {question}
-        {web && <WebApproval request={web} call={call} onDecide={decision => onDecideWeb(web.id, decision)} />}
-        {role && <RoleApproval role={role} onDecide={decision => onDecideRole(call.id, decision)} />}
-        {skill && <SkillApproval skill={skill} onDecide={(decision, scope) => onDecideRole(call.id, decision, scope)} />}
-        {asksOutside(call) && (
-          <OutsideApproval
-            call={call}
-            who={nameOf(call.agent_id)}
-            onDecide={outsideWord(onDecideRole, call.id)}
-            plain={state.conversation.project_id === null}
-          />
-        )}
-        {change && (
-          <ChangeLine
-            change={change}
-            onOpen={() => onOpenChange(change.id)}
-            onDecide={action => onDecide(change.id, action)}
-          />
-        )}
-      </Fragment>
-    ) }
+    return {
+      stands: standsAlone(call, change, parts),
+      folds: !waitsOnYou(call, change, parts),
+      node: (
+        <Fragment key={call.id}>
+          {/* (Nothing of it runs before the user's yes: it waits, it does not run.) */}
+          <ToolRow call={call} waits={waits} icon={<Kind size={13} />} />
+          {question}
+          {web && <WebApproval request={web} call={call} onDecide={decision => onDecideWeb(web.id, decision)} />}
+          {role && <RoleApproval role={role} onDecide={decision => onDecideRole(call.id, decision)} />}
+          {skill && (
+            <SkillApproval skill={skill} onDecide={(decision, scope) => onDecideRole(call.id, decision, scope)} />
+          )}
+          {asksOutside(call) && (
+            <OutsideApproval
+              call={call}
+              who={nameOf(call.agent_id)}
+              onDecide={outsideWord(onDecideRole, call.id)}
+              plain={state.conversation.project_id === null}
+            />
+          )}
+          {change && (
+            <ChangeLine
+              change={change}
+              onOpen={() => onOpenChange(change.id)}
+              onDecide={action => onDecide(change.id, action)}
+            />
+          )}
+        </Fragment>
+      ),
+    }
   }
 
   /**
@@ -1109,11 +1369,13 @@ export function MessageList({
   // A Lead's calls in a row, no words between them: one line, at its first call (K-ozet-satiri).
   const callsOf = callsByMessage(state.toolCalls)
   const views = new Map(
-    ordered.flatMap(message => callsOf.get(message.id) ?? []).map(call => {
-      const view = callView(call)
-      if (view.stands) stood.add(call.id)
-      return [call.id, view]
-    }),
+    ordered
+      .flatMap(message => callsOf.get(message.id) ?? [])
+      .map(call => {
+        const view = callView(call)
+        if (view.stands) stood.add(call.id)
+        return [call.id, view]
+      }),
   )
   const toolLines = toolRuns(ordered, callsOf, call => stood.has(call.id))
   const lineAt = new Map(toolLines.map(calls => [calls[0].id, calls]))
@@ -1137,7 +1399,8 @@ export function MessageList({
     const view = views.get(call.id)
     return inLine.has(call.id) || !view ? [] : [{ key: call.id, node: view.node, folds: view.folds, calls: [call] }]
   }
-  const rowsOf = (calls: ToolCall[]) => calls.flatMap(callPiece).map(piece => <Fragment key={piece.key}>{piece.node}</Fragment>)
+  const rowsOf = (calls: ToolCall[]) =>
+    calls.flatMap(callPiece).map(piece => <Fragment key={piece.key}>{piece.node}</Fragment>)
   // Each turn's answer: its last message of the Lead's with words. It opens with its point, and its foot copies and reads it.
   const answerOf = new Map(ordered.filter(m => m.role === 'assistant' && m.content).map(m => [m.run_id, m]))
   // (A room's agents' questions are in its window, not in the chat: the room's row says it waits for you.)
@@ -1157,7 +1420,15 @@ export function MessageList({
     // shortcut: a row opened by hand comes back closed inside the fold (its open is its own); keep it if that is missed.
     return [
       ...split.leads.map(piece => <Fragment key={`leads:${piece.key}`}>{piece.node}</Fragment>),
-      <TurnSteps key="steps" refocus={focusedRun === run.id} ended={run.status} count={split.count} took={spent} calls={split.calls} state={state}>
+      <TurnSteps
+        key="steps"
+        refocus={focusedRun === run.id}
+        ended={run.status}
+        count={split.count}
+        took={spent}
+        calls={split.calls}
+        state={state}
+      >
         {split.fold.map(drawGroup)}
       </TurnSteps>,
       ...split.kept.map(drawGroup),
@@ -1176,9 +1447,18 @@ export function MessageList({
     const answer = answerOf.get(runId)
     const summary =
       run.started_at && TERMINAL.has(run.status) && !run.compare_id ? (
-        <TurnSummary key={`did:${runId}`} state={state} run={run} onOpenChange={onOpenChange} onUsage={onUsage} prices={prices} />
+        <TurnSummary
+          key={`did:${runId}`}
+          state={state}
+          run={run}
+          onOpenChange={onOpenChange}
+          onUsage={onUsage}
+          prices={prices}
+        />
       ) : null
-    const queued = <QueuedNote key={`queued:${runId}`} state={state} asks={q => q.run_id === runId && !inRooms.has(q.agent_id)} />
+    const queued = (
+      <QueuedNote key={`queued:${runId}`} state={state} asks={q => q.run_id === runId && !inRooms.has(q.agent_id)} />
+    )
     if (inside.length === 0 || run.compare_id || !lead) return [...inside.map(drawGroup), queued, summary]
     return [
       // (It waits while the server says the turn does - for a question, a card, a role: as the canvas has it.)
@@ -1207,7 +1487,9 @@ export function MessageList({
         message={message}
         run={run}
         files={state.attachments.filter(one => one.message_id === message.id && !one.frame_of)}
-        saved={state.fileChanges.filter(change => change.run_id === message.run_id && change.attachment_id && change.status === 'applied')}
+        saved={state.fileChanges.filter(
+          change => change.run_id === message.run_id && change.attachment_id && change.status === 'applied',
+        )}
         changed={workOf(state, [message.run_id]).files > 0}
         onRemove={() => onRemoveQueued(message.run_id)}
         onShow={onShowTurn}
@@ -1234,7 +1516,12 @@ export function MessageList({
   )
 
   /** What the message says, as its kind is drawn; `folds`: a step of its turn, not a line that stays in sight. */
-  const messageBody = (message: Message, run: Run | undefined, count: number, compare: string | null): Omit<Piece, 'key'> | null => {
+  const messageBody = (
+    message: Message,
+    run: Run | undefined,
+    count: number,
+    compare: string | null,
+  ): Omit<Piece, 'key'> | null => {
     switch (message.role) {
       case 'user':
         return { folds: false, node: userBody(message, run, compare) }
@@ -1261,10 +1548,17 @@ export function MessageList({
         // Another agent wrote to the lead; the lead's answer follows as its own message.
         return {
           folds: true,
-          node: <AgentSaid message={message} from={message.from_agent_id ? nameOf(message.from_agent_id) : 'KOLONİ'} agent={state.agents.find(a => a.id === message.from_agent_id)} />,
+          node: (
+            <AgentSaid
+              message={message}
+              from={message.from_agent_id ? nameOf(message.from_agent_id) : 'KOLONİ'}
+              agent={state.agents.find(a => a.id === message.from_agent_id)}
+            />
+          ),
         }
     }
-    if (KOLONI_LINES.has(message.role)) return { folds: true, node: <KoloniLine message={message} onShowGit={onShowGit} /> }
+    if (KOLONI_LINES.has(message.role))
+      return { folds: true, node: <KoloniLine message={message} onShowGit={onShowGit} /> }
     if (!message.content || compare) return null
     return {
       folds: true,
@@ -1288,7 +1582,10 @@ export function MessageList({
         <span>{divider}</span>
       </div>
     )
-    return [...(divider ? [{ key: 'divider', folds: false, leads: true, node: line }] : []), ...(body ? [{ key: 'body', ...body }] : [])]
+    return [
+      ...(divider ? [{ key: 'divider', folds: false, leads: true, node: line }] : []),
+      ...(body ? [{ key: 'body', ...body }] : []),
+    ]
   }
 
   /** The message's calls; a comparison's side not used, every call of it at its first message in one closed row. */
@@ -1303,7 +1600,9 @@ export function MessageList({
             <CaretRight size={12} className="muted" aria-hidden />
             <span className="tool-run-what">The other side (not used)</span>
           </summary>
-          <div className="tool-run-body">{rowsOf(ordered.filter(m => m.run_id === message.run_id).flatMap(m => callsOf.get(m.id) ?? []))}</div>
+          <div className="tool-run-body">
+            {rowsOf(ordered.filter(m => m.run_id === message.run_id).flatMap(m => callsOf.get(m.id) ?? []))}
+          </div>
         </details>
       )
       return [{ key: 'unused', folds: true, node }]
@@ -1335,31 +1634,60 @@ export function MessageList({
       ),
     })
     const thinking = thinkers.length === 0 && run?.id === state.thinkingRunId && state.thinkingAgentId === null
-    return [...thinkers.map(a => line(a, 'Thinking…')), ...of(state.summarisingAgents).map(a => line(a, SUMMARISING)), ...(thinking ? [line(null, 'Thinking…')] : [])]
+    return [
+      ...thinkers.map(a => line(a, 'Thinking…')),
+      ...of(state.summarisingAgents).map(a => line(a, SUMMARISING)),
+      ...(thinking ? [line(null, 'Thinking…')] : []),
+    ]
   }
 
   /** Under the turn's last message, the cards of the turn as a whole: none of them folds. */
   const endPieces = (message: Message, run: Run | undefined): Piece[] => {
     if (lastOfRun.get(message.run_id) !== message.id) return []
-    const of = <T extends { id: string | number; run_id: string }>(list: T[], draw: (one: T) => ReactNode): [string, ReactNode][] =>
+    const of = <T extends { id: string | number; run_id: string }>(
+      list: T[],
+      draw: (one: T) => ReactNode,
+    ): [string, ReactNode][] =>
       list.filter(one => one.run_id === message.run_id).map(one => [String(one.id), draw(one)])
-    const notice = run && runNotice(run, state.agents.find(a => a.run_id === run.id && a.depth === 0), providers)
+    const notice =
+      run &&
+      runNotice(
+        run,
+        state.agents.find(a => a.run_id === run.id && a.depth === 0),
+        providers,
+      )
     const cards: [string, ReactNode][] = [
       // KOLONİ's own card of a turn that hangs off no call (its Orchestrator's model is slow to answer) - while it asks:
       // answered or closed, it says nothing more (its model spoke; a Stop has KOLONİ's line).
-      ...of(state.questions.filter(q => q.tool_call_id === null && q.status === 'pending'), q => <ChatQuestion state={state} question={q} onAnswer={answer => onAnswer(q.id, answer)} />),
+      ...of(
+        state.questions.filter(q => q.tool_call_id === null && q.status === 'pending'),
+        q => <ChatQuestion state={state} question={q} onAnswer={answer => onAnswer(q.id, answer)} />,
+      ),
       // ☾ Away: the Orchestrator's one line offering you to go away, under the turn that put it - while it stands.
-      ...of(state.away.filter(card => card.status === 'planned'), card => <AwayOffer conv={state} offer={card} />),
+      ...of(
+        state.away.filter(card => card.status === 'planned'),
+        card => <AwayOffer conv={state} offer={card} />,
+      ),
       // A trigger an agent proposed in the turn (slice 69), under it.
       ...of(state.triggerProposals, proposal => <ProposalCard proposal={proposal} />),
       // K-bilgi 6: what the turn (and turns nobody watched) found for the Project notes, under it.
       ...of(state.notesOffers, offer => <NotesCard offer={offer} />),
       // Text from outside that read like orders to one of the turn's agents (93-A4): the Lead's is not named.
-      ...of(state.warnings, w => <InjectionWarning warning={w} agent={subAgents.has(w.agent_id ?? '') ? nameOf(w.agent_id) : undefined} />),
+      ...of(state.warnings, w => (
+        <InjectionWarning warning={w} agent={subAgents.has(w.agent_id ?? '') ? nameOf(w.agent_id) : undefined} />
+      )),
     ]
     if (run?.plan_turn) {
       // (A later turn has started: as the server holds, it can only be turned down.)
-      cards.push(['plan', <PlanCard key="plan" run={run} stale={state.runs.at(-1)?.id !== run.id} onDecide={(...decision) => onDecidePlan(run.id, ...decision)} />])
+      cards.push([
+        'plan',
+        <PlanCard
+          key="plan"
+          run={run}
+          stale={state.runs.at(-1)?.id !== run.id}
+          onDecide={(...decision) => onDecidePlan(run.id, ...decision)}
+        />,
+      ])
     }
     if (run?.unattended) {
       // Under the last message of a turn nobody was watching: what it was refused for want of somebody to ask.
@@ -1382,7 +1710,15 @@ export function MessageList({
     const last = lastOfRun.get(message.run_id) === message.id
     // A step whose words are none and whose calls are all in a line above: nothing of it to show (not even the list's gap).
     if (!last && !message.content && mine.length > 0 && mine.every(call => inLine.has(call.id))) return null
-    return { message, pieces: [...bodyOf(message, run, count, compare), ...rowPieces(message, mine), ...statusPieces(message, run), ...endPieces(message, run)] }
+    return {
+      message,
+      pieces: [
+        ...bodyOf(message, run, count, compare),
+        ...rowPieces(message, mine),
+        ...statusPieces(message, run),
+        ...endPieces(message, run),
+      ],
+    }
   }
 
   if (state.messages.length === 0) {
@@ -1412,7 +1748,10 @@ export function MessageList({
           onClick={() => {
             const el = scroller.current
             if (!el) return
-            el.scrollTo?.({ top: el.scrollHeight, behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+            el.scrollTo?.({
+              top: el.scrollHeight,
+              behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+            })
             pinned.current = true
             setAway(false)
           }}

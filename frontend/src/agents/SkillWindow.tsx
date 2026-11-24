@@ -13,11 +13,18 @@ export const ENOUGH_JOBS = 5
  * has on - one switched off on the Tools page is not had - and an MCP server it is not given, or one switched off
  * (`serversOff`, as skills_mixin `_skill_split` has it).
  */
-export function lacking(skill: Skill, role: Pick<Role, 'tools' | 'mcp'>, off: string[], serversOff: string[] = []): string[] {
+export function lacking(
+  skill: Skill,
+  role: Pick<Role, 'tools' | 'mcp'>,
+  off: string[],
+  serversOff: string[] = [],
+): string[] {
   const has = (tool: string) => role.tools.includes(tool) && !off.includes(tool)
   return [
     ...skill.needs.groups.filter(group => !skill.needs.tools[group]?.some(has)),
-    ...skill.needs.mcp.filter(server => !role.mcp.includes(server) || serversOff.includes(server)).map(server => `MCP server ${server}`),
+    ...skill.needs.mcp
+      .filter(server => !role.mcp.includes(server) || serversOff.includes(server))
+      .map(server => `MCP server ${server}`),
   ]
 }
 
@@ -27,7 +34,12 @@ export function lacking(skill: Skill, role: Pick<Role, 'tools' | 'mcp'>, off: st
  * shortcut: a model that makes no tool calls is said on the spawn card only (the role's model is known when its agent
  * starts); say it here too if a role is seen with such a model of its own.
  */
-export function cannotRun(skill: Skill, role: Pick<Role, 'tools' | 'mcp'>, off: string[], serversOff: string[] = []): string | null {
+export function cannotRun(
+  skill: Skill,
+  role: Pick<Role, 'tools' | 'mcp'>,
+  off: string[],
+  serversOff: string[] = [],
+): string | null {
   if (!skill.enabled) return 'off on the Tools page'
   const missing = lacking(skill, role, off, serversOff)
   return missing.length > 0 ? `no ${missing.join(', no ')}` : null
@@ -41,10 +53,21 @@ const whereOf = (row: SkillRecordRow) =>
   `${row.provider_name ?? 'a provider not on record'} · ${row.model_id ? modelName(row.model_id) : 'a model not on record'} · ${row.role_name}`
 /** A row's number in words, by what the bars show. */
 const saidOf = (row: SkillRecordRow, measure: Measure) =>
-  measure === 'Taken in' ? `${row.taken_in}/${row.agents}` : measure === 'Cost' ? money(row.cost) : row.steps === null ? '–' : `${Math.round(row.steps)} steps`
+  measure === 'Taken in'
+    ? `${row.taken_in}/${row.agents}`
+    : measure === 'Cost'
+      ? money(row.cost)
+      : row.steps === null
+        ? '–'
+        : `${Math.round(row.steps)} steps`
 /** How its agents were given the skill: read by them, whole in their brief - or given and never read. */
 const givenSaid = (row: SkillRecordRow) =>
-  [row.used && `read in ${row.used} of ${row.agents}`, row.in_brief && `given in full in its brief in ${row.in_brief} of ${row.agents}`].filter(Boolean).join(' · ') || 'given, not read'
+  [
+    row.used && `read in ${row.used} of ${row.agents}`,
+    row.in_brief && `given in full in its brief in ${row.in_brief} of ${row.agents}`,
+  ]
+    .filter(Boolean)
+    .join(' · ') || 'given, not read'
 
 /** How the models did with a skill, a bar a row - jobs taken in, middle cost or steps - from five jobs on; data, no judgment. */
 export function SkillBars({ rows }: { rows: SkillRecordRow[] }) {
@@ -56,7 +79,13 @@ export function SkillBars({ rows }: { rows: SkillRecordRow[] }) {
     <div className="skill-bars">
       <div className="skill-measures" role="group" aria-label="What the bars show">
         {MEASURES.map(one => (
-          <button key={one} type="button" className="btn btn-small" aria-pressed={measure === one} onClick={() => setMeasure(one)}>
+          <button
+            key={one}
+            type="button"
+            className="btn btn-small"
+            aria-pressed={measure === one}
+            onClick={() => setMeasure(one)}
+          >
             {one}
           </button>
         ))}
@@ -71,14 +100,18 @@ export function SkillBars({ rows }: { rows: SkillRecordRow[] }) {
           <div key={where} className={`skill-bar${row.used || row.in_brief ? '' : ' skill-bar-given'}`}>
             <span className="mono">{where}</span>
             {enough && value !== null ? (
-              <meter className="budget-meter" aria-label={`${where}: ${measure.toLowerCase()}`} min={0} max={(measure === 'Taken in' ? row.agents : most) || 1} value={value} />
+              <meter
+                className="budget-meter"
+                aria-label={`${where}: ${measure.toLowerCase()}`}
+                min={0}
+                max={(measure === 'Taken in' ? row.agents : most) || 1}
+                value={value}
+              />
             ) : (
               <span />
             )}
             <span className="mono">{enough ? said : '< 5 jobs'}</span>
-            <span className="muted">
-              {givenSaid(row)}
-            </span>
+            <span className="muted">{givenSaid(row)}</span>
           </div>
         )
       })}
@@ -140,7 +173,11 @@ export function SkillWindow({ skill, roles, off, serversOff, onRecord, onPatchRo
                 </span>
               ))}
               {skill.needs.unknown.map(one => (
-                <span key={one} className="chip mono" title="Not one of KOLONİ’s tools: it keeps the skill from no role">
+                <span
+                  key={one}
+                  className="chip mono"
+                  title="Not one of KOLONİ’s tools: it keeps the skill from no role"
+                >
                   {one} (unknown)
                 </span>
               ))}
@@ -153,44 +190,61 @@ export function SkillWindow({ skill, roles, off, serversOff, onRecord, onPatchRo
           {roles
             .filter(role => !(role.builtin && role.name === 'Observer'))
             .map(role => {
-            // As the role's tile had it (K-skill-uyum): one it cannot run there is not given, and says why.
-            const not = cannotRun(skill, role, off, serversOff)
-            const has = role.skills.includes(skill.name)
-            const missing = lacking(skill, role, off, serversOff)
-            return (
-              <span key={role.id} className="skill-role">
-                <label className="choice">
-                  <input
-                    type="checkbox"
-                    checked={has}
-                    disabled={!onPatchRole || (!!not && !has)}
-                    onChange={() => patch(role, { skills: has ? role.skills.filter(name => name !== skill.name) : [...role.skills, skill.name] })}
-                  />
-                  <span>
-                    {not ? <span className="no">✗</span> : has && <span className="ok">✓</span>} {role.name}
-                    {not && <span className="muted"> ({not})</span>}
-                  </span>
-                </label>
-                {onPatchRole &&
-                  skill.enabled &&
-                  skill.needs.groups
-                    .filter(group => missing.includes(group))
-                    .map(group => (
-                      <button
-                        key={group}
-                        type="button"
-                        className="btn btn-small"
-                        onClick={() => patch(role, { tools: [...role.tools, ...skill.needs.tools[group].filter(tool => !role.tools.includes(tool))] })}
-                      >
-                        Give {role.name} {group}
-                      </button>
-                    ))}
-              </span>
-            )
-          })}
+              // As the role's tile had it (K-skill-uyum): one it cannot run there is not given, and says why.
+              const not = cannotRun(skill, role, off, serversOff)
+              const has = role.skills.includes(skill.name)
+              const missing = lacking(skill, role, off, serversOff)
+              return (
+                <span key={role.id} className="skill-role">
+                  <label className="choice">
+                    <input
+                      type="checkbox"
+                      checked={has}
+                      disabled={!onPatchRole || (!!not && !has)}
+                      onChange={() =>
+                        patch(role, {
+                          skills: has ? role.skills.filter(name => name !== skill.name) : [...role.skills, skill.name],
+                        })
+                      }
+                    />
+                    <span>
+                      {not ? <span className="no">✗</span> : has && <span className="ok">✓</span>} {role.name}
+                      {not && <span className="muted"> ({not})</span>}
+                    </span>
+                  </label>
+                  {onPatchRole &&
+                    skill.enabled &&
+                    skill.needs.groups
+                      .filter(group => missing.includes(group))
+                      .map(group => (
+                        <button
+                          key={group}
+                          type="button"
+                          className="btn btn-small"
+                          onClick={() =>
+                            patch(role, {
+                              tools: [
+                                ...role.tools,
+                                ...skill.needs.tools[group].filter(tool => !role.tools.includes(tool)),
+                              ],
+                            })
+                          }
+                        >
+                          Give {role.name} {group}
+                        </button>
+                      ))}
+                </span>
+              )
+            })}
         </dd>
         <dt>Did lately</dt>
-        <dd>{typeof rows === 'string' ? <span className="muted">The record could not be read: {rows}</span> : rows && <SkillBars rows={rows} />}</dd>
+        <dd>
+          {typeof rows === 'string' ? (
+            <span className="muted">The record could not be read: {rows}</span>
+          ) : (
+            rows && <SkillBars rows={rows} />
+          )}
+        </dd>
       </dl>
     </div>
   )

@@ -31,10 +31,17 @@ export function inputsLine(inputs: Said[] | null | undefined): string | null {
 }
 
 /** The facts with the user's marks as the row has them now - saved or not yet read back; what was tried still wins. */
-export function withMarks(facts: ModelFacts | null | undefined, marked: ModelInput[] | null | undefined): ModelFacts | null | undefined {
+export function withMarks(
+  facts: ModelFacts | null | undefined,
+  marked: ModelInput[] | null | undefined,
+): ModelFacts | null | undefined {
   if (!facts || marked == null) return facts
   const tried = (facts.inputs ?? []).filter(said => said.source === 'tried')
-  const mine = INPUTS.filter(kind => !tried.some(said => said.kind === kind)).map(kind => ({ kind, takes: marked.includes(kind), source: 'you' as const }))
+  const mine = INPUTS.filter(kind => !tried.some(said => said.kind === kind)).map(kind => ({
+    kind,
+    takes: marked.includes(kind),
+    source: 'you' as const,
+  }))
   return { ...facts, inputs: [...mine, ...tried] }
 }
 
@@ -59,16 +66,23 @@ export function InputIcons({ facts }: { facts: ModelFacts | null | undefined }) 
 
 /** The kinds the user marks a model to take by hand (null: not marked). Unmarked, the boxes show what is known
  * (what was tried, else the catalogue); a click starts the user's own marks from there. */
-export function MarkInputs({ name, marked, known, onChange }: {
+export function MarkInputs({
+  name,
+  marked,
+  known,
+  onChange,
+}: {
   name: string
   marked: ModelInput[] | null | undefined
   known?: Said[] | null
   onChange: (inputs: ModelInput[]) => void
 }) {
-  const now = marked ?? INPUTS.filter(kind => {
-    const said = known?.filter(one => one.kind === kind) ?? []
-    return (said.find(one => one.source === 'tried') ?? said[0])?.takes ?? false
-  })
+  const now =
+    marked ??
+    INPUTS.filter(kind => {
+      const said = known?.filter(one => one.kind === kind) ?? []
+      return (said.find(one => one.source === 'tried') ?? said[0])?.takes ?? false
+    })
   return (
     <span className="model-mark-inputs">
       {INPUTS.map(kind => (

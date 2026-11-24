@@ -69,9 +69,7 @@ export function DiscussionWindow({ state, discussionId, onClose, onSay, onEnd }:
       <div className="agent-feed" ref={feed}>
         <div className="agent-feed-task">{discussion.topic}</div>
         <div className="mono muted discussion-members">
-          {discussion.members
-            .map(m => nameIn(state, m.agent_id) + (m.status === 'left' ? ' (left)' : ''))
-            .join(' · ')}
+          {discussion.members.map(m => nameIn(state, m.agent_id) + (m.status === 'left' ? ' (left)' : '')).join(' · ')}
         </div>
         {posts.length === 0 && !speaker && <p className="muted">Nothing said yet.</p>}
         {posts.map((post, index) => {

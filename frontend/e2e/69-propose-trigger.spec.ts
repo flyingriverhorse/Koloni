@@ -81,14 +81,19 @@ test('Edit opens the form filled in; with no end it warns and says the cost', as
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   await say(page, 'Check the dependencies on Fridays, 69', 'The trigger is on a card: approve it if you want it.')
-  await chat.getByRole('region', { name: 'Proposed trigger: Dependencies, 69' }).getByRole('button', { name: 'Edit' }).click()
+  await chat
+    .getByRole('region', { name: 'Proposed trigger: Dependencies, 69' })
+    .getByRole('button', { name: 'Edit' })
+    .click()
   const form = page.getByRole('form', { name: 'New trigger' })
   await expect(form.getByLabel('Name', { exact: true })).toHaveValue('Dependencies, 69')
   await expect(form.getByRole('radio', { name: 'After so many runs' })).toBeChecked()
   await expect(form.getByLabel('May change files', { exact: true })).not.toBeChecked()
   await form.getByRole('radio', { name: 'No end' }).click()
   const warning = form.getByRole('note', { name: 'No end' })
-  await expect(warning).toContainText('No end: it runs until you switch it off. Up to 24 runs a day, each up to 15 model steps and 10 minutes')
+  await expect(warning).toContainText(
+    'No end: it runs until you switch it off. Up to 24 runs a day, each up to 15 model steps and 10 minutes',
+  )
   await warning.scrollIntoViewIfNeeded()
   await shot(page, '69-form-no-end-light')
   await dark(page, true)
@@ -105,15 +110,28 @@ test('Edit opens the form filled in; with no end it warns and says the cost', as
   await expect(chat.getByText('The trigger “Dependencies, 69” was made: it is on the Triggers page.')).toBeVisible()
 })
 
-test('a clock trigger that finds nothing changed in its git project is skipped, and says so', async ({ page, request }) => {
+test('a clock trigger that finds nothing changed in its git project is skipped, and says so', async ({
+  page,
+  request,
+}) => {
   const cid = await openFreshConversation(page)
-  for (const argv of [['init', '-q'], ['add', '-A'], ['-c', 'user.name=e2e', '-c', 'user.email=e2e@e2e', 'commit', '-q', '-m', 'e2e']]) {
+  for (const argv of [
+    ['init', '-q'],
+    ['add', '-A'],
+    ['-c', 'user.name=e2e', '-c', 'user.email=e2e@e2e', 'commit', '-q', '-m', 'e2e'],
+  ]) {
     execFileSync('git', argv, { cwd: PROJECT_DIR, timeout: 30_000, stdio: 'pipe' })
   }
   const pid = await e2eProject(page)
   const made = await request.post(`/api/projects/${pid}/triggers`, {
     headers: OWN,
-    data: { name: 'Quiet look, 69', kind: 'schedule', conversation_id: cid, message: 'A quiet look, 69: say what you see.', config: { every_minutes: 60 } },
+    data: {
+      name: 'Quiet look, 69',
+      kind: 'schedule',
+      conversation_id: cid,
+      message: 'A quiet look, 69: say what you see.',
+      config: { every_minutes: 60 },
+    },
   })
   expect(made.ok()).toBe(true)
   const id: string = (await made.json()).id
@@ -122,14 +140,17 @@ test('a clock trigger that finds nothing changed in its git project is skipped, 
   // Its first look is at once: a run, which ends.
   await expect.poll(async () => (await runs())[0]?.outcome, { timeout: 30_000 }).toBe('completed')
   // Switched off and on again, it is due at once - and nothing changed since that run.
-  for (const enabled of [false, true]) expect((await request.patch(`/api/triggers/${id}`, { headers: OWN, data: { enabled } })).ok()).toBe(true)
+  for (const enabled of [false, true])
+    expect((await request.patch(`/api/triggers/${id}`, { headers: OWN, data: { enabled } })).ok()).toBe(true)
   await expect.poll(async () => (await runs())[0]?.outcome, { timeout: 30_000 }).toBe('skipped_same')
   expect((await runs())[0].note).toBe('nothing changed since the last run')
 
   await rail(page, 'Triggers').click()
   const card = page.getByRole('article', { name: 'Quiet look, 69' })
   await card.getByRole('button', { name: /^Recent runs/ }).click()
-  await expect(card.getByRole('list', { name: 'Recent runs of Quiet look, 69' })).toContainText('skipped: nothing changed since the last run')
+  await expect(card.getByRole('list', { name: 'Recent runs of Quiet look, 69' })).toContainText(
+    'skipped: nothing changed since the last run',
+  )
   await shot(card, '69-skipped-light')
   await dark(page, true)
   await reads(page, '.trigger-card')

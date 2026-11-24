@@ -10,7 +10,9 @@ import { MODEL_URL } from './paths.mjs'
 const SHOTS = path.join(os.tmpdir(), 'koloni-docs', 'par-shots')
 
 async function fakeModel(request: APIRequestContext) {
-  const listed: { id: string; name: string; base_url: string | null }[] = await (await request.get('/api/providers')).json()
+  const listed: { id: string; name: string; base_url: string | null }[] = await (
+    await request.get('/api/providers')
+  ).json()
   const local = listed.find(p => p.base_url?.startsWith(MODEL_URL))
   expect(local).toBeTruthy()
   return local!
@@ -23,7 +25,10 @@ const limit = async (request: APIRequestContext, id: string, most: number | null
 test.afterEach(async ({ request }) => limit(request, (await fakeModel(request)).id, null))
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`a provider full at one agent keeps the next in line, and its node says so (${theme})`, async ({ page, request }) => {
+  test(`a provider full at one agent keeps the next in line, and its node says so (${theme})`, async ({
+    page,
+    request,
+  }) => {
     test.setTimeout(60_000)
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await page.setViewportSize({ width: 1440, height: 900 })

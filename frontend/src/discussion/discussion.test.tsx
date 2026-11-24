@@ -31,7 +31,13 @@ const talk = (over: Partial<Discussion> = {}): Discussion => ({
   ...over,
 })
 
-const post = (id: string, agentId: string | null, round: number, content: string, over: Partial<DiscussionPost> = {}): DiscussionPost => ({
+const post = (
+  id: string,
+  agentId: string | null,
+  round: number,
+  content: string,
+  over: Partial<DiscussionPost> = {},
+): DiscussionPost => ({
   id,
   discussion_id: 'd',
   agent_id: agentId,
@@ -44,11 +50,23 @@ const post = (id: string, agentId: string | null, round: number, content: string
 })
 
 const sub = (id: string, name: string, status: 'running' | 'completed' | 'waiting') =>
-  agent('r', status, { id, parent_agent_id: 'lead', tool_call_id: id === 'coder' ? '1' : null, role_name: name, name, task: 'x', depth: 1 })
+  agent('r', status, {
+    id,
+    parent_agent_id: 'lead',
+    tool_call_id: id === 'coder' ? '1' : null,
+    role_name: name,
+    name,
+    task: 'x',
+    depth: 1,
+  })
 
 const state = convState({
   runs: [run('r', 'running')],
-  agents: [agent('r', 'waiting', { id: 'lead' }), sub('coder', 'Coder', 'completed'), sub('rev', 'Reviewer', 'running')],
+  agents: [
+    agent('r', 'waiting', { id: 'lead' }),
+    sub('coder', 'Coder', 'completed'),
+    sub('rev', 'Reviewer', 'running'),
+  ],
   messages: [
     userMessage('r', 'decide'),
     { ...assistantMessage('m1', 'r', ''), agent_id: 'lead' },
@@ -57,7 +75,10 @@ const state = convState({
   ],
   toolCalls: [
     toolCall('1', 'r', 'spawn_agent', 'succeeded', '{"role":"Coder"}', { agent_id: 'lead', message_id: 'm1' }),
-    toolCall('9', 'r', 'discuss', 'running', '{"topic":"Ship it?","with":["Coder","Reviewer"]}', { agent_id: 'lead', message_id: 'm1' }),
+    toolCall('9', 'r', 'discuss', 'running', '{"topic":"Ship it?","with":["Coder","Reviewer"]}', {
+      agent_id: 'lead',
+      message_id: 'm1',
+    }),
   ],
   discussions: [talk()],
   discussionPosts: [
@@ -101,7 +122,7 @@ test('the canvas has the shared place as a node, joined to everyone in it', () =
   ])
   const joined = edges.filter(e => e.target === 'discussion:d')
   expect(joined.map(e => e.source).sort()).toEqual(['agent:coder', 'agent:lead', 'agent:rev'])
-  expect(joined.find(e => e.source === 'agent:rev')?.active).toBe(true)  // the one speaking
+  expect(joined.find(e => e.source === 'agent:rev')?.active).toBe(true) // the one speaking
   expect(joined.find(e => e.source === 'agent:coder')?.active).toBe(false)
   // the call that opened it is drawn as the discussion, not counted as a tool
   expect(nodes.flatMap(n => (n.data as { summary?: string }).summary || [])).toEqual([])
@@ -110,18 +131,35 @@ test('the canvas has the shared place as a node, joined to everyone in it', () =
 test('while it runs, its opener and the members opened for it say what they wait for; an invited agent keeps its own wait', () => {
   const talking = {
     ...state,
-    agents: [agent('r', 'waiting', { id: 'lead' }), sub('coder', 'Coder', 'waiting'), sub('rev', 'Reviewer', 'waiting'), sub('doc', 'Docs', 'waiting')],
-    discussions: [talk({ members: [
-      { agent_id: 'coder', status: 'in', opened_here: false },
-      { agent_id: 'rev', status: 'in', opened_here: true },
-      { agent_id: 'doc', status: 'left', opened_here: true },
-      { agent_id: 'lead', status: 'in', opened_here: false },
-    ] })],
+    agents: [
+      agent('r', 'waiting', { id: 'lead' }),
+      sub('coder', 'Coder', 'waiting'),
+      sub('rev', 'Reviewer', 'waiting'),
+      sub('doc', 'Docs', 'waiting'),
+    ],
+    discussions: [
+      talk({
+        members: [
+          { agent_id: 'coder', status: 'in', opened_here: false },
+          { agent_id: 'rev', status: 'in', opened_here: true },
+          { agent_id: 'doc', status: 'left', opened_here: true },
+          { agent_id: 'lead', status: 'in', opened_here: false },
+        ],
+      }),
+    ],
   }
-  const doing = (state: typeof talking, id: string) => (deriveGraph(state).nodes.find(n => n.id === `agent:${id}`)!.data as { activity: string }).activity
-  expect(['lead', 'rev', 'doc', 'coder'].map(id => doing(talking, id))).toEqual(['Waiting for the discussion', 'Waiting for its turn to speak', 'Left the discussion', 'Waiting for a sub-agent'])
+  const doing = (state: typeof talking, id: string) =>
+    (deriveGraph(state).nodes.find(n => n.id === `agent:${id}`)!.data as { activity: string }).activity
+  expect(['lead', 'rev', 'doc', 'coder'].map(id => doing(talking, id))).toEqual([
+    'Waiting for the discussion',
+    'Waiting for its turn to speak',
+    'Left the discussion',
+    'Waiting for a sub-agent',
+  ])
   // (Over, it is no longer what they wait for.)
-  expect(doing({ ...talking, discussions: [talk({ status: 'ended', outcome: 'agreed' })] }, 'rev')).toBe('Waiting for a sub-agent')
+  expect(doing({ ...talking, discussions: [talk({ status: 'ended', outcome: 'agreed' })] }, 'rev')).toBe(
+    'Waiting for a sub-agent',
+  )
 })
 
 test('an ended discussion says how it ended', () => {
@@ -132,18 +170,33 @@ test('an ended discussion says how it ended', () => {
 
 test('a discussion an error broke says it failed, not that it was stopped', () => {
   const broke = { ...state, discussions: [talk({ status: 'failed', ended_at: '2026-10-05T10:01:00Z' })] }
-  expect(deriveGraph(broke).nodes.find(n => n.kind === 'discussion')?.data).toMatchObject({ line: 'Failed', running: false })
+  expect(deriveGraph(broke).nodes.find(n => n.kind === 'discussion')?.data).toMatchObject({
+    line: 'Failed',
+    running: false,
+  })
   render(<MessageList {...handlers} state={broke} onOpenDiscussion={() => {}} />)
   expect(screen.getByRole('button', { name: /Discussion.*Ship it\?/ })).toHaveTextContent('3 agents · failed')
 })
 
 test('a discussion that ended at its budget says so on its node, in its window and in the chat', () => {
   const spent = { ...state, discussions: [talk({ status: 'ended', outcome: 'budget' })] }
-  expect(deriveGraph(spent).nodes.find(n => n.kind === 'discussion')?.data).toMatchObject({ line: 'Ended: at its budget' })
-  render(<DiscussionWindow state={spent} discussionId="d" onClose={() => {}} onSay={async () => {}} onEnd={async () => {}} />)
+  expect(deriveGraph(spent).nodes.find(n => n.kind === 'discussion')?.data).toMatchObject({
+    line: 'Ended: at its budget',
+  })
+  render(
+    <DiscussionWindow
+      state={spent}
+      discussionId="d"
+      onClose={() => {}}
+      onSay={async () => {}}
+      onEnd={async () => {}}
+    />,
+  )
   expect(screen.getByText('Ended: at its budget')).toBeInTheDocument()
   render(<MessageList {...handlers} state={spent} onOpenDiscussion={() => {}} />)
-  expect(screen.getByRole('button', { name: /Discussion.*Ship it\?/ })).toHaveTextContent('3 agents · ended: at its budget')
+  expect(screen.getByRole('button', { name: /Discussion.*Ship it\?/ })).toHaveTextContent(
+    '3 agents · ended: at its budget',
+  )
 })
 
 test('the chat shows the discussion as one row and not what the lead said in it', async () => {
@@ -158,14 +211,35 @@ test('the chat shows the discussion as one row and not what the lead said in it'
 })
 
 test('an agent’s own window leaves out what it said in the shared place', () => {
-  render(<AgentWindow state={state} agentId="coder" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />)
+  render(
+    <AgentWindow state={state} agentId="coder" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />,
+  )
   expect(screen.queryByText('Tests first.')).not.toBeInTheDocument()
 })
 
 test('the Lead speaking in its discussion is called the Orchestrator, on its card and in its window', () => {
-  const speaking = { ...state, agents: state.agents.map(a => (a.id === 'lead' ? { ...a, status: 'running' as const } : a.id === 'rev' ? { ...a, status: 'waiting' as const } : a)) }
-  expect(deriveGraph(speaking).nodes.find(n => n.kind === 'discussion')?.data).toMatchObject({ speaking: 'Orchestrator' })
-  render(<DiscussionWindow state={speaking} discussionId="d" onClose={() => {}} onSay={async () => {}} onEnd={async () => {}} />)
+  const speaking = {
+    ...state,
+    agents: state.agents.map(a =>
+      a.id === 'lead'
+        ? { ...a, status: 'running' as const }
+        : a.id === 'rev'
+          ? { ...a, status: 'waiting' as const }
+          : a,
+    ),
+  }
+  expect(deriveGraph(speaking).nodes.find(n => n.kind === 'discussion')?.data).toMatchObject({
+    speaking: 'Orchestrator',
+  })
+  render(
+    <DiscussionWindow
+      state={speaking}
+      discussionId="d"
+      onClose={() => {}}
+      onSay={async () => {}}
+      onEnd={async () => {}}
+    />,
+  )
   expect(screen.getByText('Orchestrator is speaking…')).toBeInTheDocument()
 })
 
@@ -175,9 +249,20 @@ test('the discussion window shows everything said, and the user can speak and en
   render(<DiscussionWindow state={state} discussionId="d" onClose={() => {}} onSay={onSay} onEnd={onEnd} />)
   const region = screen.getByRole('region', { name: 'Discussion' })
   const text = region.textContent ?? ''
-  const order = ['Ship it?', 'Coder · Reviewer · Orchestrator', 'Round 1', 'Tests first.', 'Reviewer has nothing to add', 'Yes, ship it.', 'You', 'Add a changelog.']
-  expect(screen.getByText('Round 2')).toBeInTheDocument()  // the divider; the header says "Round 2 of 3"
-  expect(order.map(piece => text.indexOf(piece)).every((at, i, all) => at >= 0 && (i === 0 || at >= all[i - 1]))).toBe(true)
+  const order = [
+    'Ship it?',
+    'Coder · Reviewer · Orchestrator',
+    'Round 1',
+    'Tests first.',
+    'Reviewer has nothing to add',
+    'Yes, ship it.',
+    'You',
+    'Add a changelog.',
+  ]
+  expect(screen.getByText('Round 2')).toBeInTheDocument() // the divider; the header says "Round 2 of 3"
+  expect(order.map(piece => text.indexOf(piece)).every((at, i, all) => at >= 0 && (i === 0 || at >= all[i - 1]))).toBe(
+    true,
+  )
   expect(screen.getByText('Reviewer is speaking…')).toBeInTheDocument()
 
   await userEvent.type(screen.getByLabelText('Say something to everyone'), 'What about docs?')
@@ -191,13 +276,21 @@ test('the discussion window shows everything said, and the user can speak and en
 test('a discussion that is over can only be read', () => {
   const over = {
     ...state,
-    discussions: [talk({ status: 'ended', outcome: 'round_limit', members: [
-      { agent_id: 'coder', status: 'left', opened_here: false },
-      { agent_id: 'lead', status: 'in', opened_here: false },
-    ] })],
+    discussions: [
+      talk({
+        status: 'ended',
+        outcome: 'round_limit',
+        members: [
+          { agent_id: 'coder', status: 'left', opened_here: false },
+          { agent_id: 'lead', status: 'in', opened_here: false },
+        ],
+      }),
+    ],
     discussionPosts: [post('p1', 'coder', 1, 'model server unreachable', { kind: 'left' })],
   }
-  render(<DiscussionWindow state={over} discussionId="d" onClose={() => {}} onSay={async () => {}} onEnd={async () => {}} />)
+  render(
+    <DiscussionWindow state={over} discussionId="d" onClose={() => {}} onSay={async () => {}} onEnd={async () => {}} />,
+  )
   expect(screen.getByText('Ended: the round limit was reached')).toBeInTheDocument()
   expect(screen.getByText(/Coder left the discussion: model server unreachable/)).toBeInTheDocument()
   expect(screen.queryByLabelText('Say something to everyone')).not.toBeInTheDocument()
@@ -205,8 +298,13 @@ test('a discussion that is over can only be read', () => {
 })
 
 test('the raw steps of an agent leave out what it said in a discussion', async () => {
-  const own = { ...state, messages: [...state.messages, { ...assistantMessage('o1', 'r', 'My own report.'), agent_id: 'coder' }] }
-  render(<AgentWindow state={own} agentId="coder" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />)
+  const own = {
+    ...state,
+    messages: [...state.messages, { ...assistantMessage('o1', 'r', 'My own report.'), agent_id: 'coder' }],
+  }
+  render(
+    <AgentWindow state={own} agentId="coder" onClose={() => {}} onOpenChange={() => {}} onSelectAgent={() => {}} />,
+  )
   const steps = await openAgentFold('Every step as recorded')
   expect(within(steps).getByText('My own report.')).toBeInTheDocument()
   expect(screen.queryByText('Tests first.')).not.toBeInTheDocument()

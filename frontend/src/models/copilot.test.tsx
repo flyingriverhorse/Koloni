@@ -20,7 +20,11 @@ const provider = (over: Partial<Provider>): Provider => ({
   note: null,
   models: [],
   only_listed: false,
-  max_running: null, plan: false, step_down_at: null, day_limit: null, month_limit: null,
+  max_running: null,
+  plan: false,
+  step_down_at: null,
+  day_limit: null,
+  month_limit: null,
   has_key: false,
   position: 0,
   created_at: '2026-10-06T10:00:00Z',
@@ -125,7 +129,9 @@ test('Claude Code and Codex take a model server of your own, and send it only wh
   expect(screen.getByText(/Runs the codex command on this machine, on your model server/)).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: 'Add provider' }))
   // A step there: its session on a model server of the user's is not measured (without one it is a session).
-  expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ kind: 'codex_cli', base_url: 'http://127.0.0.1:8080/v1', mode: 'step' }))
+  expect(onCreate).toHaveBeenCalledWith(
+    expect.objectContaining({ kind: 'codex_cli', base_url: 'http://127.0.0.1:8080/v1', mode: 'step' }),
+  )
   expect(onCreate.mock.calls[0]).not.toHaveProperty('0.api_key')
   unmount()
 
@@ -147,19 +153,36 @@ test('model names the provider can list are offered, and a provider that lists n
       ? { models: ['qwen-a', 'qwen-b'], note: null }
       : { models: [], note: 'Codex does not list its models: type the name you would give its --model option.' },
   )
-  const { unmount } = render(<ModelsPage providers={[copilot, provider({})]} picked="cp" {...handlers} onModels={onModels} />)
+  const { unmount } = render(
+    <ModelsPage providers={[copilot, provider({})]} picked="cp" {...handlers} onModels={onModels} />,
+  )
   await waitFor(() => expect(document.querySelectorAll('datalist option')).toHaveLength(2))
-  expect(Array.from(document.querySelectorAll('datalist option')).map(o => o.getAttribute('value'))).toEqual(['qwen-a', 'qwen-b'])
+  expect(Array.from(document.querySelectorAll('datalist option')).map(o => o.getAttribute('value'))).toEqual([
+    'qwen-a',
+    'qwen-b',
+  ])
   unmount()
 
-  render(<ModelPicker providers={[claude, copilot]} providerId="cc" modelId={null} onSave={async () => {}} onModels={onModels} />)
+  render(
+    <ModelPicker
+      providers={[claude, copilot]}
+      providerId="cc"
+      modelId={null}
+      onSave={async () => {}}
+      onModels={onModels}
+    />,
+  )
   await userEvent.click(screen.getByRole('button', { name: /^Model:/ }))
   expect(await screen.findByText(/does not list its models/)).toBeInTheDocument()
 })
 
 test('a CLI provider can be tried with a real run, and the page says what that costs', async () => {
   const onTest = vi.fn(async (_id: string, run?: boolean) => ({
-    ok: true, model_id: 'claude-sonnet-5-5', tools_supported: true, error: null, reply: run ? 'ok' : null,
+    ok: true,
+    model_id: 'claude-sonnet-5-5',
+    tools_supported: true,
+    error: null,
+    reply: run ? 'ok' : null,
   }))
   render(<ModelsPage providers={[claude, provider({})]} picked="cc" {...handlers} onTest={onTest} />)
   await userEvent.click(screen.getByRole('tab', { name: 'Connection' }))
@@ -177,7 +200,9 @@ const role = (over: Partial<Role>): Role => ({
   instructions: '',
   tools: ['read_file'],
   builtin: true,
-  created_by_agent: false, locked_tools: [], models: null,
+  created_by_agent: false,
+  locked_tools: [],
+  models: null,
   provider_id: null,
   model_id: null,
   tier: null,
@@ -205,7 +230,11 @@ const role = (over: Partial<Role>): Role => ({
 test('a role with a model of its own says so on its panel; for the rest the Lead picks a tier', async () => {
   render(
     <AgentsPage
-      roles={[role({}), role({ id: 'r2', name: 'Reviewer', provider_id: 'cp', model_id: null }), role({ id: 'r3', name: 'Planner', provider_id: 'cc', model_id: 'opus' })]}
+      roles={[
+        role({}),
+        role({ id: 'r2', name: 'Reviewer', provider_id: 'cp', model_id: null }),
+        role({ id: 'r3', name: 'Planner', provider_id: 'cc', model_id: 'opus' }),
+      ]}
       providers={[claude, copilot]}
       onSave={async () => {}}
       onCreate={async () => {}}
@@ -231,7 +260,13 @@ test('a CLI that did not say which model it used is shown as just that', () => {
 
 test('a real run of a CLI that did not name its model says so instead of a made-up name', async () => {
   const codex = provider({ id: 'cx', name: 'Codex', kind: 'codex_cli', base_url: null, mode: 'step' })
-  const onTest = vi.fn(async () => ({ ok: true, model_id: 'codex default', tools_supported: true, error: null, reply: 'ok' }))
+  const onTest = vi.fn(async () => ({
+    ok: true,
+    model_id: 'codex default',
+    tools_supported: true,
+    error: null,
+    reply: 'ok',
+  }))
   render(<ModelsPage providers={[codex, provider({})]} picked="cx" {...handlers} onTest={onTest} />)
   await userEvent.click(screen.getByRole('tab', { name: 'Connection' }))
   await userEvent.click(screen.getByRole('button', { name: 'Try a real run' }))
@@ -264,7 +299,9 @@ test('the "How it runs" line itself says what each native CLI asks before', asyn
     [copilot, 'asks before each command, write and read'],
     [qoder, "stops before it acts on the versions measured so far: they do not apply KOLONİ's hook"],
   ] as const) {
-    const shown = render(<ModelsPage providers={[provider({ ...other, mode: 'native' }), provider({})]} picked={other.id} {...handlers} />)
+    const shown = render(
+      <ModelsPage providers={[provider({ ...other, mode: 'native' }), provider({})]} picked={other.id} {...handlers} />,
+    )
     expect(options().at(-1)).toBe(`Native: its own tools, in the project; ${said}`)
     shown.unmount()
   }
@@ -283,7 +320,9 @@ test('Qoder natively says the versions measured so far stop before they act, and
 
 test('a Copilot test on a GitHub account says its sign-in was asked, not that it was not checked', async () => {
   const onTest = vi.fn(async () => ({ ok: true, model_id: 'x', tools_supported: true, error: null, reply: null }))
-  render(<ModelsPage providers={[{ ...copilot, base_url: null }, provider({})]} picked="cp" {...handlers} onTest={onTest} />)
+  render(
+    <ModelsPage providers={[{ ...copilot, base_url: null }, provider({})]} picked="cp" {...handlers} onTest={onTest} />,
+  )
   await userEvent.click(screen.getByRole('tab', { name: 'Connection' }))
   await userEvent.click(screen.getByRole('button', { name: 'Test' }))
   const status = await screen.findByRole('status')
@@ -303,7 +342,9 @@ test('Copilot natively asks KOLONİ first, and the page says so', () => {
   expect(note).toHaveTextContent('its commands run in Copilot’s sandbox, denied the project’s secret files')
   expect(note).toHaveTextContent('where it cannot, the run says so')
   // B-309: it is measured in no copy, so its sub-agents take turns in the project.
-  expect(note).toHaveTextContent('Copilot (native) runs its sub-agents one at a time here; session mode runs them at once')
+  expect(note).toHaveTextContent(
+    'Copilot (native) runs its sub-agents one at a time here; session mode runs them at once',
+  )
   // R175, B-377: measured live - its sandbox never starts Python; a new Copilot is a session (test above).
   expect(note).toHaveTextContent(
     'Copilot’s own sandbox cannot start Python here (measured): tests run only through a sub-agent or in session mode',

@@ -7,7 +7,6 @@ import { FolderBrowser } from './FolderBrowser'
 import { type Access, type FolderRow, HOLDS, holds, listsOf, rowsOf, WIDE } from './Folders'
 import { usePanel } from './usePanel'
 
-
 type Lists = ReturnType<typeof listsOf>
 
 interface Props {
@@ -40,10 +39,17 @@ export function parentOf(path: string): string {
 }
 
 /** A chat's (or its folder's default) other folders, each once: one in both lists is one to write in, as the server has it. */
-const rowsOfChat = (lists: Lists) => rowsOf(lists.also_in, lists.read_in.filter(f => !lists.also_in.includes(f)))
+const rowsOfChat = (lists: Lists) =>
+  rowsOf(
+    lists.also_in,
+    lists.read_in.filter(f => !lists.also_in.includes(f)),
+  )
 
 /** Whether two pairs of lists hold the same folders, in any order. */
-const same = (a: Lists, b: Lists) => [a.also_in, a.read_in].every((list, at) => [...list].sort().join('\n') === [...[b.also_in, b.read_in][at]].sort().join('\n'))
+const same = (a: Lists, b: Lists) =>
+  [a.also_in, a.read_in].every(
+    (list, at) => [...list].sort().join('\n') === [...[b.also_in, b.read_in][at]].sort().join('\n'),
+  )
 
 /** A path by its last two names (`Desktop\Skyulf`); the whole of it is said in its title. */
 const short = (path: string) => path.replace(/^.*[\\/](?=[^\\/]+[\\/][^\\/]+$)/, '')
@@ -146,16 +152,20 @@ function AlsoInChat({ project, projects, conversation, onChange, onDefault, onAd
       setError(errorText(err))
     }
   }
-  const access = (path: string, to: Access) => save(() => onChange(listsOf(rows.map(r => (r.path === path ? { ...r, access: to } : r)))))
+  const access = (path: string, to: Access) =>
+    save(() => onChange(listsOf(rows.map(r => (r.path === path ? { ...r, access: to } : r)))))
   // One folder onto the project's default, at this access, the rest of it kept: not offered for one a default folder holds
   // at that access already (write covers read).
   const defaults = rowsOfChat(project)
-  const kept = (r: FolderRow) => defaults.some(d => holds(d.path, r.path) && (d.access === 'write' || r.access === 'read'))
+  const kept = (r: FolderRow) =>
+    defaults.some(d => holds(d.path, r.path) && (d.access === 'write' || r.access === 'read'))
   const keep = (r: FolderRow) => save(() => onDefault(listsOf([...defaults.filter(d => d.path !== r.path), r])))
   const closed = (path: string) => never.some(place => holds(path, place))
   const notes = rows.flatMap(r => [
     ...(closed(r.path) ? [`${r.path}: ${HOLDS}`] : []),
-    ...(r.access === 'write' && (closed(r.path) || projects.some(p => holds(r.path, p.root_path))) ? [`${r.path}: ${WIDE}`] : []),
+    ...(r.access === 'write' && (closed(r.path) || projects.some(p => holds(r.path, p.root_path)))
+      ? [`${r.path}: ${WIDE}`]
+      : []),
   ])
 
   return (
@@ -226,7 +236,15 @@ function AlsoInChat({ project, projects, conversation, onChange, onDefault, onAd
  * K-buyuk-proje: where in its folder the chat's agents work - all of it, or one of the parts its map found. Shown only
  * where the map has a part besides the root (or the chat is set to one); the Lead may still give a sub-agent another.
  */
-function PartPicker({ project, conversation, onPart }: { project: Project; conversation: Conversation; onPart: (part: string | null) => Promise<void> }) {
+function PartPicker({
+  project,
+  conversation,
+  onPart,
+}: {
+  project: Project
+  conversation: Conversation
+  onPart: (part: string | null) => Promise<void>
+}) {
   const [parts, setParts] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
@@ -277,7 +295,19 @@ function PartPicker({ project, conversation, onPart }: { project: Project; conve
  * changed files there keeps its folder: the server says why, and a new chat in the other folder is offered. The
  * chat's other folders are counted on it, and listed in its panel (86b).
  */
-export function FolderButton({ project, projects, conversations, conversation, onFolders, onDefault, onMove, onPart, onNew, onOpenFolder, onBrowse }: Props) {
+export function FolderButton({
+  project,
+  projects,
+  conversations,
+  conversation,
+  onFolders,
+  onDefault,
+  onMove,
+  onPart,
+  onNew,
+  onOpenFolder,
+  onBrowse,
+}: Props) {
   const { open, setOpen, close, button, panel } = usePanel()
   const [changing, setChanging] = useState(false)
   // What the server refused, and the folder it was refused for: a new chat there is offered for a 409.
@@ -339,15 +369,29 @@ export function FolderButton({ project, projects, conversations, conversation, o
     (changing || !project) && (
       <section aria-label="Switch the main folder">
         <div className="kicker">Switch the main folder</div>
-        {project && <p className="muted">A chat with messages keeps its folder: a new chat opens in the one you pick.</p>}
-        <FolderChoices projects={projects} conversations={conversations} except={project?.id ?? 'none'} onPick={to => void move(to).then(moved => moved && close())} onBrowse={browse} />
+        {project && (
+          <p className="muted">A chat with messages keeps its folder: a new chat opens in the one you pick.</p>
+        )}
+        <FolderChoices
+          projects={projects}
+          conversations={conversations}
+          except={project?.id ?? 'none'}
+          onPick={to => void move(to).then(moved => moved && close())}
+          onBrowse={browse}
+        />
       </section>
     )
 
   /** The open panel: the main folder, where agents work, what was refused, the chat's other folders, and the folders to switch to. */
   const dialog = () =>
     open && (
-      <div ref={panel} tabIndex={-1} className="allow-list-panel folder-panel" role="dialog" aria-label="This chat’s folders">
+      <div
+        ref={panel}
+        tabIndex={-1}
+        className="allow-list-panel folder-panel"
+        role="dialog"
+        aria-label="This chat’s folders"
+      >
         <h3 className="folder-panel-title">This chat’s folders</h3>
         <div className="kicker">Main folder: agents work here, commands run here</div>
         <div className="folder-row folder-row-on">
@@ -361,7 +405,12 @@ export function FolderButton({ project, projects, conversations, conversation, o
           )}
           {project && (
             // (At work too: a chat that has a turn keeps its folder, a new chat opens in the other - slice 86e.)
-            <button type="button" className="btn btn-small" aria-expanded={changing} onClick={() => setChanging(!changing)}>
+            <button
+              type="button"
+              className="btn btn-small"
+              aria-expanded={changing}
+              onClick={() => setChanging(!changing)}
+            >
               Change <CaretDown size={11} aria-hidden />
             </button>
           )}

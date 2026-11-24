@@ -32,7 +32,11 @@ test('anywhere: the same KOLONİ line folds into its first also with other lines
     { by: 'koloni', text: 'Coder left the room' },
     { by: 'agent', text: 'ok' },
   ]
-  expect(foldRepeats(lines, koloni, true).map(([line, n]) => `${line.text}${times(n)}`)).toEqual(['Coder left the room ×2', 'ok', 'ok'])
+  expect(foldRepeats(lines, koloni, true).map(([line, n]) => `${line.text}${times(n)}`)).toEqual([
+    'Coder left the room ×2',
+    'ok',
+    'ok',
+  ])
   // in a row only, by default
   expect(foldRepeats(lines, koloni)).toHaveLength(4)
 })

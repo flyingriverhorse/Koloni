@@ -27,11 +27,17 @@ export function columnOf(conversation: BoardConversation, now = new Date()): Col
 const pick = (times: (string | null | undefined)[], latest: boolean) =>
   times
     .filter((at): at is string => Boolean(at))
-    .reduce<string | null>((best, at) => (best === null || (new Date(at) > new Date(best)) === latest ? at : best), null)
+    .reduce<string | null>((best, at) => (best === null || new Date(at) > new Date(best) === latest ? at : best), null)
 
 /** When anything of a conversation last happened: its agents' last step, or its last turn's end. */
 export const lastAt = (conversation: BoardConversation) =>
-  pick([...conversation.agents.map(agent => agent.last_event_at), conversation.turn?.ended_at ?? conversation.turn?.started_at], true)
+  pick(
+    [
+      ...conversation.agents.map(agent => agent.last_event_at),
+      conversation.turn?.ended_at ?? conversation.turn?.started_at,
+    ],
+    true,
+  )
 
 /** How long since `iso`, in the largest whole unit: "<1 min", "5 min", "3 h", "2 d". */
 export function since(iso: string, now = Date.now()): string {

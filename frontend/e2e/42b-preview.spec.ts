@@ -36,7 +36,9 @@ async function check(root: Locator, least: number) {
   expect(pieces.filter(piece => piece.ratio < 4.5)).toEqual([])
 }
 
-test('a dev server is asked for, keeps running after the turn, is shown live under Preview, and Stop ends it with what it started', async ({ page }) => {
+test('a dev server is asked for, keeps running after the turn, is shown live under Preview, and Stop ends it with what it started', async ({
+  page,
+}) => {
   test.setTimeout(90_000)
   const id = await openFreshConversation(page)
   try {
@@ -64,7 +66,14 @@ test('a dev server is asked for, keeps running after the turn, is shown live und
     await expect(view.getByRole('status')).toHaveText('stopped')
     await expect(view.getByText('It is not running any more.')).toBeVisible()
     // stopped means gone: nothing answers at its address any more
-    await expect.poll(() => page.request.get(address, { timeout: 2000 }).then(() => 'answered', () => 'gone')).toBe('gone')
+    await expect
+      .poll(() =>
+        page.request.get(address, { timeout: 2000 }).then(
+          () => 'answered',
+          () => 'gone',
+        ),
+      )
+      .toBe('gone')
   } finally {
     await stopServing(page, id)
   }
@@ -86,7 +95,9 @@ test('a server that refuses to be framed is not framed: it is offered in the bro
 })
 
 for (const theme of ['light', 'dark'] as const)
-  test(`in the ${theme} theme the Preview window's header, tree and words stand out (contrast 4.5 or more)`, async ({ page }) => {
+  test(`in the ${theme} theme the Preview window's header, tree and words stand out (contrast 4.5 or more)`, async ({
+    page,
+  }) => {
     test.setTimeout(60_000)
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     const id = await openFreshConversation(page)
@@ -112,7 +123,9 @@ test('a page an agent shows is previewed in Workspace, by its sandbox and Run on
   await page.getByRole('button', { name: 'Send' }).click()
   // (opened by itself on it, its folder opened)
   const view = viewOf(page)
-  await expect(view.getByRole('tab', { name: 'index.html' })).toHaveAttribute('aria-selected', 'true', { timeout: 20_000 })
+  await expect(view.getByRole('tab', { name: 'index.html' })).toHaveAttribute('aria-selected', 'true', {
+    timeout: 20_000,
+  })
   await expect(view.getByRole('treeitem', { name: 'game42' })).toHaveAttribute('aria-expanded', 'true')
   await expect(view.getByRole('button', { name: 'Preview' })).toHaveAttribute('aria-pressed', 'true')
   await expect(view.locator('iframe')).toHaveAttribute('sandbox', '')
@@ -122,13 +135,17 @@ test('a page an agent shows is previewed in Workspace, by its sandbox and Run on
   await expect(view.locator('iframe')).toHaveAttribute('src', /\/api\/(conversations|projects)\/.+\/index\.html/)
 })
 
-test('K-39-betik: a page’s script is asked about - Run once, Always run in this chat, Don’t run; always, the next page of the chat runs unasked', async ({ page }) => {
+test('K-39-betik: a page’s script is asked about - Run once, Always run in this chat, Don’t run; always, the next page of the chat runs unasked', async ({
+  page,
+}) => {
   test.setTimeout(60_000)
   await openFreshConversation(page)
   await page.getByLabel('Message').fill('show the game')
   await page.getByRole('button', { name: 'Send' }).click()
   const view = viewOf(page)
-  await expect(view.getByRole('tab', { name: 'index.html' })).toHaveAttribute('aria-selected', 'true', { timeout: 20_000 })
+  await expect(view.getByRole('tab', { name: 'index.html' })).toHaveAttribute('aria-selected', 'true', {
+    timeout: 20_000,
+  })
   const ask = view.getByRole('group', { name: 'Run its script?' })
   await expect(ask.getByRole('button')).toHaveText(['Run once', 'Always run in this chat', 'Don’t run'])
   await expect(view.locator('iframe')).toHaveAttribute('sandbox', '')
@@ -140,9 +157,14 @@ test('K-39-betik: a page’s script is asked about - Run once, Always run in thi
   // Always: it runs, and so does the page opened again after a reload - nothing asked.
   await ask.getByRole('button', { name: 'Always run in this chat' }).click()
   await expect(view.locator('iframe')).toHaveAttribute('sandbox', 'allow-scripts')
-  await expect(view.getByRole('group', { name: 'Its script' })).toContainText('Scripts run in this chat without asking.')
+  await expect(view.getByRole('group', { name: 'Its script' })).toContainText(
+    'Scripts run in this chat without asking.',
+  )
   await page.reload()
-  await page.getByRole('button', { name: /^Workspace/ }).first().click()
+  await page
+    .getByRole('button', { name: /^Workspace/ })
+    .first()
+    .click()
   await view.getByRole('treeitem', { name: /^index\.html/ }).click()
   await expect(view.locator('iframe')).toHaveAttribute('sandbox', 'allow-scripts')
   await expect(view.getByRole('group', { name: 'Run its script?' })).toHaveCount(0)
@@ -162,5 +184,9 @@ test('K-39-betik: a page’s script is asked about - Run once, Always run in thi
   await expect(said).toContainText('Script ran once.')
   await said.getByRole('button', { name: 'Ask each time' }).click()
   await expect(view.locator('iframe')).toHaveAttribute('sandbox', '')
-  await expect(view.getByRole('group', { name: 'Run its script?' }).getByRole('button')).toHaveText(['Run once', 'Always run in this chat', 'Don’t run'])
+  await expect(view.getByRole('group', { name: 'Run its script?' }).getByRole('button')).toHaveText([
+    'Run once',
+    'Always run in this chat',
+    'Don’t run',
+  ])
 })

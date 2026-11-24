@@ -41,7 +41,9 @@ test('a second hunk restarts the numbering from its header', () => {
 })
 
 test('empty context lines and the no-newline marker are handled', () => {
-  const lines = parseDiff(['--- a/f', '+++ b/f', '@@ -1,2 +1,2 @@', '', '-a', '\\ No newline at end of file', '+b'].join('\n'))
+  const lines = parseDiff(
+    ['--- a/f', '+++ b/f', '@@ -1,2 +1,2 @@', '', '-a', '\\ No newline at end of file', '+b'].join('\n'),
+  )
   expect(lines.map(l => l.kind)).toEqual(['hunk', 'ctx', 'del', 'add'])
   expect(lines[1]).toMatchObject({ oldNo: 1, newNo: 1, text: '' })
 })

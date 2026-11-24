@@ -34,7 +34,17 @@ const offHint = (off: string) =>
       : 'Switch it on again when that is seen to.'
 
 /** One trigger as a sentence - when → what - with what it may do, its budget and its last run under it; the rest behind ⋯. */
-export function TriggerCard({ trigger, conversation, onSwitch, onBack, onRun, onEdit, onDelete, onNewKey, onShowTurn }: Props) {
+export function TriggerCard({
+  trigger,
+  conversation,
+  onSwitch,
+  onBack,
+  onRun,
+  onEdit,
+  onDelete,
+  onNewKey,
+  onShowTurn,
+}: Props) {
   const [open, setOpen] = useState(false)
   // A new key stops the old address at once: asked for twice.
   const [renewing, setRenewing] = useState(false)
@@ -79,7 +89,9 @@ export function TriggerCard({ trigger, conversation, onSwitch, onBack, onRun, on
       <span className="trigger-name" title={trigger.name}>
         {trigger.name}
       </span>{' '}
-      · in {conversation ?? 'a conversation that is gone'} · <span className={trigger.permissions.write || leave !== 'reads only' ? 'trigger-may' : undefined}>{leave}</span> · {budgetOf(trigger.budget)}
+      · in {conversation ?? 'a conversation that is gone'} ·{' '}
+      <span className={trigger.permissions.write || leave !== 'reads only' ? 'trigger-may' : undefined}>{leave}</span> ·{' '}
+      {budgetOf(trigger.budget)}
       {trigger.ends && <> · ends {endLine(trigger)}</>} ·{' '}
       {last ? (
         <>
@@ -95,12 +107,23 @@ export function TriggerCard({ trigger, conversation, onSwitch, onBack, onRun, on
 
   /** Behind ⋯: Edit, a webhook's New key, its changes once there are any, and Delete (asked first). */
   const menu = () => (
-    <Menu name={`More for ${trigger.name}`} className="icon-btn" title="Edit, new key, changes, delete" face={<DotsThree size={16} weight="bold" />}>
+    <Menu
+      name={`More for ${trigger.name}`}
+      className="icon-btn"
+      title="Edit, new key, changes, delete"
+      face={<DotsThree size={16} weight="bold" />}
+    >
       <button type="button" role="menuitem" disabled={busy} onClick={onEdit}>
         Edit
       </button>
       {onNewKey && (
-        <button type="button" role="menuitem" disabled={busy} title="For an address that got out: a new one is shown once" onClick={() => setRenewing(true)}>
+        <button
+          type="button"
+          role="menuitem"
+          disabled={busy}
+          title="For an address that got out: a new one is shown once"
+          onClick={() => setRenewing(true)}
+        >
           New key
         </button>
       )}
@@ -109,7 +132,19 @@ export function TriggerCard({ trigger, conversation, onSwitch, onBack, onRun, on
           {changesOpen ? 'Hide changes' : `Changes (${trigger.changes.length})`}
         </button>
       )}
-      <button type="button" role="menuitem" disabled={busy} onClick={() => confirm.ask(`Delete ${trigger.name}? It cannot be undone; what was done to it stays on the page.`, 'Delete', () => void act(onDelete), 'Keep it')}>
+      <button
+        type="button"
+        role="menuitem"
+        disabled={busy}
+        onClick={() =>
+          confirm.ask(
+            `Delete ${trigger.name}? It cannot be undone; what was done to it stays on the page.`,
+            'Delete',
+            () => void act(onDelete),
+            'Keep it',
+          )
+        }
+      >
         Delete
       </button>
     </Menu>
@@ -118,7 +153,15 @@ export function TriggerCard({ trigger, conversation, onSwitch, onBack, onRun, on
   return (
     <article className={`trigger-card${trigger.enabled ? '' : ' trigger-off'}`} aria-label={trigger.name}>
       <div className="trigger-line">
-        <input type="checkbox" role="switch" className="switch" aria-label={`${trigger.name} is on`} checked={trigger.enabled} disabled={busy} onChange={event => void act(() => onSwitch(event.target.checked))} />
+        <input
+          type="checkbox"
+          role="switch"
+          className="switch"
+          aria-label={`${trigger.name} is on`}
+          checked={trigger.enabled}
+          disabled={busy}
+          onChange={event => void act(() => onSwitch(event.target.checked))}
+        />
         <div className="trigger-text">
           <div className="trigger-sentence" title={trigger.message}>
             <strong>{whenOf(trigger)}</strong> → {whatOf(trigger.message)}
@@ -131,7 +174,13 @@ export function TriggerCard({ trigger, conversation, onSwitch, onBack, onRun, on
             </div>
           )}
         </div>
-        <button type="button" className="btn btn-small" disabled={busy} title="Run it now, with what it allows and nobody asked: what it would do by itself" onClick={() => void act(async () => onShowTurn(await onRun()))}>
+        <button
+          type="button"
+          className="btn btn-small"
+          disabled={busy}
+          title="Run it now, with what it allows and nobody asked: what it would do by itself"
+          onClick={() => void act(async () => onShowTurn(await onRun()))}
+        >
           <Play size={12} />
           Run now
         </button>
@@ -139,8 +188,7 @@ export function TriggerCard({ trigger, conversation, onSwitch, onBack, onRun, on
       </div>
       {off && (
         <div role="alert" className="composer-warning trigger-off-why">
-          {off}{' '}
-          {offHint(off)}
+          {off} {offHint(off)}
         </div>
       )}
       {slowed && (
@@ -188,7 +236,12 @@ export function TriggerCard({ trigger, conversation, onSwitch, onBack, onRun, on
             return (
               <li key={run.id} title={run.note ?? undefined}>
                 {run.run_id ? (
-                  <button type="button" className="trigger-run" title="Show its work on the canvas" onClick={() => onShowTurn(run.run_id as string)}>
+                  <button
+                    type="button"
+                    className="trigger-run"
+                    title="Show its work on the canvas"
+                    onClick={() => onShowTurn(run.run_id as string)}
+                  >
                     {line}
                   </button>
                 ) : (
@@ -200,7 +253,9 @@ export function TriggerCard({ trigger, conversation, onSwitch, onBack, onRun, on
         </ul>
       )}
       {confirm.shown()}
-      {changesOpen && trigger.changes.length > 0 && <TriggerChanges changes={trigger.changes} label={`Changes to ${trigger.name}`} />}
+      {changesOpen && trigger.changes.length > 0 && (
+        <TriggerChanges changes={trigger.changes} label={`Changes to ${trigger.name}`} />
+      )}
     </article>
   )
 }

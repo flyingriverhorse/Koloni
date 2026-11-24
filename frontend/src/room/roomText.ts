@@ -30,8 +30,10 @@ export function roomLine(room: Room): string {
 /** How a room ended, in a few words. */
 function endedLine(room: Room): string {
   // Its own reason, where there is more to say than the outcome.
-  if (room.outcome === 'budget' && room.why && room.why !== 'unanswered') return `Ended: its budget of ${room.why} was reached`
-  if (room.outcome === 'too_few' && room.why === 'unanswered') return 'Ended: everybody’s work is over, and a question was left unanswered'
+  if (room.outcome === 'budget' && room.why && room.why !== 'unanswered')
+    return `Ended: its budget of ${room.why} was reached`
+  if (room.outcome === 'too_few' && room.why === 'unanswered')
+    return 'Ended: everybody’s work is over, and a question was left unanswered'
   if (room.outcome === 'ended_by_opener' && !room.agent_id) return 'Ended: the Orchestrator ended it' // (K-oda-izle: your room, followed)
   return `Ended: ${room.outcome ? OUTCOME[room.outcome] : 'it is over'}`
 }
@@ -49,12 +51,21 @@ export function roomTag(state: Pick<ConvState, 'roomItems'>, room: Room): string
 
 /** Why a room ended, as its tag says it. */
 const endedWhy = (room: Room): string =>
-  room.outcome === 'agreed' ? 'done'
-  : room.outcome === 'ended_by_user' ? 'you ended it'
-  : room.outcome === 'ended_by_opener' ? (room.agent_id ? 'its opener ended it' : 'the Orchestrator ended it')
-  : room.outcome === 'budget' ? `out of ${room.why && room.why !== 'unanswered' ? room.why : 'budget'}`
-  : room.outcome === 'too_few' ? (room.why === 'unanswered' ? 'a question was left' : 'fewer than two working')
-  : 'over'
+  room.outcome === 'agreed'
+    ? 'done'
+    : room.outcome === 'ended_by_user'
+      ? 'you ended it'
+      : room.outcome === 'ended_by_opener'
+        ? room.agent_id
+          ? 'its opener ended it'
+          : 'the Orchestrator ended it'
+        : room.outcome === 'budget'
+          ? `out of ${room.why && room.why !== 'unanswered' ? room.why : 'budget'}`
+          : room.outcome === 'too_few'
+            ? room.why === 'unanswered'
+              ? 'a question was left'
+              : 'fewer than two working'
+            : 'over'
 
 /** Whether a room came to its own end with every item done: its tag is drawn as good news. */
 export const allDone = (state: Pick<ConvState, 'roomItems'>, room: Room) =>
@@ -67,19 +78,32 @@ export const MEMBER: Record<Room['members'][number]['status'], string> = {
   left: 'left',
 }
 
-export const ITEM: Record<RoomItem['status'], string> = { open: 'open', taken: 'taken', done: 'done', dropped: 'dropped' }
+export const ITEM: Record<RoomItem['status'], string> = {
+  open: 'open',
+  taken: 'taken',
+  done: 'done',
+  dropped: 'dropped',
+}
 
 /**
  * A member in the room's tags: "Coder · at work" - "Coder · paused" once a Pause holds it, its step over (B-167: it
  * said "at work" while it waited for the Resume).
  */
-export function memberTag(state: Pick<ConvState, 'agents'>, room: Room, member: Room['members'][number], teams: Team[] = []): string {
+export function memberTag(
+  state: Pick<ConvState, 'agents'>,
+  room: Room,
+  member: Room['members'][number],
+  teams: Team[] = [],
+): string {
   return `${memberName(state, member, teams)} · ${held(state, room, member) ? 'paused' : MEMBER[member.status]}`
 }
 
 /** Whether a Pause holds a member: its step is over and it waits for the Resume (B-167). */
 export const held = (state: Pick<ConvState, 'agents'>, room: Room, member: Room['members'][number]) =>
-  isRunning(room) && room.paused && member.status === 'in' && state.agents.find(a => a.id === member.agent_id)?.status === 'waiting'
+  isRunning(room) &&
+  room.paused &&
+  member.status === 'in' &&
+  state.agents.find(a => a.id === member.agent_id)?.status === 'waiting'
 
 /** Whether a member's line to its room moves: at work in it, not held by a Pause - one still finishing its step moves. */
 export const movesIn = (state: Pick<ConvState, 'agents'>, room: Room, member: Room['members'][number]) =>
@@ -92,7 +116,11 @@ export function nameIn(state: Pick<ConvState, 'agents'>, agentId: string | null,
 }
 
 /** A member by its name - or, in the moment before its agent is opened, by its role - the Lead the Orchestrator. */
-export function memberName(state: Pick<ConvState, 'agents'>, member: Room['members'][number], teams: Team[] = []): string {
+export function memberName(
+  state: Pick<ConvState, 'agents'>,
+  member: Room['members'][number],
+  teams: Team[] = [],
+): string {
   return titleOf(state.agents.find(a => a.id === member.agent_id)?.name || member.role, teams)
 }
 
@@ -116,7 +144,9 @@ export const byWatcher = (state: Pick<ConvState, 'agents'>, room: Room, agentId:
 export function invitedTo(state: Pick<ConvState, 'agents' | 'toolCalls'>, room: Room): Agent[] {
   const members = new Set([...room.members.map(m => m.agent_id), room.agent_id])
   return state.agents.filter(
-    a => a.status === 'proposed' && state.toolCalls.some(t => t.id === a.tool_call_id && t.name === 'invite_to_room' && members.has(t.agent_id)),
+    a =>
+      a.status === 'proposed' &&
+      state.toolCalls.some(t => t.id === a.tool_call_id && t.name === 'invite_to_room' && members.has(t.agent_id)),
   )
 }
 
@@ -145,7 +175,11 @@ export function spentLines(room: Room): string[] {
  * others' posts between them.
  */
 export function once(posts: RoomPost[]): [post: RoomPost, times: number][] {
-  return foldRepeats(posts, p => (p.type === 'done' || p.type === 'left' ? `${p.agent_id} ${p.type} ${p.text}` : null), true)
+  return foldRepeats(
+    posts,
+    p => (p.type === 'done' || p.type === 'left' ? `${p.agent_id} ${p.type} ${p.text}` : null),
+    true,
+  )
 }
 
 /** What a post is, said before its text: its type, whom it is for and what it replies to. (A member's report - "done" - is under Reports: the room's head says how it stands.) */
@@ -169,7 +203,8 @@ export function inRoom(state: Pick<ConvState, 'agents'>, room: Room): Map<string
   const inside = new Map<string, Agent>()
   // (Agents are stored parents first, so one pass collects every sub-tree.)
   for (const agent of state.agents) {
-    if (members.has(agent.id) || (agent.parent_agent_id && inside.has(agent.parent_agent_id))) inside.set(agent.id, agent)
+    if (members.has(agent.id) || (agent.parent_agent_id && inside.has(agent.parent_agent_id)))
+      inside.set(agent.id, agent)
   }
   return inside
 }

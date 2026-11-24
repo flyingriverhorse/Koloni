@@ -24,15 +24,31 @@ export function useCheckKinds(project: Project) {
   const saved: Record<string, boolean> = project.check_kinds ?? {}
   const [kinds, setKinds] = useState(saved)
   const on = (kind: string, from: Record<string, boolean>) => from[kind] ?? true
-  const changed = CHECK_KINDS.filter(([kind]) => on(kind, kinds) !== on(kind, saved)).map(([kind]) => [kind, on(kind, kinds)])
+  const changed = CHECK_KINDS.filter(([kind]) => on(kind, kinds) !== on(kind, saved)).map(([kind]) => [
+    kind,
+    on(kind, kinds),
+  ])
   const patch = changed.length ? { check_kinds: Object.fromEntries(changed) as Record<string, boolean> } : {}
   const view = (
-    <Row label="Check by kind of work" doc={GUIDE.checked} warn={<span id="check-kinds-note" className="choice-note">{CHECK_KINDS_NOTE}</span>}>
+    <Row
+      label="Check by kind of work"
+      doc={GUIDE.checked}
+      warn={
+        <span id="check-kinds-note" className="choice-note">
+          {CHECK_KINDS_NOTE}
+        </span>
+      }
+    >
       {/* (As the branch's way below: the boxes side by side, each label whole, wrapping where they do not fit.) */}
       <fieldset className="choice" aria-label="Check by kind of work" aria-describedby="check-kinds-note">
         {CHECK_KINDS.map(([kind, label]) => (
           <label key={kind}>
-            <input type="checkbox" checked={on(kind, kinds)} onChange={e => setKinds(was => ({ ...was, [kind]: e.target.checked }))} /> <span>{label}</span>
+            <input
+              type="checkbox"
+              checked={on(kind, kinds)}
+              onChange={e => setKinds(was => ({ ...was, [kind]: e.target.checked }))}
+            />{' '}
+            <span>{label}</span>
           </label>
         ))}
       </fieldset>

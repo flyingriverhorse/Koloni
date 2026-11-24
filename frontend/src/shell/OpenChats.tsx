@@ -29,7 +29,17 @@ interface Props {
  * The tabs over the canvas, one per project (slice 86e; 86d's were one per chat): its folder's name and a dot for how
  * its chats stand; those with no room in a "+N" list, and "+" to go to another folder.
  */
-export function OpenChats({ tabs, conversations, projects, board, openTab, onOpen, onClose, onOpenFolder, onBrowse }: Props) {
+export function OpenChats({
+  tabs,
+  conversations,
+  projects,
+  board,
+  openTab,
+  onOpen,
+  onClose,
+  onOpenFolder,
+  onBrowse,
+}: Props) {
   const row = useRef<HTMLDivElement>(null)
   const list = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(Infinity)
@@ -83,7 +93,9 @@ export function OpenChats({ tabs, conversations, projects, board, openTab, onOpe
     const at = all.indexOf(event.target as HTMLElement)
     if (at < 0) return
     if (event.key === 'Delete') return closeTab(shown[at])
-    const to = ({ ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: all.length - 1 } as Record<string, number>)[event.key]
+    const to = ({ ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: all.length - 1 } as Record<string, number>)[
+      event.key
+    ]
     if (to === undefined) return
     event.preventDefault()
     all[(to + all.length) % all.length].focus()
@@ -96,7 +108,11 @@ export function OpenChats({ tabs, conversations, projects, board, openTab, onOpe
           const selected = tab === openTab
           return (
             // (A tab and its ×, side by side: a button inside a button is not one.)
-            <div key={tab} role="presentation" className={`open-chat${selected ? ' open-chat-open' : ''}${waits ? ' open-chat-waits' : ''}`}>
+            <div
+              key={tab}
+              role="presentation"
+              className={`open-chat${selected ? ' open-chat-open' : ''}${waits ? ' open-chat-waits' : ''}`}
+            >
               <button
                 type="button"
                 role="tab"
@@ -111,7 +127,14 @@ export function OpenChats({ tabs, conversations, projects, board, openTab, onOpe
               >
                 {look(tab)}
               </button>
-              <button type="button" className="open-chat-close" aria-label={`Close ${name}`} title="Close the tab (no chat goes)" tabIndex={tab === first ? 0 : -1} onClick={() => closeTab(tab)}>
+              <button
+                type="button"
+                className="open-chat-close"
+                aria-label={`Close ${name}`}
+                title="Close the tab (no chat goes)"
+                tabIndex={tab === first ? 0 : -1}
+                onClick={() => closeTab(tab)}
+              >
                 <X size={10} />
               </button>
             </div>
@@ -163,7 +186,13 @@ export function OpenChats({ tabs, conversations, projects, board, openTab, onOpe
         </div>
       )}
       {adding && (
-        <div ref={addPanel} tabIndex={-1} className="allow-list-panel folder-panel" role="dialog" aria-label="Go to another folder">
+        <div
+          ref={addPanel}
+          tabIndex={-1}
+          className="allow-list-panel folder-panel"
+          role="dialog"
+          aria-label="Go to another folder"
+        >
           <FolderChoices
             projects={projects}
             conversations={conversations}

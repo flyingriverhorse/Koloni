@@ -69,7 +69,9 @@ async function standIns(page: Page) {
 const said = (page: Page) => page.evaluate(() => window.__said)
 const chatOf = (page: Page) => page.getByRole('region', { name: 'Chat' })
 
-test('what is said is written into the message box and not sent; Auto-read reads the whole answer as it comes, its code as a code block', async ({ page }) => {
+test('what is said is written into the message box and not sent; Auto-read reads the whole answer as it comes, its code as a code block', async ({
+  page,
+}) => {
   await standIns(page)
   await openFreshConversation(page)
   const chat = chatOf(page)
@@ -86,7 +88,9 @@ test('what is said is written into the message box and not sent; Auto-read reads
   await chat.getByRole('button', { name: 'Auto-read' }).click()
   await expect(chat.getByRole('button', { name: 'Auto-read' })).toHaveAttribute('aria-pressed', 'true')
   await chat.getByRole('button', { name: 'Send' }).click()
-  await expect.poll(() => said(page), { timeout: 20_000 }).toEqual(['The total adds the tax once.', 'It is twenty percent.', 'Code block, 1 line.'])
+  await expect
+    .poll(() => said(page), { timeout: 20_000 })
+    .toEqual(['The total adds the tax once.', 'It is twenty percent.', 'Code block, 1 line.'])
   // Not asked for a line to say, the Lead wrote none, and none is taken off.
   expect(JSON.parse(posted[0])).not.toHaveProperty('spoken')
   await expect(chat.getByText(/^Said aloud/)).toHaveCount(0)
@@ -95,7 +99,9 @@ test('what is said is written into the message box and not sent; Auto-read reads
   await expect(chatOf(page).getByRole('button', { name: 'Auto-read' })).toHaveAttribute('aria-pressed', 'true')
 })
 
-test('Auto-read of a short summary: the message asks for a line to say, it is kept off the written answer, read at the end of the turn and shown under it', async ({ page }) => {
+test('Auto-read of a short summary: the message asks for a line to say, it is kept off the written answer, read at the end of the turn and shown under it', async ({
+  page,
+}) => {
   await standIns(page)
   await openFreshConversation(page)
   const chat = chatOf(page)
@@ -118,15 +124,23 @@ test('Auto-read of a short summary: the message asks for a line to say, it is ke
   await chat.getByRole('button', { name: 'Stop reading' }).click()
   await chat.getByRole('button', { name: 'Read aloud' }).click()
   await expect(chat.getByRole('button', { name: 'Stop reading' })).toBeVisible()
-  expect((await said(page)).slice(1)).toEqual(['The total adds the tax once.', 'It is twenty percent.', 'Code block, 1 line.'])
+  expect((await said(page)).slice(1)).toEqual([
+    'The total adds the tax once.',
+    'It is twenty percent.',
+    'Code block, 1 line.',
+  ])
   await chat.getByRole('button', { name: 'Stop reading' }).click()
   await expect(chat.getByRole('button', { name: 'Read aloud' })).toBeVisible()
 })
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`in the ${theme} theme the voice controls, the Voice panel and what was said aloud stand out from what they are on (contrast 4.5 or more)`, async ({ page }) => {
+  test(`in the ${theme} theme the voice controls, the Voice panel and what was said aloud stand out from what they are on (contrast 4.5 or more)`, async ({
+    page,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
-    await page.addInitScript(() => localStorage.setItem('koloni-voice', JSON.stringify({ autoRead: true, mode: 'summary' })))
+    await page.addInitScript(() =>
+      localStorage.setItem('koloni-voice', JSON.stringify({ autoRead: true, mode: 'summary' })),
+    )
     await standIns(page)
     await openFreshConversation(page)
     const chat = chatOf(page)
@@ -134,7 +148,8 @@ for (const theme of ['light', 'dark'] as const) {
     await chat.getByRole('button', { name: 'Send' }).click()
     await expect(chat.locator('.msg-said')).toBeVisible({ timeout: 20_000 })
     await expect(page.locator('html')).not.toHaveClass(/theme-switching/)
-    const low = async (root: ReturnType<Page['locator']>) => (await root.evaluate(contrasts)).filter(piece => piece.ratio < 4.5)
+    const low = async (root: ReturnType<Page['locator']>) =>
+      (await root.evaluate(contrasts)).filter(piece => piece.ratio < 4.5)
     expect(await low(chat.locator('.msg-list'))).toEqual([])
     const panel = await voiceSettings(page)
     expect((await panel.evaluate(contrasts)).length).toBeGreaterThanOrEqual(10)
@@ -149,7 +164,12 @@ for (const theme of ['light', 'dark'] as const)
     await page.setViewportSize({ width: 1440, height: 900 })
     const snap = (name: string) => shot(page, `32a-${name}-${theme}`)
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
-    await page.addInitScript(() => localStorage.setItem('koloni-voice', JSON.stringify({ autoRead: true, mode: 'summary', style: 'short and friendly' })))
+    await page.addInitScript(() =>
+      localStorage.setItem(
+        'koloni-voice',
+        JSON.stringify({ autoRead: true, mode: 'summary', style: 'short and friendly' }),
+      ),
+    )
     await standIns(page)
     await openFreshConversation(page)
     const chat = chatOf(page)

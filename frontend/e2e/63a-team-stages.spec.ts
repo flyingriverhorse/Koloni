@@ -9,15 +9,24 @@ type Named = { id: string; name: string }
 
 test.afterEach(async ({ request }) => {
   for (const team of (await (await request.get('/api/teams')).json()) as Named[])
-    if (team.name.startsWith(TEAM)) expect((await request.delete(`/api/teams/${team.id}`, { headers: OWN })).ok()).toBe(true)
+    if (team.name.startsWith(TEAM))
+      expect((await request.delete(`/api/teams/${team.id}`, { headers: OWN })).ok()).toBe(true)
 })
 
-const lowContrast = async (page: Page) => (await page.locator('.paged').evaluate(contrasts)).filter(piece => piece.ratio < 4.5)
+const lowContrast = async (page: Page) =>
+  (await page.locator('.paged').evaluate(contrasts)).filter(piece => piece.ratio < 4.5)
 /** A folded team's row opened. */
-const openTeam = (page: Page, name: string) => page.getByRole('region', { name, exact: true }).getByRole('button', { name: new RegExp(`^${name}`), expanded: false }).click()
+const openTeam = (page: Page, name: string) =>
+  page
+    .getByRole('region', { name, exact: true })
+    .getByRole('button', { name: new RegExp(`^${name}`), expanded: false })
+    .click()
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`a team's stages, who sits in which, and its lead are kept over a reload (${theme})`, async ({ page, request }) => {
+  test(`a team's stages, who sits in which, and its lead are kept over a reload (${theme})`, async ({
+    page,
+    request,
+  }) => {
     test.setTimeout(60_000)
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await page.setViewportSize({ width: 1440, height: 900 })
@@ -25,7 +34,9 @@ for (const theme of ['light', 'dark'] as const) {
     await page.getByRole('button', { name: 'Agents', exact: true }).click()
     // The ready teams: four stages each, their roles by kind of work, each with its lead.
     await openTeam(page, 'Web app')
-    await expect(page.getByRole('region', { name: 'Web app', exact: true }).getByRole('region', { name: 'Stage 2, Build' })).toContainText('Coder')
+    await expect(
+      page.getByRole('region', { name: 'Web app', exact: true }).getByRole('region', { name: 'Stage 2, Build' }),
+    ).toContainText('Coder')
     await shot(page, `63a-teams-ready-${theme}`)
 
     // A new team: the four stages of today's kinds of work, and a lead that says when it steps in.
@@ -36,7 +47,9 @@ for (const theme of ['light', 'dark'] as const) {
     await openTeam(page, TEAM)
     await expect(team.getByRole('region', { name: /^Stage \d/ })).toHaveCount(4)
     const leadLine = team.locator('.team-lead-row')
-    await expect(leadLine).toContainText('Steps in only when this team works beside another team; else the Orchestrator runs it.')
+    await expect(leadLine).toContainText(
+      'Steps in only when this team works beside another team; else the Orchestrator runs it.',
+    )
 
     // A stage added, a role put in it, then in another: one stage of a team.
     await team.getByRole('button', { name: '+ Add a stage' }).click()
@@ -101,11 +114,19 @@ for (const theme of ['light', 'dark'] as const) {
     await page.goto(LINK)
     await page.getByLabel('Message').waitFor()
     await page.getByRole('button', { name: 'Agents', exact: true }).click()
-    await expect(team.getByRole('region', { name: /^Stage \d/ })).toHaveText([/^1Plan/, /^2Build/, /^3Check/, /^4Play/, /^5Write & keep up/])
+    await expect(team.getByRole('region', { name: /^Stage \d/ })).toHaveText([
+      /^1Plan/,
+      /^2Build/,
+      /^3Check/,
+      /^4Play/,
+      /^5Write & keep up/,
+    ])
     await expect(check.getByRole('button', { name: 'Tester', exact: true })).toBeVisible()
     await expect(check.getByLabel('all at once')).toBeChecked()
     await expect(team.getByRole('switch', { name: `${TEAM} lead on` })).not.toBeChecked()
-    const saved = ((await (await request.get('/api/teams')).json()) as { name: string; lead: { instructions: string } }[]).find(one => one.name === TEAM)
+    const saved = (
+      (await (await request.get('/api/teams')).json()) as { name: string; lead: { instructions: string } }[]
+    ).find(one => one.name === TEAM)
     expect(saved?.lead.instructions).toBe('Run the playtest last.')
 
     // The lead is its team's: not in the library.

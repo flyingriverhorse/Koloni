@@ -24,8 +24,13 @@ export const ROUTING_WHY: Record<'auto' | 'fusion', string> = {
 }
 
 /** The routings a model takes: Copilot's auto or fusion on your GitHub account; null for any other. */
-export function routingOf(provider: Provider | null | undefined, model: string | null | undefined): 'auto' | 'fusion' | null {
-  return provider?.kind === 'copilot_cli' && !provider.base_url && (model === 'auto' || model === 'fusion') ? model : null
+export function routingOf(
+  provider: Provider | null | undefined,
+  model: string | null | undefined,
+): 'auto' | 'fusion' | null {
+  return provider?.kind === 'copilot_cli' && !provider.base_url && (model === 'auto' || model === 'fusion')
+    ? model
+    : null
 }
 
 /** A provider's list as its Models tab saves it, with one model's routing changed (null: Copilot's default). */

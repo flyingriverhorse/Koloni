@@ -20,7 +20,8 @@ export const listsOf = (rows: FolderRow[]) => ({
 
 /** A path as it is compared: any case, either slash, no slash at its end. */
 const plain = (path: string) => path.toLowerCase().replaceAll('\\', '/').replace(/\/+$/, '')
-export const holds = (folder: string, path: string) => plain(path) === plain(folder) || plain(path).startsWith(`${plain(folder)}/`)
+export const holds = (folder: string, path: string) =>
+  plain(path) === plain(folder) || plain(path).startsWith(`${plain(folder)}/`)
 
 export const WIDE = 'Every project under it becomes writable by agents. Read is enough to look things up.'
 // (A CLI is given no folder that holds a place never opened: `_add_dirs`.)
@@ -51,7 +52,8 @@ export function FoldersSection({ shared, sharedError }: Props) {
           <h3 className="kicker">Always blocked</h3>
           <details className="more">
             <summary>
-              {shared.never.length} places no agent ever opens: where your secrets are kept, KOLONİ itself and the system’s folders
+              {shared.never.length} places no agent ever opens: where your secrets are kept, KOLONİ itself and the
+              system’s folders
             </summary>
             <ul className="folder-rows folder-never" aria-label="Always blocked">
               {shared.never.map(place => (
@@ -64,10 +66,11 @@ export function FoldersSection({ shared, sharedError }: Props) {
           <span className="choice-note">
             Nor any folder that holds one of them, your home folder or a drive’s root.{' '}
             <Hint doc={GUIDE.neverOpened}>
-              A folder that holds KOLONİ (the Desktop, say) can still be listed: KOLONİ stays closed in it, and only KOLONİ’s own tools work
-              there - no CLI is given the folder. Secrets (.env, keys, credentials, KOLONİ’s database) are never opened anywhere outside the
-              project; inside it a secret file is read only after you allow it, each time (a script that does not name it, Claude Code’s Grep,
-              and Codex, agy and Copilot’s own tools can still look in one unasked). The list is KOLONİ’s own and cannot be changed here.
+              A folder that holds KOLONİ (the Desktop, say) can still be listed: KOLONİ stays closed in it, and only
+              KOLONİ’s own tools work there - no CLI is given the folder. Secrets (.env, keys, credentials, KOLONİ’s
+              database) are never opened anywhere outside the project; inside it a secret file is read only after you
+              allow it, each time (a script that does not name it, Claude Code’s Grep, and Codex, agy and Copilot’s own
+              tools can still look in one unasked). The list is KOLONİ’s own and cannot be changed here.
             </Hint>
           </span>
         </>

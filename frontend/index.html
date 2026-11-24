@@ -12,8 +12,7 @@
       // Apply the stored theme before first paint.
       ;(function () {
         var t = localStorage.getItem('koloni-theme')
-        if (t !== 'light' && t !== 'dark')
-          t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        if (t !== 'light' && t !== 'dark') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
         if (t === 'dark') document.documentElement.classList.add('dark')
       })()
     </script>

@@ -7,13 +7,34 @@ import { contrasts, openFreshConversation, OWN, rail, settled, shot } from './he
 type Box = { x: number; y: number; width: number; height: number }
 // (as 38e's)
 const inside = (inner: Box, outer: Box) =>
-  inner.x >= outer.x - 1 && inner.y >= outer.y - 1 && inner.x + inner.width <= outer.x + outer.width + 1 && inner.y + inner.height <= outer.y + outer.height + 1
-const apart = (a: Box, b: Box) => a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y
+  inner.x >= outer.x - 1 &&
+  inner.y >= outer.y - 1 &&
+  inner.x + inner.width <= outer.x + outer.width + 1 &&
+  inner.y + inner.height <= outer.y + outer.height + 1
+const apart = (a: Box, b: Box) =>
+  a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y
 
-const NAMES = ['Canvas', 'Chats', 'Ready', 'Board', 'To-do', 'Agents', 'Models', 'Tools', 'Memory', 'Knowledge', 'Triggers', 'Usage', 'Settings', 'Theme']
+const NAMES = [
+  'Canvas',
+  'Chats',
+  'Ready',
+  'Board',
+  'To-do',
+  'Agents',
+  'Models',
+  'Tools',
+  'Memory',
+  'Knowledge',
+  'Triggers',
+  'Usage',
+  'Settings',
+  'Theme',
+]
 
 for (const theme of ['light', 'dark'] as const)
-  test(`the rail's buttons say their names under their icons, at 4.5 or more, in the ${theme} theme`, async ({ page }) => {
+  test(`the rail's buttons say their names under their icons, at 4.5 or more, in the ${theme} theme`, async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1366, height: 700 })
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     await openFreshConversation(page)
@@ -50,7 +71,9 @@ for (const theme of ['light', 'dark'] as const)
         expect(at.y + at.height).toBeLessThanOrEqual(700)
       }
       // What a button says is a word of its name (WCAG 2.5.3): a speech user can say it.
-      const said = await nav.locator('button:has(.rail-label)').evaluateAll(all => all.map(b => [b.querySelector('.rail-label')!.textContent!, b.getAttribute('aria-label')!]))
+      const said = await nav
+        .locator('button:has(.rail-label)')
+        .evaluateAll(all => all.map(b => [b.querySelector('.rail-label')!.textContent!, b.getAttribute('aria-label')!]))
       expect(said).toHaveLength(NAMES.length)
       for (const [label, name] of said) expect(name.toLowerCase()).toContain(label.toLowerCase())
       const pieces = await nav.evaluate(contrasts)
@@ -65,7 +88,9 @@ for (const theme of ['light', 'dark'] as const)
     }
   })
 
-test('on a window 480px tall the rail scrolls up and down, never sideways, and a focused button shows its ring inside it', async ({ page }) => {
+test('on a window 480px tall the rail scrolls up and down, never sideways, and a focused button shows its ring inside it', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1366, height: 480 })
   await openFreshConversation(page)
   const nav = page.getByRole('navigation', { name: 'Main' })
@@ -85,11 +110,14 @@ test('on a window 480px tall the rail scrolls up and down, never sideways, and a
   if (process.env.KOLONI_SHOTS) await shot(page, '66-rail-short')
 })
 
-test("the model server down: one short line, its reason behind Details, and Pick another model opens Models", async ({ page }) => {
+test('the model server down: one short line, its reason behind Details, and Pick another model opens Models', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.addInitScript(() => localStorage.setItem('koloni-theme', 'light'))
   const [local]: { id: string; base_url: string }[] = await (await page.request.get('/api/providers')).json()
-  const point = (base_url: string) => page.request.patch(`/api/providers/${local.id}`, { headers: OWN, data: { base_url } })
+  const point = (base_url: string) =>
+    page.request.patch(`/api/providers/${local.id}`, { headers: OWN, data: { base_url } })
   // Nothing listens on port 9: the default provider cannot be reached.
   expect((await point('http://127.0.0.1:9/v1')).ok()).toBe(true)
   try {
@@ -103,7 +131,9 @@ test("the model server down: one short line, its reason behind Details, and Pick
     await expect(why).toContainText('unreachable')
     // (and readable in both themes)
     for (const theme of ['light', 'dark']) {
-      await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(theme === 'dark')
+      await expect
+        .poll(() => page.evaluate(() => document.documentElement.classList.contains('dark')))
+        .toBe(theme === 'dark')
       expect((await banner.evaluate(contrasts)).filter(piece => piece.ratio < 4.5)).toEqual([])
       if (process.env.KOLONI_SHOTS) await shot(page, `66-banner-${theme}`)
       await page.getByRole('button', { name: /^Theme: switch to (dark|light)$/ }).click()
@@ -116,8 +146,13 @@ test("the model server down: one short line, its reason behind Details, and Pick
   }
 })
 
-for (const size of [{ width: 1440, height: 900 }, { width: 1366, height: 768 }])
-  test(`at ${size.width}x${size.height} the open chat covers neither the canvas's buttons nor the turn's nodes`, async ({ page }) => {
+for (const size of [
+  { width: 1440, height: 900 },
+  { width: 1366, height: 768 },
+])
+  test(`at ${size.width}x${size.height} the open chat covers neither the canvas's buttons nor the turn's nodes`, async ({
+    page,
+  }) => {
     await page.setViewportSize(size)
     await openFreshConversation(page)
     const chat = page.getByRole('region', { name: 'Chat' })
@@ -126,11 +161,20 @@ for (const size of [{ width: 1440, height: 900 }, { width: 1366, height: 768 }])
     await expect(page.locator('.react-flow__node-agent')).toHaveCount(3)
     await expect(chat.getByText('Both reviewers are done.')).toBeVisible({ timeout: 15_000 })
     await settled(page)
-    const [over, stage, buttons] = [(await chat.boundingBox())!, (await page.locator('.canvas-flow').boundingBox())!, (await page.locator('.react-flow__controls').boundingBox())!]
+    const [over, stage, buttons] = [
+      (await chat.boundingBox())!,
+      (await page.locator('.canvas-flow').boundingBox())!,
+      (await page.locator('.react-flow__controls').boundingBox())!,
+    ]
     expect(apart(buttons, over)).toBe(true)
     // (and pressable: nothing else lies over them)
     const zoomIn = (await page.getByRole('button', { name: 'Zoom In' }).boundingBox())!
-    expect(await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('.react-flow__controls'), [zoomIn.x + zoomIn.width / 2, zoomIn.y + zoomIn.height / 2])).toBe(true)
+    expect(
+      await page.evaluate(
+        ([x, y]) => !!document.elementFromPoint(x, y)?.closest('.react-flow__controls'),
+        [zoomIn.x + zoomIn.width / 2, zoomIn.y + zoomIn.height / 2],
+      ),
+    ).toBe(true)
     for (const node of await page.locator('.react-flow__node').all()) {
       const at = (await node.boundingBox())!
       expect(inside(at, stage) && apart(at, over), `${await node.innerText()} at ${JSON.stringify(at)}`).toBe(true)
@@ -141,7 +185,10 @@ for (const size of [{ width: 1440, height: 900 }, { width: 1366, height: 768 }])
     await settled(page)
     for (const node of await page.locator('.react-flow__node').all()) {
       const at = (await node.boundingBox())!
-      expect(inside(at, stage) && apart(at, over) && apart(at, buttons), `${await node.innerText()} at ${JSON.stringify(at)}`).toBe(true)
+      expect(
+        inside(at, stage) && apart(at, over) && apart(at, buttons),
+        `${await node.innerText()} at ${JSON.stringify(at)}`,
+      ).toBe(true)
     }
     if (process.env.KOLONI_SHOTS) await shot(page, `66-canvas-expanded-${size.width}x${size.height}`)
   })
@@ -153,28 +200,40 @@ test("at 1024x720 the Workspace window and a toast leave the canvas's buttons fr
   const buttons = page.locator('.react-flow__controls')
   const pressable = async () => {
     const zoomIn = (await page.getByRole('button', { name: 'Zoom In' }).boundingBox())!
-    return page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('.react-flow__controls'), [zoomIn.x + zoomIn.width / 2, zoomIn.y + zoomIn.height / 2])
+    return page.evaluate(
+      ([x, y]) => !!document.elementFromPoint(x, y)?.closest('.react-flow__controls'),
+      [zoomIn.x + zoomIn.width / 2, zoomIn.y + zoomIn.height / 2],
+    )
   }
   await page.getByRole('button', { name: /^Workspace/ }).click()
   const files = page.getByRole('region', { name: 'Workspace' })
   await expect(files).toBeVisible()
   // (Polled: the window takes its width from its stage as that is measured - a frame or more after it shows.)
-  const free = async (over: typeof files) => apart((await over.boundingBox())!, (await buttons.boundingBox())!) && (await pressable())
+  const free = async (over: typeof files) =>
+    apart((await over.boundingBox())!, (await buttons.boundingBox())!) && (await pressable())
   await expect.poll(() => free(files)).toBe(true)
   // Beside the open chat's column it starts under the Teams button: its Close is not under that button (0.1.4).
   expect(apart((await files.boundingBox())!, (await page.locator('.chat-teams').boundingBox())!)).toBe(true)
   // Another conversation begins to wait (its turn asks to run a command): its toast stands above the buttons.
   const project = (await (await page.request.get('/api/projects')).json())[0].id
-  const other: string = (await (await page.request.post('/api/conversations', { data: { project_id: project }, headers: OWN })).json()).id
+  const other: string = (
+    await (await page.request.post('/api/conversations', { data: { project_id: project }, headers: OWN })).json()
+  ).id
   const title = `toast ${Date.now()} run it slowly`
-  expect((await page.request.post(`/api/conversations/${other}/messages`, { data: { content: title }, headers: OWN })).ok()).toBe(true)
+  expect(
+    (await page.request.post(`/api/conversations/${other}/messages`, { data: { content: title }, headers: OWN })).ok(),
+  ).toBe(true)
   try {
     const toast = page.locator('.toast', { hasText: title })
     await expect(toast).toBeVisible({ timeout: 15_000 })
     await expect.poll(() => free(toast)).toBe(true)
     if (process.env.KOLONI_SHOTS) await shot(page, '66-buttons-free-1024')
   } finally {
-    await expect.poll(async () => (await (await page.request.get(`/api/conversations/${other}`)).json()).commands.length, { timeout: 15_000 }).toBeGreaterThan(0)
+    await expect
+      .poll(async () => (await (await page.request.get(`/api/conversations/${other}`)).json()).commands.length, {
+        timeout: 15_000,
+      })
+      .toBeGreaterThan(0)
     for (const command of (await (await page.request.get(`/api/conversations/${other}`)).json()).commands)
       await page.request.post(`/api/commands/${command.id}/reject`, { headers: OWN })
   }
@@ -182,19 +241,21 @@ test("at 1024x720 the Workspace window and a toast leave the canvas's buttons fr
 
 // (600px tall: there the window, 360px, came down over the buttons before slice 66's cap.)
 for (const height of [720, 600])
-  test(`at 1280x${height} an agent's window, top right, ends above the canvas's buttons, bottom right`, async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height })
-  await openFreshConversation(page)
-  const chat = page.getByRole('region', { name: 'Chat' })
-  await page.getByLabel('Message').fill('review the greeting')
-  await page.getByRole('button', { name: 'Send' }).click()
-  await expect(chat.getByText('The reviewer found no problems.')).toBeVisible({ timeout: 20_000 })
-  await page.locator('.react-flow__node-agent', { hasText: 'Reviewer' }).click()
-  await page.getByRole('complementary', { name: 'Inspector' }).getByRole('button', { name: 'Open window' }).click()
-  const own = page.getByRole('region', { name: 'Agent window' })
-  await expect(own).toBeVisible()
-  const [window, buttons] = [(await own.boundingBox())!, (await page.locator('.react-flow__controls').boundingBox())!]
-  expect(apart(window, buttons), `${JSON.stringify(window)} / ${JSON.stringify(buttons)}`).toBe(true)
-  if (process.env.KOLONI_SHOTS) await shot(page, `66-agent-window-${height}`)
-  await own.getByRole('button', { name: 'Close agent window' }).click()
-})
+  test(`at 1280x${height} an agent's window, top right, ends above the canvas's buttons, bottom right`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height })
+    await openFreshConversation(page)
+    const chat = page.getByRole('region', { name: 'Chat' })
+    await page.getByLabel('Message').fill('review the greeting')
+    await page.getByRole('button', { name: 'Send' }).click()
+    await expect(chat.getByText('The reviewer found no problems.')).toBeVisible({ timeout: 20_000 })
+    await page.locator('.react-flow__node-agent', { hasText: 'Reviewer' }).click()
+    await page.getByRole('complementary', { name: 'Inspector' }).getByRole('button', { name: 'Open window' }).click()
+    const own = page.getByRole('region', { name: 'Agent window' })
+    await expect(own).toBeVisible()
+    const [window, buttons] = [(await own.boundingBox())!, (await page.locator('.react-flow__controls').boundingBox())!]
+    expect(apart(window, buttons), `${JSON.stringify(window)} / ${JSON.stringify(buttons)}`).toBe(true)
+    if (process.env.KOLONI_SHOTS) await shot(page, `66-agent-window-${height}`)
+    await own.getByRole('button', { name: 'Close agent window' }).click()
+  })

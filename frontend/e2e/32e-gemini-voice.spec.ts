@@ -14,7 +14,9 @@ test.afterEach(async ({ request }) => {
 
 async function geminiTab(page: Page) {
   // (Never Google: a WAV header is enough for a sound that is not played.)
-  await page.route('**/api/voice/gemini/say', route => route.fulfill({ status: 200, contentType: 'audio/wav', body: Buffer.from('RIFF') }))
+  await page.route('**/api/voice/gemini/say', route =>
+    route.fulfill({ status: 200, contentType: 'audio/wav', body: Buffer.from('RIFF') }),
+  )
   await openFreshConversation(page)
   // (Voice is The app's, in Settings: this browser's.)
   const panel = await voiceSettings(page)
@@ -24,10 +26,14 @@ async function geminiTab(page: Page) {
 
 test('the Gemini key is saved from the panel and never shown again; removed, it is gone', async ({ page, request }) => {
   const panel = await geminiTab(page)
-  await expect(panel).toContainText('Text read with Gemini is sent to Google. On the free tier Google may use it to improve its products; on a paid key it does not.')
+  await expect(panel).toContainText(
+    'Text read with Gemini is sent to Google. On the free tier Google may use it to improve its products; on a paid key it does not.',
+  )
   await expect(panel.getByLabel(/^Read aloud with Gemini/)).toBeDisabled()
   await panel.getByLabel('Gemini API key').fill(KEY)
-  const saved = page.waitForResponse(response => response.url().endsWith('/api/voice/gemini') && response.request().method() === 'PUT')
+  const saved = page.waitForResponse(
+    response => response.url().endsWith('/api/voice/gemini') && response.request().method() === 'PUT',
+  )
   await panel.getByRole('button', { name: 'Save key' }).click()
   expect(await (await saved).text()).not.toContain(KEY)
   await expect(panel.getByText('A key is saved.')).toBeVisible()
@@ -64,7 +70,10 @@ function silence() {
   return wav
 }
 
-test('with a key saved Auto-read has Gemini read the answer a sentence a request as it comes, 🔊 all of it in one, played to the end in the browser', async ({ page, request }) => {
+test('with a key saved Auto-read has Gemini read the answer a sentence a request as it comes, 🔊 all of it in one, played to the end in the browser', async ({
+  page,
+  request,
+}) => {
   await request.put('/api/voice/gemini', { headers: OWN, data: { api_key: KEY } })
   const asked: string[] = []
   await page.route('**/api/voice/gemini/say', route => {
@@ -77,17 +86,23 @@ test('with a key saved Auto-read has Gemini read the answer a sentence a request
   await page.getByLabel('Message').fill('how is the total worked out?')
   await chat.getByRole('button', { name: 'Send' }).click()
   // Each asked for once the one before it sounds: all three, so each was played.
-  await expect.poll(() => asked, { timeout: 20_000 }).toEqual(['The total adds the tax once.', 'It is twenty percent.', 'Code block, 1 line.'])
+  await expect
+    .poll(() => asked, { timeout: 20_000 })
+    .toEqual(['The total adds the tax once.', 'It is twenty percent.', 'Code block, 1 line.'])
   await expect(chat.getByRole('button', { name: 'Read aloud' })).toBeVisible()
   await chat.getByRole('button', { name: 'Read aloud' }).click()
-  await expect.poll(() => asked.slice(3)).toEqual(['The total adds the tax once. It is twenty percent. Code block, 1 line.'])
+  await expect
+    .poll(() => asked.slice(3))
+    .toEqual(['The total adds the tax once. It is twenty percent. Code block, 1 line.'])
   // Played to its end: the button is 🔊 again, and nothing went wrong.
   await expect(chat.getByRole('button', { name: 'Read aloud' })).toBeVisible()
   await expect(chat.getByRole('alert')).toHaveCount(0)
 })
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`in the ${theme} theme the Gemini tab stands out from what it is on, with no key and with one (contrast 4.5 or more)`, async ({ page }) => {
+  test(`in the ${theme} theme the Gemini tab stands out from what it is on, with no key and with one (contrast 4.5 or more)`, async ({
+    page,
+  }) => {
     await page.addInitScript(chosen => localStorage.setItem('koloni-theme', chosen), theme)
     const panel = await geminiTab(page)
     await expect(page.locator('html')).not.toHaveClass(/theme-switching/)

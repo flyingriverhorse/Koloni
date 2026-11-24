@@ -23,7 +23,10 @@ test('calls of one agent in a row are one run, across its steps, and only until 
     toolCall('4', 'r', 'list_dir', 'succeeded', '{"path":"docs"}', { message_id: 'm4' }),
   ]
   // (m3's words come before its call: they end the first run, and its call begins the next.)
-  expect(ids(toolRuns(messages, callsByMessage(calls), never))).toEqual([['1', '2'], ['3', '4']])
+  expect(ids(toolRuns(messages, callsByMessage(calls), never))).toEqual([
+    ['1', '2'],
+    ['3', '4'],
+  ])
 })
 
 test('a single call is not a run, nor are calls of another turn or another agent run on together', () => {
@@ -42,8 +45,13 @@ test('a single call is not a run, nor are calls of another turn or another agent
 
 test('a call that stands alone - a card, a row that waits - splits a run, so it is never inside one', () => {
   const messages = [assistantMessage('m', 'r', '')]
-  const calls = ['1', '2', '3', '4', '5'].map(id => toolCall(id, 'r', 'read_file', 'succeeded', '{}', { message_id: 'm' }))
-  expect(ids(toolRuns(messages, callsByMessage(calls), call => call.id === '3'))).toEqual([['1', '2'], ['4', '5']])
+  const calls = ['1', '2', '3', '4', '5'].map(id =>
+    toolCall(id, 'r', 'read_file', 'succeeded', '{}', { message_id: 'm' }),
+  )
+  expect(ids(toolRuns(messages, callsByMessage(calls), call => call.id === '3'))).toEqual([
+    ['1', '2'],
+    ['4', '5'],
+  ])
 })
 
 test('the head counts what was done by kind, a run of a kind together, whatever came first', () => {
@@ -82,11 +90,26 @@ test('a call that failed, was refused or was cut off is not counted as done but 
   const none = { commands: [], fileChanges: [] }
   expect(runHead([ok, bad], none)).toEqual({ what: 'Read 1 file', marks: [['failed', 1]], status: 'succeeded' })
   // Slice 51: the browser's calls are one kind, however many tools they span.
-  const browsed = ['browser_open', 'browser_screenshot', 'browser_read'].map((name, at) => toolCall(`b${at}`, 'r', name, 'succeeded'))
+  const browsed = ['browser_open', 'browser_screenshot', 'browser_read'].map((name, at) =>
+    toolCall(`b${at}`, 'r', name, 'succeeded'),
+  )
   expect(runHead([ok, ...browsed], none).what).toBe('Read 1 file, tried the page in 3 steps')
-  expect(runHead([ok, { ...bad, status: 'denied' }], none)).toMatchObject({ marks: [['denied', 1]], status: 'succeeded' })
-  expect(runHead([ok, { ...bad, status: 'interrupted' }], none)).toMatchObject({ marks: [['interrupted', 1]], status: 'succeeded' })
-  expect(runHead([bad, { ...bad, id: '3', status: 'denied' }], none)).toEqual({ what: '', marks: [['failed', 1], ['denied', 1]], status: 'failed' })
+  expect(runHead([ok, { ...bad, status: 'denied' }], none)).toMatchObject({
+    marks: [['denied', 1]],
+    status: 'succeeded',
+  })
+  expect(runHead([ok, { ...bad, status: 'interrupted' }], none)).toMatchObject({
+    marks: [['interrupted', 1]],
+    status: 'succeeded',
+  })
+  expect(runHead([bad, { ...bad, id: '3', status: 'denied' }], none)).toEqual({
+    what: '',
+    marks: [
+      ['failed', 1],
+      ['denied', 1],
+    ],
+    status: 'failed',
+  })
 })
 
 test('while it runs, the head says what runs now, and counts only what has ended', () => {

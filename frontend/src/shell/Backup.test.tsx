@@ -12,7 +12,8 @@ const RESTORED = { made_at: MADE, secrets: false, need_keys: ['provider Anthropi
 /** The server, by what is asked: `staged` is what GET /backup/staged answers. */
 function server(staged: unknown = { staged: null, failed: null }, restore: () => Response = () => json(RESTORED)) {
   const asked = vi.fn(async (address: string, init?: RequestInit) => {
-    if (address === '/api/backup/staged') return init?.method === 'DELETE' ? new Response(null, { status: 204 }) : json(staged)
+    if (address === '/api/backup/staged')
+      return init?.method === 'DELETE' ? new Response(null, { status: 204 }) : json(staged)
     return restore()
   })
   vi.stubGlobal('fetch', asked)
@@ -23,7 +24,8 @@ function server(staged: unknown = { staged: null, failed: null }, restore: () =>
 const open = async () => screen.getByRole('region', { name: 'Your data' })
 
 test('Export everything is a POST to the export, saved with no key in its address, secrets left out unless the box is ticked; a refusal is said here', async () => {
-  const zip = () => new Response('PK', { headers: { 'Content-Disposition': 'attachment; filename="koloni-2026-11-06.zip"' } })
+  const zip = () =>
+    new Response('PK', { headers: { 'Content-Disposition': 'attachment; filename="koloni-2026-11-06.zip"' } })
   const asked = server(undefined, zip)
   Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:zip'), revokeObjectURL: vi.fn() })
   const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
@@ -34,7 +36,10 @@ test('Export everything is a POST to the export, saved with no key in its addres
   expect(box).toHaveAccessibleDescription(SECRETS_NOTE)
   await userEvent.click(within(panel).getByRole('button', { name: 'Export everything' }))
   await waitFor(() => expect(click).toHaveBeenCalledTimes(1))
-  expect(asked).toHaveBeenLastCalledWith('/api/backup/export?secrets=false', expect.objectContaining({ method: 'POST' }))
+  expect(asked).toHaveBeenLastCalledWith(
+    '/api/backup/export?secrets=false',
+    expect.objectContaining({ method: 'POST' }),
+  )
   expect((click.mock.contexts[0] as HTMLAnchorElement).download).toBe('koloni-2026-11-06.zip')
   await userEvent.click(box)
   await userEvent.click(within(panel).getByRole('button', { name: 'Export everything' }))
@@ -68,7 +73,9 @@ test('a staged restore is shown when the panel opens, and Cancel gives it up; a 
   render(<Backup />)
   const panel = await open()
   expect(await within(panel).findByRole('status')).toHaveTextContent('waits for the next start')
-  expect(panel).toHaveTextContent('A restore could not be applied at the last start: it is kept in C:\\koloni\\runtime\\restore.failed-20261028T100000000000')
+  expect(panel).toHaveTextContent(
+    'A restore could not be applied at the last start: it is kept in C:\\koloni\\runtime\\restore.failed-20261028T100000000000',
+  )
   await userEvent.click(within(panel).getByRole('button', { name: 'Cancel' }))
   expect(asked).toHaveBeenCalledWith('/api/backup/staged', expect.objectContaining({ method: 'DELETE' }))
   expect(within(panel).queryByRole('status')).not.toBeInTheDocument()
@@ -78,7 +85,12 @@ test('a refused restore says why, and no note of a restore', async () => {
   server(undefined, () => json({ detail: 'not restored: it is not a KOLONİ export: it has no manifest.json' }, 422))
   render(<Backup />)
   const panel = await open()
-  await userEvent.upload(within(panel).getByLabelText('An export to restore'), new File(['x'], 'other.zip', { type: 'application/zip' }))
-  expect(await within(panel).findByRole('alert')).toHaveTextContent('not restored: it is not a KOLONİ export: it has no manifest.json')
+  await userEvent.upload(
+    within(panel).getByLabelText('An export to restore'),
+    new File(['x'], 'other.zip', { type: 'application/zip' }),
+  )
+  expect(await within(panel).findByRole('alert')).toHaveTextContent(
+    'not restored: it is not a KOLONİ export: it has no manifest.json',
+  )
   expect(within(panel).queryByRole('status')).not.toBeInTheDocument()
 })

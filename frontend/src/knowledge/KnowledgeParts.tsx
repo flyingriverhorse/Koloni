@@ -17,11 +17,41 @@ export type Sent = Omit<Knowledge, 'topic'>
 
 /** What "+ Add knowledge" adds from: the kind sets the sources field's name and example. */
 const KINDS = [
-  { key: 'site', name: 'A docs site', note: 'its pages under an address', label: 'Address', hint: 'https://mlflow.org/docs/latest/' },
-  { key: 'files', name: 'Files here', note: 'a folder or file in this project', label: 'Folder or file', hint: 'docs/' },
-  { key: 'repo', name: 'A repository', note: 'its code (a free scan) and a guide from its docs and code', label: 'Address', hint: 'https://github.com/owner/name' },
-  { key: 'folder', name: 'A folder on this machine', note: 'outside this project, read in place as a repository is', label: 'Full path', hint: 'C:\\work\\mylib' },
-  { key: 'research', name: 'Research a topic', note: 'it searches the web for it', label: 'What to research', hint: 'stripe webhooks' },
+  {
+    key: 'site',
+    name: 'A docs site',
+    note: 'its pages under an address',
+    label: 'Address',
+    hint: 'https://mlflow.org/docs/latest/',
+  },
+  {
+    key: 'files',
+    name: 'Files here',
+    note: 'a folder or file in this project',
+    label: 'Folder or file',
+    hint: 'docs/',
+  },
+  {
+    key: 'repo',
+    name: 'A repository',
+    note: 'its code (a free scan) and a guide from its docs and code',
+    label: 'Address',
+    hint: 'https://github.com/owner/name',
+  },
+  {
+    key: 'folder',
+    name: 'A folder on this machine',
+    note: 'outside this project, read in place as a repository is',
+    label: 'Full path',
+    hint: 'C:\\work\\mylib',
+  },
+  {
+    key: 'research',
+    name: 'Research a topic',
+    note: 'it searches the web for it',
+    label: 'What to research',
+    hint: 'stripe webhooks',
+  },
 ] as const
 type Kind = (typeof KINDS)[number]['key']
 const RESEARCH = /^research:/i
@@ -30,7 +60,15 @@ const KEPT_CODE = /^(repo|folder):/i
 
 /** The sources as typed, a line each - in the add window (`kinds`), with the prefix its kind has put on: "research: <topic>", "repo: <address>". */
 function typedSources(text: string, kinds: boolean | undefined, kind: Kind): string[] {
-  const prefix = !kinds ? '' : kind === 'research' ? 'research: ' : kind === 'repo' ? 'repo: ' : kind === 'folder' ? 'folder: ' : ''
+  const prefix = !kinds
+    ? ''
+    : kind === 'research'
+      ? 'research: '
+      : kind === 'repo'
+        ? 'repo: '
+        : kind === 'folder'
+          ? 'folder: '
+          : ''
   return lines(text).map(one => (!prefix || RESEARCH.test(one) || KEPT_CODE.test(one) ? one : `${prefix}${one}`))
 }
 
@@ -55,7 +93,8 @@ function startOf(knowledge: Knowledge | null) {
 }
 
 /** A page cap as typed (1 to 1000); null: not valid. */
-const maxPagesOf = (pages: string) => (/^\d{1,4}$/.test(pages.trim()) && Number(pages) >= 1 && Number(pages) <= 1000 ? Number(pages) : null)
+const maxPagesOf = (pages: string) =>
+  /^\d{1,4}$/.test(pages.trim()) && Number(pages) >= 1 && Number(pages) <= 1000 ? Number(pages) : null
 /** What a learning may spend as typed (over 0, at most 100 USD); null: not valid. */
 const maxUsdOf = (usd: string) => (Number(usd) > 0 && Number(usd) <= 100 ? Number(usd) : null)
 
@@ -63,7 +102,17 @@ const maxUsdOf = (usd: string) => (Number(usd) > 0 && Number(usd) <= 100 ? Numbe
 function sentOf(
   knowledge: Knowledge | null,
   kinds: boolean | undefined,
-  form: { listed: string[]; pages: string; usd: string; code: { max_code_files: number } | null; withModel: string; weeklyOffered: boolean; weekly: boolean; searchSet: boolean | null; searches: boolean },
+  form: {
+    listed: string[]
+    pages: string
+    usd: string
+    code: { max_code_files: number } | null
+    withModel: string
+    weeklyOffered: boolean
+    weekly: boolean
+    searchSet: boolean | null
+    searches: boolean
+  },
 ): Sent | null {
   const { listed, pages, usd, code, withModel, weeklyOffered, weekly, searchSet, searches } = form
   const maxPages = maxPagesOf(pages)
@@ -85,14 +134,32 @@ function sentOf(
 }
 
 /** Beside the page cap, a repository's: how many of its code files new to its guide a learning reads. */
-function CodeCap({ id, shown, value, onChange }: { id: string; shown: boolean; value: string; onChange: (value: string) => void }) {
+function CodeCap({
+  id,
+  shown,
+  value,
+  onChange,
+}: {
+  id: string
+  shown: boolean
+  value: string
+  onChange: (value: string) => void
+}) {
   if (!shown) return null
   return (
     <>
       <label htmlFor={`${id}-code`}>At most this many code files a learning</label>
-      <input id={`${id}-code`} className="input" inputMode="numeric" value={value} aria-describedby={`${id}-code-note`} onChange={e => onChange(e.target.value)} />
+      <input
+        id={`${id}-code`}
+        className="input"
+        inputMode="numeric"
+        value={value}
+        aria-describedby={`${id}-code-note`}
+        onChange={e => onChange(e.target.value)}
+      />
       <span id={`${id}-code-note`} className="muted">
-        The most central first; Learn more goes on with the next ones. It holds where no price does (a CLI, a plan). 0: no guide to its code - its docs’ guide and the free scan only.
+        The most central first; Learn more goes on with the next ones. It holds where no price does (a CLI, a plan). 0:
+        no guide to its code - its docs’ guide and the free scan only.
       </span>
     </>
   )
@@ -119,7 +186,18 @@ interface SourcesProps {
  * (decision 3: one form). `learn`: what stands beside "Learn with" - given the form as typed (null: not valid) and whether it
  * differs from what is saved; `onDirty` is told that too.
  */
-export function Sources({ knowledge, providers, busy, button, onSave, learn, onDirty, kinds, children, foot }: SourcesProps) {
+export function Sources({
+  knowledge,
+  providers,
+  busy,
+  button,
+  onSave,
+  learn,
+  onDirty,
+  kinds,
+  children,
+  foot,
+}: SourcesProps) {
   // (A row of the Knowledge page and the add window may be open at once: ids of its own.)
   const id = useId()
   const [kind, setKind] = useState<Kind>('site')
@@ -140,7 +218,17 @@ export function Sources({ knowledge, providers, busy, button, onSave, learn, onD
   // Not said yet: an expert of a topic to research may search while answering.
   const [searchSet, setSearches] = useState<boolean | null>(start.searchSet)
   const searches = searchSet ?? researches
-  const sent = sentOf(knowledge, kinds, { listed, pages, usd, code, withModel, weeklyOffered, weekly, searchSet, searches })
+  const sent = sentOf(knowledge, kinds, {
+    listed,
+    pages,
+    usd,
+    code,
+    withModel,
+    weeklyOffered,
+    weekly,
+    searchSet,
+    searches,
+  })
   // B-365: what is typed against what was saved (the form starts anew on each save: its key).
   const typed = JSON.stringify([listed, pages, usd, withModel, weekly, searches, codeFiles])
   const [saved] = useState(typed)
@@ -155,7 +243,13 @@ export function Sources({ knowledge, providers, busy, button, onSave, learn, onD
   const pageCap = (
     <div className="field">
       <label htmlFor={`${id}-pages`}>At most this many pages (a safety cap)</label>
-      <input id={`${id}-pages`} className="input" inputMode="numeric" value={pages} onChange={e => setPages(e.target.value)} />
+      <input
+        id={`${id}-pages`}
+        className="input"
+        inputMode="numeric"
+        value={pages}
+        onChange={e => setPages(e.target.value)}
+      />
       <CodeCap id={id} shown={listed.some(one => KEPT_CODE.test(one))} value={codeFiles} onChange={setCodeFiles} />
     </div>
   )
@@ -164,7 +258,15 @@ export function Sources({ knowledge, providers, busy, button, onSave, learn, onD
       {kinds && (
         <div className="knowledge-kinds" role="radiogroup" aria-label="From">
           {KINDS.map((one, at) => (
-            <button key={one.key} type="button" role="radio" autoFocus={at === 0} aria-checked={kind === one.key} className="knowledge-kind" onClick={() => setKind(one.key)}>
+            <button
+              key={one.key}
+              type="button"
+              role="radio"
+              autoFocus={at === 0}
+              aria-checked={kind === one.key}
+              className="knowledge-kind"
+              onClick={() => setKind(one.key)}
+            >
               <strong>{one.name}</strong>
               <span className="muted">{one.note}</span>
             </button>
@@ -173,11 +275,21 @@ export function Sources({ knowledge, providers, busy, button, onSave, learn, onD
       )}
       <div className="field">
         <label htmlFor={`${id}-sources`}>{kinds ? chosenKind.label : 'Sources'}</label>
-        <textarea id={`${id}-sources`} className="input" rows={kinds ? 2 : 3} value={sources} placeholder={kinds ? chosenKind.hint : undefined} aria-describedby={`${id}-sources-note`} onChange={e => setSources(e.target.value)} />
+        <textarea
+          id={`${id}-sources`}
+          className="input"
+          rows={kinds ? 2 : 3}
+          value={sources}
+          placeholder={kinds ? chosenKind.hint : undefined}
+          aria-describedby={`${id}-sources-note`}
+          onChange={e => setSources(e.target.value)}
+        />
         <span id={`${id}-sources-note`} className="muted">
-          One a line: the documents’ address (https://…), a file or folder of the project, or <code>research: a topic</code> to search the web for. A site is read only under the path given; a
-          repository (<code>repo: https://github.com/owner/name</code>) is cloned on Learn, outside the project, and a folder on this machine (<code>folder: C:\work\mylib</code>) is read
-          where it is, never written to; each is its knowledge’s only source.
+          One a line: the documents’ address (https://…), a file or folder of the project, or{' '}
+          <code>research: a topic</code> to search the web for. A site is read only under the path given; a repository (
+          <code>repo: https://github.com/owner/name</code>) is cloned on Learn, outside the project, and a folder on
+          this machine (<code>folder: C:\work\mylib</code>) is read where it is, never written to; each is its
+          knowledge’s only source.
         </span>
       </div>
       {children}
@@ -187,7 +299,10 @@ export function Sources({ knowledge, providers, busy, button, onSave, learn, onD
           <span>
             Learn again weekly
             {/* shortcut: checked only when an expert of it next works (app/knowledge.py brief); a Map-only one shows "old" - check it on a timer if that is missed. */}
-            <span className="choice-note">Once its guide is a week old, it learns before its next answer or recipe step - only what changed is read and written again.</span>
+            <span className="choice-note">
+              Once its guide is a week old, it learns before its next answer or recipe step - only what changed is read
+              and written again.
+            </span>
           </span>
         </label>
       )}
@@ -200,9 +315,17 @@ export function Sources({ knowledge, providers, busy, button, onSave, learn, onD
       </label>
       <div className="field">
         <label htmlFor={`${id}-usd`}>At most this much a learning (USD)</label>
-        <input id={`${id}-usd`} className="input" inputMode="decimal" value={usd} aria-describedby={`${id}-usd-note`} onChange={e => setUsd(e.target.value)} />
+        <input
+          id={`${id}-usd`}
+          className="input"
+          inputMode="decimal"
+          value={usd}
+          aria-describedby={`${id}-usd-note`}
+          onChange={e => setUsd(e.target.value)}
+        />
         <span id={`${id}-usd-note`} className="muted">
-          It reads everything under its sources; this is what writing its guide may spend, held where the model’s price is known. Learn again goes on from where it stopped.
+          It reads everything under its sources; this is what writing its guide may spend, held where the model’s price
+          is known. Learn again goes on from where it stopped.
         </span>
       </div>
       {!kinds && pageCap}
@@ -237,7 +360,17 @@ export function Sources({ knowledge, providers, busy, button, onSave, learn, onD
 }
 
 /** What its learning read and skipped and why, and what was found while answering; a page a search found can be taken off. */
-export function Pages({ state, removed, busy, onRemove }: { state: KnowledgeState; removed: string[]; busy: boolean; onRemove: (source: string) => void }) {
+export function Pages({
+  state,
+  removed,
+  busy,
+  onRemove,
+}: {
+  state: KnowledgeState
+  removed: string[]
+  busy: boolean
+  onRemove: (source: string) => void
+}) {
   const pages = state.learned?.pages ?? []
   const added = state.learned?.added ?? []
   const read = pages.filter(one => one.read).length
@@ -245,7 +378,13 @@ export function Pages({ state, removed, busy, onRemove }: { state: KnowledgeStat
     !removed.includes(source) && (
       <>
         {' '}
-        <button type="button" className="link-btn" aria-label={`Remove ${name}`} disabled={busy} onClick={() => onRemove(source)}>
+        <button
+          type="button"
+          className="link-btn"
+          aria-label={`Remove ${name}`}
+          disabled={busy}
+          onClick={() => onRemove(source)}
+        >
           Remove
         </button>
       </>
@@ -295,10 +434,16 @@ const SECTION = /^- (guide\/[0-9a-f]{12}\.md): (.*)$/
 export function Guide({ state, onRead }: { state: KnowledgeState; onRead: (path: string) => Promise<ProjectFile> }) {
   const guide = state.guide ?? ''
   const at = guide.lastIndexOf(LISTED)
-  const sections = at < 0 ? [] : guide.slice(at + LISTED.length).split('\n').flatMap(line => {
-          const found = line.match(SECTION)
-          return found ? [found] : []
-        })
+  const sections =
+    at < 0
+      ? []
+      : guide
+          .slice(at + LISTED.length)
+          .split('\n')
+          .flatMap(line => {
+            const found = line.match(SECTION)
+            return found ? [found] : []
+          })
   return (
     <>
       <pre className="knowledge-guide">{at < 0 ? guide : guide.slice(0, at)}</pre>
@@ -315,7 +460,17 @@ export function Guide({ state, onRead }: { state: KnowledgeState; onRead: (path:
   )
 }
 
-function Section({ path, name, from, onRead }: { path: string; name: string; from: string; onRead: (path: string) => Promise<ProjectFile> }) {
+function Section({
+  path,
+  name,
+  from,
+  onRead,
+}: {
+  path: string
+  name: string
+  from: string
+  onRead: (path: string) => Promise<ProjectFile>
+}) {
   const [text, setText] = useState<string | null>(null)
   const open = (opened: boolean) => {
     if (!opened || text !== null) return
@@ -335,7 +490,15 @@ function Section({ path, name, from, onRead }: { path: string; name: string; fro
 }
 
 /** Its guide copied into another of the user's projects; a guide there already is replaced only on the user's yes. */
-export function CopyGuide({ topic, projects, onCopy }: { topic: string; projects: Project[]; onCopy: (toProjectId: string, replace?: boolean) => Promise<void> }) {
+export function CopyGuide({
+  topic,
+  projects,
+  onCopy,
+}: {
+  topic: string
+  projects: Project[]
+  onCopy: (toProjectId: string, replace?: boolean) => Promise<void>
+}) {
   const id = useId()
   const [to, setTo] = useState('')
   // B-131: said beside its button.
@@ -350,7 +513,12 @@ export function CopyGuide({ topic, projects, onCopy }: { topic: string; projects
       // One there already: replaced, with the pages read there, only on the user's yes.
       if (err instanceof ApiError && err.status === 409 && err.detail.startsWith('there is a guide there already')) {
         const replace = () => onCopy(target.id, true).then(copied, again => setSaid(errorText(again)))
-        confirm.ask(`${target.name} has a guide of ${topic} already. Replace it? The pages read there are deleted.`, 'Replace it', replace, 'Cancel')
+        confirm.ask(
+          `${target.name} has a guide of ${topic} already. Replace it? The pages read there are deleted.`,
+          'Replace it',
+          replace,
+          'Cancel',
+        )
         return
       }
       setSaid(errorText(err))
@@ -376,7 +544,9 @@ export function CopyGuide({ topic, projects, onCopy }: { topic: string; projects
         </span>
       </div>
       {confirm.shown()}
-      <span className="muted">The guide and what was learned, not the pages read: learn again there to search them.</span>
+      <span className="muted">
+        The guide and what was learned, not the pages read: learn again there to search them.
+      </span>
     </div>
   )
 }

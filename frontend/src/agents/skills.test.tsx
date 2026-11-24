@@ -52,7 +52,9 @@ const role: Role = {
   instructions: '',
   tools: ['read_file'],
   builtin: true,
-  created_by_agent: false, locked_tools: [], models: null,
+  created_by_agent: false,
+  locked_tools: [],
+  models: null,
   provider_id: null,
   model_id: null,
   tier: null,
@@ -113,13 +115,25 @@ test("a role's skills are listed: one it cannot run says why, and each opens the
   const onOpenSkills = vi.fn()
   const ship = skill({ id: 's4', name: 'ship', description: 'Ships it.', needs: NEEDS_SHELL })
   const old = skill({ id: 's5', name: 'old', enabled: false })
-  render(<AgentsPage roles={[{ ...role, skills: ['tidy', 'ship', 'old'] }]} picked="r1" skills={[skill(), ship, old]} onOpenSkills={onOpenSkills} {...h} />)
+  render(
+    <AgentsPage
+      roles={[{ ...role, skills: ['tidy', 'ship', 'old'] }]}
+      picked="r1"
+      skills={[skill(), ship, old]}
+      onOpenSkills={onOpenSkills}
+      {...h}
+    />,
+  )
   await openTools()
   expect(screen.getByText(/1 of 3 skills/)).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'tidy, on the Tools page' })).toBeInTheDocument()
   // given, but the role has no shell, or it is off: said, with why
-  expect(screen.getByRole('button', { name: 'ship, cannot run here: no shell, on the Tools page' })).toHaveTextContent('⚠ ship')
-  expect(screen.getByRole('button', { name: 'old, cannot run here: off on the Tools page, on the Tools page' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'ship, cannot run here: no shell, on the Tools page' })).toHaveTextContent(
+    '⚠ ship',
+  )
+  expect(
+    screen.getByRole('button', { name: 'old, cannot run here: off on the Tools page, on the Tools page' }),
+  ).toBeInTheDocument()
   await userEvent.click(screen.getByRole('button', { name: /^ship/ }))
   expect(onOpenSkills).toHaveBeenCalledWith('ship')
   // nothing is given or taken here: no box, no editor, no window
@@ -131,7 +145,13 @@ test("a role's skills are listed: one it cannot run says why, and each opens the
 
 const actions = () => ({
   onPreviewSkill: vi.fn().mockResolvedValue(
-    shown({ name: 'plain', license: null, scripts: ['go.sh'], script_texts: { 'go.sh': 'echo go' }, source: 'https://github.com/a/b@abc' }),
+    shown({
+      name: 'plain',
+      license: null,
+      scripts: ['go.sh'],
+      script_texts: { 'go.sh': 'echo go' },
+      source: 'https://github.com/a/b@abc',
+    }),
   ),
   onAddSkill: vi.fn().mockResolvedValue(skill({ id: 's2', name: 'plain' })),
   onSkillLeave: vi.fn().mockResolvedValue(undefined),
@@ -146,9 +166,18 @@ function section(skills: Skill[], a = actions(), adding = true) {
 }
 
 test("a skill's row on the Tools page: its switch, line and roles; unfolded, its source, licence, SKILL.md, scripts' leave and how it did", async () => {
-  const records = [row(), row({ provider_name: 'Qoder', model_id: 'free', agents: 2, used: 0 }), row({ provider_name: 'agy', model_id: 'flash', agents: 3, used: 0, in_brief: 3 }), row({ skill: 'notes' })]
+  const records = [
+    row(),
+    row({ provider_name: 'Qoder', model_id: 'free', agents: 2, used: 0 }),
+    row({ provider_name: 'agy', model_id: 'flash', agents: 3, used: 0, in_brief: 3 }),
+    row({ skill: 'notes' }),
+  ]
   const a = { ...actions(), onSkillRecord: vi.fn().mockResolvedValue(records) }
-  section([skill({ version: '1.2', needs: NEEDS_SHELL }), skill({ id: 's3', name: 'notes', license: null, scripts: [] })], a, false)
+  section(
+    [skill({ version: '1.2', needs: NEEDS_SHELL }), skill({ id: 's3', name: 'notes', license: null, scripts: [] })],
+    a,
+    false,
+  )
   const open = () => screen.getByRole('button', { name: /^tidy/ })
   // a row: its line, the role it is given to with ✗ where it cannot run, how many agents had it
   expect(open()).toHaveAttribute('aria-expanded', 'false')
@@ -219,12 +248,37 @@ test('a skill is given to a role or taken from it on its row, and a role that la
 
 test('a skill that asks for a server switched off cannot run on a role that has the server', () => {
   const hub = skill({ needs: { groups: [], mcp: ['hub'], unknown: [], tools: {} } })
-  render(<SkillsSection skills={[hub]} roles={[{ ...role, mcp: ['hub'] }]} off={[]} serversOff={['hub']} picked="skill:tidy" adding={false} onAdding={vi.fn()} onPatchRole={vi.fn()} {...actions()} />)
-  expect(screen.getByRole('checkbox', { name: /Coder/ }).closest('label')).toHaveTextContent('✗ Coder (no MCP server hub)')
+  render(
+    <SkillsSection
+      skills={[hub]}
+      roles={[{ ...role, mcp: ['hub'] }]}
+      off={[]}
+      serversOff={['hub']}
+      picked="skill:tidy"
+      adding={false}
+      onAdding={vi.fn()}
+      onPatchRole={vi.fn()}
+      {...actions()}
+    />,
+  )
+  expect(screen.getByRole('checkbox', { name: /Coder/ }).closest('label')).toHaveTextContent(
+    '✗ Coder (no MCP server hub)',
+  )
 })
 
 test('a role that cannot run a skill it has not got cannot be given it until it can', () => {
-  render(<SkillsSection skills={[skill({ needs: NEEDS_SHELL })]} roles={[{ ...role, skills: [] }]} off={[]} picked="skill:tidy" adding={false} onAdding={vi.fn()} onPatchRole={vi.fn()} {...actions()} />)
+  render(
+    <SkillsSection
+      skills={[skill({ needs: NEEDS_SHELL })]}
+      roles={[{ ...role, skills: [] }]}
+      off={[]}
+      picked="skill:tidy"
+      adding={false}
+      onAdding={vi.fn()}
+      onPatchRole={vi.fn()}
+      {...actions()}
+    />,
+  )
   const coder = screen.getByRole('checkbox', { name: /Coder/ })
   expect(coder).not.toBeChecked()
   expect(coder).toBeDisabled()
@@ -254,7 +308,8 @@ test('one of a kept name is a Replace, said so; a skill is deleted only on a yes
   // B-337: KOLONİ's own question in the skill's row, never the browser's.
   const browser = vi.spyOn(window, 'confirm')
   await userEvent.click(screen.getByRole('button', { name: /^tidy/ }))
-  const asked = () => screen.getByRole('alertdialog', { name: /^Delete the skill tidy\? Every role that has it loses it/ })
+  const asked = () =>
+    screen.getByRole('alertdialog', { name: /^Delete the skill tidy\? Every role that has it loses it/ })
   await userEvent.click(screen.getByRole('button', { name: 'Delete skill tidy' }))
   await userEvent.click(within(asked()).getByRole('button', { name: 'Cancel' }))
   expect(a.onDeleteSkill).not.toHaveBeenCalled()
@@ -286,7 +341,7 @@ const picked = (path: string, text: string) => {
   return file
 }
 
-test("a chosen folder is sent as base64, without its .git, and added as it was shown", async () => {
+test('a chosen folder is sent as base64, without its .git, and added as it was shown', async () => {
   const a = section([])
   expect(screen.getByRole('button', { name: 'Choose folder…' })).toBeInTheDocument()
   const input = screen.getByLabelText("A skill's folder to upload")
@@ -317,7 +372,10 @@ test('a .zip is sent whole as base64, and one larger than a .zip may be is refus
 
 test('a spawn card names the skills its agent is not given, and why; a click opens one', async () => {
   const onOpenSkill = vi.fn()
-  const coder = agent('r', 'proposed', { role_name: 'Researcher', skills: { given: ['tidy'], left_out: { ship: 'no shell' }, in_brief: [] } })
+  const coder = agent('r', 'proposed', {
+    role_name: 'Researcher',
+    skills: { given: ['tidy'], left_out: { ship: 'no shell' }, in_brief: [] },
+  })
   render(<SpawnApproval agent={coder} onDecide={vi.fn()} onOpenSkill={onOpenSkill} />)
   expect(screen.getByText(/left out/)).toHaveTextContent('Skills: ship (no shell) left out')
   await userEvent.click(screen.getByRole('button', { name: 'ship' }))
@@ -352,9 +410,16 @@ test("the Lead's skill is asked about with its text, files, size, licence, scrip
 })
 
 test("a skill's card says what its scripts name outright, and that one which hides it cannot be trusted", () => {
-  const seen = { ...pending.seen, reaches: { programs: ['subprocess'] }, programs: ['curl'], hidden: ['exec in scripts/check.py'] }
+  const seen = {
+    ...pending.seen,
+    reaches: { programs: ['subprocess'] },
+    programs: ['curl'],
+    hidden: ['exec in scripts/check.py'],
+  }
   render(<SkillApproval skill={{ ...pending, seen }} onDecide={vi.fn()} />)
-  expect(screen.getByRole('alert')).toHaveTextContent('It hides what it does (exec in scripts/check.py): what is said below of it cannot be trusted.')
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'It hides what it does (exec in scripts/check.py): what is said below of it cannot be trusted.',
+  )
   expect(screen.getByText('curl')).toBeInTheDocument()
   expect(screen.getByText('What its SKILL.md tells an agent to do: read it below.')).toBeInTheDocument()
 })
@@ -371,8 +436,12 @@ test('slice 92: the card lists its files, what runs as a program, its allowed-to
   const { rerender } = render(<SkillApproval skill={told} onDecide={vi.fn()} />)
   expect(screen.getByText(/^Its files:/)).toHaveTextContent('Its files: SKILL.md, LICENSE, scripts/check.py')
   expect(screen.getByText('scripts/check.py')).toBeInTheDocument() // its scripts, apart
-  expect(screen.getByText('bin/go, setup.bat').parentElement).toHaveTextContent('Files that run as programs: bin/go, setup.bat. KOLONİ does not run them')
-  expect(screen.getByText('Read, Bash(git push:*)').parentElement).toHaveTextContent('It declares allowed-tools: Read, Bash(git push:*). KOLONİ gives a skill none of them')
+  expect(screen.getByText('bin/go, setup.bat').parentElement).toHaveTextContent(
+    'Files that run as programs: bin/go, setup.bat. KOLONİ does not run them',
+  )
+  expect(screen.getByText('Read, Bash(git push:*)').parentElement).toHaveTextContent(
+    'It declares allowed-tools: Read, Bash(git push:*). KOLONİ gives a skill none of them',
+  )
   expect(screen.getByText('First !`git status` is read.')).toBeInTheDocument()
   expect(screen.getByText(/Its SKILL\.md has 2 shell blocks/)).toBeInTheDocument()
   expect(screen.getByText(/a #! line in another file is not seen here/)).toBeInTheDocument()
@@ -394,7 +463,10 @@ test("a skill's card comes and goes with its events, and waits for the user", ()
 })
 
 test('a spawn card with no way to open a skill names those left out as text, a comma between; none left out, no line', () => {
-  const coder = agent('r', 'proposed', { role_name: 'Researcher', skills: { given: [], left_out: { ship: 'no shell', tidy: 'not for this CLI' }, in_brief: [] } })
+  const coder = agent('r', 'proposed', {
+    role_name: 'Researcher',
+    skills: { given: [], left_out: { ship: 'no shell', tidy: 'not for this CLI' }, in_brief: [] },
+  })
   const { rerender } = render(<SpawnApproval agent={coder} onDecide={vi.fn()} />)
   expect(screen.getByText(/left out/)).toHaveClass('muted', 'cmd-approval-note')
   expect(screen.getByText(/left out/)).toHaveTextContent('Skills: ship (no shell), tidy (not for this CLI) left out')
@@ -409,23 +481,53 @@ test('a spawn card with no way to open a skill names those left out as text, a c
 test('a skill’s bars: where each ran, what it measures in words, and how it was given - read, in its brief, or neither', async () => {
   const rows = [
     row({ agents: 6, taken_in: 5, used: 2, in_brief: 3, steps: 12.4, cost: null }),
-    row({ role_name: 'Tester', provider_name: null, model_id: null, agents: 5, taken_in: 1, used: 4, in_brief: 0, steps: null, cost: null }),
+    row({
+      role_name: 'Tester',
+      provider_name: null,
+      model_id: null,
+      agents: 5,
+      taken_in: 1,
+      used: 4,
+      in_brief: 0,
+      steps: null,
+      cost: null,
+    }),
     row({ role_name: 'Writer', agents: 2, used: 0, in_brief: 0 }),
   ]
   const { container } = render(<SkillBars rows={rows} />)
-  const bars = () => Array.from(container.querySelectorAll('.skill-bar'), bar => Array.from(bar.children, cell => `${cell.tagName}:${cell.textContent}`))
+  const bars = () =>
+    Array.from(container.querySelectorAll('.skill-bar'), bar =>
+      Array.from(bar.children, cell => `${cell.tagName}:${cell.textContent}`),
+    )
   const classes = () => Array.from(container.querySelectorAll('.skill-bar'), bar => bar.className)
   expect(classes()).toEqual(['skill-bar', 'skill-bar', 'skill-bar skill-bar-given'])
   expect(bars()).toEqual([
-    ['SPAN:Local · big-model · Coder', 'METER:', 'SPAN:5/6', 'SPAN:read in 2 of 6 · given in full in its brief in 3 of 6'],
+    [
+      'SPAN:Local · big-model · Coder',
+      'METER:',
+      'SPAN:5/6',
+      'SPAN:read in 2 of 6 · given in full in its brief in 3 of 6',
+    ],
     ['SPAN:a provider not on record · a model not on record · Tester', 'METER:', 'SPAN:1/5', 'SPAN:read in 4 of 5'],
     ['SPAN:Local · big-model · Writer', 'SPAN:', 'SPAN:< 5 jobs', 'SPAN:given, not read'],
   ])
   const meter = () => container.querySelector('meter')!
-  expect([meter().getAttribute('aria-label'), meter().max, meter().value]).toEqual(['Local · big-model · Coder: taken in', 6, 5])
+  expect([meter().getAttribute('aria-label'), meter().max, meter().value]).toEqual([
+    'Local · big-model · Coder: taken in',
+    6,
+    5,
+  ])
   await userEvent.click(screen.getByRole('button', { name: 'Steps' }))
-  expect(bars().map(bar => [bar[1], bar[2]])).toEqual([['METER:', 'SPAN:12 steps'], ['SPAN:', 'SPAN:–'], ['SPAN:', 'SPAN:< 5 jobs']])
-  expect([meter().getAttribute('aria-label'), meter().max, meter().value]).toEqual(['Local · big-model · Coder: steps', 12.4, 12.4])
+  expect(bars().map(bar => [bar[1], bar[2]])).toEqual([
+    ['METER:', 'SPAN:12 steps'],
+    ['SPAN:', 'SPAN:–'],
+    ['SPAN:', 'SPAN:< 5 jobs'],
+  ])
+  expect([meter().getAttribute('aria-label'), meter().max, meter().value]).toEqual([
+    'Local · big-model · Coder: steps',
+    12.4,
+    12.4,
+  ])
   await userEvent.click(screen.getByRole('button', { name: 'Cost' }))
   expect(bars().map(bar => bar[1])).toEqual(['SPAN:', 'SPAN:', 'SPAN:'])
   expect(screen.getByRole('button', { name: 'Cost' })).toHaveAttribute('aria-pressed', 'true')

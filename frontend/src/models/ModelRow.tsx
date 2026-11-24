@@ -1,7 +1,16 @@
 import { CaretDown, CaretRight, X } from '@phosphor-icons/react'
 import { type ReactNode, useId, useState } from 'react'
 import { api } from '../api/client'
-import { EFFORTS, TIERS, type Availability, type Effort, type ModelFacts, type ModelInput, type Provider, type Tier } from '../api/types'
+import {
+  EFFORTS,
+  TIERS,
+  type Availability,
+  type Effort,
+  type ModelFacts,
+  type ModelInput,
+  type Provider,
+  type Tier,
+} from '../api/types'
 import { type LoadFacts, sourceOf, useModelFacts } from './levels'
 import { InputIcons, inputsLine, MarkInputs, withMarks } from './inputs'
 import { type ContextTier, isCli } from './ModelsPage'
@@ -173,7 +182,12 @@ export function ModelRow({
                   type="button"
                   className="link-btn"
                   title="Asks the server, or Anthropic, again for its window and levels; no model is run"
-                  onClick={() => void api.post(`/providers/${provider.id}/find-again`).then(() => setForgot(n => n + 1), () => {})}
+                  onClick={() =>
+                    void api.post(`/providers/${provider.id}/find-again`).then(
+                      () => setForgot(n => n + 1),
+                      () => {},
+                    )
+                  }
                 >
                   Find again
                 </button>
@@ -206,7 +220,10 @@ export function ModelRow({
                   type="button"
                   className="link-btn"
                   onClick={() =>
-                    void api.delete(`/providers/${provider.id}/tried-inputs?model=${encodeURIComponent(name)}`).then(() => setForgot(n => n + 1), () => {})
+                    void api.delete(`/providers/${provider.id}/tried-inputs?model=${encodeURIComponent(name)}`).then(
+                      () => setForgot(n => n + 1),
+                      () => {},
+                    )
                   }
                 >
                   Forget what was tried
@@ -240,50 +257,60 @@ export function ModelRow({
 
   return (
     <>
-    {/* Switched off: faded as a model with no tier is, and said. */}
-    <tr className={!on ? 'model-untiered model-off' : row.tier ? undefined : 'model-untiered'}>
-      {nameCell()}
-      <TierCell name={name} row={row} facts={facts} onTier={onTier} />
-      <ContextCell tiered={tiered} name={name} row={row} catalogued={catalogued} onContext={onContext}>
-        <RoutingSelect routed={routingOf(provider, name)} name={name} value={row.routing} onRouting={onRouting} />
-      </ContextCell>
-      <Fact value={facts?.max_output ? tokens(facts.max_output) : null} />
-      <Fact value={levels(efforts)} />
-      <Fact value={plan ? 'plan' : price ? `${price.input} / ${price.output}` : null} />
-      <td>
-        <input
-          type="checkbox"
-          role="switch"
-          className="model-agents"
-          aria-label={`Agents may use ${name}`}
-          checked={row.agents}
-          onChange={e => onAgents(e.target.checked)}
-        />
-      </td>
-      <td>
-        <input
-          type="checkbox"
-          role="switch"
-          className="switch"
-          aria-label={`${name} on`}
-          title="Off: nothing new starts on it - no chat, no agent, no learning. A turn already running goes on until it ends; Stop ends it now."
-          checked={on}
-          onChange={e => onEnabled(e.target.checked)}
-        />
-      </td>
-      <td>
-        <button type="button" className="icon-btn" aria-label={`Remove ${name}`} onClick={onRemove}>
-          <X size={13} />
-        </button>
-      </td>
-    </tr>
-    {open && factsRow()}
+      {/* Switched off: faded as a model with no tier is, and said. */}
+      <tr className={!on ? 'model-untiered model-off' : row.tier ? undefined : 'model-untiered'}>
+        {nameCell()}
+        <TierCell name={name} row={row} facts={facts} onTier={onTier} />
+        <ContextCell tiered={tiered} name={name} row={row} catalogued={catalogued} onContext={onContext}>
+          <RoutingSelect routed={routingOf(provider, name)} name={name} value={row.routing} onRouting={onRouting} />
+        </ContextCell>
+        <Fact value={facts?.max_output ? tokens(facts.max_output) : null} />
+        <Fact value={levels(efforts)} />
+        <Fact value={plan ? 'plan' : price ? `${price.input} / ${price.output}` : null} />
+        <td>
+          <input
+            type="checkbox"
+            role="switch"
+            className="model-agents"
+            aria-label={`Agents may use ${name}`}
+            checked={row.agents}
+            onChange={e => onAgents(e.target.checked)}
+          />
+        </td>
+        <td>
+          <input
+            type="checkbox"
+            role="switch"
+            className="switch"
+            aria-label={`${name} on`}
+            title="Off: nothing new starts on it - no chat, no agent, no learning. A turn already running goes on until it ends; Stop ends it now."
+            checked={on}
+            onChange={e => onEnabled(e.target.checked)}
+          />
+        </td>
+        <td>
+          <button type="button" className="icon-btn" aria-label={`Remove ${name}`} onClick={onRemove}>
+            <X size={13} />
+          </button>
+        </td>
+      </tr>
+      {open && factsRow()}
     </>
   )
 }
 
 /** A model's tier as you set it, and "you" where it is not the catalogue's. */
-function TierCell({ name, row, facts, onTier }: { name: string; row: GuideRow; facts: ModelFacts | null | undefined; onTier: (tier: Tier | null) => void }) {
+function TierCell({
+  name,
+  row,
+  facts,
+  onTier,
+}: {
+  name: string
+  row: GuideRow
+  facts: ModelFacts | null | undefined
+  onTier: (tier: Tier | null) => void
+}) {
   return (
     <td>
       <select

@@ -22,9 +22,15 @@ const handed = (top: string[]) => {
 const same = (top: string[]) => top.map((value, i) => (top[i - 1] === 'Handed on from' ? '' : value))
 /** Each fold's own line, and whether it is open. */
 const folds = (root: Locator) =>
-  root.locator('details.agent-fold').evaluateAll(all => all.map(d => `${(d as HTMLDetailsElement).open ? 'open' : 'folded'}: ${d.querySelector('summary')?.textContent}`))
+  root
+    .locator('details.agent-fold')
+    .evaluateAll(all =>
+      all.map(d => `${(d as HTMLDetailsElement).open ? 'open' : 'folded'}: ${d.querySelector('summary')?.textContent}`),
+    )
 
-test('design A: the side panel is a short report card, the agent window the whole story with Details folded at its end', async ({ page }) => {
+test('design A: the side panel is a short report card, the agent window the whole story with Details folded at its end', async ({
+  page,
+}) => {
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
   await page.getByLabel('Message').fill('review the greeting')
@@ -61,21 +67,32 @@ test('design A: the side panel is a short report card, the agent window the whol
   await expect(own.locator('h3')).toHaveText(['Report', 'What it did'])
   await expect(own.locator('.agent-report')).toContainText('Looks fine.')
   await expect(own.locator('.agent-story h4')).toHaveText(['Looked around', 'Wrote its report'])
-  expect(await folds(own)).toEqual(['open: Changes none', 'folded: Sub-agents none', 'folded: Details model, usage, tools, raw steps'])
-  await expect(page.getByRole('tab', { name: /^(Details|Messages|Sub-agents|Record|Raw stream|What it did|Changes|Summary)$/ })).toHaveCount(0)
+  expect(await folds(own)).toEqual([
+    'open: Changes none',
+    'folded: Sub-agents none',
+    'folded: Details model, usage, tools, raw steps',
+  ])
+  await expect(
+    page.getByRole('tab', { name: /^(Details|Messages|Sub-agents|Record|Raw stream|What it did|Changes|Summary)$/ }),
+  ).toHaveCount(0)
 
   // Details and the raw steps in it, each step with its time, opened from the keyboard.
   await own.locator('details.agent-fold > summary', { hasText: 'Details' }).focus()
   await page.keyboard.press('Enter')
   // its model's window is not known here: its context is its tokens, and no fill is made up
-  await expect(own.locator('dt', { hasText: 'Context' }).locator('xpath=following-sibling::dd[1]')).toHaveText(/^\d[\d,]* in \/ \d[\d,]* out$/)
+  await expect(own.locator('dt', { hasText: 'Context' }).locator('xpath=following-sibling::dd[1]')).toHaveText(
+    /^\d[\d,]* in \/ \d[\d,]* out$/,
+  )
   await expect(own.getByRole('meter', { name: 'Context used' })).toHaveCount(0)
   await own.locator('summary', { hasText: 'Every step as recorded' }).focus()
   await page.keyboard.press('Enter')
   await expect(own.getByText('read_file hello.py')).toBeVisible()
   await expect(own.locator('.agent-step-time').first()).toHaveText(/\d{1,2}:\d{2}:\d{2}/)
   // K-inspector: its steps a timeline (each tool, its result's size), its raw stream a Copy raw.
-  await own.getByText(/^result [\d,]+ chars/).first().waitFor()
+  await own
+    .getByText(/^result [\d,]+ chars/)
+    .first()
+    .waitFor()
   await expect(own.getByRole('button', { name: 'Copy raw' })).toBeVisible()
   await shot(own, 'ab-agent-window-light')
   await page.getByRole('button', { name: 'Theme: switch to dark' }).click()
@@ -87,10 +104,16 @@ test('design A: the side panel is a short report card, the agent window the whol
   await page.getByRole('button', { name: 'Theme: switch to light' }).click()
 })
 
-test('an agent whose older messages were summarised in its turn has that line once, in its window’s Details (B-98)', async ({ page, request }) => {
-  const lead = async () => (await (await request.get('/api/roles')).json()).find((r: { name: string }) => r.name === 'Lead')
+test('an agent whose older messages were summarised in its turn has that line once, in its window’s Details (B-98)', async ({
+  page,
+  request,
+}) => {
+  const lead = async () =>
+    (await (await request.get('/api/roles')).json()).find((r: { name: string }) => r.name === 'Lead')
   // A window the fake model's 800 tokens fill past three quarters: its older part is summarised in the turn.
-  expect((await request.patch(`/api/roles/${(await lead()).id}`, { data: { context_window: 1000 }, headers: OWN })).ok()).toBe(true)
+  expect(
+    (await request.patch(`/api/roles/${(await lead()).id}`, { data: { context_window: 1000 }, headers: OWN })).ok(),
+  ).toBe(true)
   try {
     await openFreshConversation(page)
     await page.getByLabel('Message').fill('Fill the context.')
@@ -98,8 +121,12 @@ test('an agent whose older messages were summarised in its turn has that line on
     await expect(page.getByRole('region', { name: 'Chat' }).getByText('Summarised, and on.')).toBeVisible()
 
     await rail(page, 'Canvas').click()
-    await page.locator('.react-flow__node-agent').filter({ has: page.locator('.node-title', { hasText: /^Orchestrator/ }) })
-      .last().locator('.node-title').click()
+    await page
+      .locator('.react-flow__node-agent')
+      .filter({ has: page.locator('.node-title', { hasText: /^Orchestrator/ }) })
+      .last()
+      .locator('.node-title')
+      .click()
     const inspector = page.getByRole('complementary', { name: 'Inspector' })
     await expect(inspector.getByText('Did', { exact: true })).toBeVisible()
     const inInspector = await rows(inspector)
@@ -114,7 +141,9 @@ test('an agent whose older messages were summarised in its turn has that line on
     handed(top)
     expect(same(top)).toEqual(same(inInspector))
     await openAgentFold(own, 'Details')
-    await expect(own.locator('dt', { hasText: 'Context' }).locator('xpath=following-sibling::dd[1]')).toHaveText(/^12% · 120 in \/ \d+ out$/) // its last step: 120 of 1000
+    await expect(own.locator('dt', { hasText: 'Context' }).locator('xpath=following-sibling::dd[1]')).toHaveText(
+      /^12% · 120 in \/ \d+ out$/,
+    ) // its last step: 120 of 1000
     await expect(own.getByRole('meter', { name: 'Context used' })).toBeVisible()
 
     // The summarised line is one, whatever came while the window was open; nothing folded into ×N.
@@ -127,7 +156,9 @@ test('an agent whose older messages were summarised in its turn has that line on
   }
 })
 
-test('B-157: at 1048 px, opened from its node while the inspector is open, the agent window opens wholly beside it', async ({ page }) => {
+test('B-157: at 1048 px, opened from its node while the inspector is open, the agent window opens wholly beside it', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1048, height: 760 })
   await openFreshConversation(page)
   await page.getByLabel('Message').fill('review the greeting')
@@ -140,7 +171,11 @@ test('B-157: at 1048 px, opened from its node while the inspector is open, the a
   await chat.getByRole('button', { name: /Reviewer.*Review hello\.py/ }).click()
   const inspector = page.getByRole('complementary', { name: 'Inspector' })
   await expect(inspector).toBeVisible()
-  const title = page.locator('.react-flow__node-agent').filter({ has: page.locator('.node-title', { hasText: /^Reviewer/ }) }).last().locator('.node-title')
+  const title = page
+    .locator('.react-flow__node-agent')
+    .filter({ has: page.locator('.node-title', { hasText: /^Reviewer/ }) })
+    .last()
+    .locator('.node-title')
   const reached = (el: Element) => {
     const at = el.getBoundingClientRect()
     return document.elementFromPoint(at.x + at.width / 2, at.y + at.height / 2) === el
@@ -156,7 +191,9 @@ test('B-157: at 1048 px, opened from its node while the inspector is open, the a
   expect(win.x + win.width).toBeLessThanOrEqual(side.x)
 })
 
-test('B-157: at 1048 px the agent window stands wholly beside the inspector, and stays open when the inspector closes', async ({ page }) => {
+test('B-157: at 1048 px the agent window stands wholly beside the inspector, and stays open when the inspector closes', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1048, height: 760 })
   await openFreshConversation(page)
   const chat = page.getByRole('region', { name: 'Chat' })
@@ -177,7 +214,10 @@ test('B-157: at 1048 px the agent window stands wholly beside the inspector, and
   expect(win.x).toBeGreaterThanOrEqual(0)
   expect(win.x + win.width).toBeLessThanOrEqual(side.x)
   // What is drawn at its right edge is the window itself, not the inspector over it.
-  const atEdge = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('[aria-label="Agent window"]') !== null, [win.x + win.width - 4, win.y + win.height / 2])
+  const atEdge = await page.evaluate(
+    ([x, y]) => document.elementFromPoint(x, y)?.closest('[aria-label="Agent window"]') !== null,
+    [win.x + win.width - 4, win.y + win.height / 2],
+  )
   expect(atEdge).toBe(true)
   await shot(page, 'b157-window-beside-inspector-light')
   await page.getByRole('button', { name: 'Theme: switch to dark' }).click()
