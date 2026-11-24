@@ -467,11 +467,12 @@ Ask for changes would: its own roles fix it in its copy, and its end checks it a
 
 Under **Test and review**, a turn that wrote documents, diagrams, data, slides, config files or
 shell scripts gets KOLONİ's checks of them, with no model and nothing installed: each file its own line under
-the answer. Which kind a file is, its ending says. Changed code also goes to the project's own
-ruff, eslint, tsc and mypy, where it has them (**Code style and types**, below).
-They come after the tests and before the review. A turn that wrote only such files runs no tests
-("No tests: only documents, slides, diagrams or data changed") and gets these checks. Under
-**Tests only**, **Nothing**, or where checks are off for the chat, they do not run.
+the answer. Which kind a file is, its ending says.
+They come after the tests and before the review. A turn that wrote only documents, slides,
+diagrams or data runs no tests ("No tests: only documents, slides, diagrams or data changed") and
+gets these checks; a config file or a script counts as code, and the tests run. Changed code also
+goes to the project's own ruff, eslint, tsc and mypy, where it has them (**Code style and types**,
+below). Under **Tests only**, **Nothing**, or where checks are off for the chat, they do not run.
 
 | Kind | Checked | Said, not failed |
 |---|---|---|

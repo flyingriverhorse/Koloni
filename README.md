@@ -59,8 +59,9 @@ your code to its own service, as it always did. KOLONİ is an alpha: expect roug
 3. **The Orchestrator works or delegates.** 32 built-in roles (Coder, Reviewer, Tester, Researcher,
    UI designer, Security reviewer, …) and your own; teams with stages; recipes you draw.
 4. **Take it in.** Before an answer ends a turn that changed code, KOLONİ tests the work itself and
-   says under it what was checked. A sub-agent's changes come back as a card with the diff and a run of
-   the tests it wrote. Take in, discard, or ask for changes. At Auto-edit and Full auto, clean work lands by
+   says under it what was checked. A sub-agent's changes come back as a card with the diff; the tests it
+   wrote run in its copy first - by themselves at Full auto or with your own test command, else when
+   you click Run the test. Take in, discard, or ask for changes. At Auto-edit and Full auto, clean work lands by
    itself; a git branch merges by itself only at Full auto.
 
 ## What is in the box
