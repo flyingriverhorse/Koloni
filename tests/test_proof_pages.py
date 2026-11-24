@@ -565,6 +565,39 @@ def test_two_reads_judge_what_stands_in_both():
     }
     assert proof_kinds._settled(first, first) == first
     assert proof_kinds._findings(None) == {"unread": proof_kinds._ONCE}
+    # (as many in both: the same problems, named as the second read names them - an address that
+    # rotates, controls that swapped places, an inline image renumbered; more in one: not judged)
+    moved = {"alt": (1, ("b.png",), 1), "name": (2, ("button#b", "button#a"), 2)}
+    assert proof_kinds._settled({"alt": alt, "name": (2, ("button#a", "button#b"), 2)}, moved) == (
+        moved
+    )
+    assert proof_kinds._settled({"alt": (2, ("x.png", "y.png"), 2)}, {"alt": alt}) == {
+        "changed": (1, ("images without alt text",), 0)
+    }
+
+
+@pytest.mark.anyio
+async def test_a_second_read_cut_at_its_time_leaves_the_width_to_the_first():
+    # (where it is cut differs from one read to the next: judged on the first, as a first read
+    # cut so is; a second read not answered: not read)
+    reads = []
+
+    class One:
+        async def access(self):
+            return reads.pop(0)
+
+    whole = {"images": ["x.png"], "imagesN": 1, "cut": []}
+    reads[:] = [whole, {"images": [], "imagesN": 0, "cut": ["time"]}]
+    assert await proof_kinds._read_twice(One(), 0.0) == {"alt": (1, ("x.png",), 1)}
+
+    class Gone(One):
+        async def access(self):
+            if reads:
+                return reads.pop(0)
+            raise browser.BrowserError("the browser did not answer Runtime.evaluate in 30 s")
+
+    reads[:] = [whole]
+    assert await proof_kinds._read_twice(Gone(), 0.0) == {"unread": proof_kinds._ONCE}
 
 
 @pytest.mark.anyio
@@ -1303,7 +1336,12 @@ async def main():
         one = browser.Browser(root / "b", "pages")
         await one.start(browser.find_browser(), ws, set())
         return one
-    groups = [["late", "grows", "rootless"], ["countup", "clock", "plainclock"], ["nested"]]
+    groups = [
+        ["late", "grows", "rootless"],
+        ["countup", "clock", "plainclock"],
+        ["rotating", "swapping", "renumbered"],
+        ["nested"],
+    ]
     if sys.platform == "win32":  # (the depth Chrome's tab crashes at is measured here alone)
         groups.append(["deep", "after"])
     said = {}
@@ -1373,6 +1411,28 @@ def test_the_real_chrome_reads_a_page_once_it_settles_and_goes_on_after_a_crash(
             )
         },
     )
+    for one in ("a", "b"):
+        (tmp_path / f"{one}.png").write_bytes(PNG)
+    pages(
+        tmp_path,
+        # (the review's: the same problems named otherwise from one read to the next - an image
+        # whose address rotates, two unnamed buttons that swap places, an inline image renumbered
+        # by images put above it: they fail, never "not judged")
+        rotating=a11y(
+            "<img id='r' src='a.png' width='20' height='20'><script>let k=0;setInterval(()=>{"
+            "document.getElementById('r').src=(k++%2?'a':'b')+'.png'},20)</script>"
+        ),
+        swapping=a11y(
+            "<button id='a' style='width:30px;height:20px'></button><button id='b' "
+            "style='width:30px;height:20px'></button><script>setInterval(()=>{"
+            "document.body.append(document.querySelector('button'))},20)</script>"
+        ),
+        renumbered=a11y(
+            f"<img src='{PX}' width='20' height='20'><script>setInterval(()=>{{const m="
+            "document.createElement('img');m.alt='x';m.src='dot.png';m.width=m.height=2;"
+            "document.body.prepend(m)},20)</script>"
+        ),
+    )
     done = subprocess.run(
         # (the page's timer is 100 ms: a CI runner's settle longer, not without end)
         [sys.executable, "-c", LATE, str(tmp_path), str(min(scaled(SETTLE), 2.0))],
@@ -1399,6 +1459,14 @@ def test_the_real_chrome_reads_a_page_once_it_settles_and_goes_on_after_a_crash(
             f"{name}.html: 1 buttons, links or fields with no name at {ALL} px - button",
         ], said
         assert not any("not judged" in one for one in lines), said
+    lines = said["rotating swapping renumbered"]
+    assert not any("not judged" in one for one in lines), said
+    for name, rule in (
+        ("rotating", "1 images without alt text"),
+        ("swapping", "2 buttons, links or fields with no name"),
+        ("renumbered", "1 images without alt text"),
+    ):
+        assert any(one.startswith(f"{name}.html: {rule} at ") for one in lines), said
     # (the image with no alt 1,200 deep is past what is read: said in part, never passed)
     assert said["nested"] == [
         f"nested.html: no console errors at {ALL} px",

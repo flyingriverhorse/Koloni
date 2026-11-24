@@ -125,3 +125,85 @@ def test_with_no_fix_rounds_a_hold_says_none_were_spent():
     )
     assert s11.held_said(s11.TESTS_FAILING, Proof(most=2)) == s11.TESTS_FAILING
     assert s11.held_said(s11.TESTS_FAILING, None) == s11.TESTS_FAILING
+
+
+def _gate_end(runner, held):
+    """As `_proof_left`'s end: `_stronger`, then `_on_hold`."""
+    import asyncio
+
+    async def end():
+        await runner._stronger(_lead(), held)
+        await runner._on_hold(_lead(), held)
+
+    asyncio.run(end())
+
+
+def _passing(held):
+    from app import proof
+
+    held.rows = [
+        proof.row("ui", "passed", "index.html: no console errors at 375 px"),
+        proof.row("tests", "passed", "pytest: 3 passed", "pytest -q"),
+    ]
+
+
+def test_a_later_pass_that_passes_lets_a_hold_for_tests_or_a_kind_go(make_client, monkeypatch):
+    # (the review: the Lead, told "Not taken in", changed the work and its next pass passed - it
+    # stayed "Not taken in" for the rest of the turn)
+    from app.agent.proof_mixin import Proof
+
+    for was in (s11.KINDS_FAILING, s11.TESTS_FAILING, s11.TESTS_REMOVED):
+        held = Proof(most=1)
+        held.rounds, held.verdict = 1, "MERGE"
+        _passing(held)
+        runner, readied = _held_at(make_client, monkeypatch, held)
+        runner._held_back["r"] = was
+        _gate_end(runner, held)
+        assert ("r" not in runner._held_back, readied) == (True, ["mark", "ready"]), was
+
+
+def test_a_later_pass_that_still_fails_keeps_the_hold(make_client, monkeypatch):
+    from app import proof
+    from app.agent.proof_mixin import Proof
+
+    # (its tests pass now, a kind's check fails: held for that)
+    held = Proof(most=1)
+    held.rounds = 1
+    _passing(held)
+    held.rows[0] = _page()
+    runner, readied = _held_at(make_client, monkeypatch, held)
+    runner._held_back["r"] = s11.TESTS_FAILING
+    _gate_end(runner, held)
+    assert (runner._held_back.get("r"), readied) == (s11.KINDS_FAILING, [])
+    # (its tests not run again to a pass - timed out: the hold stands)
+    held = Proof(most=1)
+    held.rounds = 1
+    held.rows = [proof.row("tests", "timed_out", "Tests not waited for", "pytest -q")]
+    runner, readied = _held_at(make_client, monkeypatch, held)
+    runner._held_back["r"] = s11.TESTS_FAILING
+    _gate_end(runner, held)
+    assert (runner._held_back.get("r"), readied) == (s11.TESTS_FAILING, [])
+
+
+def test_failing_tests_stopped_by_a_limit_in_a_copy_are_kept_out(make_client, monkeypatch):
+    # (Until it passes, stopped by the turn's token limit or the month's budget: no stronger
+    # model is handed it - and the work was let through to a plain Take in)
+    from app import proof
+    from app.agent.proof_mixin import Proof
+
+    for halt in (proof.TOKEN_LIMIT, proof.BUDGET):
+        held = Proof(most=proof.UNTIL_CEILING)
+        held.until_passes, held.rounds, held.halted = True, 3, halt
+        held.rows = [proof.row("tests", "failed", "pytest: 1 failed", "pytest -q")]
+        held.left_failing = [(object(), "1 failed")]
+        runner, readied = _held_at(make_client, monkeypatch, held)
+        _gate_end(runner, held)
+        assert (runner._held_back.get("r"), readied) == (s11.TESTS_FAILING, []), halt
+
+
+def test_fewer_tests_with_no_fix_rounds_is_said_with_no_comma_left():
+    from app.agent.proof_mixin import Proof
+
+    assert s11.held_said(s11.TESTS_REMOVED, Proof(most=0)) == (
+        "fewer of its tests run, or more are skipped"
+    )

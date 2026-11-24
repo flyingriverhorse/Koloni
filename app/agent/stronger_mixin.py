@@ -127,13 +127,17 @@ TESTS_REMOVED = "fewer of its tests run, or more are skipped, after its fix roun
 ON_HOLD = "on hold - a look's findings still stand after its fix rounds"
 # k-a11y-2: ...and work a kind's check of still fails after them (a page, a document, a config).
 KINDS_FAILING = "KOLONİ's checks of what it wrote still fail after its fix rounds"
+# (the holds a later pass lets go once nothing of them stands: `_on_hold`)
+LET_GO = (ON_HOLD, TESTS_FAILING, TESTS_REMOVED, KINDS_FAILING)
 AFTER_ROUNDS = " after its fix rounds"
 
 
 def held_said(why: str, held: "Proof | None") -> str:
     """A hold's why as it is said: where no Fix rounds were given (a recipe's "Checked only"),
     none were spent."""
-    return why.removesuffix(AFTER_ROUNDS) if held is not None and not held.most else why
+    if held is None or held.most:
+        return why
+    return why.removesuffix("," + AFTER_ROUNDS).removesuffix(AFTER_ROUNDS)
 
 
 NOT_TAKEN_TOLD = (
@@ -249,6 +253,16 @@ class StrongerMixin:
             # is not taken in, its reason said)
             self._held_back.setdefault(ctx.run_id, kept)
             return None
+        if (
+            held.left_failing
+            and held.halted in (proof.TOKEN_LIMIT, proof.BUDGET)
+            and self._works_in(ctx) is not None
+            and (kept := self._still_kept(held))
+        ):
+            # (until it passes, stopped by a limit: no stronger model - and, decision 18, failing
+            # work in a copy of the turn's own is never taken in)
+            self._held_back.setdefault(ctx.run_id, kept)
+            return None
         # (k-canli-016: until it passes, also where the rounds stopped for no progress - never
         # for a limit, which a stronger model would only spend more of.)
         if (
@@ -340,11 +354,17 @@ class StrongerMixin:
             return
         if held.verdict == "HOLD" and not held.left_failing:
             self._held_back[ctx.run_id] = ON_HOLD
-        elif held.verdict != "HOLD" and self._held_back.get(ctx.run_id) == ON_HOLD:
-            # (the look lets it go; failing tests, fewer of them or a kind's failing check - whose
-            # own hold the look's stood in for - still keep it out)
-            if kept := self._still_kept(held):
-                self._held_back[ctx.run_id] = kept
+        elif held.verdict != "HOLD" and self._held_back.get(ctx.run_id) in LET_GO:
+            # (the look lets it go - or, held for its tests or a kind's check, a later pass
+            # found them passing, the Lead having changed it; failing tests, fewer of them or a
+            # kind's failing check still keep it out, and so do tests held for that were not run
+            # again to a pass)
+            was = self._held_back[ctx.run_id]
+            unseen = was in (TESTS_FAILING, TESTS_REMOVED) and not any(
+                one["kind"] == "tests" and one["state"] == "passed" for one in held.rows
+            )
+            if (kept := self._still_kept(held)) or unseen:
+                self._held_back[ctx.run_id] = kept or was
                 return
             del self._held_back[ctx.run_id]  # (held at the Lead's end: never inside Ready for you)
             self._mark_ready(ctx, held)

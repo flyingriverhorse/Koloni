@@ -653,6 +653,7 @@ _A11Y = r"""(o) => {
     const w = walker(document, el, NodeFilter.SHOW_ELEMENT);
     for (let at = el, i = 0; at && i <= 200; at = w.nextNode(), i++) {
       if (at !== el && visible && !visible(at, {checkVisibilityCSS: true})) continue;
+      if (/^(INPUT|IMG)$/.test(tag(at))) continue;  // (no ::before is drawn on these)
       for (const where of ['::before', '::after']) {
         const s = getComputedStyle(at, where);
         if (s.display !== 'none') said.push(...(s.content.match(/"(?:[^"\\]|\\.)*"/g) || []));

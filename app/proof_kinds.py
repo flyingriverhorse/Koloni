@@ -1755,6 +1755,7 @@ _NOTED = (
     ("changed", CHANGED),
 )
 _ONCE = (1, (), 0)  # (what a rule found that is said once, with no names)
+_NONE = (0, (), 0)  # (...and what it did not find)
 
 
 async def _accessed(one: "browser.Browser") -> dict | None:
@@ -1771,16 +1772,24 @@ async def _read_twice(one: "browser.Browser", loaded: float) -> dict[str, Found]
     """V1: what the page's read finds SETTLE s after it `loaded` (time.monotonic), and again
     AGAIN s later (`_settled`). One not answered is not read again (it would cost its 30 s twice);
     a second one not answered is "not read".
-    shortcut: a read cut at A11Y_MS is not read again either - where it is cut differs from one
-    read to the next though nothing changed; such a width stands on its first read, said "in
-    part". Read it twice too if a page is seen to change under a cut read."""
+    shortcut: a read cut at A11Y_MS is not read again either, and one whose second read is cut so
+    stands on its first - where it is cut differs from one read to the next though nothing
+    changed; such a width is judged on one read, said "in part". Read it twice too if a page is
+    seen to change under a cut read."""
     await asyncio.sleep(max(0.0, loaded + SETTLE - time.monotonic()))
     first = await _accessed(one)
-    if first is None or "time" in (first.get("cut") or ()):
+    if first is None or _timed_out(first):
         return _findings(first)
     await asyncio.sleep(AGAIN)
     second = await _accessed(one)
-    return _findings(None) if second is None else _settled(_findings(first), _findings(second))
+    if second is None:
+        return _findings(None)
+    return _findings(first) if _timed_out(second) else _settled(_findings(first), _findings(second))
+
+
+def _timed_out(read: dict) -> bool:
+    """Whether a read was cut at its A11Y_MS."""
+    return "time" in (read.get("cut") or ())
 
 
 # What a failing rule is, in CHANGED's words.
@@ -1793,14 +1802,16 @@ _CHANGED = {
 
 
 def _settled(first: dict[str, Found], second: dict[str, Found]) -> dict[str, Found]:
-    """Two reads as one: a failing rule's finding the same in both stands (fails); one found in
-    one read only, or otherwise in each, is not judged - said (`CHANGED`), by its rule; the notes
-    are the second read's: one that moves (a count going up in grey, a clock over a gradient)
-    never keeps a failure the page has from failing."""
+    """Two reads as one: a failing rule that finds as many in both stands (fails), named as the
+    second read names them - an image's address that rotates, controls that swap places, an
+    inline image renumbered by one put above it are the same problems; one whose count differs
+    (found in one read only, or more in one) is not judged - said (`CHANGED`), by its rule. The
+    notes are the second read's: one that moves (a count going up in grey, a clock over a
+    gradient) never keeps a failure the page has from failing."""
     found = {kind: one for kind, one in second.items() if kind not in _CHANGED}
     moved = []
     for kind in _CHANGED:
-        if first.get(kind) != second.get(kind):
+        if first.get(kind, _NONE)[0] != second.get(kind, _NONE)[0]:
             moved.append(_CHANGED[kind])
         elif kind in second:
             found[kind] = second[kind]
