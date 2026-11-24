@@ -7,6 +7,7 @@ project's Fix rounds). `KindsMixin._proof_kinds` is the gate's step after the te
 review: a turn of documents alone runs no test and gets these checks."""
 
 import asyncio
+import contextlib
 import json
 import logging
 import math
@@ -21,6 +22,7 @@ from sqlalchemy import func, literal_column, or_, select
 from app import browser, injection, koloni, proof, proof_kinds, proof_style
 from app.agent.ctx import Ctx, _GateRefused
 from app.agent.proof_mixin import SLOT_BUSY
+from app.agent.review_mixin import COPY_BUSY
 from app.db.models import (
     Agent,
     Command,
@@ -40,6 +42,7 @@ from app.workspace import Workspace
 log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from app import copies
     from app.agent import AgentRunner
     from app.agent.proof_mixin import Proof
 
@@ -340,6 +343,24 @@ class KindsMixin:
         rows = await asyncio.to_thread(proof_style.rows_of, run, code, output, ws.root, added)
         return rows + [proof.row(proof_style.STYLE, "note", one) for one in left if one]
 
+    @contextlib.asynccontextmanager
+    async def _copy_window(self: "AgentRunner", copy: "copies.Copy | None", wait: float):
+        """`_copy_lock`'s window for a run that waits `wait` seconds at most for it (Code style's):
+        yields None, held to the end of the block - or, the copy still busy then, COPY_BUSY,
+        nothing held (never an error out of it). In the project (no copy) nothing to hold."""
+        lock = self._copy_lock(copy) if copy is not None else None
+        if lock is not None:
+            try:
+                await asyncio.wait_for(lock.acquire(), max(0.0, wait))
+            except TimeoutError:
+                yield COPY_BUSY
+                return
+        try:
+            yield None
+        finally:
+            if lock is not None:
+                lock.release()
+
     async def _style_go(
         self: "AgentRunner",
         ctx: Ctx,
@@ -374,7 +395,13 @@ class KindsMixin:
 
         copy = self._copies.get(self._works_in(ctx) or "")
         left: list[str] = []
-        async with self._copy_held(copy):  # (one window of a copy: snapshot, run, put back)
+        # (One window of a copy: snapshot, run, put back. Its lock is taken before the app-wide slot
+        # (`given`), waited for no longer than what is left of STYLE_SECONDS - 120 s - so neither is
+        # held for ever while the other is waited for.)
+        async with self._copy_window(copy, until - time.monotonic()) as busy:
+            if busy:  # (the copy still busy past its time: not run, and said)
+                self._set_call(ctx.cid, call_id, status="failed", result=busy, ended_at=now())
+                return _not_run(run, busy.removeprefix("not run: "))
             try:
                 trace = await self._look_trace(copy) if copy is not None else None
             except ToolError as exc:  # (a copy that cannot be read first: not run, and said)
