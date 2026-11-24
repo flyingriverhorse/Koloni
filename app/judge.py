@@ -42,17 +42,19 @@ NO = re.compile(
 # Turkish "if" is a word's `-se` / `-sa` and its person (`-sem`, `-sen`, `-seniz`, `-seler`) after
 # a consonant - by vowel harmony or not ("yeşilse", "yoksa", "temizse", "kontrolse", "saatse") - or
 # an apostrophe ("OK'se", "CI'ysa"), and "ise" / "isen" / "iseniz"; its "when", "while" and "as
-# long as" are "-ınca", "-dığında" / "-dığımda" / "-diklerinde", "-ken", "-dikçe", "sürece",
-# "zaman", "kadar" ("bitince", "olduğunda", "yeşilken"). An English word that ends so is in
-# NOT_CONDITIONAL.
+# long as" are "-ınca", "-dığında" / "-dığımda" / "-diklerinde", "-ken" after a consonant, "iken",
+# "-dikçe", "sürece", "-dığı zaman", "-ene kadar" / "-inceye kadar" ("bitince", "olduğunda",
+# "yeşilken", "dönene kadar") - not "her zaman", "istediğin kadar", "gereken", "the provided x". An
+# English word that ends so is in NOT_CONDITIONAL.
 _CONSONANT = "[bcçdfgğhjklmnprsştvyz]"
 _PERSON = "(?:m|n|k|n[ıiuü]z|l[ae]r)?"
 CONDITION = re.compile(
     r"\b(?:without|unless|except|only if|before|ask|if|when|whenever|while|once|after|until"
-    r"|as long as|so long as|provided|providing|in case|assuming"
-    rf"|eğer|is[ae]{_PERSON}|sürece|takdirde|halinde|durumunda|şartıyla|koşuluyla|zaman|sonra"
-    r"|kadar|dek|madem\w*|yeter ki"
-    r"|\w+(?:rs[ae]|ys[ae]|ken|[dt][ıiuü]kt[ae]n|m[ae]d[ae]n|[dt][ıiuü](?:ğ|kl[ae]r)\w*d[ae]"
+    r"|as long as|so long as|(?<!\bthe )(?<!\ba )provided|providing|in case|assuming"
+    rf"|eğer|is[ae]{_PERSON}|iken|sürece|takdirde|halinde|durumunda|şartıyla|koşuluyla|sonra"
+    r"|dek|madem\w*|yeter ki|\w+[dt][ıiuü]ğ\w* zaman"
+    rf"|\w{{2,}}[ae]n[ae] kadar|\w+[ıiuü]nc[ae]y[ae] kadar|\w*{_CONSONANT}ken"
+    r"|\w+(?:rs[ae]|ys[ae]|[dt][ıiuü]kt[ae]n|m[ae]d[ae]n|[dt][ıiuü](?:ğ|kl[ae]r)\w*d[ae]"
     r"|[dt][ıiuü]k[çc][ae]|[ıiuü]nc[ae])"
     rf"|\w*[aeıioöuü]{_CONSONANT}+s[ae]{_PERSON}|'y?s[ae]{_PERSON})\b"
 )
@@ -65,6 +67,7 @@ NOT_CONDITIONAL = frozenset(
         *("worsen", "lessen", "announce", "pronounce", "province", "convince", "prince"),
         *("bounce", "kimse", "token", "taken", "broken", "spoken", "woken", "awoken", "shaken"),
         *("mistaken", "weaken", "darken", "quicken", "chicken", "stricken", "overtaken"),
+        *("istediğin zaman", "istediğiniz zaman"),  # ("whenever you like": a leave)
     }
 )
 # shortcut: Turkish says no by a verb's ending, and its endings after it ("itme", "silmeyiniz",

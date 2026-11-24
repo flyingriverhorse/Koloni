@@ -214,11 +214,12 @@ Full auto KOLONİ's judge looks at what no rule names. What the rules above do n
 
 - Files a command makes - `cp`, `mv`, `tar`, `Expand-Archive` into a settings file's name - are not
   on record as an agent's writes, so they do not stop a rule; nor does a CLI's write of a `.env`
-  or `.npmrc` in a working copy, nor an agent's delete of a setting that protected the project.
+  or `.npmrc` into the project from its working copy, nor an agent's delete of a setting that protected the project.
 - tsc's `-p` naming any other file (`-p tsconfig.build`), and a tsconfig that extends a
   package's config (`@scope/cfg`); ts-patch's tsconfig plugins; `vue-tsc`.
 - pdm's `.pdm.toml`, `pylock.<name>.toml`, `.python-versions`, `hatch_build.py`, a file named on
-  the line (`-r deps.txt`, `--config-file x`), node-gyp's `*.gypi`.
+  the line (`-r deps.txt`, `--config-file x`), node-gyp's `*.gypi`; pip named with its version
+  (`pip3.12`).
 - make's `SHELL:=`, `SHELL+=` and `.SHELLFLAGS` past a make rule.
 - On macOS, a name its file system folds into a settings file's (`uv.lock` written with the
   Kelvin sign, U+212A, for its `k`).
@@ -380,7 +381,7 @@ messages in the chat - never anything an agent wrote - and then:
 - A sentence that sets a condition or asks to be asked ("unless", "ask me before", "else",
   "while", "whenever", "as long as", "provided", "in case", "assuming"; in Turkish "eğer", "ise",
   "-madan", any "-se" / "-sa" - "Kontroller yeşilse …", "Hata yoksa …", "Testler OK'se …" -, "-ınca",
-  "-dığında" / "-dığımda", "-ken", "-dikçe", "durumunda", "zaman", "sonra", "kadar", "dek", "madem",
+  "-dığında" / "-dığımda", "-ken", "-dikçe", "durumunda", "-dığı zaman", "sonra", "-ene kadar", "dek", "madem",
   "yeter ki" and "sürece"), or nothing of yours that covers it: the card, as before. Its card then says "Nothing you said covers this."
 
 A command that ran or was not run this way also waits under **Decided for you** until you press

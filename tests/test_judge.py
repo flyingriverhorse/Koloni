@@ -464,6 +464,10 @@ def test_a_run_never_stands_under_a_forbidding_head_on_a_question_a_condition_or
                 "Push to main in case CI passes",
                 "Push to main assuming the build passes",
                 "Push to main, else revert the branch",
+                "Hata yokken main'e push et",
+                "Build kirliyken main'e push et",
+                "Ben toplantıdayken main'e push et",
+                "Testler yeşil iken main'e push et",
             )
         ),
         *(
@@ -477,6 +481,14 @@ def test_a_run_never_stands_under_a_forbidding_head_on_a_question_a_condition_or
                 "Build klasörünü silebilirsin",
                 "Parse the config and push to main",
                 "Rotate the token and push the broken build to main",
+                # (the re-check's: a leave said with "zaman", "kadar", "-ken", "provided")
+                "Her zaman main'e push edebilirsin",
+                "Build klasörünü istediğin zaman silebilirsin",
+                "İstediğin kadar push edebilirsin",
+                "Şu ana kadar yaptıklarını main'e push edebilirsin",
+                "Gereken paketleri kurabilirsin",
+                "Bunu çeken script'i silebilirsin",
+                "Use the provided script and push to main",
             )
         ),
     ],
