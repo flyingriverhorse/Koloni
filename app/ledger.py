@@ -1171,32 +1171,57 @@ NO_CHANGE = (
 )
 
 
+# The calls a file change is on record by where no change row is: a CLI's write to a secret file,
+# or to one KOLONİ may not read, is noted only so (`AgentRunner._record_found`).
+WRITTEN = ("write_file", "edit_file", "delete_file")
+
+
 def changed_nothing(session: Session, agent_id: str) -> bool:
-    """L1: whether KOLONİ's record holds no file change by an agent and those it opened - no
-    change of any status (one turned down was still made), none kept for Take in, and no command
-    that may have changed files off the record (`proof.may_write`: `sed -i`, a script). Its
-    scratch's are none, as in `did`.
+    """L1: whether KOLONİ's record holds no file change by an agent and those it opened, nor by
+    the earlier turns it goes on from (`continues_id`: what it reports may be theirs) - no change
+    of any status (one turned down was still made), no write call that succeeded, none kept for
+    Take in, and no command that may have changed files off the record (`proof.may_write`: `sed
+    -i`, a script). Its scratch's are none, as in `did`.
     shortcut: a CLI's write the record misses is not seen here (a hook missed, `model_agy`'s
     "unhooked" stops the run); count its copy's files too if one is seen said as no change."""
+    at: str | None = agent_id
+    while at is not None:
+        run_id, ids = _family(session, at)
+        if _changed(session, run_id, ids):
+            return False
+        at = session.get_one(Agent, at).continues_id
+    return True
+
+
+def _changed(session: Session, run_id: str, ids: Collection[str]) -> bool:
+    """`changed_nothing`'s look at one turn of these agents."""
     from app.proof import may_write  # (here: proof imports this module)
 
-    run_id, ids = _family(session, agent_id)
     paths = session.scalars(
         select(FileChange.path).where(FileChange.run_id == run_id, FileChange.agent_id.in_(ids))
     )
-    if any(not in_scratch(path) for path in paths):
-        return False
+    written = session.scalars(
+        select(ToolCall.arguments).where(
+            ToolCall.run_id == run_id,
+            ToolCall.agent_id.in_(ids),
+            ToolCall.name.in_(WRITTEN),
+            ToolCall.status == "succeeded",
+        )
+    )
     held = session.scalars(
         select(Merge.files).where(Merge.run_id == run_id, Merge.agent_id.in_(ids))
     )
-    if any(held):
-        return False
     lines = session.scalars(
         select(Command.command).where(
             Command.run_id == run_id, Command.agent_id.in_(ids), Command.status.in_(STARTED)
         )
     )
-    return not any(may_write(line) for line in lines)
+    return (
+        any(not in_scratch(path) for path in paths)
+        or any(not in_scratch(argument(one, "path") or "") for one in written)
+        or any(held)
+        or any(may_write(line) for line in lines)
+    )
 
 
 def _last_test(last: Command, since: bool) -> str:

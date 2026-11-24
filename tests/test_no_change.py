@@ -3,10 +3,12 @@ finishes with no file change on KOLONİ's record has its result open with that f
 report's own words - and its card says so (`Agent.changed_nothing`); a role that only reads is never
 marked, nor is one that changed a file, or ran a command that may have changed one off the record."""
 
+import json
+
 import pytest
 
 from app import ledger
-from app.db.models import Agent, Command, FileChange, Merge
+from app.db.models import Agent, Command, FileChange, Merge, ToolCall
 from tests.test_chat_flow import text
 from tests.test_ledger_tests import factory  # noqa: F401 (a fixture)
 from tests.test_spawn import begin, call, spawn, step
@@ -96,6 +98,23 @@ def ran(s, command, status="exited"):
     s.commit()
 
 
+def wrote(s, path, status="succeeded"):
+    """A write call on record, as a CLI's write to a secret file is noted: no change row."""
+    s.add(
+        ToolCall(
+            run_id="r",
+            agent_id="t",
+            message_id="m",
+            seq=0,
+            provider_call_id="p",
+            name="write_file",
+            arguments=json.dumps({"path": path}),
+            status=status,
+        )
+    )
+    s.commit()
+
+
 def test_nothing_on_record_reads_and_test_runs_change_nothing(factory):  # noqa: F811
     with factory() as s:
         assert ledger.changed_nothing(s, "t")
@@ -103,6 +122,8 @@ def test_nothing_on_record_reads_and_test_runs_change_nothing(factory):  # noqa:
         ran(s, "cat hello.py")
         ran(s, "python gen.py", status="rejected")  # (asked, never run)
         change(s, ".koloni/tmp/notes.md")  # (its scratch: none, as in `did`)
+        wrote(s, ".koloni/tmp/notes.md")
+        wrote(s, "a.py", status="failed")
         assert ledger.changed_nothing(s, "t")
 
 
@@ -114,6 +135,7 @@ def test_nothing_on_record_reads_and_test_runs_change_nothing(factory):  # noqa:
         lambda s: change(s, "a.py", status="rejected"),  # (made, then turned down)
         lambda s: ran(s, "python gen.py"),  # (may have written off the record)
         lambda s: ran(s, "sed -i s/a/b/ a.py"),
+        lambda s: wrote(s, ".env"),  # (a secret file: on record by its call alone)
         lambda s: (
             s.add(Merge(run_id="r", agent_id="t", files=[{"path": "a.py", "kind": "modify"}])),
             s.commit(),
@@ -132,3 +154,13 @@ def test_a_change_by_an_agent_it_opened_is_its_too(factory):  # noqa: F811
         s.commit()
         change(s, "a.py", agent="k")
         assert not ledger.changed_nothing(s, "t")
+
+
+def test_a_go_on_counts_the_earlier_turns_it_goes_on_from(factory):  # noqa: F811
+    # (told to go on, it may report what its earlier turn did: that is no claim of nothing)
+    with factory() as s:
+        s.add(Agent(id="g", run_id="r", role_name="Tester", tools=[], continues_id="t"))
+        s.commit()
+        assert ledger.changed_nothing(s, "g")
+        change(s, "a.py")
+        assert not ledger.changed_nothing(s, "g")
