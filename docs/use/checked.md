@@ -512,8 +512,8 @@ tool where the turn wrote a `node.cmd` or
 `python.exe` (a name a tool's shim runs bare) in the folder it runs in. A file's lines are
 compared with what it was before the turn only where a tool says a problem in it, within the 2
 minutes: one too large to compare in that time is said "not judged", never passed. It waits for KOLONİ's test-run slot (Settings › The
-app), so a type check never runs beside the whole test suite. tsc is told to write nothing
-(`--noEmit --incremental false --composite false --generateTrace null`: its command line wins
+app), so a type check never runs beside the whole test suite. tsc is told to write nothing outside the project
+(KOLONİ's own line, `--noEmit --incremental false --composite false --generateTrace null`: its command line wins
 over its tsconfig and what that extends) and mypy to keep its cache in the folder (`.mypy_cache`). In a
 recipe's copy it runs there - without the copy's own code first on its Python path, so a module
 an agent wrote there (`mypy/`) is never imported in place of the tool's own - and what it writes

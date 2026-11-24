@@ -4,6 +4,7 @@ that a file named like a folder a copy leaves out is a file like any other.
 """
 
 import shutil
+import sys
 
 import pytest
 from sqlalchemy import select
@@ -288,8 +289,10 @@ def test_an_agent_changes_a_file_named_build_in_its_copy_and_the_project_gets_it
     assert snap["runs"][0]["status"] == "completed", snap["runs"][0]["error"]
     wrote, dotted, under = calls(snap, "Coder", "write_file")
     assert wrote[0] == "succeeded"
-    # (Windows drops the dot at the end of a folder's name: it is the folder `dist`)
-    assert dotted[0] == "failed" and "not part of a working copy" in dotted[1]
+    # (Windows drops the dot at the end of a folder's name: it is the folder `dist` - so there
+    # such a name is not written at all; elsewhere `dist.` is still no part of a working copy)
+    why = "ends in a dot or a space" if sys.platform == "win32" else "not part of a working copy"
+    assert dotted[0] == "failed" and why in dotted[1], dotted
     assert under[0] == "failed" and "not part of a working copy" in under[1]
     assert (project_dir / "build").read_text(encoding="utf-8") == "new\n"
     assert not (project_dir / "dist").exists() and not (project_dir / "sub").exists()
