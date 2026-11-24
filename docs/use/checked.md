@@ -82,8 +82,8 @@ example "Runs python -m pytest -q in ./ (found by KOLONİ), related tests first,
 the background; a change over 80 lines or 3 files, or one touching sign-in, secrets or commands,
 is read by a Reviewer (one more model request). Failing work goes back until it passes, while
 each round makes progress." It names
-your check command; else each test command you set for a part on the project map ("npm test in
-web/"), then what KOLONİ saved for any other folder - and changes as you save one there. Before a
+each test command you set for a part on the project map ("npm test in web/"), then what KOLONİ
+saved for any other folder - and changes as you save one there. Before a
 test command is known it says KOLONİ finds one and asks you once. Its ⓘ leads here.
 
 ### For one chat
@@ -112,8 +112,12 @@ A project that had turned off the old **Finish only when the tests pass** switch
 ## Which tests
 
 1. Each part's test command from the project map (yours, or the map's guess), run in that part's
-   folder - the whole project's too, set on the map's first row where no project file makes the
-   root a part. A part you set to no test is never guessed.
+   folder - the whole project's too, set on the map's first row (**the whole project**) where no
+   project file makes the root a part. It runs beside the other parts' commands, not instead of
+   them: where it runs every test, a Python part's tests run twice - in its own command and in the
+   whole project's. A part you set to no test is never guessed - the whole project set to no test
+   stops the guess (3-5) too. (0.1.7: **Test before adding** is gone, and the command you had in it
+   was not kept: write it here.)
 2. Otherwise the test command KOLONİ saved before (below).
 3. Otherwise a command KOLONİ guesses from each part's files, in any language: `python -m pytest
    -q` (a `pyproject.toml`, `pytest.ini` or `tests/`), `npm test` (a test script in
@@ -219,7 +223,7 @@ A change to a configuration file (`requirements.txt`, `package.json`, a CI workf
 
 KOLONİ's test run is asked about as the Orchestrator's own command would be:
 
-- Your own command (the check command, or a part's test command you set) runs without a card.
+- Your own command (a part's test command you set on the project map) runs without a card.
 - A guessed command at **Ask before changes** or **Auto-edit files** waits on one command card.
   Your yes holds for the rest of the turn, for that command in that folder only: the same command
   in another part of the project is asked again. At **Full auto**, or under an **Always run**
@@ -270,10 +274,23 @@ again on top of them. A recipe's review loop that ran out leaves KOLONİ's own r
 after the recipe's fix rounds: you decide (Fix it)".
 
 The check before a sub-agent's work is taken in is a separate check with its own two rounds: the
-tests that sub-agent wrote or changed, only those - each part's test command narrowed to them, in
-its working copy. A sub-agent that wrote no test is added with no test before (its card says "No
-tests of its own to run before it is added"), and a part whose test command cannot run just some
-files is not run then; the check at the turn's end runs every test. A turn can have both.
+tests that sub-agent wrote or changed, only those (`test_x.py`, `x.test.ts`, `x_test.go`,
+`FooTest.java`, `FooTests.cs`, Rust's `tests/*.rs`, `x_spec.rb` …) - each part's test command
+narrowed to them (`python -m pytest -q tests/test_new.py`), in its working copy. Those tests are
+the sub-agent's own code, so they run by themselves only at **Full auto**, or where every part's
+command is yours (yours on the map, or a saved one an **Always** rule covers). Otherwise - KOLONİ's
+guess at **Ask before changes** or **Auto-edit files** - the card shows the command, "not run",
+and waits for your **Run the test**; nothing is taken before. While you are away, or in a
+trigger's turn, a guess never runs them (the work is taken as without a test, said "not run");
+your own command runs there - a trigger's tick for a saved one covers its line with the files
+added. A sub-agent that wrote no test is added with no test before (its card says "No tests of
+its own to run before it is added"). A part whose test command cannot run just those files is
+not run, and the card and Checked say which and why ("web/: its test command (npm test) cannot
+run just these files (its test script is not vitest or jest alone) - not run") - beside a pass
+of the other parts, never hidden in it. Tests that ran none (pytest's "no tests collected",
+vitest's "No test files found") are a note, not a pass. Where the sub-agent changed its part's
+`package.json` test scripts, they are not run (they would run instead of yours). The check at
+the turn's end runs every test. A turn can have both.
 
 ### Not this turn's: flaky tests and failures from before
 
@@ -609,7 +626,7 @@ also what does not fit in the diff the Reviewer is shown.
   tests there; what their commands write there (a report, a cache, a file a test rewrites) is put back, never taken in - so is what KOLONİ's own test runs write there, one run at a time in a copy. What an agent's own command writes there (a Coder's test run) is that agent's work, and goes in with it. They get read tools only and no MCP server, whatever their role is
   given: they change nothing. They may run two kinds of command, never asked about: one that only
   reads (`git diff`, `cat a.py`, `ls src`), and the project's approved test command exactly as it
-  is set, in its folder - your check command or a part's test command, a saved one an **Always**
+  is set, in its folder - a part's test command you set on the map, a saved one an **Always**
   rule covers, or a CI line you approved with **Run these**. Any other (`rm`, `pip install`, the
   test command with an option added) is refused, and they are told which test commands they may
   run; no card is ever opened for a Reviewer's command. One whose model is a CLI that works with
