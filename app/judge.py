@@ -41,24 +41,30 @@ NO = re.compile(
 )
 # Turkish "if" is a word's `-se` / `-sa` and its person (`-sem`, `-sen`, `-seniz`, `-seler`) after
 # a consonant - by vowel harmony or not ("yeşilse", "yoksa", "temizse", "kontrolse", "saatse") - or
-# an apostrophe ("OK'se", "CI'ysa"); its "when" and "as long as" are "-ınca", "-dığında", "sürece"
-# ("bitince", "olduğunda"). An English word that ends so is in NOT_CONDITIONAL.
+# an apostrophe ("OK'se", "CI'ysa"), and "ise" / "isen" / "iseniz"; its "when", "while" and "as
+# long as" are "-ınca", "-dığında" / "-dığımda" / "-diklerinde", "-ken", "-dikçe", "sürece",
+# "zaman", "kadar" ("bitince", "olduğunda", "yeşilken"). An English word that ends so is in
+# NOT_CONDITIONAL.
 _CONSONANT = "[bcçdfgğhjklmnprsştvyz]"
 _PERSON = "(?:m|n|k|n[ıiuü]z|l[ae]r)?"
 CONDITION = re.compile(
-    r"\b(?:without|unless|except|only if|before|ask|if|when|once|after|until"
-    r"|eğer|ise|sürece|takdirde|halinde|şartıyla|koşuluyla"
-    r"|\w+(?:rs[ae]|ys[ae]|[dt][ıiuü]kt[ae]n|m[ae]d[ae]n|[dt][ıiuü]ğ[ıiuü]nd[ae]|[ıiuü]nc[ae])"
+    r"\b(?:without|unless|except|only if|before|ask|if|when|whenever|while|once|after|until"
+    r"|as long as|so long as|provided|providing|in case|assuming"
+    rf"|eğer|is[ae]{_PERSON}|sürece|takdirde|halinde|durumunda|şartıyla|koşuluyla|zaman|sonra"
+    r"|kadar|dek|madem\w*|yeter ki"
+    r"|\w+(?:rs[ae]|ys[ae]|ken|[dt][ıiuü]kt[ae]n|m[ae]d[ae]n|[dt][ıiuü](?:ğ|kl[ae]r)\w*d[ae]"
+    r"|[dt][ıiuü]k[çc][ae]|[ıiuü]nc[ae])"
     rf"|\w*[aeıioöuü]{_CONSONANT}+s[ae]{_PERSON}|'y?s[ae]{_PERSON})\b"
 )
 NOT_CONDITIONAL = frozenset(
     {
-        *("else", "false", "pulse", "impulse", "response", "license", "sense", "nonsense"),
+        *("false", "pulse", "impulse", "response", "license", "sense", "nonsense", "course"),
         *("dense", "tense", "intense", "immense", "expense", "defense", "offense", "pretense"),
-        *("suspense", "dispense", "condense", "incense", "rinse", "cleanse", "expanse"),
+        *("suspense", "dispense", "condense", "incense", "rinse", "cleanse", "expanse", "parse"),
         *("lapse", "collapse", "relapse", "eclipse", "ellipse", "glimpse", "corpse", "salsa"),
         *("worsen", "lessen", "announce", "pronounce", "province", "convince", "prince"),
-        *("bounce", "kimse"),
+        *("bounce", "kimse", "token", "taken", "broken", "spoken", "woken", "awoken", "shaken"),
+        *("mistaken", "weaken", "darken", "quicken", "chicken", "stricken", "overtaken"),
     }
 )
 # shortcut: Turkish says no by a verb's ending, and its endings after it ("itme", "silmeyiniz",
@@ -156,10 +162,13 @@ def prompt(said: dict[str, list[str]], command: dict) -> str:
 
 
 def _plain(text: str) -> str:
-    """Case, runs of spaces, a capital İ's dot and a curly apostrophe evened out, and the
-    punctuation a line ends with taken off."""
-    evened = text.casefold().replace("\u0307", "").replace("’", "'")
+    """Case, runs of spaces, a capital İ's dot and an apostrophe's other marks (’ ‘ ´ ʼ) evened
+    out, and the punctuation a line ends with taken off."""
+    evened = text.casefold().replace("\u0307", "").translate(_APOSTROPHES)
     return " ".join(evened.split()).rstrip(" .!?;")
+
+
+_APOSTROPHES = str.maketrans(dict.fromkeys("\u2019\u2018\u00b4\u02bc", "'"))
 
 
 def _prose(text: str) -> list[str | None]:

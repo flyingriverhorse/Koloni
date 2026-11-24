@@ -428,7 +428,11 @@ DEVICES = re.compile(r"(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?", re.IGNORECAS
 def not_written_as_named(rel: str) -> str | None:
     """Why Windows would write a path somewhere else than a file of that name: a part of it
     is a device (`CON`, `com1.txt`) or names a file's stream (`a.txt:evil` - one can strip a
-    download's mark); None for a plain one, and anywhere but on Windows."""
+    download's mark), or ends in a dot or a space, which Windows drops (`pyproject.toml.` is
+    written as `pyproject.toml`, and would be on record as another file than the one on disk:
+    refused, as the others are, rather than recorded as Windows names it - every check that
+    reads a record by its name would have to agree); None for a plain one, and anywhere but on
+    Windows."""
     if sys.platform != "win32":
         return None
     path = PureWindowsPath(rel)
@@ -437,6 +441,8 @@ def not_written_as_named(rel: str) -> str | None:
             return "it names a stream of a file (a colon after the drive)"
         if DEVICES.fullmatch(_name(part)):
             return "it names a device"
+        if part not in (".", "..") and part.endswith((".", " ")):
+            return "a name in it ends in a dot or a space, which Windows drops"
     return None
 
 

@@ -244,7 +244,7 @@ def test_a_run_stands_only_on_a_line_the_user_wrote():
             (one, one, one)
             for one in (
                 "Please push the release branch to origin.",
-                "Push the k-* branches or else the demo breaks.",
+                "Push the k-* branches to origin.",
                 "Set CI to false and push the k-* branches.",
                 "You may update the license file and close the issue.",
                 "Use the response body and announce the release.",
@@ -427,6 +427,65 @@ def test_a_run_never_stands_under_a_forbidding_head_on_a_question_a_condition_or
     words, quote
 ):
     assert verdict(line(verdict="run", quote=quote), said(None, words, []))["verdict"] == "ask"
+
+
+# The review of F395 (its probe): more ways of setting a condition - each asks, in a message too
+@pytest.mark.parametrize(
+    ("words", "verdict_"),
+    [
+        *(
+            (one, "ask")
+            for one in (
+                "Ben onayladığımda main'e push et",
+                "Testler geçtiklerinde main'e push et",
+                "Siz onayladığınızda main'e push et",
+                "Testler yeşilken main'e push et",
+                "Testler geçtikçe main'e push et",
+                "Testlerin geçmesi durumunda main'e push et",
+                "Testler geçtiği zaman main'e push et",
+                "Onaydan sonra main'e push et",
+                "Review'dan sonra main'e push et",
+                "Ben dönene kadar main'e push et",
+                "Madem testler geçti, main'e push et",
+                "Yeter ki testler geçsin, main'e push et",
+                "Hazır isen main'e push et",
+                "Hazır iseniz main'e push et",
+                "CI´ysa main'e push et",
+                "CIʼysa main'e push et",
+                "CI‘ysa main'e push et",
+                "Şayet CI yeşil olursa main'e push et",
+                "Testler bitinceye kadar main'e push et",
+                "Push to main as long as CI is green",
+                "Push to main so long as CI is green",
+                "Push to main provided the tests pass",
+                "Push to main providing the tests pass",
+                "Push to main whenever the tests pass",
+                "Push to main while CI is green",
+                "Push to main in case CI passes",
+                "Push to main assuming the build passes",
+                "Push to main, else revert the branch",
+            )
+        ),
+        *(
+            (one, "run")
+            for one in (
+                "Push my branch to main",
+                "Delete the build folder please",
+                "You may force push to main",
+                "Of course you can push to main",
+                "Main'e push etmeni istiyorum",
+                "Build klasörünü silebilirsin",
+                "Parse the config and push to main",
+                "Rotate the token and push the broken build to main",
+            )
+        ),
+    ],
+)
+def test_a_condition_said_another_way_asks(words, verdict_):
+    got = verdict(
+        line(verdict="run", quote=words), {"preferences": [], "rules": [], "message": [words]}
+    )
+    assert got["verdict"] == verdict_
 
 
 NO_MAIN = "Never push to main."

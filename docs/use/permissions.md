@@ -131,8 +131,10 @@ over it, the rule covers it again. A package runner finds its program by itself,
 (`npx tsc`, `npm exec tsc`, `yarn tsc`, `bun x tsc`, `corepack pnpm exec tsc`, `uv run ruff`,
 `python -m mypy`) is read the same way: npx, npm, pnpm, yarn and bun look in the `node_modules`
 of the folder the command runs in or of one above it - and read an `.npmrc` there, yarn its
-`.yarnrc.yml`, `.yarnrc`, `.yarn` folder and Plug'n'Play loader, pnpm its `.pnpmfile.cjs`, bun its
-`bunfig.toml` - and an agent's write in any of them stops the rule.
+`.yarnrc.yml`, `.yarnrc`, `.yarn` folder, Plug'n'Play loader and `.env.yarn`, pnpm its
+`.pnpmfile.cjs`, bun its `bunfig.toml` and `.env`, `.env.local`, `.env.production`,
+`.env.development` (what they run gets those: `NODE_OPTIONS=--require x`) - and an agent's write in
+any of them stops the rule.
 
 A rule for a node runner (npx, pnpx, bunx, npm, pnpm, yarn, bun; `corepack` before one) is
 closed on two sides. **What an agent wrote:** while an agent's write of any `package.json` (a
@@ -160,8 +162,9 @@ scripts again, and an option of the runner's written in pieces a shell joins
 `--shell=`, `--node-gyp=`) and no rule covers the line or is offered for it. So `yarn tsc --noEmit` is offered none: use
 `yarn run tsc --noEmit`, or for npm `npm exec tsc -- --noEmit` (past `--`, tsc's own).
 
-A rule for tsc - `tsc`, `npx tsc`, `npm exec tsc`, `pnpm exec tsc`, `yarn tsc`, or tsc named by its
-path (`node_modules/.bin/tsc`, as the rule Code style and types offered in 0.1.7) - covers no line
+A rule for tsc - `tsc`, `npx tsc`, `npm exec tsc`, `pnpm exec tsc`, `yarn tsc`, tsc named by its
+path (`node_modules/.bin/tsc`, as the rule Code style and types offered in 0.1.7) or its script
+(`node node_modules/typescript/lib/tsc.js`) - covers no line
 while an agent's write of a `tsconfig*.json` or `jsconfig*.json` anywhere in the project, or of a
 JSON file that a tsconfig the line reads (the nearest `tsconfig.json`, a folder or `.json` its
 words name - `-p`'s) `extends` or `references`, still holds what it wrote: a tsconfig can make tsc
@@ -172,10 +175,11 @@ trace, so its rule still covers it.
 
 For uv, poetry, pipenv, pdm, hatch and `python -m`, whose
 environment KOLONİ cannot always place, an agent's write in any `.venv`, `venv` or
-`site-packages` of the project does. For uv, uvx, poetry, pipenv, pdm and hatch so does its
+`site-packages` of the project does. For uv, uvx, poetry, pipenv, pdm, hatch, pip and pip3 - run
+as a module too (`python -m uv`, `py -m pip`), and `python -m build` - so does its
 write of any `pyproject.toml`, `setup.py` or `setup.cfg` anywhere in the project (they run its
 `[project.scripts]` and build the project first - a workspace member or a path dependency with
-it), of their settings (`uv.toml`, `poetry.toml`, `pdm.toml`, `hatch.toml`, `Pipfile`,
+it; pip and build build what they install), of their settings (`uv.toml`, `poetry.toml`, `pdm.toml`, `hatch.toml`, `Pipfile`,
 `.python-version`, `.pdm-python`, and pipenv's `.env`, which it loads), their locks (`uv.lock`,
 `poetry.lock`, `pdm.lock`, `Pipfile.lock`, `pylock.toml`) or requirements (`requirements*.txt`,
 `requirements/*.txt`) - but not for a test run (`uv run pytest`). As for node runners, the cost:
@@ -198,6 +202,26 @@ either stops a `python -m` rule, a `uv run` rule or a rule for a `.venv` console
 `usercustomize.py` there, which Python imports before anything it runs, stops `python -m pytest`
 too (not under `-E` or `-I`). `node <script>` with the script in an install folder
 (`node node_modules/typescript/bin/tsc`) is read as that program.
+
+On Windows, KOLONİ writes no file whose name, or a folder's in its path, ends in a dot or a space
+(`pyproject.toml.`, `uv.toml `): Windows drops those and would write `pyproject.toml`, while the
+record would name another file.
+
+### Known limits
+
+Always run rules are a convenience, not a security boundary: what a rule covers runs unasked; at
+Full auto KOLONİ's judge looks at what no rule names. What the rules above do not see:
+
+- Files a command makes - `cp`, `mv`, `tar`, `Expand-Archive` into a settings file's name - are not
+  on record as an agent's writes, so they do not stop a rule; nor does a CLI's write of a `.env`
+  or `.npmrc` in a working copy, nor an agent's delete of a setting that protected the project.
+- tsc's `-p` naming any other file (`-p tsconfig.build`), and a tsconfig that extends a
+  package's config (`@scope/cfg`); ts-patch's tsconfig plugins; `vue-tsc`.
+- pdm's `.pdm.toml`, `pylock.<name>.toml`, `.python-versions`, `hatch_build.py`, a file named on
+  the line (`-r deps.txt`, `--config-file x`), node-gyp's `*.gypi`.
+- make's `SHELL:=`, `SHELL+=` and `.SHELLFLAGS` past a make rule.
+- On macOS, a name its file system folds into a settings file's (`uv.lock` written with the
+  Kelvin sign, U+212A, for its `k`).
 
 On Windows, a command KOLONİ runs, a server it starts and an agent's CLI (started in the work's
 folder) find a program named bare - `node`, which an npm `.cmd` shim calls - on PATH only, never
@@ -353,10 +377,11 @@ messages in the chat - never anything an agent wrote - and then:
   The agent is told that sentence (for a sentence in a message of yours, only that one of yours
   forbids it - the sentence stays with you), and not to run it or anything that does the same again,
   and goes on with the rest of its task. Its row says "Not run · your rule: …".
-- A sentence that sets a condition or asks to be asked ("unless", "ask me before"; in Turkish "eğer",
+- A sentence that sets a condition or asks to be asked ("unless", "ask me before", "else",
+  "while", "whenever", "as long as", "provided", "in case", "assuming"; in Turkish "eğer", "ise",
   "-madan", any "-se" / "-sa" - "Kontroller yeşilse …", "Hata yoksa …", "Testler OK'se …" -, "-ınca",
-  "-dığında" and "sürece"), or
-  nothing of yours that covers it: the card, as before. Its card then says "Nothing you said covers this."
+  "-dığında" / "-dığımda", "-ken", "-dikçe", "durumunda", "zaman", "sonra", "kadar", "dek", "madem",
+  "yeter ki" and "sürece"), or nothing of yours that covers it: the card, as before. Its card then says "Nothing you said covers this."
 
 A command that ran or was not run this way also waits under **Decided for you** until you press
 **OK**. After 3 such refusals in a row, or 10 in one turn, KOLONİ says so in the chat and the rest of

@@ -1682,6 +1682,18 @@ def test_what_python_m_imports_from_its_folder_before_the_tools_own():
         ("uv run ruff check .", ".", "docs/notes.md", None),
         ("uv run ruff check .", ".", ".env", None),  # (pipenv's alone)
         ("uv run ruff check .", ".", "docs/requirements.md", None),
+        # (a runner run as a module is that runner; pip and build build what they install)
+        (
+            "python -m uv run ruff check .",
+            ".",
+            "packages/y/pyproject.toml",
+            "packages/y/pyproject.toml",
+        ),
+        ("py -m pip install -e .", ".", "setup.py", "setup.py"),
+        ("pip install -e .", ".", "setup.py", "setup.py"),
+        ("pip3 install -r requirements.txt", "web", "requirements.txt", "requirements.txt"),
+        ("python -m build", ".", "pyproject.toml", "pyproject.toml"),
+        ("python -m uv run pytest -q", ".", "packages/y/pyproject.toml", None),  # (a test run)
     ],
 )
 def test_a_python_runners_rule_stops_at_a_manifest_or_setting_an_agent_wrote_anywhere(
@@ -1726,6 +1738,11 @@ def test_a_python_runners_rule_stops_at_a_manifest_or_setting_an_agent_wrote_any
         ("npm install", ".", "native/binding.gyp", "native/binding.gyp"),
         ("npm test", ".", "package-lock.json", None),  # (a script by its name: the project's)
         ("npm install", ".", "sub096/node_modules/x/index.md", None),
+        # (yarn's `.env.yarn`, bun's `.env` files: what it runs gets them - `NODE_OPTIONS`)
+        ("yarn eslint .", ".", ".env.yarn", ".env.yarn"),
+        ("bunx eslint .", "web", ".env", ".env"),
+        ("bun run lint", ".", ".env.local", ".env.local"),
+        ("npx eslint .", ".", ".env", None),
     ],
 )
 def test_a_node_runners_rule_stops_at_a_lock_or_a_package_below_an_agent_wrote(
@@ -1756,6 +1773,7 @@ TSC_EXTENDS = '{"extends": "./configs/base", "include": ["src"]}\n'
         ("npm exec tsc -- --noEmit", "web", "tsconfig.base.json", "tsconfig.base.json"),
         ("corepack pnpm exec tsc --noEmit", ".", "lib/TSConfig.Lib.json", "lib/TSConfig.Lib.json"),
         (TSC_LINE, ".", "tsconfig.json", "tsconfig.json"),  # (0.1.7's Code style rule)
+        ("node node_modules/typescript/lib/tsc.js --noEmit", ".", "tsconfig.json", "tsconfig.json"),
         # (a JSON the project's tsconfig extends - from the folder up, or `-p`'s)
         ("npx tsc --noEmit", ".", "configs/base.json", "configs/base.json"),
         ("npx tsc --noEmit", "src", "configs/base.json", "configs/base.json"),
@@ -1813,6 +1831,47 @@ def test_what_tsc_reads_follows_extends_and_references_once_each_and_not_for_eve
     assert reads(tmp_path, ".", ["--project", "c0.json"]) is None
     assert proof_style.tsc_setting(tmp_path, "x/data.json", None) == "x/data.json"
     assert proof_style.tsc_setting(tmp_path, "x/data.md", None) is None
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows drops a name's last dots and spaces")
+@pytest.mark.no_po
+@pytest.mark.parametrize(
+    ("line", "rule", "written"),
+    [
+        ("uv run ruff check .", "uv run ruff", "packages/x096/pyproject.toml."),
+        ("uv run ruff check .", "uv run ruff", "uv.toml "),
+        ("npm install", "npm install", "sub096/package.json."),
+        ("npx tsc --noEmit", "npx tsc", "web096/tsconfig.json."),
+    ],
+)
+def test_a_setting_named_with_an_end_windows_drops_is_never_written(  # noqa: PLR0913
+    make_client, wait_run, project_dir, line, rule, written
+):
+    """The review of F395: `pyproject.toml.` was written as `pyproject.toml` and on record under
+    the name the agent gave, which no setting's name matched - refused, nothing written, so the
+    rule's line runs on what the user has."""
+    from tests.test_agent_commands import cmd
+
+    _monorepo(project_dir)
+    executor = ScriptedExecutor([PASS, PASS, PASS])
+    client, model = make_client(
+        [write(written, "PLANTED\n", "w1"), text("done"), cmd(line, "k1"), text("ran")],
+        executor=executor,
+    )
+    cid, run_id = begin(client, project_dir, mode="auto_edit", check_command="python check.py")
+    wait_run(client, cid, run_id)
+    said = [str(m["content"]) for call in model.calls for m in call if m["role"] == "tool"]
+    assert any("is not written" in one and "ends in a dot or a space" in one for one in said), said
+    on_disk = project_dir / written.rstrip(" .")
+    assert not on_disk.exists() or "PLANTED" not in on_disk.read_text(encoding="utf-8")
+    made = client.post(
+        f"/api/conversations/{cid}/allowed-commands", json={"prefix": rule}, headers=OWN
+    )
+    assert made.status_code in (200, 201), made.text
+    second = client.post(f"/api/conversations/{cid}/messages", json={"content": "go"}).json()
+    snap = wait_run(client, cid, second["run"]["id"])
+    (ran,) = [one for one in snap["commands"] if one["command"] == line]
+    assert ran["status"] == "exited", snap["commands"]
 
 
 # W7: what an agent writes into a package's own manifest (the second session's E4) - each a file

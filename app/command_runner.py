@@ -197,12 +197,23 @@ PLANTED_REFUSED = "KOLONİ did not run this: {why}, and nobody is here to ask. "
 # runs in holds first (`python -m`), and in a working copy what PYTHONPATH names - the copy's root
 # and its `src` (`host.copy_python_path`) - `sitecustomize` there before anything it runs.
 _NODE_RUNNERS = frozenset({"npx", "pnpx", "bunx", "npm", "pnpm", "yarn", "bun"})
+# (yarn's `.env.yarn` and bun's `.env` files go into the environment of what it runs:
+# `NODE_OPTIONS=--require x`)
+_BUN_ENV = (".env", ".env.local", ".env.production", ".env.development")
 _NODE_SETTINGS = {
-    "yarn": (".yarnrc.yml", ".yarnrc", ".yarn", ".pnp.cjs", ".pnp.loader.mjs", ".npmrc"),
+    "yarn": (
+        ".yarnrc.yml",
+        ".yarnrc",
+        ".yarn",
+        ".pnp.cjs",
+        ".pnp.loader.mjs",
+        ".npmrc",
+        ".env.yarn",
+    ),
     "pnpm": (".pnpmfile.cjs", ".npmrc"),
     "pnpx": (".pnpmfile.cjs", ".npmrc"),
-    "bun": ("bunfig.toml",),
-    "bunx": ("bunfig.toml",),
+    "bun": ("bunfig.toml", *_BUN_ENV),
+    "bunx": ("bunfig.toml", *_BUN_ENV),
 }
 # W7: npx and `npm exec` run a name the local package's `bin` gives first (measured, npm 11.9:
 # installed into its cache and run from there, never node_modules/.bin), yarn and pnpm a script of
@@ -232,9 +243,12 @@ def _node_setting(rel: str) -> str | None:
     return None
 
 
-_PY_RUNNERS = frozenset({"uv", "uvx", "poetry", "pipenv", "pdm", "hatch"})
+_PY_RUNNERS = frozenset({"uv", "uvx", "poetry", "pipenv", "pdm", "hatch", "pip", "pip3"})
+# (one run as a module is that one - `python -m uv`, `py -m pip` -, and so is `python -m build`)
+_PY_RUNNER_MODULES = _PY_RUNNERS | {"build"}
 # ...and uv, poetry, pipenv, pdm, hatch resolve `[project.scripts]` and build the project to run
-# in it: an agent's `pyproject.toml` (or `setup.py`) there stops theirs - but a test run's. So
+# in it, pip and build the one they install: an agent's `pyproject.toml` (or `setup.py`) there
+# stops theirs - but a test run's. So
 # does one anywhere in the project (F395, as W7d: a workspace member's or a path dependency's,
 # built with it), and any of their settings, locks and requirements (`_python_setting`).
 _PY_MANIFESTS = ("pyproject.toml", "setup.py")
@@ -324,20 +338,24 @@ def _runner_places(words: list[str], cwd: str) -> _Reach | None:
         )
     python = next((at for at, word in enumerate(words) if _PYTHON.fullmatch(_program(word))), None)
     module = _python_module(words[python:]) if python is not None else None
-    if name not in _PY_RUNNERS and module is None:
+    led = module is not None and module[0] in _PY_RUNNER_MODULES  # (`python -m uv`, `-m pip`)
+    runner = name if name in _PY_RUNNERS or not led else module[0]
+    if runner not in _PY_RUNNERS and module is None:
         return None
     flags = set(module[1]) if module else set()
-    tool = module[0] if module else next((w for w in words[1:] if w[:1] != "-" and w != "run"), "")
+    skip = ("run", module[0] if led else "run")
+    rest = (w for w in words[1:] if w[:1] != "-" and w not in skip)
+    tool = module[0] if module and not led else next(rest, "")
     safe_path = bool(os.environ.get("PYTHONSAFEPATH")) and "E" not in flags
     tests = _program(tool.split(".")[0]) in _RUNS_THE_PROJECT
-    own = _PY_MANIFESTS if name in _PY_RUNNERS and not tests else ()
+    own = _PY_MANIFESTS if runner in _PY_RUNNER_MODULES and not tests else ()
     return _Reach(
         [str(folder / one) for folder in above for one in (".venv", "venv", *own)],
         _PY_INSTALLS,
         reads_cwd=module is not None and not flags & {"I", "P"} and not safe_path,
         reads_path=not flags & {"I", "E"},
         startup_only=tests,
-        py_settings=name if own else "",
+        py_settings=runner if own else "",
     )
 
 
@@ -375,7 +393,7 @@ def _reach_of(words: list[str], program: str, cwd: str) -> tuple[_Reach, list[st
     # (a runner first: `.venv/Scripts/python.exe -m x` is named by its path, and reads its folder)
     reach = _runner_places(words, cwd)
     tsc = words[1:] != proof_style.TSC_WORDS.split() and (
-        _program(program) == "tsc"
+        _program(program).removesuffix(".js") in ("tsc", "_tsc")  # (`node …/lib/tsc.js` too)
         or reach is not None
         and reach.node_settings
         and "tsc" in {_program(word) for word in words}
