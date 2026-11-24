@@ -652,6 +652,11 @@ test('the note is written as a goal, stories and tasks: each changed, a story ad
   const drafts = await screen.findByRole('region', { name: 'Drafted tasks' })
   expect(within(drafts).getByText(/Written by Cloud \(mini\)/)).toBeVisible()
   expect(within(drafts).getByLabelText('Goal')).toHaveValue('Sign-in holds')
+  // The box closed (Esc, or its button again), the draft stays - it was a request - and so does the note.
+  await userEvent.keyboard('{Escape}')
+  expect(screen.queryByRole('form', { name: 'Write it with the Hive keeper' })).toBeNull()
+  expect(screen.getByRole('region', { name: 'Drafted tasks' })).toBeVisible()
+  expect((await noteBox()).getByLabelText('Your note')).toHaveValue('login mobilde bozuk')
   const login = within(drafts).getByRole('group', { name: 'Story 1' })
   expect(within(login).getByLabelText('Story')).toHaveValue('Login on mobile')
   expect(login).toHaveTextContent('The form is shared with the desktop page.')

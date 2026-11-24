@@ -1,5 +1,5 @@
 import { DotsSixVertical } from '@phosphor-icons/react'
-import { Fragment, useState, type FormEvent, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { type SpawnDecision } from '../agents/SpawnApproval'
 import { LEAD_WORK } from '../shell/ProjectSettings'
 import { errorText } from '../api/client'
@@ -288,6 +288,8 @@ function AddTask({ onAdd, stories, onNewStory }: AddProps) {
 
 type NoteProps = Pick<Props, 'onDraft' | 'onPlan' | 'onAddTree' | 'providers'> & {
   drafter: BacklogAuto['drafter']
+  /** Its box shown; closed, a draft written stays under the bar until it is added or dropped. */
+  open: boolean
   onClose: () => void
 }
 
@@ -295,10 +297,15 @@ type NoteProps = Pick<Props, 'onDraft' | 'onPlan' | 'onAddTree' | 'providers'> &
  * "Write it with the Hive keeper" (6 Nov; 0.1.8 as a tree): a rough note, written by a model asked once as a goal, its
  * stories and their tasks - shown under it to change, each part added by your word; or planned in a chat.
  */
-function HiveNote({ onDraft, onPlan, onAddTree, providers, drafter, onClose }: NoteProps) {
+function HiveNote({ onDraft, onPlan, onAddTree, providers, drafter, open, onClose }: NoteProps) {
   const drafting = useAsk()
   const [note, setNote] = useState('')
   const [draft, setDraft] = useState<BacklogDraft | null>(null)
+  const box = useRef<HTMLTextAreaElement>(null)
+  // (Opened, the note takes the focus; the box stays mounted closed, so that a draft is not lost.)
+  useEffect(() => {
+    if (open) box.current?.focus()
+  }, [open])
   const asked = providers.find(one => one.id === drafter?.provider_id)
   const text = note.trim()
   const write = (event: FormEvent) => {
@@ -308,6 +315,7 @@ function HiveNote({ onDraft, onPlan, onAddTree, providers, drafter, onClose }: N
   return (
     <>
       <form
+        hidden={!open}
         className="backlog-add"
         aria-label="Write it with the Hive keeper"
         onSubmit={write}
@@ -316,9 +324,9 @@ function HiveNote({ onDraft, onPlan, onAddTree, providers, drafter, onClose }: N
         <div className="field">
           <label htmlFor="hive-note">Your note</label>
           <textarea
+            ref={box}
             id="hive-note"
             className="input"
-            autoFocus
             rows={3}
             maxLength={4201}
             value={note}
@@ -372,7 +380,7 @@ function HiveNote({ onDraft, onPlan, onAddTree, providers, drafter, onClose }: N
   )
 }
 
-type HeadProps = Omit<NoteProps, 'onClose'> &
+type HeadProps = Omit<NoteProps, 'open' | 'onClose'> &
   Pick<Props, 'onAdd' | 'projectId'> & { view: ReturnType<typeof useTreeView> }
 
 /** Over the list: its bar, the Hive keeper's note once its button is pressed, and where a task is added. */
@@ -387,7 +395,7 @@ function TodoHead({ view, projectId, onAdd, ...note }: HeadProps) {
         onHive={note.onDraft || note.onPlan ? () => setNoting(!noting) : undefined}
         noting={noting}
       />
-      {noting && <HiveNote {...note} onClose={() => setNoting(false)} />}
+      <HiveNote {...note} open={noting} onClose={() => setNoting(false)} />
       <AddTask onAdd={onAdd} {...view.choice} />
     </>
   )
