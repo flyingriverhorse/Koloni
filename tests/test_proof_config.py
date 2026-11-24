@@ -5,6 +5,7 @@ model). A file nested too deep, YAML with aliases, or a secret file is never rea
 is a fix round, as the other kinds' are; Settings may switch it off, a kind left out is on."""
 
 import json
+import re
 
 import pytest
 
@@ -21,7 +22,8 @@ WORKFLOW = ".github/workflows/ci.yml"
 def said(root, files: dict[str, str]) -> list[tuple[str, str]]:
     for rel, body in files.items():
         (root / rel).parent.mkdir(parents=True, exist_ok=True)
-        (root / rel).write_text(body, encoding="utf-8")
+        # (as written - no CR LF of Windows': a file's size is the same on every platform)
+        (root / rel).write_bytes(body.encode("utf-8"))
     return [(one["state"], one["text"]) for one in check_config(root, list(files))]
 
 
@@ -34,12 +36,16 @@ def said(root, files: dict[str, str]) -> list[tuple[str, str]]:
         # (npm reads no comments: a package.json with one does not parse - nor any JSON with a
         # trailing comma whose tool is not one that reads them)
         ("package.json", '{\n  // the app\n  "name": "x"\n}\n', "package.json:2: does not parse"),
-        ("data.json", '{\n  "a": 1,\n}\n', "data.json:3: does not parse - Expecting property"),
+        # (a trailing comma: Python's json says it at line 3 up to 3.12, "Illegal trailing comma
+        # before end of object" at line 2 from 3.13 - its parser's words and line not pinned)
+        ("data.json", '{\n  "a": 1,\n}\n', "data.json:"),
     ],
 )
 def test_a_file_that_does_not_parse_fails_with_its_parsers_line(tmp_path, rel, body, line):
     ((state, said_),) = said(tmp_path, {rel: body})
     assert state == "failed" and said_.startswith(line), said_
+    # (at its line, whatever the parser's words)
+    assert re.match(r"[\w.]+:\d+: does not parse", said_), said_
 
 
 def test_files_that_parse_pass_and_json_with_comments_where_its_tool_reads_them(tmp_path):
@@ -277,8 +283,8 @@ def test_past_its_size_a_file_is_not_read(tmp_path, monkeypatch):
         {
             "big.toml": "a = 1\n" * 200,
             "big.yaml": "a: 1\n" * 300,
-            "one.yaml": "a: 1\n" * 150,
-            "two.yaml": "a: 1\n" * 150,
+            "one.yaml": "a: 1\n" * 150,  # (750 bytes: read)
+            "two.yaml": "a: 1\n" * 151,  # (755 bytes: 1505 in all, past the 1500)
         },
     )
     assert rows == [
@@ -356,10 +362,11 @@ def test_an_old_problem_a_line_above_moved_is_still_the_files_own(tmp_path):
     # (Q2 of 0.1.7: compared without its line - it was the turn's error once its line moved.)
     (tmp_path / "a.json").write_text('{\n\n  "a": 1,\n}\n', encoding="utf-8")
     rows = check_config(tmp_path, ["a.json"], before={"a.json": '{\n  "a": 1,\n}\n'})
-    assert [(one["state"], one["text"]) for one in rows] == [
-        ("note", "a.json:4: does not parse - Expecting property name enclosed in double quotes"
-         " - so before this turn")
-    ]  # fmt: skip
+    # (its parser's words and line differ by Python's version - 3.13's json says "Illegal trailing
+    # comma" a line higher: the old problem is a note, so before this turn, at a line)
+    ((state, said_),) = [(one["state"], one["text"]) for one in rows]
+    assert state == "note", rows
+    assert re.fullmatch(r"a\.json:\d+: does not parse - .+ - so before this turn", said_), said_
     # (one that parsed before and does not now is the turn's, whatever its line)
     rows = check_config(tmp_path, ["a.json"], before={"a.json": '{"a": 1}'})
     assert [one["state"] for one in rows] == ["failed"]

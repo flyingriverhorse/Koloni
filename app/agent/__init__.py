@@ -941,6 +941,8 @@ CHECK_AWAY = "not run while you are away - a test command of KOLONİ's, not your
 CHECK_GUESS_UNATTENDED = (
     "not run in a turn nobody watches - a test command of KOLONİ's, not yours: not checked"
 )
+# ...and where the copy could not be read for its own tests (the copy is kept, as any unread one).
+OWN_UNREAD = "its own tests not run: the working copy could not be read ({why})"
 # pytest's exit 5, vitest's or jest's "No test files found" with --passWithNoTests: nothing ran.
 NOTHING_RAN = "{part}: no test of these files was found - nothing ran"
 CHECK_NOT_KEPT = (
@@ -4489,13 +4491,18 @@ class AgentRunner(
         watched = self._watched(ctx.run_id)
         with self._factory() as session:
             mode = session.get_one(Conversation, ctx.cid).permission_mode
-        owns, check = await self._own_check(ctx, copy)
         refused, unasked = self._merge_leave(ctx, status, asked, watched, mode)
-        by_itself, unasked = self._merge_check(ctx, owns, check, watched, unasked, mode)
         files: dict[str, dict] = {}
         merge_id = None
+        fault = await self._copy_changes(ctx, copy, files)
+        # (Its own tests from that one look - the files on record where the copy could not be read.)
+        owns, check = await self._own_check(ctx, copy, list(files))
+        by_itself, unasked = self._merge_check(ctx, owns, check, watched, unasked, mode)
+        looked = True
         while True:
-            fault = await self._copy_changes(ctx, copy, files)
+            if not looked:  # (each time again after the card: what the copy holds now)
+                fault = await self._copy_changes(ctx, copy, files)
+            looked = False
             if merge_id is None and not files and not fault:
                 return ""
             if check and by_itself and merge_id is None and not fault and as_shown(files):
@@ -4531,12 +4538,7 @@ class AgentRunner(
                 self._drop_copy(ctx.agent_id, "rejected")
                 return self._not_applied(ctx, files, TURNED_DOWN)
             if decision == "check":
-                # The user's click is the command's leave: it runs, and they are asked
-                # again with what it said. (Not without their word on what clashes.)
-                if check and not unchosen(list(files.values()), choices):
-                    # (what it runs now: the copy as it is - the click is the leave)
-                    owns, _check = await self._own_check(ctx, copy)
-                    await self._check(ctx, copy, files, check, choices, merge_id, owns, leave=True)
+                await self._check_clicked(ctx, copy, files, check, choices, merge_id)
                 continue
             async with self._way_in(copy.project), self._looks_held(copy.project):
                 if await asyncio.to_thread(_moved, copy, files, choices):
@@ -4551,6 +4553,22 @@ class AgentRunner(
                 taken = self._apply(ctx, copy, files, True, choices=choices)
             await self._seen_by_watchers(ctx, taken)
         return await self._merge_over(ctx, copy, files, check, merge_id, watched, refused)
+
+    async def _check_clicked(
+        self,
+        ctx: Ctx,
+        copy: copies.Copy,
+        files: dict[str, dict],
+        check: dict | None,
+        choices: dict,
+        merge_id: str,
+    ) -> None:
+        """Run the test on a Take in card: the user's click is the command's leave - it runs, and
+        they are asked again with what it said. (Not without their word on what clashes.)"""
+        if check and not unchosen(list(files.values()), choices):
+            # (what it runs now: the copy as it is - the click is the leave)
+            owns, _check = await self._own_check(ctx, copy)
+            await self._check(ctx, copy, files, check, choices, merge_id, owns, leave=True)
 
     def _merge_leave(
         self, ctx: Ctx, status: str, asked: bool, watched: bool, mode: str
@@ -4567,7 +4585,12 @@ class AgentRunner(
         return refused, unasked
 
     def _own_runs(
-        self, ctx: Ctx, copy: copies.Copy, base: dict[str, str], names: dict[str, str]
+        self,
+        ctx: Ctx,
+        copy: copies.Copy,
+        base: dict[str, str],
+        names: dict[str, str],
+        listed: list[str] | None = None,
     ) -> tuple[list[proof_related.Own], list[str]]:
         """Take in's check (the user, 23 Nov): only the test files the agent wrote or changed in
         its copy (as `base` and `names` were when the caller looked: `Copy.changes`), each with
@@ -4575,7 +4598,8 @@ class AgentRunner(
         the one KOLONİ saved (the user's own where an Always rule covers it, as the end gate has
         it: `FoundMixin._runs_found`), else the guess from its files (no model's look, no agent's
         run) - and what is said instead (`proof_related.own_tests`). The end gate runs every test
-        once, at the turn's end."""
+        once, at the turn's end. `listed`: the copy's changed paths as Take in's own look found
+        them (`_copy_changes`) - not looked at a second time."""
         with self._factory() as session:
             conversation = session.get_one(Conversation, ctx.cid)
             project = session.get_one(Project, conversation.project_id)
@@ -4601,21 +4625,32 @@ class AgentRunner(
         ]
         ran = {test_found.folder_key(run.cwd) for run in runs}
         runs += [kept(folder, one) for folder, one in saved.items() if folder not in ran]
-        paths = [
-            path
-            for path, _kind, _state in copy.changes(base, names)
-            if (copy.root / path).is_file()
-        ]
+        if listed is None:
+            listed = [path for path, _kind, _state in copy.changes(base, names)]
+        paths = [path for path in listed if (copy.root / path).is_file()]
         return proof_related.own_tests(runs, paths, copy.root, root)
 
     async def _own_check(
-        self, ctx: Ctx, copy: copies.Copy
+        self, ctx: Ctx, copy: copies.Copy, listed: list[str] | None = None
     ) -> tuple[list[proof_related.Own], dict | None]:
         """`_own_runs` (in a thread, the copy looked at once) and the check as its card first has
         it: each line one part's narrowed run, and what is said of the rest (round 2, B2: a part
-        that cannot be narrowed, and why) - None only where the agent wrote no test at all."""
+        that cannot be narrowed, and why) - None only where the agent wrote no test at all. A
+        copy that cannot be read: not run, and why - never an error out of Take in, which keeps
+        such a copy for the user (`_merge`)."""
         base, names = dict(copy.base), dict(copy.names)
-        owns, said = await asyncio.to_thread(self._own_runs, ctx, copy, base, names)
+        try:
+            owns, said = await asyncio.to_thread(self._own_runs, ctx, copy, base, names, listed)
+        except Exception as exc:
+            why = OWN_UNREAD.format(why=getattr(exc, "strerror", None) or exc)
+            return [], {
+                "command": "",
+                "state": "not_run",
+                "exit_code": None,
+                "output": None,
+                "note": why,
+                "said": [why],
+            }
         if not owns and said == [proof_related.NO_OWN_TESTS]:
             return owns, None
         return owns, {

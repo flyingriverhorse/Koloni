@@ -211,8 +211,10 @@ def test_lines_end_as_powershell_ends_them_and_a_type_left_unread_is_said(
     assert (state, line[: len(row[1])]) == row, line
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows PowerShell 5.1 is only Windows'")
 def test_windows_powershell_alone_leaves_powershell_7s_scripts_unread(monkeypatch):
-    # (5.1, where no PowerShell 7 is: a Configuration loads DSC's module; `??`, `&&` are 7's)
+    # (5.1, where no PowerShell 7 is: a Configuration loads DSC's module; `??`, `&&` are 7's. Its
+    # parser is a stand-in here: only its Windows path, known by its name, is read)
     told = {}
 
     def read_by(_argv, text, _seconds):
