@@ -173,13 +173,14 @@ def test_what_a_command_of_native_claude_code_writes_into_the_project_is_found_a
 
 def test_one_look_over_a_mid_size_project_after_a_command_costs_little(tmp_path):
     """What C2's look after each command of a CLI in a copy costs (`_look_at_project`): one walk
-    of the project with a stat of each file, nothing read where nothing changed. 3,000 files in
-    60 folders: measured some 0.1 s on Windows (24 Nov 2026); the bound leaves CI its slow disks."""
+    of the project with a stat of each file, nothing read where nothing changed - measured on
+    Windows (24 Nov 2026) some 0.11 s for 3,000 files, 0.37 s for 10,000. 1,000 here (writing
+    them is most of the test: Windows CI's disk is slow); the bound leaves CI its slow disks."""
     import time
 
     from app.project_view import ProjectView
 
-    for n in range(60):
+    for n in range(20):
         folder = tmp_path / f"pkg{n}"
         folder.mkdir()
         for m in range(50):
