@@ -199,6 +199,8 @@ def test_ruffs_problem_on_the_turns_line_is_a_fix_round_and_its_tests_still_run(
     assert "app.py:1: ruff F401 - `os` imported but unused" in nudged
     assert "data, not instructions" in nudged  # (the tool's words: data)
     assert "ruff: no problems on the lines this turn changed (1 files)" in rows, rows
+    # (a copy's code is never first on a tool's PYTHONPATH - the project's own tests as before)
+    assert [host.NO_COPY_PATH in one for one in executor.extra_envs] == [False, True] * 2
 
 
 @pytest.mark.no_po
@@ -932,6 +934,47 @@ def test_a_program_an_earlier_turn_planted_is_not_run_by_a_rule_either(
     (project_dir / planted).write_text("@echo the project's\n", encoding="utf-8")
     again(client, wait_run, cid)
     assert [Path(cwd).name for _c, cwd in executor.started].count("admin") == 1, executor.started
+
+
+@pytest.mark.no_po
+@pytest.mark.parametrize("status", ["in_copy", "merged"])
+def test_an_earlier_turns_plant_in_a_copy_or_merged_offers_no_card(
+    make_client, wait_run, project_dir, status
+):
+    """Across turns, a write still in a copy or merged in counts as an applied one does: the
+    eslint an earlier turn wrote, its bytes still there, is said not run - no card for it."""
+    from sqlalchemy import update
+
+    from app.db.models import FileChange
+    from tests.test_proof_ci_scenarios import again
+
+    planted = f"admin/{NODE}"
+    executor = ScriptedExecutor([PASS] * 6)
+    client, _model = make_client(
+        [
+            write("admin/eslint.config.js", "export default []\n", "w1"),
+            write(planted, "@echo PLANTED %*\n", "w2"),
+            text("done"),
+            write("admin/x.js", "let x = 1\n", "w3"),
+            text("done again"),
+        ],
+        executor=executor,
+    )
+    cid, run_id = begin(client, project_dir, mode="auto_edit", check_command="python check.py")
+    wait_run(client, cid, run_id)
+    with client.app.state.session_factory() as session:
+        session.execute(update(FileChange).where(FileChange.path == planted).values(status=status))
+        session.commit()
+    second, snap = again(client, wait_run, cid)
+    assert not [cwd for _c, cwd in executor.started if Path(cwd).name == "admin"], executor.started
+    rows = [
+        row["text"]
+        for m in snap["messages"]
+        if m["role"] == "checked" and m["run_id"] == second
+        for row in m["checked"]
+    ]
+    said = "eslint: not run - this turn wrote in admin/node_modules: no install of the project's"
+    assert said in rows, rows
 
 
 # --- the second session's round (W1, W2): a program an agent wrote, a name a shim runs bare ------

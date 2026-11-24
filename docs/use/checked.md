@@ -506,8 +506,9 @@ compared with what it was before the turn only where a tool says a problem in it
 minutes: one too large to compare in that time is said "not judged", never passed. It waits for KOLONİ's test-run slot (Settings › The
 app), so a type check never runs beside the whole test suite. tsc is told not to build
 incrementally and mypy to keep its cache in the folder (`.mypy_cache`). In a
-recipe's copy it runs there, and what it writes (a cache, a report) is put back - never taken
-in. At most 50 files a run, 2 minutes for them all, its wait for the slot too. Where the project
+recipe's copy it runs there - without the copy's own code first on its Python path, so a module
+an agent wrote there (`mypy/`) is never imported in place of the tool's own - and what it writes
+(a cache, a report) is put back - never taken in. At most 50 files a run, 2 minutes for them all, its wait for the slot too. Where the project
 sets none of them up, nothing at all is said of it.
 
 A deck, Word file or other file a command made (a script that writes a `.pptx`) is checked too,

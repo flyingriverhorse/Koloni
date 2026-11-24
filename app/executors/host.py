@@ -142,6 +142,12 @@ def copy_python_path(copy: Path, already: str | None) -> str:
     return os.pathsep.join([*first, *([already] if already else [])])
 
 
+# A caller's word that a working copy's code is not put first on PYTHONPATH (Code style's own
+# tools: a `mypy/__init__.py` an agent wrote in the copy is never imported before the tool's
+# own) - taken out of what the command gets. Any other run in a copy has the copy first.
+NO_COPY_PATH = "KOLONI_NO_COPY_PATH"
+
+
 class ProcessCommand:
     """A running child process whose merged output is read as text."""
 
@@ -241,12 +247,13 @@ class HostExecutor:
     ) -> ProcessCommand:
         if not cwd.is_dir():
             raise StartError(f"{cwd} is not a folder")
+        copy_first = NO_COPY_PATH not in (env or {})
         # Python programs would otherwise print in the ANSI code page - and leave __pycache__/
         # in the project (live). (What the user gave on a card goes in over what was held back.)
         env = {
             **command_env(self._pass_env),
             **(secrets or {}),
-            **(env or {}),
+            **{k: v for k, v in (env or {}).items() if k != NO_COPY_PATH},
             "PYTHONUTF8": "1",
             "PYTHONDONTWRITEBYTECODE": "1",
         }
@@ -257,7 +264,7 @@ class HostExecutor:
         # Python buffers what it prints to a pipe: a server's "Serving on ..." never came
         # and its preview waited for an address (B-351). A user's own setting is kept.
         env.setdefault("PYTHONUNBUFFERED", "1")
-        if copy is not None:
+        if copy is not None and copy_first:
             env["PYTHONPATH"] = copy_python_path(copy, env.get("PYTHONPATH"))
         try:
             if copy is not None:

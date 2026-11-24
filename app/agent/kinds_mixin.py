@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import func, literal_column, or_, select
 
-from app import browser, injection, koloni, proof, proof_kinds, proof_style
+from app import browser, injection, koloni, ledger, proof, proof_kinds, proof_style
 from app.agent.ctx import Ctx, _GateRefused
 from app.agent.proof_mixin import SLOT_BUSY
 from app.agent.review_mixin import COPY_BUSY
@@ -33,6 +33,7 @@ from app.db.models import (
     ShownFile,
     now,
 )
+from app.executors.host import NO_COPY_PATH
 from app.model_client import ToolCallRequest
 from app.proof import Change, Row
 from app.team import quoted
@@ -287,7 +288,8 @@ class KindsMixin:
                 .join(Conversation, Conversation.id == Run.conversation_id)
                 .where(
                     Conversation.project_id == project_id,
-                    FileChange.status == "applied",
+                    # (an earlier turn's in a copy, or merged: its bytes may stand there)
+                    FileChange.status.in_((*ledger.KEPT, proof.MERGED)),
                     or_(
                         *(
                             func.lower(FileChange.path).contains(folder)
@@ -426,7 +428,9 @@ class KindsMixin:
                     cwd=run.cwd,
                     seconds=proof_style.STYLE_SECONDS,
                     where=given,
-                    env={"NO_COLOR": "1"},
+                    # (the copy's code is not first on its PYTHONPATH: a `mypy/` written there
+                    # is never imported before the tool's own)
+                    env={"NO_COLOR": "1", NO_COPY_PATH: "1"},
                 )
             except (_GateRefused, ToolError) as exc:
                 self._set_call(ctx.cid, call_id, status="denied", result=str(exc), ended_at=now())

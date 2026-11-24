@@ -10,11 +10,13 @@ All notable changes to KOLONİ are listed here, newest first. English only.
 
 - **Chat**: Code style and types reads what a `tsconfig.json` extends - a path, a package in the project's `node_modules`, a list of them, up to 8 deep: tsc is not run where one of them is composite (tsc wrote its build info all the same, where its `tsBuildInfoFile` said - outside the project too), nor where what it extends is outside the project or not there ([docs](use/checked.md)).
 - **Chat**: in a `.js`, `.ts` or `.vue` file, a line separator (U+2028, U+2029) ends a line for Code style and types as it does for eslint and tsc - a problem on a line the turn wrote was counted as on a line it did not change, and the other way round.
+- **Chat**: Code style and types does not offer a card for a program an earlier turn's agent wrote in an install folder while it was in a working copy, or that was merged in - it read only writes already in the project; such a write, while the file still holds it, is said "not run" as one in the project is ([docs](use/checked.md)).
 
 ### Security
 
 - **Chat**: an **Always run** rule no longer covers, past its words, ruff's `--fix`, `--fix-only`, `--unsafe-fixes` or `--add-noqa`, eslint's `--fix`, `--plugin`, `--parser`, `--init`, `--inspect-config` or a `--format` other than its own (`stylish`, `json`, `json-with-metadata`, `html`), nor tsc's `--generateTrace` or `--generateCpuProfile` outside the folder: the rule Code style and types offers is a check that writes nothing. This reaches agents' own commands too - `uv run ruff` no longer covers `uv run ruff check --fix .`, `npx eslint` no longer `npx eslint . --fix` -, and tsc's options are read in any case, as tsc reads them (`--OUTDIR` is `--outDir`) ([docs](use/permissions.md#what-a-rule-never-covers)).
 - **Chat**: Code style and types does not run eslint or tsc where an agent wrote in a `node_modules` above the folder they run in - Node loads their packages from the root's too -, and an **Always run** rule - or a yes given before - for a program in a `node_modules` asks on its card while such a write stands ([docs](use/permissions.md#what-a-rule-never-covers)).
+- **Chat**: in a working copy, Code style and types runs its tools without the copy's own code first on PYTHONPATH - a `mypy/__init__.py` an agent wrote there was imported in place of the project's mypy; KOLONİ's test runs and the agents' commands keep the copy's code first ([docs](use/checked.md)).
 
 ## [0.1.7] - 2026-11-24
 
