@@ -423,7 +423,16 @@ def test_a_folder_it_is_in_a_pattern_or_a_full_path_names_it_too(rule, command, 
 
 
 @pytest.mark.parametrize(
-    "rule", ["Never delete src/out/build", "Never delete *.py", "Never delete builds/*"]
+    "rule",
+    [
+        "Never delete src/out/build",
+        "Never delete *.py",
+        "Never delete builds/*",
+        # (wildcards and nothing else are no pattern: a list's `*`, a sum)
+        "* Use tabs.",
+        "Rate it 5 * 3 times.",
+        "**",
+    ],
 )
 def test_a_pattern_or_path_that_does_not_take_it_in_names_nothing(rule):
     assert cards.mentioned([rule], "rm -rf out/build", ".") is None
@@ -438,7 +447,7 @@ def test_a_long_line_of_patterns_is_read_in_time():
 
     code = (
         "import time; from app import cards; t = time.monotonic(); "
-        "cards.mentioned(['*a' * 8000, ('a' * 79 + '* ') * 200], 'rm -rf out/build', '.'); "
+        "cards.mentioned(['*a' * 8000, ('a' * 79 + '* ') * 200, '/a;' * 5000], 'rm -rf out/build', '.'); "
         "print(time.monotonic() - t)"
     )
     done = subprocess.run(

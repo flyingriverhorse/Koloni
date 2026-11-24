@@ -572,3 +572,12 @@ def test_a_real_fence_still_hides_what_is_in_it():
     # (```lang opens one and ``` closes it: a row quoted in it is no finding of this look's)
     report = f"## Findings\n```py\n{R1}\n```\n{R2}"
     assert [one["what"] for one in _findings(report, ["Coder"])] == ["b.py:9: drops the error"]
+
+
+@pytest.mark.parametrize("earlier", ["Previous", "Earlier", "Last", "Old", "Resolved"])
+def test_an_earlier_looks_findings_heading_opens_no_section(earlier):
+    # (as an earlier verdict is no verdict: its rows are not this look's)
+    report = (
+        f"## {earlier} findings\n- old | kind: bug | role: Coder | blocking\n\n## Findings\nNone."
+    )
+    assert _findings(report, ["Coder"]) == []

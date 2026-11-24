@@ -272,7 +272,8 @@ def mentioned(texts: list[str | None], command: str, cwd: str | None) -> str | N
         # (a path of its own or one under it - never part of a longer name: `src/build`,
         # `build-cache`, `build.old`; a sentence's full stop after it is none - or the end of a
         # full path: `C:/proj/out/build`, `/home/me/proj/build`)
-        r"(?<![\w./\\-])(?:\.[/\\]|(?:[A-Za-z]:)?[/\\](?:[^\s/\\]+[/\\])*)?(?:"
+        # (bounded: a long line of "/a;/a;…" is read in time, never each start to its end)
+        r"(?<![\w./\\-])(?:\.[/\\]|(?:[A-Za-z]:)?[/\\](?:[^\s/\\]{1,80}[/\\]){0,32})?(?:"
         + "|".join(re.escape(one).replace("/", r"[/\\]") for one in sorted(names, key=len)[::-1])
         + r")(?![\w-]|\.[\w-])",
         re.IGNORECASE,
@@ -287,6 +288,8 @@ def _globbed(line: str, targets: list[str]) -> bool:
     for word in line.split():
         if ("*" in word or "?" in word) and len(word) <= MOST_PATH:
             glob = word.strip(".,;:`'\"()").removeprefix("./").replace("\\", "/").casefold()
+            if not glob.strip("*?/"):  # (a list's `*`, "5 * 3", a lone `**`: no pattern)
+                continue
             for one in targets:
                 path = one.casefold()
                 if fnmatch.fnmatchcase(path, glob) or fnmatch.fnmatchcase(

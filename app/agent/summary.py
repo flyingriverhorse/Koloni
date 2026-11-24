@@ -256,8 +256,11 @@ def _findings(
 # A markdown heading: one to six `#` at a line's very start, then a space or its end - `#main` and
 # an indented `# comment` (quoted code) are no heading, and close no section.
 HEADING = re.compile(r"#{1,6}(?=[ \t]|$)")
-# A Findings section's heading by another name: "## Findings (1)", "## Review findings".
-FINDINGS_NAMED = re.compile(r"(?:\w+\s+)?findings\b.*", re.IGNORECASE)
+# A Findings section's heading by another name: "## Findings (1)", "## Review findings" - never
+# an earlier look's ("## Previous findings", as `review_mixin._EARLIER` reads a verdict).
+FINDINGS_NAMED = re.compile(
+    r"(?!(?:previous|earlier|last|old|resolved)\b)(?:\w+\s+)?findings\b.*", re.IGNORECASE
+)
 
 
 def fence(line: str) -> bool:
