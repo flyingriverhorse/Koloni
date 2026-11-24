@@ -112,11 +112,21 @@ program (web/node_modules): no rule covers a program an agent wrote"), and in a 
 be asked in - a trigger's, whatever its leave - it is not run at any level. A rule matches by its
 words in any folder, so the same line in another folder, or after an agent's write over the
 project's own install, would otherwise run what the agent wrote. Once your own install writes
-over it, the rule covers it again.
+over it, the rule covers it again. A package runner finds its program by itself, so its rule
+(`npx tsc`, `npm exec tsc`, `yarn tsc`, `uv run ruff`, `python -m mypy`) is read the same way:
+npx, npm, pnpm, yarn and bun look in the `node_modules` of the folder the command runs in or of
+one above it, and an agent's write there stops the rule; for uv, poetry, pipenv, pdm, hatch and
+`python -m`, whose environment KOLONİ cannot always place, an agent's write in any `.venv`,
+`venv` or `site-packages` of the project does - and `python -m x` also reads an `x.py` (or an `x`
+folder) in its folder first.
 
 On Windows, a command KOLONİ runs, a server it starts and an agent's CLI (started in the work's
 folder) find a program named bare - `node`, which an npm `.cmd` shim calls - on PATH only, never
-first in the folder they run in, where an agent could have written a `node.cmd`.
+first in the folder they run in, where an agent could have written a `node.cmd` (git's own runs
+are started so too). So a batch file of yours that calls its neighbour by its bare name (`call
+helper.cmd`, an npm script `"t": "helper.cmd"`) does not find it under KOLONİ: call it as
+`.\helper.cmd`, or `%~dp0helper.cmd` inside a batch file - where cmd.exe says such a name "is not
+recognized" and the folder has it, the command's result says so too.
 
 ## How a command is read
 

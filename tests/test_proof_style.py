@@ -967,9 +967,17 @@ def test_an_always_rule_does_not_cover_a_program_an_agent_wrote(
 
 
 @pytest.mark.no_po
-@pytest.mark.parametrize("mode", ["auto_edit", "full_auto"])
+@pytest.mark.parametrize(
+    ("mode", "line", "rule"),
+    [
+        ("auto_edit", TSC_LINE, TSC_LINE),
+        ("full_auto", TSC_LINE, TSC_LINE),
+        # (W6: a package runner's line - a trigger's leave is a rule of the very line)
+        ("auto_edit", "npx tsc --noEmit", "npx tsc --noEmit"),
+    ],
+)
 def test_a_triggers_leave_does_not_run_a_program_an_agent_wrote(
-    make_client, wait_run, project_dir, mode
+    make_client, wait_run, project_dir, mode, line, rule
 ):
     """W2 where nobody watches (the re-review's probe): a trigger with write leave and a ticked
     rule for tsc's line - the agent writes over the project's tsc and runs the line: refused,
@@ -983,22 +991,99 @@ def test_a_triggers_leave_does_not_run_a_program_an_agent_wrote(
     client, model, pid, cid = setup(
         make_client,
         project_dir,
-        [write(TSC, "@echo PLANTED %*\n", "w1"), cmd(TSC_LINE, "k1"), text("done")],
+        [write(TSC, "@echo PLANTED %*\n", "w1"), cmd(line, "k1"), text("done")],
         executor=executor,
         permission_mode=mode,
     )
-    rules = [allow(client, cid, TSC_LINE)]
+    rules = [allow(client, cid, rule)]
     made = trigger(client, pid, cid, permissions=leave(write=True, commands=rules))
     snap = wait_run(client, cid, run_now(client, made["id"]))
     assert (project_dir / TSC).read_text() == "@echo PLANTED %*\n"
-    assert TSC_LINE not in [line for line, _cwd in executor.started], executor.started
-    (refused,) = [one for one in snap["commands"] if one["command"] == TSC_LINE]
+    assert line not in [one for one, _cwd in executor.started], executor.started
+    (refused,) = [one for one in snap["commands"] if one["command"] == line]
     assert refused["status"] == "refused", snap["commands"]
     said = [str(m["content"]) for m in model.calls[-1] if m["role"] == "tool"]
     assert any(
         "an agent wrote its program (node_modules)" in one and "nobody is here to ask" in one
         for one in said
     ), said
+
+
+@pytest.mark.no_po
+@pytest.mark.parametrize(
+    ("line", "written", "asked"),
+    [
+        ("npx tsc --noEmit", TSC, "node_modules"),  # (the second session's Q9b)
+        ("npm exec tsc -- --noEmit", "node_modules/typescript/bin/tsc", "node_modules"),
+        ("yarn tsc --noEmit", "node_modules/typescript/bin/tsc", "node_modules"),
+        ("uv run ruff check .", RUFF, ".venv"),
+        ("python -m mypy .", "mypy.py", "mypy.py"),  # (`-m` reads its folder's own first)
+        ("npx tsc --noEmit", "notes.md", None),  # (an install nobody wrote in: covered)
+        ("uv run ruff check .", "src/venv_notes.py", None),
+    ],
+)
+def test_a_package_runners_rule_does_not_cover_a_program_an_agent_wrote(
+    make_client, wait_run, project_dir, line, written, asked
+):
+    """W6: `npx tsc` (the rule a card offers for `npx tsc --noEmit`), `npm exec tsc`, `uv run
+    ruff` - a runner finds its program in the project's install itself: where an agent wrote
+    there, its rule covers the line no more."""
+    from app.commands import is_allowed, suggest_prefix
+    from tests.test_agent_commands import cmd
+
+    rule = suggest_prefix(line)
+    assert is_allowed(line, [rule]), rule  # (a rule that covers the very line)
+    (project_dir / TSC).parent.mkdir(parents=True)
+    (project_dir / TSC).write_text("@echo the project's\n", encoding="utf-8")
+    executor = ScriptedExecutor([PASS, PASS, PASS, PASS])
+    client, _model = make_client(
+        [write(written, "PLANTED\n", "w1"), text("done"), cmd(line, "k1"), text("asked")],
+        executor=executor,
+    )
+    cid, run_id = begin(client, project_dir, mode="auto_edit", check_command="python check.py")
+    wait_run(client, cid, run_id)
+    made = client.post(
+        f"/api/conversations/{cid}/allowed-commands", json={"prefix": rule}, headers=OWN
+    )
+    assert made.status_code in (200, 201), made.text
+    second = client.post(f"/api/conversations/{cid}/messages", json={"content": "check"}).json()
+    if asked is None:
+        snap = wait_run(client, cid, second["run"]["id"])
+        (ran,) = [one for one in snap["commands"] if one["command"] == line]
+        assert ran["status"] == "exited", snap["commands"]
+        return
+    snap = wait_status(client, cid, "waiting_approval")
+    (card,) = [one for one in snap["commands"] if one["command"] == line]
+    assert card["status"] == "proposed", snap["commands"]
+    assert card["danger"] == proof_style_planted(asked)
+    assert line not in [one for one, _cwd in executor.started]
+    client.post(f"/api/commands/{card['id']}/reject")
+    wait_run(client, cid, second["run"]["id"])
+
+
+def test_a_package_runner_finds_its_program_up_the_tree_or_anywhere_it_cannot_place(tmp_path):
+    from app.command_runner import _runner_places
+
+    places, anywhere = _runner_places(["npx", "tsc"], "web/app")
+    assert places == ["web/app/node_modules", "web/node_modules", "node_modules"] and not anywhere
+    found = proof_style.planted_in
+    assert found(tmp_path, places, anywhere, "web/Node_Modules/x/y.js") == "web/node_modules"
+    assert found(tmp_path, places, anywhere, "api/node_modules/x.js") is None  # (not its own)
+    # (an environment KOLONİ cannot place: any install folder of the project's - fails closed)
+    places, anywhere = _runner_places(["poetry", "run", "ruff", "check"], ".")
+    assert found(tmp_path, places, anywhere, "tools/env/Lib/site-packages/ruff/x.py") == (
+        "tools/env/Lib/site-packages"
+    )
+    places, anywhere = _runner_places(["python", "-m", "pytest.main"], "api")
+    assert found(tmp_path, places, anywhere, "api/pytest/__init__.py") == "api/pytest"
+    assert _runner_places(["pytest", "-q"], ".") is None
+    assert _runner_places(["python", "x.py"], ".") is None
+
+
+def proof_style_planted(place: str) -> str:
+    from app.command_runner import PLANTED
+
+    return PLANTED.format(place=place)
 
 
 # --- the second session's round (W3-W5): what a tool said, how long its lines take ------------

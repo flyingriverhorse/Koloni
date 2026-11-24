@@ -293,3 +293,28 @@ async def test_a_shim_s_bare_node_is_not_the_one_written_in_the_folder(tmp_path,
         "NoDefaultCurrentDirectoryInExePath"
     ]
     assert env["NoDefaultCurrentDirectoryInExePath"] == "1"
+
+
+def test_a_bare_name_cmd_did_not_find_in_the_folder_gets_its_hint(tmp_path):
+    # Y1: under KOLONİ cmd.exe finds a bare name on PATH only (W1) - a batch file of the user's
+    # that calls its neighbour so is told how to call it
+    from app.command_runner import _bare_name_hint
+
+    (tmp_path / "helper096.cmd").write_text("@echo helped\n", encoding="utf-8")
+    said = "'helper096.cmd' is not recognized as an internal or external command,\r\n"
+    assert ".\\helper096.cmd" in _bare_name_hint(said, tmp_path)
+    # (`call helper096`: found with a program's ending)
+    assert "%~dp0helper096." in _bare_name_hint(said.replace(".cmd'", "'"), tmp_path)
+    assert _bare_name_hint(said.replace("helper096", "other"), tmp_path) == ""
+    assert _bare_name_hint("exit code 0\n", tmp_path) == ""
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="cmd.exe's own words")
+async def test_cmd_s_words_for_a_bare_neighbour_are_read_for_the_hint(tmp_path):
+    from app.command_runner import _bare_name_hint
+
+    (tmp_path / "helper096.cmd").write_text("@echo helped\n", encoding="utf-8")
+    (tmp_path / "run096.cmd").write_text("@call helper096.cmd\n", encoding="utf-8")
+    output, _code = await run("& .\\run096.cmd", tmp_path)
+    assert "helped" not in output, output
+    assert "%~dp0helper096.cmd" in _bare_name_hint(output, tmp_path), output

@@ -9,7 +9,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
-from sqlalchemy import func, literal_column, select, true
+from sqlalchemy import func, literal_column, or_, select, true
 from sqlalchemy.exc import IntegrityError
 
 from app import ledger, project_map, proof, proof_style
@@ -18,6 +18,7 @@ from app.commands import ANSI as _ANSI
 from app.commands import (
     MAX_STORED_OUTPUT,
     OutputMask,
+    _program,
     _words,
     applies_patch,
     danger,
@@ -183,25 +184,60 @@ PLANTED = "an agent wrote its program ({place}): no rule covers a program an age
 PLANTED_REFUSED = "KOLONİ did not run this: {why}, and nobody is here to ask. " + CARRY_ON
 
 
+# W6: a package runner finds the program it runs by itself - npx, npm exec, yarn, pnpm and bun
+# in the node_modules of the folder it runs in or of one above it; uv, poetry, pipenv, pdm, hatch
+# and `python -m` in an environment: the .venv there or above, or one KOLONİ cannot place - any
+# install folder of the project's counts (fails closed); and `python -m x` reads its folder's
+# x.py first.
+_NODE_RUNNERS = frozenset({"npx", "pnpx", "bunx", "npm", "pnpm", "yarn", "bun"})
+_PY_RUNNERS = frozenset({"uv", "uvx", "poetry", "pipenv", "pdm", "hatch"})
+_PY_INSTALLS = (".venv", "venv", "site-packages")
+
+
+def _runner_places(words: list[str], cwd: str) -> tuple[list[str], tuple[str, ...]] | None:
+    """W6: where a package runner's line (`words`) finds its program - folders and files from the
+    root - and the install folders it may take it from anywhere in the project; None: no
+    runner's line."""
+    name = _program(words[0]) if words else ""
+    above = [PurePosixPath(cwd), *PurePosixPath(cwd).parents]
+    if name in _NODE_RUNNERS:
+        return [str(folder / "node_modules") for folder in above], ()
+    module = words[words.index("-m") + 1].split(".")[0] if "-m" in words[1:-1] else ""
+    if name not in _PY_RUNNERS and not (name in ("python", "python3", "py") and module):
+        return None
+    envs = [str(folder / env) for folder in above for env in (".venv", "venv")]
+    own = [str(PurePosixPath(cwd, f"{module}.py")), str(PurePosixPath(cwd, module))]
+    return [*envs, *(own if module else [])], _PY_INSTALLS
+
+
 def _planted(factory, cid: str, root: Path, command: str, cwd: str) -> str | None:
-    """W2: why a rule, a yes given before or a trigger's leave - each matches by the line's text,
-    in any folder - does not cover `command`: its program, named by its path, is one an agent
-    wrote on record - any turn's, as it still stands in `root` (`proof_style.still_written`) -,
-    or is in the install folder such a write is in (`proof_style.wrote_program`). None: no such
-    write. In a thread: the records are matched to the program's place first, and only those
-    files are read, once the session is closed.
+    """W2, W6: why a rule, a yes given before or a trigger's leave - each matches by the line's
+    text, in any folder - does not cover `command`: its program, named by its path, is one an
+    agent wrote on record - any turn's, as it still stands in `root` (`proof_style.
+    still_written`) -, or is in the install folder such a write is in (`proof_style.
+    wrote_program`); or a package runner's line (`_runner_places`) finds its program where such
+    a write is. None: no such write. In a thread: the records are matched to the program's place
+    first, and only those files are read, once the session is closed.
     shortcut: the program alone - a script an interpreter is given (`node x.js`) is not judged
     so; judge it too if a rule of one is seen to run one an agent wrote."""
-    words = _words(command)
+    words = [word.strip("'\"") for word in _words(command)]
     words = words[1:] if words[:1] in (["&"], ["."]) else words  # (PowerShell's call)
-    program = words[0].strip("'\"") if words else ""
+    program = words[0] if words else ""
     parts = PurePosixPath(program.replace("\\", "/")).parts
-    if not parts or ("/" not in program and "\\" not in program):
+    if parts and ("/" in program or "\\" in program):
+        places, anywhere = None, ()
+        named = [
+            next(
+                (part for part in parts if part.casefold() in proof_style.INSTALLS),
+                parts[-1].split(".")[0],
+            )
+        ]
+    elif runner := _runner_places(words, cwd):
+        places, anywhere = runner
+        named = [*{PurePosixPath(place).name for place in places}, *anywhere]
+    else:
         return None
-    named = next(
-        (part for part in parts if part.casefold() in proof_style.INSTALLS),
-        parts[-1].split(".")[0],
-    ).lower()
+    looked = [name.lower() for name in named]
     with factory() as session:
         found = session.execute(
             select(FileChange.path, FileChange.after_sha)
@@ -212,16 +248,50 @@ def _planted(factory, cid: str, root: Path, command: str, cwd: str) -> str | Non
                 == select(Conversation.project_id).where(Conversation.id == cid).scalar_subquery(),
                 FileChange.status.in_((*ledger.KEPT, proof.MERGED)),
                 # (SQLite lowers ASCII alone: another name is looked for in every path)
-                func.lower(FileChange.path).contains(named, autoescape=True)
-                if named.isascii()
+                or_(*(func.lower(FileChange.path).contains(one, autoescape=True) for one in looked))
+                if all(one.isascii() for one in looked)
                 else true(),
             )
             .order_by(FileChange.created_at, literal_column("file_changes.rowid"))
         ).all()
     newest = {path: digest for path, digest in found}
-    mine = [one for one in newest.items() if proof_style.wrote_program(root, cwd, program, one[:1])]
-    place = proof_style.wrote_program(root, cwd, program, proof_style.still_written(root, mine))
+
+    def plants(rel: str) -> str | None:
+        if places is None:
+            return proof_style.wrote_program(root, cwd, program, [rel])
+        return proof_style.planted_in(root, places, anywhere, rel)
+
+    held = proof_style.still_written(root, [one for one in newest.items() if plants(one[0])])
+    place = next((place for rel in held if (place := plants(rel))), None)
     return PLANTED.format(place=place) if place else None
+
+
+# Y1: cmd.exe's word for a bare name it did not find - under KOLONİ only on PATH (W1, as under
+# git), so a batch file of the user's that calls its neighbour so no longer finds it.
+NOT_RECOGNIZED = "' is not recognized as an internal or external command"
+BARE_NAME = (
+    "\n(KOLONİ's commands find a program named bare on PATH only, never in the folder they run "
+    "in: call {name} as .\\{name} - in a batch file as %~dp0{name}.)"
+)
+
+
+def _bare_name_hint(output: str, folder: Path) -> str:
+    """Y1: the hint for a bare name cmd.exe did not find (`NOT_RECOGNIZED`) that the run's
+    folder has, as it is or with a program's ending; "" for none."""
+    if NOT_RECOGNIZED not in output:
+        return ""
+    for line in output.splitlines():
+        head, found, _rest = line.partition(NOT_RECOGNIZED)
+        name = head[head.rfind("'") + 1 :] if found else ""
+        if (
+            name
+            and not set(name) & set('\\/:*?"<>|')
+            and any(
+                (folder / f"{name}{end}").is_file() for end in ("", ".cmd", ".bat", ".exe", ".com")
+            )
+        ):
+            return BARE_NAME.format(name=name)
+    return ""
 
 
 HELD_BACK = (
@@ -520,7 +590,7 @@ class CommandRunner:
         if not planned.keep_running:
             ended = await self._through(cid, command_id, running, ws.root, planned.timeout)
             status, said = self._told(*ended, planned.timeout, time.monotonic() - started, recall)
-            return status, said + note
+            return status, said + _bare_name_hint(ended[2], planned.cwd_path) + note
         heard = {"url": None, "at": None, "scanned": 0, "closed": self.closed_ports()}
         life = asyncio.ensure_future(self._through(cid, command_id, running, ws.root, None, heard))
         self._serving[command_id] = (cid, life)
