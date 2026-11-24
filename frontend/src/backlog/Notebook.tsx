@@ -1,4 +1,6 @@
 import type { Story } from '../api/types'
+import { GUIDE } from '../shell/guide'
+import { Hint } from '../shell/Hint'
 import { usePanel } from '../shell/usePanel'
 
 const KIND_WORD: Record<string, string> = {
@@ -38,6 +40,13 @@ export function NotebookButton({ story, label }: { story: Pick<Story, 'title' | 
           aria-label={`Notebook of ${story.title}`}
           className="allow-list-panel todo-notebook"
         >
+          <p className="muted">
+            Given to every turn of the story, as data.{' '}
+            <Hint doc={GUIDE.todoNotebook}>
+              KOLONİ notes how each task's turn ended and the files it changed; the task's Orchestrator may add up to
+              three lines a turn, and the Hive keeper its notes as it drafts.
+            </Hint>
+          </p>
           <ul>
             {story.notes.map((note, i) => (
               <li key={i}>

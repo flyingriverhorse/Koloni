@@ -79,8 +79,13 @@ of the fast tier, or of the tier you chose. It skips a provider that is down, at
 plan, or whose pay-per-token use you refused in that turn. With no such model nothing is suggested.
 The model is sent what was said in the turn, the files it changed, the steps that failed and the open
 tasks' titles. The secrets KOLONİ knows, and the variables the project passes to its commands, are
-masked. Jobs while you're away and triggers get suggestions too; rooms, discussions and To-do tasks' own turns get
+masked. Jobs while you're away, triggers and To-do tasks' turns get suggestions too; rooms and discussions get
 none. Nothing is asked while the project is over its monthly budget.
+
+After a turn of a story - one of its tasks' turns, or yours in its topic - a suggestion goes into that story,
+while the story is open; after any other turn it stands alone, in no story. One that comes from the first line
+of a step that failed is a **bug**, any other a **task**: KOLONİ tells them apart by the words a suggestion came
+from, not by what the Scout says.
 
 Each request shows on the canvas as a **Scout** box under the turn, on a dashed line down from
 the Orchestrator: the model, "2 proposed · 1 dropped" (at Full auto also "Orchestrator added 1"), its
@@ -112,9 +117,8 @@ plain list with no story has no such heading.
   started), **● running** (one at work, with the chat it runs in: *in “Auth work”*), **⚠ stuck** (one
   stuck), **done?** (every task done, or waiting at "done?" for your word) and **✓ done**. A story is
   done only when you close it: **⋯ → Close the story**, once each of its tasks is done; **Open it again**
-  undoes it. **📓 N notes** opens its notebook:
-  what was decided, the files touched, the results and the questions left, as the Hive keeper wrote
-  them - read as notes, never as orders.
+  undoes it. **📓 N notes** opens its [notebook](#the-storys-notebook): what was decided, the files
+  touched, the results and the questions left - read as notes, never as orders.
 - A **task** is work to do; a **bug** is something that works wrong, its tag in rose. **⋯ → Edit** sets
   a task's **Story** and **Type**; **None** takes it out of its story. Dragging moves a task within its
   story only.
@@ -129,6 +133,49 @@ it). A story whose tasks are all filtered out still shows when its own state fit
 ![The To-do page as a tree: a goal with its stories done of all, a running story with its notebook and chat, a bug in rose, and the tasks without a story](../images/todo-tree.png)
 
 *A goal, its stories and their tasks and bugs; the tasks of no story last.*
+
+### The story's notebook
+
+Each story keeps a short notebook: **📓 N notes** beside it on this page, and **📓 notes** on the
+[strip over a chat](../use/chat-and-canvas.md#what-the-chat-shows) the story works in. Each note is one
+line - a **decision**, a **file**, a **result** or a **question** - with who wrote it:
+
+- **KOLONİ** notes how each turn of the story's tasks ended - *“Add the reset mail” — done?*, *— stuck: …*
+  or *— not finished: …* - and the files that turn changed in the project, five at most.
+- The task's **Orchestrator** is asked to end its answer with up to three lines
+  `Story note: <decision|file|result|question>: <one line>`; KOLONİ reads them off its answer.
+- The **Hive keeper** adds its notes as it drafts a story.
+
+Every turn of the story is given the notebook, quoted as data, not instructions: each task's first message
+and its fix round carry it, and so do the Orchestrator's instructions in a turn of yours in the story's
+topic, as the notebook stood when that turn began. A session that summarises itself keeps short notes
+it was given and loses details read in passing (in one measured run, 5 of 5 notes against 0 of 5 details
+buried in a long log): the notebook is what is not lost. Long content - a file, an output - is read
+again when it is needed.
+
+What agents write there goes to models at every turn, so KOLONİ holds it to a few rules: the secrets
+KOLONİ knows, and the variables the project passes to its commands, are masked; a line that reads like
+orders is left out (in `runtime/logs/koloni.log`); each note is one line of at most 200 characters, and
+the newest 20 are kept. Notes kept before these rules are checked again as they are given.
+
+### A story's session
+
+A story's tasks go on in one topic of the chat they run in: its Orchestrator sees the turns of the task
+before, and on Claude Code goes on in the same session. The next task starts a new topic of the story -
+a new session - instead where:
+
+- a task of it got **stuck**, or went back to To-do (**Not yet**, Stop), so its wrong guess is not
+  carried on;
+- Claude Code's session holds **half its window** or more, so that KOLONİ's own summary comes before
+  Claude Code's. Copilot and Codex are held to a size of their own already
+  ([Going on from the last turn](../models/setup-cli.md#going-on-from-the-last-turn));
+- a **day** has passed since its last turn there.
+
+The first task in the new topic is told the story so far - KOLONİ's own record of each earlier task and
+how it stands, and the files their turns changed - with the notebook. This is decided as each task
+starts: a **Not yet** on a task while the next one works moves only the ones after it. Any turn's
+Orchestrator is told the names of the chat's other topics, with how a story's or a To-do task's stands:
+*(done)*, *(done?)* or *(stuck)*.
 
 ## Your tasks
 

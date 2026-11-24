@@ -185,8 +185,10 @@ KOLONİ's own words, as they appear on screen.
 
 **Story**
 : On the To-do page, tasks and bugs that go on together. Its state comes from its tasks; it is done
-  only when you close it. It has a short notebook. A **bug** is a task about something that works
-  wrong. See [Goals and stories](../automation/todo.md#goals-and-stories).
+  only when you close it. It has a short notebook, given to each of its turns as data, and its tasks go
+  on in one topic of a chat. A **bug** is a task about something that works wrong. See
+  [Goals and stories](../automation/todo.md#goals-and-stories) and
+  [The story's notebook](../automation/todo.md#the-storys-notebook).
 
 **Sub-agent**
 : An agent that the Orchestrator (or another agent) opens for a part of the work. It works in its

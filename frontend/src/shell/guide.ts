@@ -42,6 +42,7 @@ export const GUIDE = {
   todoRunSettings: 'automation/todo/#run-settings',
   todoProposals: 'automation/todo/#follow-up-tasks',
   todoStories: 'automation/todo/#goals-and-stories',
+  todoNotebook: 'automation/todo/#the-storys-notebook',
   knowledge: 'knowledge/#the-knowledge-page',
   neverOpened: 'security/model/#places-agents-never-open',
   planMeters: 'money/usage/#plan-meters',
