@@ -238,7 +238,7 @@ def go(session: Session, conversation: Conversation, given: dict, runner) -> Awa
         raise Refused("you're away from this project already")
     if backlog.held(session):
         raise Refused("everything is held (Stop everything): Resume first")
-    if why := backlog.busy(session, project_id, waiting=True):
+    if why := busy(session, project_id, waiting=True):
         raise Refused(f"{why}: go away once nothing of the To-do list is at work")
     run_id = session.scalar(
         select(Run.id)
@@ -487,6 +487,72 @@ def _cut_over(session: Session, working: list[BacklogTask], runner, at: datetime
                 )
             ):
                 runner.cut(run_id, why)
+
+
+def busy(session: Session, project_id: str, waiting: bool = False) -> str | None:
+    """Why no task of the backlog starts now - one is doing, or a task's own turn is still at
+    work (its task moved on by hand while its turn runs), or the project works while the user
+    is away (`away`, `app.away`) - or None: what a night waits for.
+    `waiting`: a task whose turn waits for the user's word (a yes, an answer) is not at work
+    (B-147: an earlier night's job waiting for an approval held a new night off for good)."""
+    if backlog.away(session, project_id):
+        return "you're away from this project"
+    ended = (*backlog.ENDED, "waiting_approval") if waiting else ENDED
+    at_work = session.scalar(
+        select(BacklogTask.title)
+        .join(Run, Run.task_id == BacklogTask.id)
+        .where(BacklogTask.project_id == project_id, Run.status.not_in(ended))
+        .limit(1)
+    )
+    if waiting and at_work is None:
+        # (One agent waits for the user while another of the turn still works: at work. An agent
+        # that asks stays "running" on record: the one with nothing open before the user works.)
+        # shortcut: a question, a command, a change or a web request open - an agent to open or
+        # a role asked for is not counted; add those if a wait on them is seen held as work.
+        for title, run_id in session.execute(
+            select(BacklogTask.title, Run.id)
+            .join(Run, Run.task_id == BacklogTask.id)
+            .where(BacklogTask.project_id == project_id, Run.status == "waiting_approval")
+        ):
+            asking = {
+                *session.scalars(
+                    select(Question.agent_id).where(
+                        Question.run_id == run_id, Question.status == "pending"
+                    )
+                ),
+                *session.scalars(
+                    select(Command.agent_id).where(
+                        Command.run_id == run_id, Command.status == "proposed"
+                    )
+                ),
+                *session.scalars(
+                    select(FileChange.agent_id).where(
+                        FileChange.run_id == run_id, FileChange.status == "proposed"
+                    )
+                ),
+                *session.scalars(
+                    select(WebRequest.agent_id).where(
+                        WebRequest.run_id == run_id, WebRequest.status == "proposed"
+                    )
+                ),
+            }
+            if session.scalar(
+                select(Agent.id)
+                .where(Agent.run_id == run_id, Agent.status == "running", Agent.id.not_in(asking))
+                .limit(1)
+            ):
+                at_work = title
+                break
+    task = backlog.doing(session, project_id)
+    waits = waiting and task is not None and at_work is None
+    if task is not None and not (
+        waits
+        and session.scalar(
+            select(Run.id).where(Run.task_id == task.id, Run.status == "waiting_approval").limit(1)
+        )
+    ):
+        return f"{task.title!r} is being worked on"
+    return f"the conversation of {at_work!r} is at work" if at_work else None
 
 
 def go_on(session: Session, project_id: str, runner, at: datetime | None = None) -> bool:

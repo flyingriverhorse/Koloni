@@ -1309,10 +1309,8 @@ def running_docker_commands(session_factory) -> list[str]:
 
 
 def recover_interrupted(session_factory, notes: list | None = None) -> int:
-    """Settle work a previous process left open; nothing is ever re-run.
-
-    Returns the number of runs marked interrupted.
-    """
+    """Settle work a previous process left open; nothing is ever re-run - what waited in a chat's
+    To-do queue goes back to To-do (`backlog.restarted`). The number of runs marked interrupted."""
     restarted = "interrupted: the server restarted before this tool call finished"
     with session_factory() as session:
         runs = session.scalars(select(Run).where(Run.status.not_in(TERMINAL))).all()

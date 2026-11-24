@@ -93,7 +93,6 @@ import type {
   Story,
   TodoTree,
   TodoTreeAdded,
-  BacklogDone,
   TodoTreeIn,
 } from '../api/types'
 import type { RoleValues } from '../agents/AgentsPage'
@@ -263,14 +262,6 @@ interface AppStore extends TeamActions, RecipeActions, CategoryActions {
   decideTask(taskId: string, decision: 'approve' | 'reject'): Promise<void>
   /** OK to the Orchestrator's word on a proposal of the Scout's at Full auto: it leaves "Decided for you". Throws ApiError. */
   seenTask(taskId: string): Promise<void>
-  /** Do in chat: the ticked tasks wait in this chat's queue (null: a new chat's), which opens. Its id. Throws ApiError. */
-  doInChat(taskIds: string[], conversationId: string | null): Promise<string>
-  /** The chat's queue's Remove: the task back on To-do. Throws ApiError. */
-  unqueueTask(taskId: string): Promise<void>
-  /** Fix it, on a stuck task's card: one more fix round in its chat. Throws ApiError. */
-  fixTask(taskId: string): Promise<void>
-  /** Story done?'s Add a task: a task of the story, queued in this chat. Throws ApiError. */
-  addToStory(storyId: string, title: string, conversationId: string): Promise<void>
   /** What the user typed, written as tasks by a model asked once ("Write it with the Hive keeper"); nothing is saved. Throws ApiError. */
   draftTasks(text: string): Promise<BacklogDraft>
   /** The open project's ☾ Away (slice 106): the one that runs, else its last; null: none, or not read yet. */
@@ -1283,38 +1274,6 @@ export const useApp = create<AppStore>()((set, get) => {
         text,
         conversation_id: openChatId(get()),
       }),
-
-    async unqueueTask(taskId) {
-      await api.delete('/backlog/' + taskId + '/queue')
-      await get().loadBacklog()
-    },
-
-    async fixTask(taskId) {
-      await api.post('/backlog/' + taskId + '/fix')
-      await get().loadBacklog()
-    },
-
-    async addToStory(storyId, title, conversationId) {
-      const task = await api.post<BacklogTask>('/projects/' + get().projectId + '/backlog', {
-        title,
-        story_id: storyId,
-      })
-      await api.post('/projects/' + get().projectId + '/backlog/do-in-chat', {
-        task_ids: [task.id],
-        conversation_id: conversationId,
-      })
-      await get().loadBacklog()
-    },
-
-    async doInChat(taskIds, conversationId) {
-      const done = await api.post<BacklogDone>('/projects/' + get().projectId + '/backlog/do-in-chat', {
-        task_ids: taskIds,
-        conversation_id: conversationId,
-      })
-      await Promise.all([get().loadBacklog(), refreshConversations()])
-      await get().openConversation(done.conversation_id)
-      return done.conversation_id
-    },
 
     away: null,
 

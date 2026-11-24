@@ -38,12 +38,12 @@ import type {
   Question,
   Role,
   Run,
-  Story,
   ToolCall,
   TriggerProposal,
   Usage,
 } from '../api/types'
-import { storyDivider, todoLabel, useTodo } from './todo'
+import { todoLabel, useTodo } from './todo'
+import { topicDividers } from './topicDividers'
 import { TodoTurnCards } from './TodoCards'
 import { TodoMessage } from './TodoMessage'
 import { Minis } from './Attach'
@@ -65,7 +65,7 @@ import { MemoryTold } from '../memory/MemoryTold'
 import { NotesOfferCard } from '../knowledge/NotesOfferCard'
 import { RoomRow } from '../room/RoomRow'
 import { inRoom } from '../room/roomText'
-import { continuesFrom, titleOf } from '../topics/topics'
+import { continuesFrom } from '../topics/topics'
 import { refusedIn } from '../triggers/refused'
 import type { Allow } from '../triggers/triggerText'
 import { WouldHaveAsked } from '../triggers/WouldHaveAsked'
@@ -956,30 +956,6 @@ function TriggerMessage({ message, run, onShow }: { message: Message; run?: Run;
       {run && restoring && restoreCard(run, `Restore to before the ${at} message`, () => setRestoring(false))}
     </div>
   )
-}
-
-// Where the topic changes: a line before the first message of a turn whose topic is not
-// that of the turn before it. "New" only the first time the topic is seen.
-function topicDividers(state: ConvState, ordered: Message[], runs: Map<string, Run>, stories: Story[]) {
-  const dividers = new Map<string, string>()
-  const met = new Set<string>()
-  let [turnBefore, topicBefore]: [string | null, string | null | undefined] = [null, undefined]
-  for (const message of ordered) {
-    if (message.run_id === turnBefore) continue
-    turnBefore = message.run_id
-    const topic = state.topics.find(t => t.id === runs.get(message.run_id)?.topic_id)
-    // (0.1.8: a story's topic says its story - over the chat's first turn too.)
-    const story = stories.find(one => one.id === topic?.story_id)
-    if (topic && (topicBefore !== undefined || story) && topic.id !== topicBefore) {
-      dividers.set(
-        message.id,
-        story ? storyDivider(story) : `${met.has(topic.id) ? 'Continuing' : 'New topic'}: ${titleOf(state, topic)}`,
-      )
-    }
-    if (topic) met.add(topic.id)
-    topicBefore = topic?.id ?? null
-  }
-  return dividers
 }
 
 /** What starts a turn: the user's message or a trigger's. It stands above the turn's card, not in it. */

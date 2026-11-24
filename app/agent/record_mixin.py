@@ -355,7 +355,7 @@ class RecordMixin:
             return
         try:
             with self._factory() as session:
-                said = landed(session, run_id)
+                said = self._landed_on_branch(session, run_id) or landed(session, run_id)
                 if said is None:
                     return
                 note = Message(conversation_id=cid, run_id=run_id, role="landed", content=said)

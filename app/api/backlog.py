@@ -119,7 +119,7 @@ async def fix_it(task_id: str, request: Request, session: Session = Depends(get_
     where it is not stuck in a chat."""
     task = _task(session, task_id)
     try:
-        backlog.fix_again(task)
+        backlog.fix_again(session, task)
     except backlog.Refused as exc:
         raise HTTPException(409, str(exc)) from None
     session.commit()
@@ -203,6 +203,8 @@ async def do_in_chat(
         chat = session.get(Conversation, body.conversation_id)
         if chat is None:
             raise HTTPException(404, "conversation not found")
+        if chat.project_id != project.id:
+            raise HTTPException(422, "the chat is not one of this folder")
     else:
         chat = new_chat(session, project)
         session.flush()

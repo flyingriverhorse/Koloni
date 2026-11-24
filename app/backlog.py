@@ -7,7 +7,6 @@ import logging
 import os
 import re
 from collections.abc import Callable
-from types import SimpleNamespace
 
 from sqlalchemy import and_, case, literal_column, or_, select
 from sqlalchemy.orm import Session
@@ -28,18 +27,16 @@ from app.db.models import (
     Merge,
     Message,
     Project,
-    Question,
     Role,
     Room,
     Run,
     Story,
     ToolCall,
     Topic,
-    WebRequest,
     new_chat,
     now,
 )
-from app.memory import _like, search, words
+from app.likeness import alike as alike
 from app.model_client import OwnStop
 from app.providers import works_with_own_tools
 from app.roles import HIVE_KEEPER, LEAD
@@ -185,7 +182,10 @@ def renumber(
 
 
 def add(session: Session, project_id: str, fields: dict, created_by: str) -> BacklogTask:
-    """A new task at the end of the order: todo from the user, proposed from an agent."""
+    """A new task at the end of the order: todo from the user, proposed from an agent. A story
+    closed before is open again with a task added to it: it is not done any more."""
+    if (story := session.get(Story, fields.get("story_id") or "")) is not None:
+        story.closed_at = None
     last = session.scalar(
         select(BacklogTask.position)
         .where(BacklogTask.project_id == project_id)
@@ -411,72 +411,6 @@ def away(session: Session, project_id: str) -> bool:
     )
 
 
-def busy(session: Session, project_id: str, waiting: bool = False) -> str | None:
-    """Why no task of the backlog starts now - one is doing, or a task's own turn is still at
-    work (its task moved on by hand while its turn runs), or the project works while the user
-    is away (`away`, `app.away`) - or None: what a night waits for.
-    `waiting`: a task whose turn waits for the user's word (a yes, an answer) is not at work
-    (B-147: an earlier night's job waiting for an approval held a new night off for good)."""
-    if away(session, project_id):
-        return "you're away from this project"
-    ended = (*ENDED, "waiting_approval") if waiting else ENDED
-    at_work = session.scalar(
-        select(BacklogTask.title)
-        .join(Run, Run.task_id == BacklogTask.id)
-        .where(BacklogTask.project_id == project_id, Run.status.not_in(ended))
-        .limit(1)
-    )
-    if waiting and at_work is None:
-        # (One agent waits for the user while another of the turn still works: at work. An agent
-        # that asks stays "running" on record: the one with nothing open before the user works.)
-        # shortcut: a question, a command, a change or a web request open - an agent to open or
-        # a role asked for is not counted; add those if a wait on them is seen held as work.
-        for title, run_id in session.execute(
-            select(BacklogTask.title, Run.id)
-            .join(Run, Run.task_id == BacklogTask.id)
-            .where(BacklogTask.project_id == project_id, Run.status == "waiting_approval")
-        ):
-            asking = {
-                *session.scalars(
-                    select(Question.agent_id).where(
-                        Question.run_id == run_id, Question.status == "pending"
-                    )
-                ),
-                *session.scalars(
-                    select(Command.agent_id).where(
-                        Command.run_id == run_id, Command.status == "proposed"
-                    )
-                ),
-                *session.scalars(
-                    select(FileChange.agent_id).where(
-                        FileChange.run_id == run_id, FileChange.status == "proposed"
-                    )
-                ),
-                *session.scalars(
-                    select(WebRequest.agent_id).where(
-                        WebRequest.run_id == run_id, WebRequest.status == "proposed"
-                    )
-                ),
-            }
-            if session.scalar(
-                select(Agent.id)
-                .where(Agent.run_id == run_id, Agent.status == "running", Agent.id.not_in(asking))
-                .limit(1)
-            ):
-                at_work = title
-                break
-    task = doing(session, project_id)
-    waits = waiting and task is not None and at_work is None
-    if task is not None and not (
-        waits
-        and session.scalar(
-            select(Run.id).where(Run.task_id == task.id, Run.status == "waiting_approval").limit(1)
-        )
-    ):
-        return f"{task.title!r} is being worked on"
-    return f"the conversation of {at_work!r} is at work" if at_work else None
-
-
 def held_lead(session: Session, chat: Conversation) -> tuple[str, str] | None:
     """What a chat's Orchestrator would run on in a turn nobody watches (`would_run`), and
     how to change it, where that works with tools of its own - which such a turn refuses
@@ -683,6 +617,11 @@ def _go_on_in(
         task = next_in_chat(session, cid)
         if task is None:
             return False
+        if chat.archived_at is not None:  # (nothing starts in a chat put away)
+            stop_queue(session, cid, "the chat was archived")
+            session.commit()
+            tell(session, bus)
+            return True
         if over := over_budget(session, project, chat):
             stop_queue(session, cid, f"the project is {over}")
             session.commit()
@@ -764,12 +703,20 @@ def restarted(session: Session) -> None:
             stop_queue(session, cid, RESTARTED)
 
 
-def fix_again(task: BacklogTask) -> None:
+def fix_again(session: Session, task: BacklogTask) -> None:
     """Fix it: a stuck task of a chat gets another fix round there (`go_on` starts it, in its
     topic, told why it is stuck) - and is stuck again where that does not finish it. Refused
-    where it is not stuck in a chat. Not committed."""
+    where it is not stuck in a chat, or where another task of its story waits or works in another
+    chat (two chats on one story's branch). Not committed."""
     if task.status != "blocked" or task.conversation_id is None:
         raise Refused("only a task stuck in a chat gets a fix round")
+    if task.story_id and (
+        other := _story_elsewhere(session, task.story_id, task.conversation_id, {task.id})
+    ):
+        raise Refused(
+            f"a task of its story ({quoted(other.title)}) is in another chat: fix it once that "
+            "one is over there"
+        )
     why = task.stuck or "it did not finish"
     task.status = "doing"
     set_flow(task, fix=why, stuck=None, fixed=True)
@@ -1495,57 +1442,6 @@ def _story_for(session: Session, project_id: str, args: dict) -> Story | None:
         found = stories.goal_named(session, project_id, goal)
         goal_id = (found or stories.add_goal(session, project_id, goal, "agent")).id
     return stories.add_story(session, project_id, title, goal_id, "agent")
-
-
-# A file's name or path in a title, by its ending: "docs/usage.md", "test_server.py".
-_FILE = re.compile(r"[\w./\\-]+\.[a-z]{1,5}\b", re.IGNORECASE)
-# ...and a project's well-known files by their name alone: "the README" is README.md (B-407).
-_KNOWN = re.compile(
-    r"\b(readme|licen[cs]e|changelog|contributing|makefile|dockerfile)\b", re.IGNORECASE
-)
-# What any change of a file says: two tasks on one file are not alike by these words.
-_ANY_CHANGE = re.compile(r"\b(add|update|fix|write|files?)\b", re.IGNORECASE)
-
-
-def _files(title: str) -> set[str]:
-    """The names of the files a title names, folded, without their folders ("app/parser.py"
-    is "parser.py"); not "e.g." nor "U.S.": no path and two letters or fewer before the dot.
-    A well-known one by its name alone, whatever its ending: README.md is "readme"."""
-    title = title.replace("`", "")
-    found = (re.split(r"[/\\]", path) for path in _FILE.findall(title))
-    names = {
-        parts[-1].casefold()
-        for parts in found
-        if len(parts) > 1 or len(parts[-1].split(".")[0]) > 2
-    }
-    return {stem if _KNOWN.fullmatch(stem := name.split(".")[0]) else name for name in names} | {
-        known.casefold() for known in _KNOWN.findall(title)
-    }
-
-
-def alike(one: str, other: str) -> bool:
-    """Whether either title is found by the other, by the memory's word matching: a short
-    title ("Fix calc.average") is too few of a long one's words to find it. Two that name
-    files, none of them by the same name, are not: "Add docs/usage.md" is not "Write
-    docs/overview.md" (B-403); two on the same file that both say more than its name and
-    "add" or "update" are not either unless they share a word of that (B-407).
-    shortcut: a file is told by a short ending or a well-known name (`_KNOWN`), so "Node.js"
-    or "obj.mean" is one too and "the license" is LICENSE; check the names against the
-    project's files if tasks are seen apart wrongly."""
-    files = [_files(one), _files(other)]
-    if all(files):
-        if not files[0] & files[1]:
-            return False
-        said = [
-            words(_ANY_CHANGE.sub(" ", _KNOWN.sub(" ", _FILE.sub(" ", title.replace("`", "")))))
-            for title in (one, other)
-        ]
-        if all(said) and not any(_like(word, own) for word in said[0] for own in said[1]):
-            return False
-    return any(
-        search(query, [SimpleNamespace(about=None, text=text, observed_at=0)])
-        for query, text in ((one, other), (other, one))
-    )
 
 
 def change_task(session: Session, project_id: str, args: dict) -> str:

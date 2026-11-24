@@ -7,6 +7,7 @@ import { ChatTeams } from './agents/ChatTeams'
 import { AwayStatus } from './backlog/Away'
 import { BacklogPage } from './backlog/BacklogPage'
 import { OPEN_TODO } from './chat/TodoCards'
+import { doInChat } from './chat/todoActions'
 import { BoardPage } from './board/BoardPage'
 import { ConflictStrip } from './board/ConflictStrip'
 import { QuestionCard } from './agents/QuestionCard'
@@ -825,7 +826,7 @@ export function App() {
         onDelete={useApp.getState().deleteTask}
         onDecide={useApp.getState().decideTask}
         onDoInChat={async (ids, cid) => {
-          await useApp.getState().doInChat(ids, cid)
+          await doInChat(ids, cid)
           setView('canvas')
         }}
         onOpen={id => {

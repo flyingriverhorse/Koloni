@@ -4,6 +4,7 @@ import { useAsk } from '../memory/useAsk'
 import type { ConvState } from '../state/applyEvent'
 import { useApp } from '../state/store'
 import { chatQueue } from './todo'
+import { unqueueTask } from './todoActions'
 
 /** Above the message box: the chat's To-do queue - the task at work, those waiting (each can go back), and that your message goes first. */
 export function TodoQueue({
@@ -63,5 +64,5 @@ export function ChatTodoQueue({ conv, open }: { conv: ConvState | null; open: bo
   }, [here, tasks, backlog])
   if (!open || !here || !backlog || !conv) return null
   const { running, waiting } = chatQueue(backlog, conv.conversation.id)
-  return <TodoQueue running={running} waiting={waiting} onRemove={useApp.getState().unqueueTask} />
+  return <TodoQueue running={running} waiting={waiting} onRemove={unqueueTask} />
 }

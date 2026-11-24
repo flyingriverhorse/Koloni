@@ -889,7 +889,6 @@ def test_a_job_that_waits_for_a_question_after_a_refused_command_says_so_and_hol
     # B-147 (live, R68/R69): an earlier night's job waiting for the user held a new night off for good
     # ("... is being worked on: the jobs start once nothing else of the To-do list is at work"); its
     # command refused, the job asked a question in its chat - in neither the report nor anywhere else.
-    from app import backlog
 
     run = step(call("run_command", {"command": "echo hi"}))
     question = step(
@@ -911,7 +910,7 @@ def test_a_job_that_waits_for_a_question_after_a_refused_command_says_so_and_hol
     assert (one["state"], one["why"]) == ("waits", "Lead asks you something (ask_user)")
     # Waiting for the user's word, it is not at work: a new Away starts (its tasks, the next ones).
     with client.app.state.runner._factory() as session:
-        assert backlog.busy(session, pid) is not None  # (the To-do list's own start: as before)
+        assert away.busy(session, pid) is not None  # (the To-do list's own start: as before)
     three = client.post(f"/api/projects/{pid}/backlog", json={"title": "three"}).json()["id"]
     started = client.post(f"/api/conversations/{cid}/away", json={"task_ids": [three]})
     assert started.status_code == 200, started.text

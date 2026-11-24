@@ -69,7 +69,9 @@ works in a copy of the project of its own.
 
 - **Level and model:** the job's chat has the model and the permission level of the chat you went away
   from (the Away panel says which). Its other settings are the project's, as in any chat:
-  who changes the files, opening sub-agents, and the rest.
+  who changes the files, opening sub-agents, and the rest. Where that chat is at **Full auto** and the
+  project's Full auto check is **Check what I said first**, the Orchestrator may run, by your own
+  written words, a command the night would otherwise wait for you on.
 - **Team and recipe:** where you picked the teams in that chat (**Manual**), the job's chat has
   them, with their recipes.
 - **The copy** leaves out `.git/`, `build/`, `dist/` and caches, and shares `node_modules/`, `.venv/`

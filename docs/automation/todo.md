@@ -199,7 +199,14 @@ after another - each turn in a worktree of it, so nothing of the story is in you
 it. **Close the story** runs KOLONİ's check on the branch - the tests its tasks wrote: it passes, the branch
 is merged into yours, or sent as a pull request where the project's finished work goes so
 ([Branches](../use/workspace.md#branches)); it fails, the branch waits and the story's last task
-is stuck with why - **Fix it** goes on on the branch, then close it again. A task of no story has a small
+is stuck with why - **Fix it** goes on on the branch, then close it again. It goes in by itself only at
+**Full auto**, or where its check ran and passed; below that, a branch nothing tested waits on its **Merge**
+(or pull request) card in the chat, and **Discard** there keeps the branch and the story open. A branch
+holding a secret KOLONİ knows is held too, its last task stuck with why. Where the branch cannot be opened -
+your folder on no branch, or on the story's branch itself - nothing goes in and the story stays open; only a
+branch deleted from git counts as gone. A chat holding a story's branch is not deleted until the story is
+closed or deleted; a deleted story's branch stays in git, and its chat says so. A task added to a closed
+story opens it again. A task of no story has a small
 branch of its own, merged at the end of its turn as a team's branch is (at **Ask before changes**, on a card).
 A project with no git has no branch: the tasks work in the project, agents holding the files they change
 as in any chat. Where the chat's Orchestrator is a CLI that works with its own tools in the project, its

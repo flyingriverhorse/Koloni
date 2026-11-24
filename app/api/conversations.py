@@ -13,6 +13,7 @@ from app.api.board import outcomes
 from app.api.deps import get_session, require_origin, require_own_origin
 from app.api.projects import checked_folders
 from app.api.providers import apply_choice
+from app.api.stories import branch_of
 from app.api.teams import chat_rows
 from app.api.usage import over_budget
 from app.commands import rules_here, search_reason, web_rules_here
@@ -43,6 +44,7 @@ from app.db.models import (
     RoomItem,
     RoomPost,
     Run,
+    Story,
     ToolCall,
     Topic,
     Trigger,
@@ -556,6 +558,21 @@ def _kept_from_deleting(session: Session, conversation: Conversation) -> str | N
         .limit(1)
     ):
         return "its jobs are being worked on while you're away: stop it first"
+    return _story_branch_here(session, conversation)
+
+
+def _story_branch_here(session: Session, conversation: Conversation) -> str | None:
+    """0.1.8: why a chat holding an open story's branch is not deleted - its turns' records say
+    where the story's work is (`stories.branch_lead`), which Close the story goes on from."""
+    for story in session.scalars(
+        select(Story).where(Story.project_id == conversation.project_id, Story.closed_at.is_(None))
+    ):
+        found = branch_of(session, story.id)
+        if found is not None and found[0].conversation_id == conversation.id:
+            return (
+                f"it holds the work of the story {quoted(story.title)} on its branch {found[1]}: "
+                "close the story, or delete it, first"
+            )
     return None
 
 
@@ -576,6 +593,11 @@ def _copy_waits(session: Session, runs) -> bool:
 
 
 def _delete_for_good(session: Session, ids: list[str]) -> None:
+    # (A To-do task waiting in their queue, or due its fix round there, is back on To-do.)
+    for task in session.scalars(select(BacklogTask).where(BacklogTask.conversation_id.in_(ids))):
+        backlog.set_flow(task, place=None, fix=None)
+        if task.status == "doing" and task.away_run_id is None:
+            task.status = "todo"
     runs = select(Run.id).where(Run.conversation_id.in_(ids))
     agents = select(Agent.id).where(Agent.run_id.in_(runs))
     # What points at them by id alone (a memory record, a backlog task, a trigger's past

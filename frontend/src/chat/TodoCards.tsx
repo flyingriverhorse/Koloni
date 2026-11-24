@@ -3,6 +3,7 @@ import type { BacklogTask, Run, Story } from '../api/types'
 import { useAsk } from '../memory/useAsk'
 import { useApp } from '../state/store'
 import { storyDone } from './todo'
+import { addToStory, fixTask } from './todoActions'
 
 /** A card's buttons, and what went wrong with the last press. */
 function Buttons({ items, error }: { items: [string, () => void, boolean?][]; error: string | null }) {
@@ -181,7 +182,7 @@ export function TodoTurnCards({ cid, runs, runId }: { cid: string; runs: Run[]; 
       {last(run => run.task_id === task.id) && task.status === 'blocked' && task.stuck && (
         <StuckCard
           task={task}
-          onFix={app.fixTask}
+          onFix={fixTask}
           onOpenTodo={id => window.dispatchEvent(new CustomEvent(OPEN_TODO, { detail: id }))}
         />
       )}
@@ -189,7 +190,7 @@ export function TodoTurnCards({ cid, runs, runId }: { cid: string; runs: Run[]; 
         <StoryDoneCard
           story={story}
           onClose={id => app.changeStory(id, { closed: true })}
-          onAdd={(id, title) => app.addToStory(id, title, cid)}
+          onAdd={(id, title) => addToStory(id, title, cid)}
         />
       )}
     </>

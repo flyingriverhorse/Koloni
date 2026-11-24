@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from alembic import command
 
-from app import backlog
+from app import away, backlog
 from app.agent import recover_interrupted
 from app.db import models
 from app.db.models import BacklogTask, Run
@@ -315,10 +315,10 @@ def test_a_task_whose_turn_waits_for_the_user_is_at_work_while_another_agent_of_
             ]
         )
         session.commit()
-        assert backlog.busy(session, pid, waiting=True) is not None
+        assert away.busy(session, pid, waiting=True) is not None
         session.get_one(Agent, "b").status = "waiting_approval"
         session.commit()
-        assert backlog.busy(session, pid, waiting=True) is None
+        assert away.busy(session, pid, waiting=True) is None
 
 
 def test_add_task_puts_a_proposal_in_a_story_named_by_its_title(client, project_dir):
