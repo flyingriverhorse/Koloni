@@ -4389,10 +4389,14 @@ class CopilotNativeClient(CodexNativeClient):
         sent `told` (what came since its last answer) - else, or where it cannot go on there
         (`NotResumed`: said once on the agent's record), a new session in a new home, sent the
         whole conversation (`given`). A home it was not kept in goes (`_keep`); one made for a
-        turn that failed too."""
-        home = copilot_home(kept or {}, self._sessions) if self._sessions and told else None
-        if kept and resume and home:
+        turn that failed too. A kept home keeps the spelling it was kept by: another would not be
+        told from it (`AgentRunner._forget_unkept`), and its own session forgotten."""
+        valid = copilot_home(kept or {}, self._sessions) if self._sessions and told else None
+        if kept and resume and valid:
+            home = Path(str(kept["home"]))
             try:
+                if not valid.is_dir():  # (removed by hand, or not in a backup restored)
+                    raise NotResumed("its home is gone")
                 result = await conversed(told, home, resume)
                 return self._keep(result, under, home, kept.get("spent") or {})
             except NotResumed as exc:
@@ -4414,7 +4418,7 @@ class CopilotNativeClient(CodexNativeClient):
         assert self._sessions is not None  # (`resumes`)
         home = self._sessions / uuid.uuid4().hex
         home.mkdir(parents=True)
-        return home
+        return home.resolve()  # (kept by this one spelling from now on)
 
     def _keep(
         self, result: SessionResult, under: str, home: Path, spent: dict | None

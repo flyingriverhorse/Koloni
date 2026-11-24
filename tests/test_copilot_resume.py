@@ -6,6 +6,7 @@ stand-in (`fake_copilot_headless.py`) runs here (measured: cli-surdurme-olcum.md
 
 import asyncio
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -67,7 +68,7 @@ def copilot(tmp_path):
     runtime = tmp_path / "runtime"
     sessions = runtime / "cli-homes" / COPILOT_SESSIONS
 
-    def make(**more) -> CopilotNativeClient:
+    def make(sessions_at: Path | None = None, **more) -> CopilotNativeClient:
         plan.write_text(plan_of(record, starts, **more), encoding="utf-8")
         return CopilotNativeClient(
             None,
@@ -75,7 +76,7 @@ def copilot(tmp_path):
             timeout=30,
             launcher=HEADLESS,
             env={"FAKE_CLI_PLAN": str(plan)},
-            sessions=sessions,
+            sessions=sessions_at or sessions,
         )
 
     make.runtime, make.sessions = runtime, sessions
@@ -183,6 +184,30 @@ def test_another_level_folder_leave_or_model_starts_a_new_session_in_a_new_home(
     assert "fix the greeting" in seen["prompt"] and "tests" in seen["prompt"]
     assert result.session["home"] != kept["home"] and result.session["under"] != kept["under"]
     assert seen["home_was_empty"]
+
+
+def test_its_home_keeps_one_spelling_however_the_runtime_is_named(copilot, tmp_path):
+    # (A runtime root named by another path - "..", a link - is never another home: the agent
+    # tells a session it goes on in by its home, and forgets one it does not.)
+    roundabout = tmp_path / "elsewhere" / ".." / "runtime" / "cli-homes" / COPILOT_SESSIONS
+    kept = run(copilot(sessions_at=roundabout), tmp_path, FIRST)[0].session
+    second = run(copilot(sessions_at=roundabout), tmp_path, SECOND, session=kept)[0]
+    assert "resume" in copilot.record()
+    assert (second.session["id"], second.session["home"]) == (kept["id"], kept["home"])
+    third = run(copilot(sessions_at=roundabout), tmp_path, THIRD, session=second.session)[0]
+    assert "resume" in copilot.record() and third.session["home"] == kept["home"]
+    assert Path(kept["home"]).is_dir()
+
+
+def test_a_kept_home_that_is_gone_starts_anew_with_no_copilot_asked_to_go_on(copilot, tmp_path):
+    kept = run(copilot(), tmp_path, FIRST)[0].session
+    shutil.rmtree(kept["home"])  # (removed by hand, or a backup restored without it)
+    before = copilot.starts()
+    result, items = run(copilot(), tmp_path, SECOND, session=kept)
+    assert copilot.starts() == before + 1 and "create" in copilot.record()
+    assert "fix the greeting" in copilot.record()["prompt"]
+    assert "its home is gone" in said(items, "session")[0]
+    assert result.session["home"] != kept["home"] and Path(result.session["home"]).is_dir()
 
 
 def test_a_session_it_does_not_have_starts_anew_once_said_on_its_record(copilot, tmp_path):
