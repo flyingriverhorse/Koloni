@@ -42,7 +42,8 @@ unread and how many things wait for you.
   card for **Take in** or **Discard**. See
   [Working copies and Take in](workspace.md#when-an-agent-stops).
 - Pasted code becomes a code block by itself, with **Paste as plain text** to undo that.
-- **New topic** starts a new topic with the next message.
+- **New topic** starts a new topic with the next message: the Orchestrator is then sent that topic's turns
+  only, and the earlier ones by name. See [Topics](../memory.md#topics).
 - The message box is one box. Its top line says what the chat does now: "Orchestrator is ready" with the
   model (choose the model there; on GitHub Copilot's `auto` or `fusion` it names the model Copilot picked
   last, "fusion → gpt-6-luna", with Copilot's reason in its tooltip); while a turn runs, what it does now,

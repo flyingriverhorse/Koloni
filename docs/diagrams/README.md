@@ -11,6 +11,7 @@ the code it was drawn from and the day it was checked against it.
 | `turn.drawio` | [Chat and canvas](../use/chat-and-canvas.md) |
 | `permissions.drawio` | [Permission levels](../use/permissions.md) |
 | `memory.drawio` | [Memory](../memory.md) |
+| `topics.drawio` | [Memory › Topics](../memory.md#topics) |
 | `models.drawio` | [Providers](../models/providers.md) |
 | `teams.drawio` | [Recipes and candidates](../agents/recipes.md) |
 | `night.drawio` | [Triggers](../automation/triggers.md), [Work while you're away](../automation/overnight.md) |

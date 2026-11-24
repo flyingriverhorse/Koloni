@@ -13,10 +13,18 @@ Everything KOLONİ keeps is under `runtime/` in its folder, or under `KOLONI_RUN
 | `logs/koloni.log` | KOLONİ's log. It rotates at 10 MB and keeps five old files. |
 | `attachments/`, `skills/` | Files you attached, and KOLONİ's copies of skills. |
 | `copies/` | Sub-agents' working copies. |
+| `cli-homes/<provider id>/` | The sign-in folder of a Claude Code or Codex provider set to **Sign-in: Its own for KOLONİ**: its login and its settings. Claude Code run **Native** keeps its sessions there (each one's `projects/…/<session>.jsonl` and `file-history/<session>`), for a topic's next turn to go on in ([Topics](../memory.md#topics)). A session no turn will go on in is removed; the last one of each topic stays until its chat is deleted. |
+| `server-homes/` | Empty homes for Claude Code or Codex run on your own model server, so that none of your own sign-in or settings is used. They are not removed. |
+| `agy-home/` | agy's home for one run, removed after it and at each start. |
 
 If `runtime/` is inside a git repository, working copies go to `%LOCALAPPDATA%\KOLONI\copies` on
 Windows, or `~/.local/share/KOLONI/copies` elsewhere. MCP servers start in KOLONİ's own folder in your
 cache (`%LOCALAPPDATA%\KOLONI\mcp` on Windows).
+
+GitHub Copilot is started each turn with an empty home of its own (`COPILOT_HOME`): `home` in a
+`koloni-cli-…` folder in the system's temp folder, removed when its run ends. Nothing of your own
+`~/.copilot` is used, and nothing of its session is kept; on GitHub's plan it signs in with the token
+you gave the provider, or else your own `gh` login.
 
 KOLONİ's own files in a project are under `.koloni/`: rules, settings, recipes and Knowledge.
 
@@ -54,9 +62,12 @@ Only these, and each only when you set it up or an agent is allowed to:
 ## Deleting
 
 - **Chats**: archive them first, then delete them from the archive. "This cannot be undone in KOLONİ."
-  Their messages, their agents' work and their usage go too.
+  Their messages, their agents' work and their usage go too, and the Claude Code sessions their agents
+  kept under `cli-homes/` (each one's transcript and file history; anything else Claude Code keeps of a
+  session stays).
 - **Providers, triggers, roles, skills, MCP servers, teams, recipes, knowledge** and **To-do tasks** can
-  each be deleted on their page.
+  each be deleted on their page. A provider's sign-in folder under `cli-homes/` goes with it, its login
+  and kept sessions with it.
 - **Memory** is never deleted from the page: removing a fact hides it from agents and keeps it in
   History.
 - **A project** is deleted in Settings › This project › This folder, once you type its name: its chats, memory,
